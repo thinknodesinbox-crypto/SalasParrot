@@ -1,0 +1,1164 @@
+import { createFileRoute, Link } from '@tanstack/react-router'
+import { motion, AnimatePresence } from 'framer-motion'
+import { useState, useRef } from 'react'
+
+export const Route = createFileRoute('/dashboard/leads')({
+  component: LeadsPage,
+})
+
+interface Lead {
+  id: string
+  name: string
+  email?: string
+  company: string
+  title: string
+  linkedinUrl: string
+  status: 'new' | 'enriched' | 'in_campaign' | 'replied' | 'connected'
+  addedAt: string
+}
+
+interface LeadList {
+  id: string
+  name: string
+  leadCount: number
+  enrichedCount: number
+  inCampaign: boolean
+  createdAt: string
+  source: string
+}
+
+type ImportMethod =
+  | 'linkedin_search'
+  | 'sales_nav_leads'
+  | 'sales_nav_accounts'
+  | 'linkedin_recruiter'
+  | 'linkedin_events'
+  | 'linkedin_post_reactors'
+  | 'csv'
+  | 'linkedin_companies'
+  | 'paste_urls'
+
+const IMPORT_METHODS: {
+  id: ImportMethod
+  title: string
+  description: string
+  icon: React.ReactNode
+  color: string
+  category: 'linkedin' | 'import'
+}[] = [
+  {
+    id: 'linkedin_search',
+    title: 'LinkedIn Search',
+    description: 'Search and import leads directly from LinkedIn people search',
+    icon: <LinkedInSearchIcon />,
+    color: '#0A66C2',
+    category: 'linkedin',
+  },
+  {
+    id: 'sales_nav_leads',
+    title: 'Sales Navigator (Leads)',
+    description: 'Export leads from your Sales Navigator saved searches',
+    icon: <SalesNavIcon />,
+    color: '#0A66C2',
+    category: 'linkedin',
+  },
+  {
+    id: 'sales_nav_accounts',
+    title: 'Sales Navigator (Accounts)',
+    description: 'Export accounts/companies from Sales Navigator',
+    icon: <SalesNavAccountsIcon />,
+    color: '#0A66C2',
+    category: 'linkedin',
+  },
+  {
+    id: 'linkedin_recruiter',
+    title: 'LinkedIn Recruiter',
+    description: 'Import candidates from LinkedIn Recruiter searches',
+    icon: <RecruiterIcon />,
+    color: '#0A66C2',
+    category: 'linkedin',
+  },
+  {
+    id: 'linkedin_events',
+    title: 'LinkedIn Events',
+    description: 'Import attendees from LinkedIn event pages',
+    icon: <EventIcon />,
+    color: '#0A66C2',
+    category: 'linkedin',
+  },
+  {
+    id: 'linkedin_post_reactors',
+    title: 'LinkedIn Post Reactors',
+    description: 'Import people who reacted to specific LinkedIn posts',
+    icon: <ReactorsIcon />,
+    color: '#0A66C2',
+    category: 'linkedin',
+  },
+  {
+    id: 'linkedin_companies',
+    title: 'LinkedIn Companies',
+    description: 'Search and import employees from company pages',
+    icon: <CompaniesIcon />,
+    color: '#0A66C2',
+    category: 'linkedin',
+  },
+  {
+    id: 'csv',
+    title: 'Import from CSV',
+    description: 'Upload a CSV file with LinkedIn URLs or contact info',
+    icon: <CSVIcon />,
+    color: '#22C55E',
+    category: 'import',
+  },
+  {
+    id: 'paste_urls',
+    title: 'Paste LinkedIn URLs',
+    description: 'Paste LinkedIn profile URLs directly',
+    icon: <PasteIcon />,
+    color: '#8B5CF6',
+    category: 'import',
+  },
+]
+
+function LeadsPage() {
+  const [showImportModal, setShowImportModal] = useState(false)
+  const [selectedList, setSelectedList] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [filterType, setFilterType] = useState<'all' | 'enriched' | 'not_enriched'>('all')
+
+  const [lists, setLists] = useState<LeadList[]>([])
+  const [leads] = useState<Lead[]>([])
+
+  return (
+    <div className="space-y-4 md:space-y-6">
+      {/* Page Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-xl md:text-2xl font-bold text-[#1E293B]">Leads</h1>
+          <p className="text-[#64748B] mt-1 text-sm md:text-base">Import, organize, and enrich your prospects</p>
+        </div>
+        <button
+          onClick={() => setShowImportModal(true)}
+          className="flex items-center justify-center gap-2 px-4 py-2.5 bg-[#FF6B35] text-white font-medium rounded-lg hover:bg-[#E85A2A] transition-colors w-full sm:w-auto shadow-[0_2px_8px_rgba(255,107,53,0.25)]"
+        >
+          <PlusIcon />
+          Add Leads
+        </button>
+      </div>
+
+      {/* Search and Filters */}
+      <div className="flex flex-col md:flex-row items-stretch md:items-center gap-3 md:gap-4">
+        <div className="flex-1 relative">
+          <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8]" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search lists or leads..."
+            className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-[#E2E8F0] bg-white focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20 focus:border-[#FF6B35] transition-all"
+          />
+        </div>
+        <div className="flex gap-2 md:gap-4 overflow-x-auto">
+          <select
+            value={filterType}
+            onChange={(e) => setFilterType(e.target.value as 'all' | 'enriched' | 'not_enriched')}
+            className="px-3 md:px-4 py-2.5 rounded-lg border border-[#E2E8F0] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20 focus:border-[#FF6B35] min-w-[120px]"
+          >
+            <option value="all">All Lists</option>
+            <option value="enriched">Enriched</option>
+            <option value="not_enriched">Not Enriched</option>
+          </select>
+          <select
+            className="px-3 md:px-4 py-2.5 rounded-lg border border-[#E2E8F0] bg-white text-sm focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20 focus:border-[#FF6B35] min-w-[140px]"
+          >
+            <option value="">Campaign Status</option>
+            <option value="in_campaign">In Campaign</option>
+            <option value="not_in_campaign">Not in Campaign</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Content */}
+      {lists.length === 0 && !selectedList ? (
+        <EmptyState onImport={() => setShowImportModal(true)} />
+      ) : selectedList ? (
+        <LeadListDetail
+          list={lists.find(l => l.id === selectedList)!}
+          leads={leads}
+          onBack={() => setSelectedList(null)}
+        />
+      ) : (
+        <LeadListsGrid lists={lists} onSelectList={setSelectedList} />
+      )}
+
+      {/* Import Modal */}
+      <AnimatePresence>
+        {showImportModal && (
+          <ImportLeadsModal
+            onClose={() => setShowImportModal(false)}
+            onImport={(newList) => {
+              setLists([...lists, newList])
+              setShowImportModal(false)
+            }}
+          />
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
+function EmptyState({ onImport }: { onImport: () => void }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="bg-white rounded-xl border border-[#E2E8F0] p-8 md:p-12"
+    >
+      <div className="max-w-lg mx-auto text-center">
+        {/* Illustration */}
+        <div className="w-40 h-40 mx-auto mb-8 relative">
+          <div className="absolute inset-0 bg-gradient-to-br from-[#FFF7ED] to-[#FFEDD5] rounded-full" />
+          <div className="absolute inset-6 bg-white rounded-full shadow-inner" />
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="w-16 h-16 bg-white rounded-2xl shadow-lg flex items-center justify-center border border-[#E2E8F0]">
+              <ListIcon className="w-8 h-8 text-[#FF6B35]" />
+            </div>
+          </div>
+          <motion.div
+            animate={{ y: [0, -5, 0] }}
+            transition={{ duration: 2, repeat: Infinity }}
+            className="absolute -right-2 top-4 w-10 h-10 bg-gradient-to-br from-[#14B8A6] to-[#0D9488] rounded-xl flex items-center justify-center shadow-lg"
+          >
+            <EnrichIcon className="w-5 h-5 text-white" />
+          </motion.div>
+          <motion.div
+            animate={{ y: [0, 5, 0] }}
+            transition={{ duration: 2.5, repeat: Infinity }}
+            className="absolute -left-2 bottom-6 w-8 h-8 bg-[#0A66C2] rounded-lg flex items-center justify-center shadow-lg"
+          >
+            <LinkedInSmallIcon className="w-4 h-4 text-white" />
+          </motion.div>
+        </div>
+
+        <h2 className="text-2xl font-bold text-[#1E293B] mb-3">No lead lists yet</h2>
+        <p className="text-[#64748B] mb-8 text-lg">
+          Import prospects from LinkedIn, Sales Navigator, CSV, or paste URLs. We'll automatically find verified business emails.
+        </p>
+
+        <button
+          onClick={onImport}
+          className="inline-flex items-center gap-2 px-8 py-4 bg-[#FF6B35] text-white font-semibold rounded-xl hover:bg-[#E85A2A] transition-all shadow-[0_4px_14px_rgba(255,107,53,0.35)] hover:shadow-[0_6px_20px_rgba(255,107,53,0.4)] hover:-translate-y-0.5"
+        >
+          <PlusIcon className="w-5 h-5" />
+          Import Your First Leads
+        </button>
+
+        {/* Import options preview */}
+        <div className="mt-10 grid grid-cols-3 gap-3">
+          {[
+            { icon: <LinkedInSmallIcon className="w-4 h-4 text-[#0A66C2]" />, label: 'LinkedIn', bg: '#EFF6FF' },
+            { icon: <SalesNavIcon className="w-4 h-4 text-[#0A66C2]" />, label: 'Sales Nav', bg: '#EFF6FF' },
+            { icon: <CSVIcon className="w-4 h-4 text-[#22C55E]" />, label: 'CSV Upload', bg: '#F0FDF4' },
+          ].map((item, i) => (
+            <div key={i} className="p-3 rounded-lg" style={{ backgroundColor: item.bg }}>
+              <div className="flex justify-center mb-2">{item.icon}</div>
+              <p className="text-xs font-medium text-[#1E293B]">{item.label}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </motion.div>
+  )
+}
+
+function LeadListsGrid({ lists, onSelectList }: { lists: LeadList[]; onSelectList: (id: string) => void }) {
+  return (
+    <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      {lists.map((list, index) => (
+        <motion.button
+          key={list.id}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: index * 0.05 }}
+          onClick={() => onSelectList(list.id)}
+          className="bg-white rounded-xl border border-[#E2E8F0] p-5 text-left hover:border-[#FF6B35]/30 hover:shadow-md transition-all group"
+        >
+          <div className="flex items-start justify-between mb-4">
+            <div className="w-10 h-10 rounded-lg bg-[#FFF7ED] flex items-center justify-center">
+              <ListIcon className="w-5 h-5 text-[#FF6B35]" />
+            </div>
+            {list.inCampaign && (
+              <span className="text-xs font-medium px-2 py-1 bg-[#F0FDF4] text-[#22C55E] rounded-full">
+                In Campaign
+              </span>
+            )}
+          </div>
+          <h3 className="font-semibold text-[#1E293B] mb-1 group-hover:text-[#FF6B35] transition-colors">
+            {list.name}
+          </h3>
+          <div className="flex items-center gap-4 text-sm text-[#64748B]">
+            <span>{list.leadCount} leads</span>
+            <span className="flex items-center gap-1">
+              <EnrichIcon className="w-3.5 h-3.5 text-[#14B8A6]" />
+              {list.enrichedCount} enriched
+            </span>
+          </div>
+          <div className="flex items-center justify-between mt-3">
+            <span className="text-xs text-[#94A3B8] px-2 py-0.5 bg-[#F8FAFC] rounded">{list.source}</span>
+            <span className="text-xs text-[#94A3B8]">{list.createdAt}</span>
+          </div>
+        </motion.button>
+      ))}
+    </div>
+  )
+}
+
+function LeadListDetail({
+  list,
+  leads,
+  onBack
+}: {
+  list: LeadList
+  leads: Lead[]
+  onBack: () => void
+}) {
+  const [selectedLeads, setSelectedLeads] = useState<string[]>([])
+
+  return (
+    <div className="space-y-4">
+      {/* Breadcrumb */}
+      <div className="flex items-center gap-2 text-sm">
+        <button onClick={onBack} className="text-[#64748B] hover:text-[#1E293B] transition-colors flex items-center gap-1">
+          <BackIcon className="w-4 h-4" />
+          All Lists
+        </button>
+        <ChevronRightIcon className="w-4 h-4 text-[#94A3B8]" />
+        <span className="text-[#1E293B] font-medium">{list.name}</span>
+      </div>
+
+      {/* List Header */}
+      <div className="bg-white rounded-xl border border-[#E2E8F0] p-6">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-[#FFF7ED] flex items-center justify-center">
+              <ListIcon className="w-6 h-6 text-[#FF6B35]" />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-[#1E293B]">{list.name}</h2>
+              <div className="flex items-center gap-4 text-sm text-[#64748B] mt-1">
+                <span>{list.leadCount} leads</span>
+                <span className="flex items-center gap-1">
+                  <EnrichIcon className="w-3.5 h-3.5 text-[#14B8A6]" />
+                  {list.enrichedCount} emails found
+                </span>
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 flex-wrap">
+            <button className="px-4 py-2 border border-[#E2E8F0] rounded-lg text-sm font-medium text-[#64748B] hover:bg-[#F8FAFC] transition-colors">
+              Export
+            </button>
+            <button className="px-4 py-2 border border-[#E2E8F0] rounded-lg text-sm font-medium text-[#14B8A6] hover:bg-[#F0FDFA] transition-colors flex items-center gap-2">
+              <EnrichIcon className="w-4 h-4" />
+              Enrich All
+            </button>
+            <Link
+              to="/dashboard/campaigns"
+              className="px-4 py-2 bg-[#FF6B35] text-white rounded-lg text-sm font-medium hover:bg-[#E85A2A] transition-colors flex items-center gap-2"
+            >
+              <CampaignIcon className="w-4 h-4" />
+              Add to Campaign
+            </Link>
+          </div>
+        </div>
+
+        {/* Progress bar */}
+        <div className="mt-6 pt-6 border-t border-[#E2E8F0]">
+          <div className="flex items-center justify-between text-sm mb-2">
+            <span className="text-[#64748B]">Email enrichment progress</span>
+            <span className="font-medium text-[#1E293B]">{Math.round((list.enrichedCount / list.leadCount) * 100)}%</span>
+          </div>
+          <div className="h-2 bg-[#E2E8F0] rounded-full overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-[#14B8A6] to-[#0D9488] rounded-full transition-all"
+              style={{ width: `${(list.enrichedCount / list.leadCount) * 100}%` }}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Leads Table */}
+      <div className="bg-white rounded-xl border border-[#E2E8F0] overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-[#E2E8F0] bg-[#F8FAFC]">
+                <th className="px-6 py-3 text-left">
+                  <input
+                    type="checkbox"
+                    checked={selectedLeads.length === leads.length && leads.length > 0}
+                    onChange={(e) => setSelectedLeads(e.target.checked ? leads.map(l => l.id) : [])}
+                    className="rounded border-[#E2E8F0] text-[#FF6B35] focus:ring-[#FF6B35]"
+                  />
+                </th>
+                <th className="text-left px-6 py-3 text-xs font-semibold text-[#64748B] uppercase tracking-wider">Lead</th>
+                <th className="text-left px-6 py-3 text-xs font-semibold text-[#64748B] uppercase tracking-wider">Company</th>
+                <th className="text-left px-6 py-3 text-xs font-semibold text-[#64748B] uppercase tracking-wider">Email</th>
+                <th className="text-left px-6 py-3 text-xs font-semibold text-[#64748B] uppercase tracking-wider">Status</th>
+                <th className="text-right px-6 py-3 text-xs font-semibold text-[#64748B] uppercase tracking-wider">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#E2E8F0]">
+              {leads.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-12 text-center text-[#64748B]">
+                    No leads in this list yet
+                  </td>
+                </tr>
+              ) : (
+                leads.map((lead) => (
+                  <LeadRow
+                    key={lead.id}
+                    lead={lead}
+                    selected={selectedLeads.includes(lead.id)}
+                    onSelect={(selected) => {
+                      if (selected) {
+                        setSelectedLeads([...selectedLeads, lead.id])
+                      } else {
+                        setSelectedLeads(selectedLeads.filter(id => id !== lead.id))
+                      }
+                    }}
+                  />
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function LeadRow({
+  lead,
+  selected,
+  onSelect
+}: {
+  lead: Lead
+  selected: boolean
+  onSelect: (selected: boolean) => void
+}) {
+  const statusColors = {
+    new: { bg: 'bg-[#F8FAFC]', text: 'text-[#64748B]', label: 'New' },
+    enriched: { bg: 'bg-[#F0FDFA]', text: 'text-[#14B8A6]', label: 'Enriched' },
+    in_campaign: { bg: 'bg-[#FFF7ED]', text: 'text-[#FF6B35]', label: 'In Campaign' },
+    replied: { bg: 'bg-[#F0FDF4]', text: 'text-[#22C55E]', label: 'Replied' },
+    connected: { bg: 'bg-[#EFF6FF]', text: 'text-[#3B82F6]', label: 'Connected' },
+  }
+
+  const status = statusColors[lead.status]
+
+  return (
+    <tr className="hover:bg-[#F8FAFC] transition-colors">
+      <td className="px-6 py-4">
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={(e) => onSelect(e.target.checked)}
+          className="rounded border-[#E2E8F0] text-[#FF6B35] focus:ring-[#FF6B35]"
+        />
+      </td>
+      <td className="px-6 py-4">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#FF6B35] to-[#14B8A6] flex items-center justify-center text-white text-sm font-medium">
+            {lead.name.split(' ').map(n => n[0]).join('')}
+          </div>
+          <div>
+            <p className="font-medium text-[#1E293B]">{lead.name}</p>
+            <p className="text-sm text-[#64748B]">{lead.title}</p>
+          </div>
+        </div>
+      </td>
+      <td className="px-6 py-4 text-[#1E293B]">{lead.company}</td>
+      <td className="px-6 py-4">
+        {lead.email ? (
+          <span className="text-[#1E293B]">{lead.email}</span>
+        ) : (
+          <span className="text-[#94A3B8] italic">Not found</span>
+        )}
+      </td>
+      <td className="px-6 py-4">
+        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${status.bg} ${status.text}`}>
+          {status.label}
+        </span>
+      </td>
+      <td className="px-6 py-4 text-right">
+        <div className="flex items-center justify-end gap-2">
+          <a
+            href={lead.linkedinUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="p-2 rounded-lg hover:bg-[#EFF6FF] text-[#0A66C2] transition-colors"
+          >
+            <LinkedInSmallIcon />
+          </a>
+          <button className="p-2 rounded-lg hover:bg-[#F8FAFC] text-[#64748B] transition-colors">
+            <MoreIcon />
+          </button>
+        </div>
+      </td>
+    </tr>
+  )
+}
+
+// Main Import Modal with all methods
+function ImportLeadsModal({
+  onClose,
+  onImport
+}: {
+  onClose: () => void
+  onImport: (list: LeadList) => void
+}) {
+  const [selectedMethod, setSelectedMethod] = useState<ImportMethod | null>(null)
+  const [step, setStep] = useState<'method' | 'configure' | 'processing' | 'complete'>('method')
+  const [listName, setListName] = useState('')
+
+  const handleBack = () => {
+    if (step === 'configure') {
+      setSelectedMethod(null)
+      setStep('method')
+    }
+  }
+
+  const handleStartImport = () => {
+    setStep('processing')
+    setTimeout(() => setStep('complete'), 3000)
+  }
+
+  const handleFinish = () => {
+    const method = IMPORT_METHODS.find(m => m.id === selectedMethod)
+    onImport({
+      id: Date.now().toString(),
+      name: listName || 'Imported List',
+      leadCount: Math.floor(Math.random() * 200) + 50,
+      enrichedCount: 0,
+      inCampaign: false,
+      createdAt: 'Just now',
+      source: method?.title || 'Import'
+    })
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        onClick={(e) => e.stopPropagation()}
+        className={`bg-white rounded-2xl w-full overflow-hidden shadow-2xl flex flex-col max-h-[90vh] ${
+          step === 'method' ? 'max-w-4xl' : 'max-w-2xl'
+        }`}
+      >
+        {/* Header */}
+        <div className="px-6 py-4 border-b border-[#E2E8F0] flex items-center justify-between flex-shrink-0">
+          <div className="flex items-center gap-3">
+            {step !== 'method' && step !== 'processing' && step !== 'complete' && (
+              <button onClick={handleBack} className="p-2 rounded-lg hover:bg-[#F8FAFC] -ml-2">
+                <BackIcon className="w-5 h-5 text-[#64748B]" />
+              </button>
+            )}
+            <div>
+              <h2 className="text-lg font-bold text-[#1E293B]">
+                {step === 'method' ? 'Add Leads' :
+                 step === 'configure' ? IMPORT_METHODS.find(m => m.id === selectedMethod)?.title :
+                 step === 'processing' ? 'Importing...' : 'Import Complete'}
+              </h2>
+              {step === 'method' && (
+                <p className="text-sm text-[#64748B]">Choose how you'd like to import leads</p>
+              )}
+            </div>
+          </div>
+          <button onClick={onClose} className="p-2 rounded-lg hover:bg-[#F8FAFC]">
+            <CloseIcon />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto">
+          <AnimatePresence mode="wait">
+            {step === 'method' && (
+              <motion.div
+                key="method"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="p-6"
+              >
+                {/* Layout: Methods on left, Preview on right */}
+                <div className="flex flex-col lg:flex-row gap-6">
+                  {/* Import Methods List */}
+                  <div className="lg:w-[360px] flex-shrink-0">
+                    <p className="text-xs font-semibold text-[#94A3B8] uppercase tracking-wider mb-3 px-1">
+                      Import Methods
+                    </p>
+                    <div className="space-y-2">
+                      {IMPORT_METHODS.map((method) => (
+                        <button
+                          key={method.id}
+                          onClick={() => {
+                            setSelectedMethod(method.id)
+                            setStep('configure')
+                          }}
+                          className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all text-left group ${
+                            selectedMethod === method.id
+                              ? 'border-[#FF6B35] bg-[#FFF7ED]'
+                              : 'border-[#E2E8F0] hover:border-[#FF6B35]/30 hover:bg-[#F8FAFC]'
+                          }`}
+                        >
+                          <div
+                            className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-110"
+                            style={{ backgroundColor: `${method.color}15` }}
+                          >
+                            <div style={{ color: method.color }}>{method.icon}</div>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="font-medium text-[#1E293B] text-sm">{method.title}</p>
+                            <p className="text-xs text-[#64748B] truncate">{method.description}</p>
+                          </div>
+                          <ChevronRightIcon className="w-4 h-4 text-[#94A3B8] flex-shrink-0 group-hover:text-[#FF6B35]" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Preview/Info Panel */}
+                  <div className="flex-1 bg-[#F8FAFC] rounded-xl p-6 hidden lg:block">
+                    <div className="h-full flex flex-col items-center justify-center text-center">
+                      <div className="w-20 h-20 bg-white rounded-2xl shadow-sm flex items-center justify-center mb-4 border border-[#E2E8F0]">
+                        <ImportIcon className="w-10 h-10 text-[#FF6B35]" />
+                      </div>
+                      <h3 className="text-lg font-semibold text-[#1E293B] mb-2">
+                        Select an import method
+                      </h3>
+                      <p className="text-sm text-[#64748B] max-w-xs">
+                        Choose from LinkedIn sources, upload a CSV file, or paste profile URLs directly to import your leads.
+                      </p>
+
+                      {/* Features preview */}
+                      <div className="mt-8 w-full max-w-xs">
+                        <div className="flex items-center gap-3 text-left p-3 bg-white rounded-lg border border-[#E2E8F0] mb-2">
+                          <div className="w-8 h-8 rounded-lg bg-[#F0FDFA] flex items-center justify-center">
+                            <EnrichIcon className="w-4 h-4 text-[#14B8A6]" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-[#1E293B]">Auto Email Enrichment</p>
+                            <p className="text-xs text-[#64748B]">We find verified emails automatically</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3 text-left p-3 bg-white rounded-lg border border-[#E2E8F0]">
+                          <div className="w-8 h-8 rounded-lg bg-[#EFF6FF] flex items-center justify-center">
+                            <SparkleIcon className="w-4 h-4 text-[#3B82F6]" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium text-[#1E293B]">Duplicate Detection</p>
+                            <p className="text-xs text-[#64748B]">We skip leads you already have</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
+            {step === 'configure' && selectedMethod && (
+              <motion.div
+                key="configure"
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
+              >
+                <ImportMethodConfig
+                  method={selectedMethod}
+                  listName={listName}
+                  setListName={setListName}
+                  onImport={handleStartImport}
+                />
+              </motion.div>
+            )}
+
+            {step === 'processing' && (
+              <motion.div
+                key="processing"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="p-12 text-center"
+              >
+                <motion.div
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
+                  className="w-16 h-16 mx-auto mb-6 border-4 border-[#E2E8F0] border-t-[#FF6B35] rounded-full"
+                />
+                <h3 className="text-lg font-semibold text-[#1E293B] mb-2">Importing your leads...</h3>
+                <p className="text-[#64748B]">This may take a moment depending on list size.</p>
+              </motion.div>
+            )}
+
+            {step === 'complete' && (
+              <motion.div
+                key="complete"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="p-12 text-center"
+              >
+                <motion.div
+                  initial={{ scale: 0 }}
+                  animate={{ scale: 1 }}
+                  transition={{ type: 'spring', stiffness: 200 }}
+                  className="w-20 h-20 mx-auto mb-6 bg-gradient-to-br from-[#F0FDF4] to-[#DCFCE7] rounded-full flex items-center justify-center"
+                >
+                  <CheckCircleIcon className="w-10 h-10 text-[#22C55E]" />
+                </motion.div>
+                <h3 className="text-xl font-bold text-[#1E293B] mb-2">Import Complete!</h3>
+                <p className="text-[#64748B] mb-2">{Math.floor(Math.random() * 200) + 50} leads imported successfully.</p>
+                <p className="text-sm text-[#14B8A6] mb-8">Email enrichment is starting in the background.</p>
+                <button
+                  onClick={handleFinish}
+                  className="px-8 py-3 bg-[#FF6B35] text-white font-semibold rounded-xl hover:bg-[#E85A2A] transition-all"
+                >
+                  View Your Leads
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
+      </motion.div>
+    </motion.div>
+  )
+}
+
+// Import method configuration panels
+function ImportMethodConfig({
+  method,
+  listName,
+  setListName,
+  onImport
+}: {
+  method: ImportMethod
+  listName: string
+  setListName: (name: string) => void
+  onImport: () => void
+}) {
+  const [pastedUrls, setPastedUrls] = useState('')
+  const [csvFile, setCsvFile] = useState<File | null>(null)
+  const [searchUrl, setSearchUrl] = useState('')
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const methodInfo = IMPORT_METHODS.find(m => m.id === method)!
+
+  // CSV import
+  if (method === 'csv') {
+    return (
+      <div className="p-6 space-y-5">
+        <div>
+          <label className="block text-sm font-medium text-[#1E293B] mb-2">List Name</label>
+          <input
+            type="text"
+            value={listName}
+            onChange={(e) => setListName(e.target.value)}
+            placeholder="e.g., Q1 Tech Leaders"
+            className="w-full px-4 py-3 rounded-xl border border-[#E2E8F0] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20 focus:border-[#FF6B35]"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-[#1E293B] mb-2">CSV File</label>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv"
+            onChange={(e) => setCsvFile(e.target.files?.[0] || null)}
+            className="hidden"
+          />
+          {csvFile ? (
+            <div className="flex items-center gap-3 p-4 bg-[#F0FDF4] border border-[#22C55E]/20 rounded-xl">
+              <div className="w-10 h-10 rounded-lg bg-[#22C55E]/10 flex items-center justify-center">
+                <CSVIcon className="w-5 h-5 text-[#22C55E]" />
+              </div>
+              <div className="flex-1">
+                <p className="font-medium text-[#1E293B]">{csvFile.name}</p>
+                <p className="text-sm text-[#64748B]">{Math.round(csvFile.size / 1024)} KB</p>
+              </div>
+              <button onClick={() => setCsvFile(null)} className="p-2 rounded-lg hover:bg-[#22C55E]/10">
+                <CloseIcon />
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              className="w-full p-8 border-2 border-dashed border-[#E2E8F0] rounded-xl hover:border-[#FF6B35]/50 hover:bg-[#FFF7ED]/50 transition-colors"
+            >
+              <UploadIcon className="w-10 h-10 text-[#94A3B8] mx-auto mb-3" />
+              <p className="font-medium text-[#1E293B]">Click to upload or drag and drop</p>
+              <p className="text-sm text-[#64748B] mt-1">CSV files up to 10MB</p>
+            </button>
+          )}
+        </div>
+
+        <div className="bg-[#F8FAFC] rounded-xl p-4">
+          <p className="text-sm font-medium text-[#1E293B] mb-2">Required columns:</p>
+          <div className="flex flex-wrap gap-2">
+            <span className="px-2 py-1 bg-white rounded text-xs text-[#64748B] border">linkedin_url</span>
+            <span className="text-xs text-[#94A3B8]">or</span>
+            <span className="px-2 py-1 bg-white rounded text-xs text-[#64748B] border">first_name</span>
+            <span className="px-2 py-1 bg-white rounded text-xs text-[#64748B] border">last_name</span>
+            <span className="px-2 py-1 bg-white rounded text-xs text-[#64748B] border">company</span>
+          </div>
+        </div>
+
+        <button
+          onClick={onImport}
+          disabled={!csvFile || !listName}
+          className="w-full py-3.5 bg-[#FF6B35] text-white font-semibold rounded-xl hover:bg-[#E85A2A] disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Import Leads
+        </button>
+      </div>
+    )
+  }
+
+  // Paste URLs
+  if (method === 'paste_urls') {
+    return (
+      <div className="p-6 space-y-5">
+        <div>
+          <label className="block text-sm font-medium text-[#1E293B] mb-2">List Name</label>
+          <input
+            type="text"
+            value={listName}
+            onChange={(e) => setListName(e.target.value)}
+            placeholder="e.g., Q1 Tech Leaders"
+            className="w-full px-4 py-3 rounded-xl border border-[#E2E8F0] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20 focus:border-[#FF6B35]"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-[#1E293B] mb-2">LinkedIn Profile URLs</label>
+          <textarea
+            value={pastedUrls}
+            onChange={(e) => setPastedUrls(e.target.value)}
+            placeholder="https://linkedin.com/in/johndoe&#10;https://linkedin.com/in/janedoe&#10;..."
+            rows={8}
+            className="w-full px-4 py-3 rounded-xl border border-[#E2E8F0] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20 focus:border-[#FF6B35] resize-none font-mono text-sm"
+          />
+          <p className="text-xs text-[#64748B] mt-2">
+            {pastedUrls.split('\n').filter(url => url.trim()).length} URLs detected
+          </p>
+        </div>
+
+        <button
+          onClick={onImport}
+          disabled={!pastedUrls.trim() || !listName}
+          className="w-full py-3.5 bg-[#FF6B35] text-white font-semibold rounded-xl hover:bg-[#E85A2A] disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Import Leads
+        </button>
+      </div>
+    )
+  }
+
+  // LinkedIn/Sales Navigator based imports
+  return (
+    <div className="p-6 space-y-5">
+      {/* Method header */}
+      <div className="flex items-center gap-4 pb-4 border-b border-[#E2E8F0]">
+        <div
+          className="w-12 h-12 rounded-xl flex items-center justify-center"
+          style={{ backgroundColor: `${methodInfo.color}15` }}
+        >
+          <div style={{ color: methodInfo.color }}>{methodInfo.icon}</div>
+        </div>
+        <div>
+          <h3 className="font-semibold text-[#1E293B]">{methodInfo.title}</h3>
+          <p className="text-sm text-[#64748B]">{methodInfo.description}</p>
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-[#1E293B] mb-2">List Name</label>
+        <input
+          type="text"
+          value={listName}
+          onChange={(e) => setListName(e.target.value)}
+          placeholder="e.g., Q1 Tech Leaders"
+          className="w-full px-4 py-3 rounded-xl border border-[#E2E8F0] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20 focus:border-[#FF6B35]"
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-[#1E293B] mb-2">
+          {method === 'linkedin_search' && 'LinkedIn Search URL'}
+          {method === 'sales_nav_leads' && 'Sales Navigator Lead Search URL'}
+          {method === 'sales_nav_accounts' && 'Sales Navigator Account Search URL'}
+          {method === 'linkedin_recruiter' && 'LinkedIn Recruiter Search URL'}
+          {method === 'linkedin_events' && 'LinkedIn Event URL'}
+          {method === 'linkedin_post_reactors' && 'LinkedIn Post URL'}
+          {method === 'linkedin_companies' && 'LinkedIn Company Page URL'}
+        </label>
+        <input
+          type="url"
+          value={searchUrl}
+          onChange={(e) => setSearchUrl(e.target.value)}
+          placeholder={
+            method === 'linkedin_search' ? 'https://linkedin.com/search/results/people/...' :
+            method === 'sales_nav_leads' ? 'https://linkedin.com/sales/search/people/...' :
+            method === 'sales_nav_accounts' ? 'https://linkedin.com/sales/search/company/...' :
+            method === 'linkedin_recruiter' ? 'https://linkedin.com/recruiter/...' :
+            method === 'linkedin_events' ? 'https://linkedin.com/events/...' :
+            method === 'linkedin_post_reactors' ? 'https://linkedin.com/posts/...' :
+            'https://linkedin.com/company/...'
+          }
+          className="w-full px-4 py-3 rounded-xl border border-[#E2E8F0] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20 focus:border-[#FF6B35]"
+        />
+      </div>
+
+      {/* How it works section */}
+      <div className="bg-[#F8FAFC] rounded-xl p-4">
+        <p className="text-sm font-medium text-[#1E293B] mb-3">How it works:</p>
+        <ol className="space-y-2 text-sm text-[#64748B]">
+          <li className="flex items-start gap-2">
+            <span className="w-5 h-5 rounded-full bg-[#FF6B35] text-white text-xs flex items-center justify-center flex-shrink-0 mt-0.5">1</span>
+            <span>
+              {method === 'linkedin_search' && 'Perform your search on LinkedIn and copy the URL'}
+              {method === 'sales_nav_leads' && 'Create or open a lead search in Sales Navigator'}
+              {method === 'sales_nav_accounts' && 'Create or open an account search in Sales Navigator'}
+              {method === 'linkedin_recruiter' && 'Open your candidate search in Recruiter'}
+              {method === 'linkedin_events' && 'Go to the LinkedIn event page and copy the URL'}
+              {method === 'linkedin_post_reactors' && 'Find the post and copy its URL'}
+              {method === 'linkedin_companies' && 'Go to the company page and copy the URL'}
+            </span>
+          </li>
+          <li className="flex items-start gap-2">
+            <span className="w-5 h-5 rounded-full bg-[#FF6B35] text-white text-xs flex items-center justify-center flex-shrink-0 mt-0.5">2</span>
+            <span>Paste the URL above and give your list a name</span>
+          </li>
+          <li className="flex items-start gap-2">
+            <span className="w-5 h-5 rounded-full bg-[#FF6B35] text-white text-xs flex items-center justify-center flex-shrink-0 mt-0.5">3</span>
+            <span>We'll extract all profiles and automatically enrich them with verified emails</span>
+          </li>
+        </ol>
+      </div>
+
+      <button
+        onClick={onImport}
+        disabled={!searchUrl || !listName}
+        className="w-full py-3.5 bg-[#FF6B35] text-white font-semibold rounded-xl hover:bg-[#E85A2A] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+      >
+        Import Leads
+      </button>
+    </div>
+  )
+}
+
+// Icons
+function PlusIcon({ className = 'w-5 h-5' }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+    </svg>
+  )
+}
+
+function SearchIcon({ className = '' }: { className?: string }) {
+  return (
+    <svg className={`w-5 h-5 ${className}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+    </svg>
+  )
+}
+
+function ListIcon({ className = 'w-5 h-5' }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+    </svg>
+  )
+}
+
+function EnrichIcon({ className = 'w-4 h-4' }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+    </svg>
+  )
+}
+
+function LinkedInSmallIcon({ className = 'w-4 h-4' }: { className?: string }) {
+  return (
+    <svg className={className} fill="currentColor" viewBox="0 0 20 20">
+      <path d="M16.338 16.338H13.67V12.16c0-.995-.017-2.277-1.387-2.277-1.39 0-1.601 1.086-1.601 2.207v4.248H8.014v-8.59h2.559v1.174h.037c.356-.675 1.227-1.387 2.526-1.387 2.703 0 3.203 1.778 3.203 4.092v4.711zM5.005 6.575a1.548 1.548 0 11-.003-3.096 1.548 1.548 0 01.003 3.096zm-1.337 9.763H6.34v-8.59H3.667v8.59zM17.668 1H2.328C1.595 1 1 1.581 1 2.298v15.403C1 18.418 1.595 19 2.328 19h15.34c.734 0 1.332-.582 1.332-1.299V2.298C19 1.581 18.402 1 17.668 1z" />
+    </svg>
+  )
+}
+
+function LinkedInSearchIcon() {
+  return (
+    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+      <path d="M19 3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14m-.5 15.5v-5.3a3.26 3.26 0 0 0-3.26-3.26c-.85 0-1.84.52-2.32 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 0 1 1.4 1.4v4.93h2.79M6.88 8.56a1.68 1.68 0 0 0 1.68-1.68c0-.93-.75-1.69-1.68-1.69a1.69 1.69 0 0 0-1.69 1.69c0 .93.76 1.68 1.69 1.68m1.39 9.94v-8.37H5.5v8.37h2.77z" />
+    </svg>
+  )
+}
+
+function SalesNavIcon({ className = 'w-5 h-5' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M20.47 2H3.53A1.45 1.45 0 002 3.38v17.24A1.45 1.45 0 003.53 22h16.94a1.45 1.45 0 001.53-1.38V3.38A1.45 1.45 0 0020.47 2zM8.09 18.74h-3v-9h3v9zm-1.5-10.28a1.75 1.75 0 110-3.5 1.75 1.75 0 010 3.5zm12.32 10.28h-3v-4.83c0-1.21-.43-2-1.52-2A1.65 1.65 0 0012.85 13a2 2 0 00-.1.73v5h-3v-9h2.88v1.24a3 3 0 012.71-1.49c2 0 3.45 1.29 3.45 4.06v5.2z"/>
+      <circle cx="17" cy="7" r="3" fill="#0A66C2"/>
+    </svg>
+  )
+}
+
+function SalesNavAccountsIcon() {
+  return (
+    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 3c1.93 0 3.5 1.57 3.5 3.5S13.93 13 12 13s-3.5-1.57-3.5-3.5S10.07 6 12 6zm7 13H5v-.23c0-.62.28-1.2.76-1.58C7.47 15.82 9.64 15 12 15s4.53.82 6.24 2.19c.48.38.76.97.76 1.58V19z"/>
+    </svg>
+  )
+}
+
+function RecruiterIcon() {
+  return (
+    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+      <circle cx="12" cy="7" r="4"/>
+      <path d="M5 21v-2a4 4 0 014-4h6a4 4 0 014 4v2"/>
+      <path d="M16 3.13a4 4 0 010 7.75"/>
+      <path d="M21 21v-2a4 4 0 00-3-3.85"/>
+    </svg>
+  )
+}
+
+function EventIcon() {
+  return (
+    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+      <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+      <line x1="16" y1="2" x2="16" y2="6"/>
+      <line x1="8" y1="2" x2="8" y2="6"/>
+      <line x1="3" y1="10" x2="21" y2="10"/>
+      <path d="M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01M16 18h.01"/>
+    </svg>
+  )
+}
+
+function ReactorsIcon() {
+  return (
+    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+      <path d="M14 9V5a3 3 0 00-3-3l-4 9v11h11.28a2 2 0 002-1.7l1.38-9a2 2 0 00-2-2.3zM7 22H4a2 2 0 01-2-2v-7a2 2 0 012-2h3"/>
+    </svg>
+  )
+}
+
+function CompaniesIcon() {
+  return (
+    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+      <path d="M3 21h18"/>
+      <path d="M9 21V8a1 1 0 011-1h4a1 1 0 011 1v13"/>
+      <path d="M3 21V11a1 1 0 011-1h2a1 1 0 011 1v10"/>
+      <path d="M17 21V5a1 1 0 011-1h2a1 1 0 011 1v16"/>
+    </svg>
+  )
+}
+
+function CSVIcon({ className = 'w-5 h-5' }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+    </svg>
+  )
+}
+
+function PasteIcon({ className = 'w-5 h-5' }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+    </svg>
+  )
+}
+
+function ImportIcon({ className = 'w-5 h-5' }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+    </svg>
+  )
+}
+
+function SparkleIcon({ className = 'w-5 h-5' }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+    </svg>
+  )
+}
+
+function ChevronRightIcon({ className = 'w-5 h-5' }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+    </svg>
+  )
+}
+
+function CampaignIcon({ className = 'w-5 h-5' }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
+    </svg>
+  )
+}
+
+function MoreIcon() {
+  return (
+    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+    </svg>
+  )
+}
+
+function CloseIcon() {
+  return (
+    <svg className="w-5 h-5 text-[#64748B]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+    </svg>
+  )
+}
+
+function BackIcon({ className = 'w-5 h-5' }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+    </svg>
+  )
+}
+
+function UploadIcon({ className = 'w-5 h-5' }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+    </svg>
+  )
+}
+
+function CheckCircleIcon({ className = 'w-5 h-5' }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  )
+}

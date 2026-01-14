@@ -1,0 +1,24 @@
+<svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Head - teal circle -->
+  <ellipse cx="45" cy="50" rx="40" ry="42" fill="#14B8A6"/>
+
+  <!-- Purple crest feathers -->
+  <ellipse cx="12" cy="38" rx="8" ry="12" fill="#8B5CF6" transform="rotate(-20 12 38)"/>
+  <ellipse cx="8" cy="48" rx="7" ry="10" fill="#8B5CF6" transform="rotate(-30 8 48)"/>
+  <ellipse cx="10" cy="58" rx="6" ry="9" fill="#8B5CF6" transform="rotate(-40 10 58)"/>
+
+  <!-- Eye - white circle with dark pupil -->
+  <circle cx="42" cy="45" r="10" fill="white"/>
+  <circle cx="44" cy="46" r="6" fill="#1E293B"/>
+  <circle cx="46" cy="44" r="2" fill="white"/>
+
+  <!-- Beak - yellow/orange gradient -->
+  <path d="M70 45 C85 42, 95 50, 92 60 C90 68, 80 72, 70 68 C65 66, 60 60, 62 52 C63 48, 66 45, 70 45Z" fill="#F59E0B"/>
+  <path d="M78 48 C90 46, 95 52, 92 60 C90 66, 85 68, 78 65Z" fill="#F97316"/>
+
+  <!-- Beak line -->
+  <path d="M62 56 C70 58, 82 56, 88 54" stroke="#1E293B" stroke-width="1.5" stroke-linecap="round" opacity="0.3"/>
+
+  <!-- Nostril -->
+  <circle cx="72" cy="50" r="2" fill="#1E293B" opacity="0.4"/>
+</svg>
