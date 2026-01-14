@@ -1,0 +1,149 @@
+import { useState } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { Container } from '@/components/ui'
+
+const faqs = [
+  {
+    question: 'What does "unlimited" actually mean?',
+    answer: `We don't charge per action, per email, or per enrichment. You get unlimited LinkedIn actions (we auto-apply safe daily limits to protect your account — typically 80-100 connections/day), unlimited email sending through your connected mailbox, and unlimited email enrichment with no credits. Your price is your price — no hidden usage fees.`,
+  },
+  {
+    question: "What's a \"sender\"?",
+    answer:
+      'A sender is one connected LinkedIn account. If you have 3 SDRs doing outreach, you need 3 senders. Each sender gets their own dedicated proxy to keep your accounts safe.',
+  },
+  {
+    question: 'How does the $1 trial work?',
+    answer:
+      "You get 7 days of full access to test everything. We charge $1 to verify your card and filter out tire-kickers. After 7 days, you're automatically billed $79/month (Growth) or $999/month (Agency). Cancel anytime during the trial — no charge beyond the $1.",
+  },
+  {
+    question: 'Is my LinkedIn account safe?',
+    answer:
+      "Yes. We use dedicated residential proxies (one per account), smart sending limits, and human-like delays. We stay well within LinkedIn's limits. Thousands of users run campaigns daily without issues.",
+  },
+  {
+    question: 'How does email enrichment work?',
+    answer:
+      'When you import leads from LinkedIn, we automatically find their business email addresses in the background. No extra steps, no credits to buy. Found emails are verified before we show them to you.',
+  },
+  {
+    question: 'Can I connect my own email?',
+    answer:
+      "Yes. Connect Gmail, Outlook, or any SMTP server. Emails send from your actual mailbox — we don't use shared sending infrastructure.",
+  },
+  {
+    question: "What's included in the Agency whitelabel?",
+    answer:
+      'Your logo, your colors, your custom domain (e.g., outreach.youragency.com). Your clients never see our brand. Full white-label experience.',
+  },
+  {
+    question: 'Can I switch from Growth to Agency?',
+    answer:
+      "Yes, anytime. Just upgrade in your dashboard. We'll prorate your existing subscription.",
+  },
+  {
+    question: 'Do you offer annual billing?',
+    answer:
+      'Yes. Agency annual is $749/month (25% savings). Growth annual is 20% off your tier price.',
+  },
+  {
+    question: "I'm switching from HeyReach. Can you help migrate?",
+    answer:
+      "Yes. Agency plan includes migration assistance. We'll help you move your accounts, campaigns, and data. Book a demo to discuss.",
+  },
+]
+
+function FAQItem({
+  question,
+  answer,
+  isOpen,
+  onToggle,
+  index,
+}: {
+  question: string
+  answer: string
+  isOpen: boolean
+  onToggle: () => void
+  index: number
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true }}
+      transition={{ duration: 0.4, delay: index * 0.05, ease: [0.22, 1, 0.36, 1] }}
+      className="border-b border-[#E2E8F0] last:border-b-0"
+    >
+      <button
+        onClick={onToggle}
+        className="w-full py-5 flex items-center justify-between text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-[#14B8A6] focus-visible:ring-offset-2 rounded-lg group"
+      >
+        <span className="font-semibold text-[#1E293B] text-[15px] pr-4 group-hover:text-[#14B8A6] transition-colors duration-200">
+          {question}
+        </span>
+        <motion.span
+          animate={{ rotate: isOpen ? 45 : 0 }}
+          transition={{ duration: 0.2 }}
+          className="text-[#14B8A6] flex-shrink-0 w-6 h-6 rounded-full bg-[#14B8A6]/10 flex items-center justify-center text-lg"
+        >
+          +
+        </motion.span>
+      </button>
+      <AnimatePresence initial={false}>
+        {isOpen && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+            className="overflow-hidden"
+          >
+            <p className="pb-5 text-[#64748B] text-[14px] leading-[1.7] pr-10">{answer}</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  )
+}
+
+export function PricingFAQ() {
+  const [openIndex, setOpenIndex] = useState<number | null>(0)
+
+  return (
+    <section className="bg-[#F8FAFC] py-20 md:py-28">
+      <Container>
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: '-100px' }}
+          transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+          className="text-center mb-12"
+        >
+          <h2 className="text-3xl md:text-4xl font-bold text-[#1E293B] leading-tight tracking-[-0.01em]">
+            All your doubts, answered
+          </h2>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0 }}
+          whileInView={{ opacity: 1 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.6, delay: 0.15 }}
+          className="max-w-[720px] mx-auto bg-white rounded-2xl border border-[#E2E8F0] px-6 md:px-8 shadow-sm"
+        >
+          {faqs.map((faq, index) => (
+            <FAQItem
+              key={index}
+              index={index}
+              question={faq.question}
+              answer={faq.answer}
+              isOpen={openIndex === index}
+              onToggle={() => setOpenIndex(openIndex === index ? null : index)}
+            />
+          ))}
+        </motion.div>
+      </Container>
+    </section>
+  )
+}
