@@ -1,8 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { Hero } from '@/components/sections/Hero'
+import { TrustBar } from '@/components/sections/TrustBar'
+import { FeaturesHeader } from '@/components/sections/FeaturesHeader'
 import { Feature } from '@/components/sections/Feature'
 import { DarkSection } from '@/components/sections/DarkSection'
-import { Integrations } from '@/components/sections/Integrations'
 import { FinalCTA } from '@/components/sections/FinalCTA'
 import { FAQ } from '@/components/sections/FAQ'
 import {
@@ -20,6 +21,10 @@ function HomePage() {
   return (
     <>
       <Hero />
+
+      <TrustBar />
+
+      <FeaturesHeader />
 
       {/* Feature 1 - White background, image right */}
       <Feature
@@ -58,8 +63,6 @@ function HomePage() {
       />
 
       <DarkSection />
-
-      <Integrations />
 
       <FinalCTA />
 

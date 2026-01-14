@@ -58,22 +58,19 @@ export function Hero() {
             , and book more meetings. All from one dashboard.
           </motion.p>
 
-          {/* CTAs */}
+          {/* CTA */}
           <motion.div
             variants={fadeInUp}
-            className="flex flex-col sm:flex-row gap-4 justify-center mb-4"
+            className="flex justify-center mb-4"
           >
             <Button variant="primary" size="lg">
-              Start $1 Trial
-            </Button>
-            <Button variant="secondary" size="lg">
-              Watch Demo
+              Get Started
             </Button>
           </motion.div>
 
           {/* Supporting text */}
           <motion.p variants={fadeInUp} className="text-xs sm:text-[14px] text-[#64748B] font-medium mb-10 sm:mb-16">
-            7-day full access. Cancel anytime.
+            7-day free trial. Cancel anytime.
           </motion.p>
 
           {/* Hero Demo - Interactive panels */}

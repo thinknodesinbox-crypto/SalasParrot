@@ -1,287 +1,349 @@
 import { motion } from 'framer-motion'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 interface SequenceBuilderPanelProps {
   onEmailNodeHover?: (isHovered: boolean) => void
   variant?: 'hero' | 'feature'
 }
 
+interface NodeStats {
+  sent: number
+  delivered: number
+  replied: number
+}
+
 export function SequenceBuilderPanel({ onEmailNodeHover, variant = 'hero' }: SequenceBuilderPanelProps) {
-  const [hoveredNode, setHoveredNode] = useState<string | null>(null)
+  const isHero = variant === 'hero'
+  const [activeNode, setActiveNode] = useState<string | null>(null)
 
-  const handleNodeHover = (nodeId: string | null) => {
-    setHoveredNode(nodeId)
-    if (nodeId === 'email') {
-      onEmailNodeHover?.(true)
-    } else if (nodeId === null) {
-      onEmailNodeHover?.(false)
-    }
-  }
+  // Node stats with live updates
+  const [stats, setStats] = useState({
+    campaignStart: { sent: 1247, delivered: 1189, replied: 0 },
+    connectionRequest: { sent: 1189, delivered: 1156, replied: 0 },
+    accepted: { sent: 847, delivered: 823, replied: 312 },
+    notAccepted: { sent: 309, delivered: 298, replied: 0 },
+    sendMessage: { sent: 823, delivered: 801, replied: 284 },
+    sendEmail: { sent: 298, delivered: 276, replied: 67 },
+  })
 
-  const panelWidth = variant === 'hero' ? 380 : 420
+  // Increment stats periodically
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setStats(prev => ({
+        ...prev,
+        campaignStart: { ...prev.campaignStart, sent: prev.campaignStart.sent + 1 },
+        connectionRequest: { ...prev.connectionRequest, sent: prev.connectionRequest.sent + 1 },
+      }))
+    }, 4000)
+
+    return () => clearInterval(interval)
+  }, [])
 
   return (
     <motion.div
-      className="glass-panel relative"
-      style={{ width: panelWidth }}
+      className={!isHero ? "w-full max-w-[320px] sm:max-w-[420px] md:max-w-[520px]" : ""}
+      style={{
+        width: isHero ? 520 : undefined,
+        background: isHero
+          ? 'linear-gradient(145deg, rgba(30, 41, 59, 0.98) 0%, rgba(30, 41, 59, 0.95) 50%, rgba(25, 35, 50, 0.98) 100%)'
+          : 'linear-gradient(145deg, rgba(255, 255, 255, 0.95) 0%, rgba(255, 255, 255, 0.88) 50%, rgba(248, 250, 252, 0.92) 100%)',
+        backdropFilter: 'blur(20px) saturate(180%)',
+        WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+        border: isHero ? '1px solid rgba(255, 255, 255, 0.1)' : '1px solid rgba(226, 232, 240, 0.5)',
+        borderRadius: 20,
+        boxShadow: isHero
+          ? '0 12px 40px rgba(0, 0, 0, 0.5), 0 4px 12px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.08)'
+          : '0 8px 30px rgba(30, 41, 59, 0.08)',
+        overflow: 'hidden',
+        position: 'relative',
+      }}
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ type: 'spring', stiffness: 300, damping: 30 }}
     >
       {/* Header */}
-      <div className="px-6 pt-5 pb-4 border-b border-white/[0.06]">
-        <div className="flex items-center justify-center gap-2.5">
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-teal-500/25 to-teal-600/15 flex items-center justify-center shadow-[inset_0_1px_0_rgba(255,255,255,0.1)]">
-            <svg className="w-4.5 h-4.5 text-teal-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
-          </div>
-          <h3 className="text-white font-semibold text-[15px] tracking-tight">Smart Outreach Sequence</h3>
+      <div style={{ padding: isHero ? '24px 32px 16px 32px' : undefined }} className={!isHero ? "px-4 sm:px-6 md:px-8 pt-4 sm:pt-5 md:pt-6 pb-3 sm:pb-4" : ""}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <h3 style={{
+            fontSize: isHero ? 18 : undefined,
+            fontWeight: 600,
+            color: isHero ? 'white' : '#1E293B',
+            margin: 0,
+          }} className={!isHero ? "text-sm sm:text-base md:text-lg font-semibold" : ""}>
+            Smart Outreach Sequence
+          </h3>
+          <motion.div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '6px 10px',
+              background: 'rgba(20, 184, 166, 0.15)',
+              borderRadius: 8,
+            }}
+            animate={{ scale: [1, 1.02, 1] }}
+            transition={{ duration: 3, repeat: Infinity }}
+          >
+            <motion.div
+              style={{ width: 6, height: 6, borderRadius: '50%', background: '#14B8A6' }}
+              animate={{ opacity: [1, 0.5, 1] }}
+              transition={{ duration: 1.5, repeat: Infinity }}
+            />
+            <span style={{ fontSize: 11, fontWeight: 600, color: '#14B8A6' }}>Live</span>
+          </motion.div>
         </div>
       </div>
 
-      {/* Flow Chart with SVG connectors */}
-      <div className="px-6 py-5 relative">
-        {/* SVG Flow Lines */}
-        <svg
-          className="absolute inset-0 w-full h-full pointer-events-none"
-          style={{ left: 0, top: 0 }}
-          viewBox="0 0 380 320"
-          preserveAspectRatio="xMidYMid meet"
-        >
-          <defs>
-            <linearGradient id="flowGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="rgba(20, 184, 166, 0.8)" />
-              <stop offset="100%" stopColor="rgba(20, 184, 166, 0.2)" />
-            </linearGradient>
-            <linearGradient id="flowGradientGreen" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="rgba(16, 185, 129, 0.7)" />
-              <stop offset="100%" stopColor="rgba(16, 185, 129, 0.3)" />
-            </linearGradient>
-            <linearGradient id="flowGradientOrange" x1="0%" y1="0%" x2="0%" y2="100%">
-              <stop offset="0%" stopColor="rgba(251, 146, 60, 0.7)" />
-              <stop offset="100%" stopColor="rgba(251, 146, 60, 0.3)" />
-            </linearGradient>
-            {/* Glow filter */}
-            <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
-              <feGaussianBlur stdDeviation="2" result="coloredBlur" />
-              <feMerge>
-                <feMergeNode in="coloredBlur" />
-                <feMergeNode in="SourceGraphic" />
-              </feMerge>
-            </filter>
-          </defs>
+      {/* Flow Chart */}
+      <div style={{ padding: isHero ? '0 24px 36px 24px' : undefined, position: 'relative' }} className={!isHero ? "px-3 sm:px-4 md:px-6 pb-6 sm:pb-8 md:pb-9 relative" : ""}>
+        {/* Flowing particles on main line */}
+        <FlowingParticles />
 
-          {/* Main vertical line: Start -> LinkedIn -> Diamond */}
-          <motion.path
-            d="M 190 45 L 190 75"
-            stroke="url(#flowGradient)"
-            strokeWidth="2"
-            fill="none"
-            strokeLinecap="round"
-            filter="url(#glow)"
-            initial={{ pathLength: 0 }}
-            animate={{ pathLength: 1 }}
-            transition={{ duration: 0.5, delay: 0.2 }}
-          />
-          <motion.path
-            d="M 190 105 L 190 135"
-            stroke="url(#flowGradient)"
-            strokeWidth="2"
-            fill="none"
-            strokeLinecap="round"
-            filter="url(#glow)"
-            initial={{ pathLength: 0 }}
-            animate={{ pathLength: 1 }}
-            transition={{ duration: 0.5, delay: 0.4 }}
-          />
-
-          {/* Branch lines from diamond */}
-          {/* Left branch (Accepted) */}
-          <motion.path
-            d="M 160 185 Q 120 195 110 220"
-            stroke="url(#flowGradientGreen)"
-            strokeWidth="2"
-            fill="none"
-            strokeLinecap="round"
-            filter="url(#glow)"
-            initial={{ pathLength: 0 }}
-            animate={{ pathLength: 1 }}
-            transition={{ duration: 0.6, delay: 0.6 }}
-          />
-          <motion.path
-            d="M 110 250 L 110 270"
-            stroke="url(#flowGradientGreen)"
-            strokeWidth="2"
-            fill="none"
-            strokeLinecap="round"
-            filter="url(#glow)"
-            initial={{ pathLength: 0 }}
-            animate={{ pathLength: 1 }}
-            transition={{ duration: 0.4, delay: 0.8 }}
-          />
-
-          {/* Right branch (Not Accepted) */}
-          <motion.path
-            d="M 220 185 Q 260 195 270 220"
-            stroke="url(#flowGradientOrange)"
-            strokeWidth="2"
-            fill="none"
-            strokeLinecap="round"
-            filter="url(#glow)"
-            initial={{ pathLength: 0 }}
-            animate={{ pathLength: 1 }}
-            transition={{ duration: 0.6, delay: 0.6 }}
-          />
-          <motion.path
-            d="M 270 250 L 270 270"
-            stroke="url(#flowGradientOrange)"
-            strokeWidth="2"
-            fill="none"
-            strokeLinecap="round"
-            filter="url(#glow)"
-            initial={{ pathLength: 0 }}
-            animate={{ pathLength: 1 }}
-            transition={{ duration: 0.4, delay: 0.8 }}
-          />
-
-          {/* Animated flow dots */}
-          <motion.circle
-            r="3"
-            fill="#14B8A6"
-            filter="url(#glow)"
-            initial={{ opacity: 0 }}
-            animate={{
-              opacity: [0, 1, 1, 0],
-              cx: [190, 190, 190, 190],
-              cy: [45, 75, 105, 135],
-            }}
-            transition={{ duration: 2, repeat: Infinity, ease: 'linear', delay: 1 }}
-          />
-        </svg>
-
-        {/* Flow Chart Nodes */}
-        <div className="flex flex-col items-center relative z-10">
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
           {/* Campaign Start */}
           <FlowNode
-            icon={<RocketIcon />}
+            icon={<PlayIcon />}
             label="Campaign Start"
-            isHovered={hoveredNode === 'start'}
-            onHover={() => handleNodeHover('start')}
-            onLeave={() => handleNodeHover(null)}
+            color="teal"
+            isHero={isHero}
+            stats={stats.campaignStart}
+            isActive={activeNode === 'campaign'}
+            onHover={(h) => setActiveNode(h ? 'campaign' : null)}
           />
 
-          <div className="h-8" />
+          <VerticalArrow color="teal" animate />
 
           {/* Connection Request */}
           <FlowNode
             icon={<LinkedInIcon />}
             label="Connection Request"
-            isHovered={hoveredNode === 'connection'}
-            onHover={() => handleNodeHover('connection')}
-            onLeave={() => handleNodeHover(null)}
+            color="teal"
+            isHero={isHero}
+            stats={stats.connectionRequest}
+            isActive={activeNode === 'connection'}
+            onHover={(h) => setActiveNode(h ? 'connection' : null)}
           />
 
-          <div className="h-6" />
+          <VerticalArrow color="teal" animate />
 
-          {/* Decision Diamond */}
+          {/* If Connected? Decision Node */}
           <motion.div
-            className="relative my-2"
-            whileHover={{ scale: 1.02 }}
+            className={!isHero ? "px-4 sm:px-5 md:px-7 py-2 sm:py-2.5 md:py-3" : ""}
+            style={{
+              padding: isHero ? '12px 28px' : undefined,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: isHero ? 8 : 6,
+              borderRadius: 999,
+              background: isHero
+                ? 'linear-gradient(135deg, rgba(45, 55, 72, 0.95) 0%, rgba(30, 41, 59, 0.98) 100%)'
+                : 'linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 250, 252, 0.9) 100%)',
+              border: isHero ? '2px solid rgba(20, 184, 166, 0.4)' : '2px solid rgba(20, 184, 166, 0.5)',
+              cursor: 'pointer',
+              position: 'relative',
+            }}
+            whileHover={{ scale: 1.03, y: -2, borderColor: 'rgba(20, 184, 166, 0.8)' }}
+            whileTap={{ scale: 0.98 }}
           >
-            <div className="w-[100px] h-[100px] flex items-center justify-center">
-              {/* Diamond shape */}
-              <div
-                className="absolute w-[72px] h-[72px] rounded-xl border-2 border-teal-500/40"
-                style={{
-                  transform: 'rotate(45deg)',
-                  background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.9) 0%, rgba(30, 41, 59, 0.7) 100%)',
-                  boxShadow: '0 0 30px rgba(20, 184, 166, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.1)',
-                }}
-              />
-              {/* Inner glow */}
-              <div
-                className="absolute w-[60px] h-[60px] rounded-lg opacity-50"
-                style={{
-                  transform: 'rotate(45deg)',
-                  background: 'radial-gradient(circle, rgba(20, 184, 166, 0.2) 0%, transparent 70%)',
-                }}
-              />
-              <span className="relative z-10 text-white text-[11px] font-semibold whitespace-nowrap">
-                If Connected?
-              </span>
-            </div>
+            <motion.span
+              style={{ color: '#14B8A6', fontSize: isHero ? 14 : undefined }}
+              className={!isHero ? "text-xs md:text-sm" : ""}
+              animate={{ rotate: [0, 180, 360] }}
+              transition={{ duration: 4, repeat: Infinity, ease: 'linear' }}
+            >
+              ◇
+            </motion.span>
+            <span style={{ fontSize: isHero ? 14 : undefined, fontWeight: 500, color: isHero ? 'white' : '#334155' }} className={!isHero ? "text-xs sm:text-[13px] md:text-sm font-medium" : ""}>
+              If Connected?
+            </span>
           </motion.div>
 
-          <div className="h-3" />
+          {/* Branch Arrows with flowing particles */}
+          <svg
+            width={isHero ? "416" : undefined}
+            height={isHero ? "44" : undefined}
+            className={!isHero ? "w-full max-w-[280px] sm:max-w-[340px] md:max-w-[416px] h-[36px] sm:h-[40px] md:h-[44px]" : ""}
+            viewBox="0 0 416 44"
+            preserveAspectRatio="xMidYMid meet"
+            style={{ margin: '4px auto' }}>
+            {/* Left branch */}
+            <motion.path
+              d="M208 0 L208 10 Q208 20 160 20 L108 20 L108 36"
+              stroke="rgba(16, 185, 129, 0.7)"
+              strokeWidth="2"
+              fill="none"
+              strokeLinecap="round"
+              initial={{ pathLength: 0 }}
+              animate={{ pathLength: 1 }}
+              transition={{ duration: 1, delay: 0.5 }}
+            />
+            <motion.path
+              d="M104 32 L108 40 L112 32"
+              stroke="rgba(16, 185, 129, 0.7)"
+              strokeWidth="2"
+              fill="none"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            {/* Left branch flowing dot */}
+            <motion.circle
+              r="3"
+              fill="#10B981"
+              initial={{ cx: 208, cy: 0, opacity: 0 }}
+              animate={{
+                cx: [208, 208, 160, 108, 108],
+                cy: [0, 10, 20, 20, 36],
+                opacity: [0, 1, 1, 1, 0],
+              }}
+              transition={{ duration: 1.5, repeat: Infinity, repeatDelay: 1.5 }}
+            />
 
-          {/* Branching Paths */}
-          <div className="flex items-start justify-center gap-16 w-full">
-            {/* Left: Accepted */}
-            <div className="flex flex-col items-center">
-              <motion.div
-                className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 mb-3"
-                initial={{ opacity: 0, y: -5 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.7 }}
-              >
-                <div className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(16,185,129,0.6)]" />
-                <span className="text-emerald-400 text-[10px] font-semibold tracking-wide">Accepted</span>
-              </motion.div>
+            {/* Right branch */}
+            <motion.path
+              d="M208 0 L208 10 Q208 20 256 20 L308 20 L308 36"
+              stroke="rgba(20, 184, 166, 0.7)"
+              strokeWidth="2"
+              fill="none"
+              strokeLinecap="round"
+              initial={{ pathLength: 0 }}
+              animate={{ pathLength: 1 }}
+              transition={{ duration: 1, delay: 0.5 }}
+            />
+            <motion.path
+              d="M304 32 L308 40 L312 32"
+              stroke="rgba(20, 184, 166, 0.7)"
+              strokeWidth="2"
+              fill="none"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            {/* Right branch flowing dot */}
+            <motion.circle
+              r="3"
+              fill="#14B8A6"
+              initial={{ cx: 208, cy: 0, opacity: 0 }}
+              animate={{
+                cx: [208, 208, 256, 308, 308],
+                cy: [0, 10, 20, 20, 36],
+                opacity: [0, 1, 1, 1, 0],
+              }}
+              transition={{ duration: 1.5, repeat: Infinity, repeatDelay: 1.5, delay: 1.5 }}
+            />
 
-              <FlowNode
+            {/* Branch labels */}
+            <text x="65" y="18" fill="#10B981" fontSize="10" fontWeight="600">Yes</text>
+            <text x="340" y="18" fill="#14B8A6" fontSize="10" fontWeight="600">No</text>
+          </svg>
+
+          {/* Two Column Branches */}
+          <div style={isHero ? { display: 'flex', gap: 16, width: '100%', justifyContent: 'center' } : undefined} className={!isHero ? "flex gap-2 sm:gap-3 md:gap-4 w-full justify-center" : ""}>
+            {/* Left Branch - Accepted */}
+            <div style={isHero ? { display: 'flex', flexDirection: 'column', alignItems: 'center', width: 200 } : undefined} className={!isHero ? "flex flex-col items-center w-[130px] sm:w-[160px] md:w-[200px]" : ""}>
+              <BranchNode
+                icon={<ThumbsUpIcon />}
+                label="Accepted"
+                color="green"
+                isHero={isHero}
+                isActive={activeNode === 'accepted'}
+                onHover={(h) => setActiveNode(h ? 'accepted' : null)}
+              />
+              <VerticalArrow color="green" animate />
+              <BranchNode
                 icon={<ClockIcon />}
                 label="Wait 1 Day"
-                isHovered={hoveredNode === 'wait1'}
-                onHover={() => handleNodeHover('wait1')}
-                onLeave={() => handleNodeHover(null)}
-                small
-                variant="success"
+                color="green"
+                isHero={isHero}
+                isActive={activeNode === 'wait1'}
+                onHover={(h) => setActiveNode(h ? 'wait1' : null)}
               />
-              <div className="h-5" />
-              <FlowNode
-                icon={<MessageIcon />}
-                label="Send Message"
-                isHovered={hoveredNode === 'message'}
-                onHover={() => handleNodeHover('message')}
-                onLeave={() => handleNodeHover(null)}
-                small
-                variant="success"
-              />
+              <VerticalArrow color="green" animate />
+              {/* Send Message Button - Green gradient */}
+              <motion.div
+                className={!isHero ? "w-full px-2 sm:px-3 md:px-5 py-2 sm:py-2.5 md:py-3" : ""}
+                style={{
+                  width: isHero ? '100%' : undefined,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: isHero ? 8 : 4,
+                  padding: isHero ? '12px 20px' : undefined,
+                  borderRadius: 10,
+                  background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
+                  boxShadow: '0 6px 20px rgba(16, 185, 129, 0.35)',
+                  cursor: 'pointer',
+                }}
+                whileHover={{
+                  scale: 1.03,
+                  y: -2,
+                  boxShadow: '0 10px 30px rgba(16, 185, 129, 0.5), 0 0 0 2px rgba(16, 185, 129, 0.3)',
+                }}
+                whileTap={{ scale: 0.98 }}
+                onMouseEnter={() => setActiveNode('sendMsg')}
+                onMouseLeave={() => setActiveNode(null)}
+              >
+                <MessageIcon white />
+                <span style={{ color: 'white', fontSize: isHero ? 13 : undefined, fontWeight: 600 }} className={!isHero ? "text-[10px] sm:text-[11px] md:text-[13px] font-semibold text-white whitespace-nowrap" : ""}>
+                  Send Message
+                </span>
+              </motion.div>
             </div>
 
-            {/* Right: Not Accepted */}
-            <div className="flex flex-col items-center">
-              <motion.div
-                className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-orange-500/10 border border-orange-500/20 mb-3"
-                initial={{ opacity: 0, y: -5 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.7 }}
-              >
-                <div className="w-2 h-2 rounded-full bg-orange-400 shadow-[0_0_6px_rgba(251,146,60,0.6)]" />
-                <span className="text-orange-400 text-[10px] font-semibold tracking-wide">Not Accepted</span>
-              </motion.div>
-
-              <FlowNode
+            {/* Right Branch - Not Accepted */}
+            <div style={isHero ? { display: 'flex', flexDirection: 'column', alignItems: 'center', width: 200 } : undefined} className={!isHero ? "flex flex-col items-center w-[130px] sm:w-[160px] md:w-[200px]" : ""}>
+              <BranchNode
+                icon={<ClockWaitIcon />}
+                label="Not Accepted"
+                color="teal"
+                isHero={isHero}
+                isActive={activeNode === 'notAccepted'}
+                onHover={(h) => setActiveNode(h ? 'notAccepted' : null)}
+              />
+              <VerticalArrow color="teal" animate />
+              <BranchNode
                 icon={<ClockIcon />}
                 label="Wait 3 Days"
-                isHovered={hoveredNode === 'wait3'}
-                onHover={() => handleNodeHover('wait3')}
-                onLeave={() => handleNodeHover(null)}
-                small
-                variant="warning"
+                color="teal"
+                isHero={isHero}
+                isActive={activeNode === 'wait3'}
+                onHover={(h) => setActiveNode(h ? 'wait3' : null)}
               />
-              <div className="h-5" />
-              <FlowNode
-                icon={<EmailIcon />}
-                label="Send Email"
-                isHovered={hoveredNode === 'email'}
-                onHover={() => handleNodeHover('email')}
-                onLeave={() => handleNodeHover(null)}
-                small
-                variant="warning"
-                highlight
-              />
+              <VerticalArrow color="teal" animate />
+              {/* Send Email Button - Teal */}
+              <motion.div
+                className={!isHero ? "w-full px-2 sm:px-3 md:px-5 py-2 sm:py-2.5 md:py-3" : ""}
+                style={{
+                  width: isHero ? '100%' : undefined,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: isHero ? 8 : 4,
+                  padding: isHero ? '12px 20px' : undefined,
+                  borderRadius: 10,
+                  background: 'linear-gradient(135deg, #14B8A6 0%, #0D9488 100%)',
+                  boxShadow: '0 6px 20px rgba(20, 184, 166, 0.35)',
+                  cursor: 'pointer',
+                }}
+                whileHover={{
+                  scale: 1.03,
+                  y: -2,
+                  boxShadow: '0 10px 30px rgba(20, 184, 166, 0.5), 0 0 0 2px rgba(20, 184, 166, 0.3)',
+                }}
+                whileTap={{ scale: 0.98 }}
+                onMouseEnter={() => {
+                  setActiveNode('sendEmail')
+                  onEmailNodeHover?.(true)
+                }}
+                onMouseLeave={() => {
+                  setActiveNode(null)
+                  onEmailNodeHover?.(false)
+                }}
+              >
+                <EmailIcon />
+                <span style={{ color: 'white', fontSize: isHero ? 13 : undefined, fontWeight: 600 }} className={!isHero ? "text-[10px] sm:text-[11px] md:text-[13px] font-semibold text-white whitespace-nowrap" : ""}>
+                  Send Email
+                </span>
+              </motion.div>
             </div>
           </div>
         </div>
@@ -290,104 +352,252 @@ export function SequenceBuilderPanel({ onEmailNodeHover, variant = 'hero' }: Seq
   )
 }
 
-// Premium Flow Node Component
+// Flowing particles animation
+function FlowingParticles() {
+  return (
+    <div style={{ position: 'absolute', top: 60, left: '50%', transform: 'translateX(-50%)', width: 2, height: 140, overflow: 'visible', pointerEvents: 'none' }}>
+      {[0, 1, 2].map((i) => (
+        <motion.div
+          key={i}
+          style={{
+            position: 'absolute',
+            width: 6,
+            height: 6,
+            borderRadius: '50%',
+            background: 'rgba(20, 184, 166, 0.6)',
+            left: -2,
+          }}
+          animate={{
+            top: [0, 140],
+            opacity: [0, 1, 1, 0],
+          }}
+          transition={{
+            duration: 2,
+            repeat: Infinity,
+            delay: i * 0.7,
+            ease: 'linear',
+          }}
+        />
+      ))}
+    </div>
+  )
+}
+
+// Top-level flow nodes with stats
 function FlowNode({
   icon,
   label,
-  isHovered,
+  color,
+  isHero,
+  stats,
+  isActive,
   onHover,
-  onLeave,
-  small = false,
-  variant = 'default',
-  highlight = false,
 }: {
   icon: React.ReactNode
   label: string
-  isHovered: boolean
-  onHover: () => void
-  onLeave: () => void
-  small?: boolean
-  variant?: 'default' | 'success' | 'warning'
-  highlight?: boolean
+  color: 'teal' | 'green'
+  isHero: boolean
+  stats?: NodeStats
+  isActive?: boolean
+  onHover?: (hovered: boolean) => void
 }) {
-  const baseClasses = small ? 'px-4 py-2.5' : 'px-5 py-3'
-
-  const variantClasses = {
-    default: isHovered
-      ? 'bg-white/[0.12] border-teal-500/50 shadow-[0_0_20px_rgba(20,184,166,0.2)]'
-      : 'bg-white/[0.06] border-white/[0.08] hover:bg-white/[0.08]',
-    success: isHovered
-      ? 'bg-emerald-500/15 border-emerald-500/40 shadow-[0_0_20px_rgba(16,185,129,0.2)]'
-      : 'bg-white/[0.04] border-emerald-500/20 hover:bg-emerald-500/10',
-    warning: isHovered
-      ? 'bg-orange-500/15 border-orange-500/40 shadow-[0_0_20px_rgba(251,146,60,0.2)]'
-      : highlight
-        ? 'bg-orange-500/10 border-orange-500/30'
-        : 'bg-white/[0.04] border-orange-500/20 hover:bg-orange-500/10',
+  const borderColors = {
+    teal: isActive ? 'rgba(20, 184, 166, 0.8)' : 'rgba(20, 184, 166, 0.5)',
+    green: isActive ? 'rgba(16, 185, 129, 0.8)' : 'rgba(16, 185, 129, 0.5)',
   }
 
   return (
     <motion.div
-      className={`flex items-center gap-2.5 cursor-pointer rounded-2xl border backdrop-blur-sm transition-all duration-300 ${baseClasses} ${variantClasses[variant]}`}
+      className={!isHero ? "min-w-[140px] sm:min-w-[170px] md:min-w-[200px] px-3 sm:px-4 md:px-6 py-2 sm:py-2.5 md:py-3" : ""}
       style={{
-        boxShadow: isHovered ? undefined : 'inset 0 1px 0 rgba(255, 255, 255, 0.05)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: isHero ? 10 : 6,
+        padding: isHero ? '12px 24px' : undefined,
+        borderRadius: 10,
+        background: isHero ? 'rgba(51, 65, 85, 0.8)' : 'white',
+        border: `2px solid ${borderColors[color]}`,
+        cursor: 'pointer',
+        position: 'relative',
+        minWidth: isHero ? 200 : undefined,
       }}
-      whileHover={{ scale: 1.03, y: -2 }}
+      whileHover={{ scale: 1.03, y: -2, borderColor: color === 'teal' ? 'rgba(20, 184, 166, 0.8)' : 'rgba(16, 185, 129, 0.8)' }}
       whileTap={{ scale: 0.98 }}
-      onMouseEnter={onHover}
-      onMouseLeave={onLeave}
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4 }}
+      onMouseEnter={() => onHover?.(true)}
+      onMouseLeave={() => onHover?.(false)}
     >
-      <span className={`${small ? 'text-base' : 'text-lg'}`}>{icon}</span>
-      <span className={`text-white font-medium ${small ? 'text-[11px]' : 'text-[13px]'}`}>{label}</span>
+      <span style={{ fontSize: isHero ? 16 : undefined }} className={!isHero ? "text-sm md:text-base" : ""}>{icon}</span>
+      <span style={{ fontSize: isHero ? 14 : undefined, fontWeight: 500, color: isHero ? 'white' : '#334155' }} className={!isHero ? "text-xs sm:text-[13px] md:text-sm font-medium whitespace-nowrap" : ""}>
+        {label}
+      </span>
+      {stats && (
+        <motion.span
+          className={!isHero ? "ml-1 px-1.5 sm:px-2 py-0.5 text-[9px] sm:text-[10px] md:text-[11px] font-semibold rounded" : ""}
+          style={{
+            marginLeft: isHero ? 4 : undefined,
+            padding: isHero ? '2px 8px' : undefined,
+            background: color === 'teal' ? 'rgba(20, 184, 166, 0.2)' : 'rgba(16, 185, 129, 0.2)',
+            borderRadius: isHero ? 6 : undefined,
+            fontSize: isHero ? 11 : undefined,
+            color: color === 'teal' ? '#14B8A6' : '#10B981',
+            fontWeight: isHero ? 600 : undefined,
+          }}
+          key={stats.sent}
+          initial={{ scale: 1 }}
+          animate={{ scale: [1, 1.05, 1] }}
+          transition={{ duration: 0.3 }}
+        >
+          {stats.sent.toLocaleString()}
+        </motion.span>
+      )}
     </motion.div>
   )
 }
 
-// LinkedIn Icon
+// Branch nodes with enhanced interactivity
+function BranchNode({
+  icon,
+  label,
+  color,
+  isHero,
+  isActive,
+  onHover,
+}: {
+  icon: React.ReactNode
+  label: string
+  color: 'green' | 'teal'
+  isHero: boolean
+  isActive?: boolean
+  onHover?: (hovered: boolean) => void
+}) {
+  const borderColors = {
+    green: isActive ? 'rgba(16, 185, 129, 0.8)' : 'rgba(16, 185, 129, 0.5)',
+    teal: isActive ? 'rgba(20, 184, 166, 0.8)' : 'rgba(20, 184, 166, 0.5)',
+  }
+
+  return (
+    <motion.div
+      className={!isHero ? "w-full px-2 sm:px-3 md:px-3.5 py-1.5 sm:py-2 md:py-2.5" : ""}
+      style={{
+        width: isHero ? '100%' : undefined,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: isHero ? 8 : 4,
+        padding: isHero ? '10px 14px' : undefined,
+        borderRadius: 8,
+        background: isHero ? 'rgba(51, 65, 85, 0.8)' : 'white',
+        border: `1.5px solid ${borderColors[color]}`,
+        cursor: 'pointer',
+        position: 'relative',
+      }}
+      whileHover={{ scale: 1.02, y: -1, borderColor: color === 'green' ? 'rgba(16, 185, 129, 0.8)' : 'rgba(20, 184, 166, 0.8)' }}
+      whileTap={{ scale: 0.98 }}
+      onMouseEnter={() => onHover?.(true)}
+      onMouseLeave={() => onHover?.(false)}
+    >
+      <span style={{ fontSize: isHero ? 14 : undefined }} className={!isHero ? "text-xs md:text-sm" : ""}>{icon}</span>
+      <span style={{ fontSize: isHero ? 13 : undefined, fontWeight: 500, color: isHero ? 'white' : '#334155' }} className={!isHero ? "text-[10px] sm:text-[11px] md:text-[13px] font-medium whitespace-nowrap" : ""}>
+        {label}
+      </span>
+    </motion.div>
+  )
+}
+
+// Vertical arrow with animation
+function VerticalArrow({ color, animate }: { color: 'teal' | 'green'; animate?: boolean }) {
+  const colors = {
+    teal: 'rgba(20, 184, 166, 0.7)',
+    green: 'rgba(16, 185, 129, 0.7)',
+  }
+
+  return (
+    <div style={{
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      margin: '6px 0',
+      position: 'relative',
+    }}>
+      <motion.div
+        style={{
+          width: 2,
+          height: 16,
+          background: colors[color],
+          borderRadius: 1,
+        }}
+        initial={animate ? { scaleY: 0 } : {}}
+        animate={{ scaleY: 1 }}
+        transition={{ duration: 0.3 }}
+      />
+      <svg width="12" height="8" viewBox="0 0 12 8" style={{ marginTop: -2 }}>
+        <motion.path
+          d="M6 8L0 0h12L6 8z"
+          fill={colors[color]}
+          initial={animate ? { opacity: 0 } : {}}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.3, delay: 0.2 }}
+        />
+      </svg>
+    </div>
+  )
+}
+
+// Icons
+function PlayIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="#14B8A6">
+      <path d="M8 5v14l11-7z" />
+    </svg>
+  )
+}
+
 function LinkedInIcon() {
   return (
-    <svg className="w-[18px] h-[18px] text-[#0A66C2]" fill="currentColor" viewBox="0 0 20 20">
+    <svg width="16" height="16" viewBox="0 0 20 20" fill="#0A66C2">
       <path d="M16.338 16.338H13.67V12.16c0-.995-.017-2.277-1.387-2.277-1.39 0-1.601 1.086-1.601 2.207v4.248H8.014v-8.59h2.559v1.174h.037c.356-.675 1.227-1.387 2.526-1.387 2.703 0 3.203 1.778 3.203 4.092v4.711zM5.005 6.575a1.548 1.548 0 11-.003-3.096 1.548 1.548 0 01.003 3.096zm-1.337 9.763H6.34v-8.59H3.667v8.59zM17.668 1H2.328C1.595 1 1 1.581 1 2.298v15.403C1 18.418 1.595 19 2.328 19h15.34c.734 0 1.332-.582 1.332-1.299V2.298C19 1.581 18.402 1 17.668 1z" />
     </svg>
   )
 }
 
-// Email Icon
 function EmailIcon() {
   return (
-    <svg className="w-[18px] h-[18px] text-orange-400" fill="currentColor" viewBox="0 0 20 20">
+    <svg width="16" height="16" viewBox="0 0 20 20" fill="white">
       <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z" />
       <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
     </svg>
   )
 }
 
-// Rocket Icon
-function RocketIcon() {
-  return (
-    <svg className="w-[18px] h-[18px] text-teal-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M15.59 14.37a6 6 0 01-5.84 7.38v-4.8m5.84-2.58a14.98 14.98 0 006.16-12.12A14.98 14.98 0 009.631 8.41m5.96 5.96a14.926 14.926 0 01-5.841 2.58m-.119-8.54a6 6 0 00-7.381 5.84h4.8m2.581-5.84a14.927 14.927 0 00-2.58 5.84m2.699 2.7c-.103.021-.207.041-.311.06a15.09 15.09 0 01-2.448-2.448 14.9 14.9 0 01.06-.312m-2.24 2.39a4.493 4.493 0 00-1.757 4.306 4.493 4.493 0 004.306-1.758M16.5 9a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z" />
-    </svg>
-  )
-}
-
-// Clock Icon
 function ClockIcon() {
   return (
-    <svg className="w-[18px] h-[18px] text-current" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#94A3B8" strokeWidth="2">
       <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
     </svg>
   )
 }
 
-// Message Icon
-function MessageIcon() {
+function ClockWaitIcon() {
   return (
-    <svg className="w-[18px] h-[18px] text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#14B8A6" strokeWidth="2">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  )
+}
+
+function MessageIcon({ white }: { white?: boolean } = {}) {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={white ? "white" : "#10B981"} strokeWidth="2">
       <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+    </svg>
+  )
+}
+
+function ThumbsUpIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#10B981" strokeWidth="2">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5" />
     </svg>
   )
 }

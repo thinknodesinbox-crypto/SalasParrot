@@ -20,10 +20,10 @@ export function FinalCTA() {
           </p>
 
           <Button variant="primary" size="lg">
-            Start $1 Trial
+            Get Started
           </Button>
 
-          <p className="mt-3 sm:mt-4 text-xs sm:text-[14px] text-[#64748B] font-medium">7-day full access. Cancel anytime.</p>
+          <p className="mt-3 sm:mt-4 text-xs sm:text-[14px] text-[#64748B] font-medium">7-day free trial. Cancel anytime.</p>
         </motion.div>
       </Container>
     </section>

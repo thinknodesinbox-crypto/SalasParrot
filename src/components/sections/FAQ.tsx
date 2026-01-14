@@ -4,9 +4,9 @@ import { Container } from '@/components/ui'
 
 const faqs = [
   {
-    question: 'How does the $1 trial work?',
+    question: 'How does the free trial work?',
     answer:
-      "Get full access to all features for 7 days for just $1. No restrictions, no hidden limits. If you decide SalesParrot isn't for you, cancel anytime before the trial ends.",
+      "Get full access to all features for 7 days, completely free. No restrictions, no hidden limits. If you decide SalesParrot isn't for you, cancel anytime before the trial ends.",
   },
   {
     question: 'Are my LinkedIn accounts safe?',
