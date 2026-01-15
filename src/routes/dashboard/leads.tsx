@@ -1,22 +1,14 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useState, useRef } from 'react'
+import { useLeads } from '../../lib/hooks/queries'
+import type { Lead } from '../../lib/types'
 
 export const Route = createFileRoute('/dashboard/leads')({
   component: LeadsPage,
 })
 
-interface Lead {
-  id: string
-  name: string
-  email?: string
-  company: string
-  title: string
-  linkedinUrl: string
-  status: 'new' | 'enriched' | 'in_campaign' | 'replied' | 'connected'
-  addedAt: string
-}
-
+// Local UI types for lead lists (not yet in API)
 interface LeadList {
   id: string
   name: string
@@ -126,8 +118,43 @@ function LeadsPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [filterType, setFilterType] = useState<'all' | 'enriched' | 'not_enriched'>('all')
 
+  // Use API hooks
+  const { data: leadsResponse, isLoading, error, refetch } = useLeads()
+  const leads = leadsResponse?.leads || []
+
+  // Lead lists are a UI concept for now (could be campaigns or tags in the future)
   const [lists, setLists] = useState<LeadList[]>([])
-  const [leads] = useState<Lead[]>([])
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="flex flex-col items-center gap-3">
+          <LoadingSpinner />
+          <p className="text-[#64748B]">Loading leads...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <div className="w-16 h-16 mx-auto mb-4 bg-[#FEF2F2] rounded-full flex items-center justify-center">
+            <AlertIcon className="w-8 h-8 text-[#EF4444]" />
+          </div>
+          <h3 className="text-lg font-semibold text-[#1E293B] mb-2">Failed to load leads</h3>
+          <p className="text-[#64748B] mb-4">{error.message}</p>
+          <button
+            onClick={() => refetch()}
+            className="px-4 py-2 bg-[#FF6B35] text-white font-medium rounded-lg hover:bg-[#E85A2A] transition-colors"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-4 md:space-y-6">
@@ -448,15 +475,16 @@ function LeadRow({
   selected: boolean
   onSelect: (selected: boolean) => void
 }) {
-  const statusColors = {
+  const statusColors: Record<string, { bg: string; text: string; label: string }> = {
     new: { bg: 'bg-[#F8FAFC]', text: 'text-[#64748B]', label: 'New' },
-    enriched: { bg: 'bg-[#F0FDFA]', text: 'text-[#14B8A6]', label: 'Enriched' },
-    in_campaign: { bg: 'bg-[#FFF7ED]', text: 'text-[#FF6B35]', label: 'In Campaign' },
+    contacted: { bg: 'bg-[#FFF7ED]', text: 'text-[#FF6B35]', label: 'Contacted' },
+    accepted: { bg: 'bg-[#EFF6FF]', text: 'text-[#3B82F6]', label: 'Accepted' },
     replied: { bg: 'bg-[#F0FDF4]', text: 'text-[#22C55E]', label: 'Replied' },
-    connected: { bg: 'bg-[#EFF6FF]', text: 'text-[#3B82F6]', label: 'Connected' },
+    qualified: { bg: 'bg-[#F0FDFA]', text: 'text-[#14B8A6]', label: 'Qualified' },
+    not_interested: { bg: 'bg-[#FEF2F2]', text: 'text-[#EF4444]', label: 'Not Interested' },
   }
 
-  const status = statusColors[lead.status]
+  const status = statusColors[lead.status] || statusColors.new
 
   return (
     <tr className="hover:bg-[#F8FAFC] transition-colors">
@@ -471,10 +499,10 @@ function LeadRow({
       <td className="px-6 py-4">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#FF6B35] to-[#14B8A6] flex items-center justify-center text-white text-sm font-medium">
-            {lead.name.split(' ').map(n => n[0]).join('')}
+            {[lead.first_name, lead.last_name].filter(Boolean).map((n) => n?.[0] || '').join('')}
           </div>
           <div>
-            <p className="font-medium text-[#1E293B]">{lead.name}</p>
+            <p className="font-medium text-[#1E293B]">{[lead.first_name, lead.last_name].filter(Boolean).join(' ') || 'Unknown'}</p>
             <p className="text-sm text-[#64748B]">{lead.title}</p>
           </div>
         </div>
@@ -495,7 +523,7 @@ function LeadRow({
       <td className="px-6 py-4 text-right">
         <div className="flex items-center justify-end gap-2">
           <a
-            href={lead.linkedinUrl}
+            href={lead.linkedin_url || '#'}
             target="_blank"
             rel="noopener noreferrer"
             className="p-2 rounded-lg hover:bg-[#EFF6FF] text-[#0A66C2] transition-colors"
@@ -1159,6 +1187,23 @@ function CheckCircleIcon({ className = 'w-5 h-5' }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  )
+}
+
+function AlertIcon({ className = 'w-5 h-5' }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  )
+}
+
+function LoadingSpinner() {
+  return (
+    <svg className="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
     </svg>
   )
 }

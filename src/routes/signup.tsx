@@ -1,13 +1,18 @@
-import { createFileRoute, Link } from '@tanstack/react-router'
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import logoImage from '@/assets/images/logo.png'
+import { useAuthStore } from '@/lib/auth'
+import { getErrorMessage } from '@/lib/api'
 
 export const Route = createFileRoute('/signup')({
   component: SignupPage,
 })
 
 function SignupPage() {
+  const navigate = useNavigate()
+  const signup = useAuthStore((state) => state.signup)
+
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
@@ -16,16 +21,31 @@ function SignupPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [agreedToTerms, setAgreedToTerms] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }))
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!agreedToTerms) return
+
     setIsLoading(true)
-    setTimeout(() => setIsLoading(false), 1500)
+    setError(null)
+
+    try {
+      await signup({
+        email: formData.email,
+        password: formData.password,
+        name: formData.fullName,
+      })
+      navigate({ to: '/dashboard' })
+    } catch (err) {
+      setError(getErrorMessage(err))
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const getPasswordStrength = (password: string) => {
@@ -181,6 +201,17 @@ function SignupPage() {
             </p>
           </motion.div>
 
+          {/* Error message */}
+          {error && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mt-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm"
+            >
+              {error}
+            </motion.div>
+          )}
+
           {/* Form */}
           <motion.form
             initial={{ opacity: 0, y: 10 }}
@@ -323,7 +354,7 @@ function SignupPage() {
   )
 }
 
-function BenefitItem({ icon, title, description }: { icon: string; title: string; description: string }) {
+function BenefitItem({ title, description }: { icon: string; title: string; description: string }) {
   return (
     <div className="flex items-start gap-4">
       <div className="w-6 h-6 rounded-full bg-[#14B8A6]/10 flex items-center justify-center flex-shrink-0 mt-0.5">

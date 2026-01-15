@@ -1,6 +1,24 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { motion, AnimatePresence } from 'framer-motion'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { useAuth } from '@/lib/auth'
+import {
+  useWorkspaces,
+  useCreateWorkspace,
+  useWorkspaceMembers,
+  useInviteWorkspaceMember,
+  useBillingOverview,
+  useCreatePortalSession,
+  useEmailAccounts,
+  useLinkedInAccounts,
+  useChangePassword,
+  useGetEmailAuthLink,
+  useConnectLinkedInWithCredentials,
+  useConnectLinkedInWithCookie,
+  useSolveLinkedInCheckpoint,
+  usePollLinkedInStatus,
+} from '@/lib/hooks/queries'
+import type { CheckpointType } from '@/lib/types'
 
 export const Route = createFileRoute('/dashboard/settings')({
   component: SettingsPage,
@@ -11,6 +29,13 @@ type SettingsTab = 'profile' | 'workspaces' | 'members' | 'notifications' | 'bil
 function SettingsPage() {
   const [activeTab, setActiveTab] = useState<SettingsTab>('profile')
   const [mobileTabsOpen, setMobileTabsOpen] = useState(false)
+  const { logout } = useAuth()
+  const navigate = useNavigate()
+
+  const handleLogout = () => {
+    logout()
+    navigate({ to: '/login' })
+  }
 
   const tabs: { id: SettingsTab; label: string; icon: React.ReactNode }[] = [
     { id: 'profile', label: 'Profile Settings', icon: <SettingsIcon /> },
@@ -100,7 +125,10 @@ function SettingsPage() {
 
         {/* Logout Button */}
         <div className="p-4 border-t border-[#E2E8F0]">
-          <button className="w-full flex items-center justify-center gap-2 px-4 py-2.5 border border-[#E2E8F0] rounded-lg text-sm font-medium text-[#64748B] hover:bg-[#F8FAFC] hover:text-[#1E293B] transition-colors">
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 border border-[#E2E8F0] rounded-lg text-sm font-medium text-[#64748B] hover:bg-[#F8FAFC] hover:text-[#1E293B] transition-colors"
+          >
             <LogoutIcon />
             Log out
           </button>
@@ -126,9 +154,43 @@ function SettingsPage() {
 
 // ==================== PROFILE SETTINGS ====================
 function ProfileSettings() {
+  const { user } = useAuth()
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [passwordError, setPasswordError] = useState('')
+  const [passwordSuccess, setPasswordSuccess] = useState('')
+
+  const changePassword = useChangePassword()
+
+  const handlePasswordChange = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setPasswordError('')
+    setPasswordSuccess('')
+
+    if (newPassword !== confirmPassword) {
+      setPasswordError('New passwords do not match')
+      return
+    }
+
+    if (newPassword.length < 8) {
+      setPasswordError('Password must be at least 8 characters')
+      return
+    }
+
+    try {
+      await changePassword.mutateAsync({
+        current_password: currentPassword,
+        new_password: newPassword,
+      })
+      setPasswordSuccess('Password changed successfully')
+      setCurrentPassword('')
+      setNewPassword('')
+      setConfirmPassword('')
+    } catch (error) {
+      setPasswordError(error instanceof Error ? error.message : 'Failed to change password')
+    }
+  }
 
   return (
     <motion.div
@@ -141,8 +203,37 @@ function ProfileSettings() {
         <h2 className="text-xl font-bold text-[#1E293B]">Profile Settings</h2>
       </div>
 
+      {/* User Info */}
       <div className="bg-white rounded-xl border border-[#E2E8F0] p-6">
-        <div className="space-y-6 max-w-md">
+        <h3 className="font-semibold text-[#1E293B] mb-4">Account Information</h3>
+        <div className="space-y-4 max-w-md">
+          <div>
+            <label className="block text-sm font-medium text-[#64748B] mb-1">
+              Email
+            </label>
+            <p className="text-[#1E293B]">{user?.email || 'Not available'}</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-[#64748B] mb-1">
+              Name
+            </label>
+            <p className="text-[#1E293B]">{user?.name || 'Not set'}</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-[#64748B] mb-1">
+              Plan
+            </label>
+            <span className="inline-flex items-center px-2.5 py-1 bg-[#EFF6FF] text-[#3B82F6] text-sm font-medium rounded-full">
+              {user?.plan || 'Free'}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Password Change Form */}
+      <div className="bg-white rounded-xl border border-[#E2E8F0] p-6">
+        <h3 className="font-semibold text-[#1E293B] mb-4">Change Password</h3>
+        <form onSubmit={handlePasswordChange} className="space-y-4 max-w-md">
           <div>
             <label className="block text-sm font-medium text-[#1E293B] mb-2">
               Current Password
@@ -152,10 +243,10 @@ function ProfileSettings() {
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
               placeholder="Enter current password"
-              className="w-full px-4 py-3 rounded-lg border border-[#E2E8F0] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/20 focus:border-[#3B82F6] transition-all"
+              className="w-full px-4 py-2.5 rounded-lg border border-[#E2E8F0] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/20 focus:border-[#3B82F6]"
+              required
             />
           </div>
-
           <div>
             <label className="block text-sm font-medium text-[#1E293B] mb-2">
               New Password
@@ -165,10 +256,10 @@ function ProfileSettings() {
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               placeholder="Enter new password"
-              className="w-full px-4 py-3 rounded-lg border border-[#E2E8F0] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/20 focus:border-[#3B82F6] transition-all"
+              className="w-full px-4 py-2.5 rounded-lg border border-[#E2E8F0] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/20 focus:border-[#3B82F6]"
+              required
             />
           </div>
-
           <div>
             <label className="block text-sm font-medium text-[#1E293B] mb-2">
               Confirm New Password
@@ -178,16 +269,31 @@ function ProfileSettings() {
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               placeholder="Confirm new password"
-              className="w-full px-4 py-3 rounded-lg border border-[#E2E8F0] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/20 focus:border-[#3B82F6] transition-all"
+              className="w-full px-4 py-2.5 rounded-lg border border-[#E2E8F0] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/20 focus:border-[#3B82F6]"
+              required
             />
           </div>
-        </div>
 
-        <div className="mt-8 flex justify-end">
-          <button className="px-6 py-2.5 bg-[#3B82F6] text-white font-medium rounded-lg hover:bg-[#2563EB] transition-colors">
-            Save changes
+          {passwordError && (
+            <div className="p-3 bg-[#FEF2F2] border border-[#EF4444]/20 rounded-lg">
+              <p className="text-sm text-[#EF4444]">{passwordError}</p>
+            </div>
+          )}
+
+          {passwordSuccess && (
+            <div className="p-3 bg-[#F0FDF4] border border-[#22C55E]/20 rounded-lg">
+              <p className="text-sm text-[#22C55E]">{passwordSuccess}</p>
+            </div>
+          )}
+
+          <button
+            type="submit"
+            disabled={changePassword.isPending}
+            className="px-6 py-2.5 bg-[#3B82F6] text-white font-medium rounded-lg hover:bg-[#2563EB] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            {changePassword.isPending ? 'Changing...' : 'Change Password'}
           </button>
-        </div>
+        </form>
       </div>
     </motion.div>
   )
@@ -198,14 +304,45 @@ function WorkspaceSettings() {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
 
-  const workspaces = [
-    { name: 'Main Workspace', seats: 3, limit: null },
-    { name: 'Sales Team', seats: 5, limit: 10 },
-  ]
+  // Fetch workspaces from API
+  const { data: workspacesData = [], isLoading, error, refetch } = useWorkspaces()
 
+  // Filter workspaces by search query
+  const workspaces = workspacesData.filter((w) =>
+    w.name.toLowerCase().includes(searchQuery.toLowerCase())
+  )
+
+  // TODO: Get from billing/plan data when available
   const totalSeats = 10
-  const usedSeats = workspaces.reduce((acc, w) => acc + w.seats, 0)
-  const availableSeats = totalSeats - usedSeats
+  const usedSeats = workspacesData.length
+  const availableSeats = Math.max(0, totalSeats - usedSeats)
+
+  if (isLoading) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex items-center justify-center py-12"
+      >
+        <div className="animate-spin w-8 h-8 border-2 border-[#3B82F6] border-t-transparent rounded-full" />
+      </motion.div>
+    )
+  }
+
+  if (error) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="text-center py-12"
+      >
+        <p className="text-[#EF4444]">Failed to load workspaces</p>
+        <button onClick={() => refetch()} className="mt-2 text-[#3B82F6] hover:underline">
+          Retry
+        </button>
+      </motion.div>
+    )
+  }
 
   return (
     <motion.div
@@ -288,16 +425,12 @@ function WorkspaceSettings() {
               </tr>
             </thead>
             <tbody className="divide-y divide-[#E2E8F0]">
-              {workspaces.map((workspace, index) => (
-                <tr key={index} className="hover:bg-[#F8FAFC] transition-colors">
+              {workspaces.map((workspace) => (
+                <tr key={workspace.id} className="hover:bg-[#F8FAFC] transition-colors">
                   <td className="px-6 py-4 font-medium text-[#1E293B]">{workspace.name}</td>
-                  <td className="px-6 py-4 text-[#64748B]">{workspace.seats}</td>
+                  <td className="px-6 py-4 text-[#64748B]">-</td>
                   <td className="px-6 py-4">
-                    {workspace.limit ? (
-                      <span className="text-[#64748B]">{workspace.limit}</span>
-                    ) : (
-                      <span className="px-2 py-1 bg-[#F0FDF4] text-[#22C55E] text-xs font-medium rounded">No limit</span>
-                    )}
+                    <span className="px-2 py-1 bg-[#F0FDF4] text-[#22C55E] text-xs font-medium rounded">No limit</span>
                   </td>
                   <td className="px-6 py-4 text-right">
                     <button className="p-2 rounded-lg hover:bg-[#F1F5F9] text-[#64748B]">
@@ -312,8 +445,8 @@ function WorkspaceSettings() {
 
         {/* Mobile Cards */}
         <div className="md:hidden divide-y divide-[#E2E8F0]">
-          {workspaces.map((workspace, index) => (
-            <div key={index} className="p-4 hover:bg-[#F8FAFC] transition-colors">
+          {workspaces.map((workspace) => (
+            <div key={workspace.id} className="p-4 hover:bg-[#F8FAFC] transition-colors">
               <div className="flex items-center justify-between mb-2">
                 <span className="font-medium text-[#1E293B]">{workspace.name}</span>
                 <button className="p-2 rounded-lg hover:bg-[#F1F5F9] text-[#64748B]">
@@ -322,16 +455,12 @@ function WorkspaceSettings() {
               </div>
               <div className="flex flex-wrap gap-4 text-sm">
                 <div>
-                  <span className="text-[#94A3B8]">Seats: </span>
-                  <span className="text-[#64748B]">{workspace.seats}</span>
+                  <span className="text-[#94A3B8]">Slug: </span>
+                  <span className="text-[#64748B]">{workspace.slug}</span>
                 </div>
                 <div>
                   <span className="text-[#94A3B8]">Limit: </span>
-                  {workspace.limit ? (
-                    <span className="text-[#64748B]">{workspace.limit}</span>
-                  ) : (
-                    <span className="px-2 py-0.5 bg-[#F0FDF4] text-[#22C55E] text-xs font-medium rounded">No limit</span>
-                  )}
+                  <span className="px-2 py-0.5 bg-[#F0FDF4] text-[#22C55E] text-xs font-medium rounded">No limit</span>
                 </div>
               </div>
             </div>
@@ -351,7 +480,22 @@ function WorkspaceSettings() {
 
 function CreateWorkspaceModal({ onClose }: { onClose: () => void }) {
   const [name, setName] = useState('')
-  const [seatLimit, setSeatLimit] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const createWorkspace = useCreateWorkspace()
+
+  const handleCreate = async () => {
+    if (!name.trim()) return
+    setError(null)
+    try {
+      await createWorkspace.mutateAsync({
+        name: name.trim(),
+        slug: name.trim().toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, ''),
+      })
+      onClose()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create workspace')
+    }
+  }
 
   return (
     <motion.div
@@ -381,31 +525,25 @@ function CreateWorkspaceModal({ onClose }: { onClose: () => void }) {
               className="w-full px-4 py-3 rounded-lg border border-[#E2E8F0] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/20 focus:border-[#3B82F6]"
             />
           </div>
-          <div>
-            <label className="block text-sm font-medium text-[#1E293B] mb-2">Seat limit (optional)</label>
-            <input
-              type="number"
-              value={seatLimit}
-              onChange={(e) => setSeatLimit(e.target.value)}
-              placeholder="Leave empty for no limit"
-              className="w-full px-4 py-3 rounded-lg border border-[#E2E8F0] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/20 focus:border-[#3B82F6]"
-            />
-          </div>
+          {error && (
+            <p className="text-sm text-[#EF4444]">{error}</p>
+          )}
         </div>
 
         <div className="flex gap-3 mt-6">
           <button
             onClick={onClose}
-            className="flex-1 px-4 py-2.5 border border-[#E2E8F0] rounded-lg font-medium text-[#64748B] hover:bg-[#F8FAFC]"
+            disabled={createWorkspace.isPending}
+            className="flex-1 px-4 py-2.5 border border-[#E2E8F0] rounded-lg font-medium text-[#64748B] hover:bg-[#F8FAFC] disabled:opacity-50"
           >
             Cancel
           </button>
           <button
-            onClick={onClose}
-            disabled={!name}
+            onClick={handleCreate}
+            disabled={!name.trim() || createWorkspace.isPending}
             className="flex-1 px-4 py-2.5 bg-[#3B82F6] text-white rounded-lg font-medium hover:bg-[#2563EB] disabled:opacity-50"
           >
-            Create workspace
+            {createWorkspace.isPending ? 'Creating...' : 'Create workspace'}
           </button>
         </div>
       </motion.div>
@@ -417,13 +555,66 @@ function CreateWorkspaceModal({ onClose }: { onClose: () => void }) {
 function MembersSettings() {
   const [showInviteModal, setShowInviteModal] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
-  const [filterWorkspace, setFilterWorkspace] = useState('all')
+  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string>('')
 
-  const members = [
-    { name: 'John Doe', email: 'john@company.com', role: 'Owner', workspaces: 'All Workspaces', avatar: 'JD' },
-    { name: 'Sarah Johnson', email: 'sarah@company.com', role: 'Admin', workspaces: 'Sales Team', avatar: 'SJ' },
-    { name: 'Mike Chen', email: 'mike@company.com', role: 'Member', workspaces: 'Main Workspace', avatar: 'MC' },
-  ]
+  // Fetch workspaces for the dropdown
+  const { data: workspaces = [] } = useWorkspaces()
+
+  // Auto-select first workspace when loaded
+  useEffect(() => {
+    if (workspaces.length > 0 && !selectedWorkspaceId) {
+      setSelectedWorkspaceId(workspaces[0].id)
+    }
+  }, [workspaces, selectedWorkspaceId])
+
+  // Fetch members for selected workspace
+  const { data: membersData = [], isLoading, error, refetch } = useWorkspaceMembers(selectedWorkspaceId)
+
+  // Filter members by search query
+  const members = membersData.filter((m) => {
+    const searchLower = searchQuery.toLowerCase()
+    const userName = m.user_name?.toLowerCase() || ''
+    const userEmail = m.user_email?.toLowerCase() || ''
+    return userName.includes(searchLower) || userEmail.includes(searchLower)
+  })
+
+  // Helper to get initials
+  const getInitials = (name: string | undefined | null, email: string | undefined | null) => {
+    if (name) {
+      return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+    }
+    if (email) {
+      return email[0].toUpperCase()
+    }
+    return '??'
+  }
+
+  if (isLoading && selectedWorkspaceId) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex items-center justify-center py-12"
+      >
+        <div className="animate-spin w-8 h-8 border-2 border-[#3B82F6] border-t-transparent rounded-full" />
+      </motion.div>
+    )
+  }
+
+  if (error) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="text-center py-12"
+      >
+        <p className="text-[#EF4444]">Failed to load members</p>
+        <button onClick={() => refetch()} className="mt-2 text-[#3B82F6] hover:underline">
+          Retry
+        </button>
+      </motion.div>
+    )
+  }
 
   return (
     <motion.div
@@ -460,13 +651,13 @@ function MembersSettings() {
               />
             </div>
             <select
-              value={filterWorkspace}
-              onChange={(e) => setFilterWorkspace(e.target.value)}
+              value={selectedWorkspaceId}
+              onChange={(e) => setSelectedWorkspaceId(e.target.value)}
               className="px-4 py-2 rounded-lg border border-[#E2E8F0] text-sm focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/20 focus:border-[#3B82F6] w-full sm:w-auto"
             >
-              <option value="all">All</option>
-              <option value="main">Main Workspace</option>
-              <option value="sales">Sales Team</option>
+              {workspaces.map((w) => (
+                <option key={w.id} value={w.id}>{w.name}</option>
+              ))}
             </select>
           </div>
           <button
@@ -490,38 +681,34 @@ function MembersSettings() {
               </tr>
             </thead>
             <tbody className="divide-y divide-[#E2E8F0]">
-              {members.map((member, index) => (
-                <tr key={index} className="hover:bg-[#F8FAFC] transition-colors">
+              {members.map((member) => (
+                <tr key={member.id} className="hover:bg-[#F8FAFC] transition-colors">
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#64748B] to-[#94A3B8] flex items-center justify-center text-white text-sm font-medium">
-                        {member.avatar}
+                        {getInitials(member.user_name, member.user_email)}
                       </div>
                       <div>
-                        <p className="font-medium text-[#1E293B]">{member.name}</p>
-                        <p className="text-sm text-[#64748B]">{member.email}</p>
+                        <p className="font-medium text-[#1E293B]">{member.user_name || 'Unknown'}</p>
+                        <p className="text-sm text-[#64748B]">{member.user_email || '-'}</p>
                       </div>
                     </div>
                   </td>
                   <td className="px-6 py-4">
                     <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium ${
-                      member.role === 'Owner'
+                      member.role === 'admin'
                         ? 'bg-[#EFF6FF] text-[#3B82F6]'
-                        : member.role === 'Admin'
-                        ? 'bg-[#F0FDF4] text-[#22C55E]'
                         : 'bg-[#F8FAFC] text-[#64748B]'
                     }`}>
-                      {member.role === 'Owner' && <CrownIcon className="w-3 h-3" />}
-                      {member.role}
+                      {member.role === 'admin' && <CrownIcon className="w-3 h-3" />}
+                      {member.role.charAt(0).toUpperCase() + member.role.slice(1)}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-[#64748B]">{member.workspaces}</td>
+                  <td className="px-6 py-4 text-[#64748B]">{workspaces.find(w => w.id === selectedWorkspaceId)?.name || '-'}</td>
                   <td className="px-6 py-4 text-right">
-                    {member.role !== 'Owner' && (
-                      <button className="p-2 rounded-lg hover:bg-[#F1F5F9] text-[#64748B]">
-                        <MoreIcon />
-                      </button>
-                    )}
+                    <button className="p-2 rounded-lg hover:bg-[#F1F5F9] text-[#64748B]">
+                      <MoreIcon />
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -531,36 +718,32 @@ function MembersSettings() {
 
         {/* Mobile Cards */}
         <div className="md:hidden divide-y divide-[#E2E8F0]">
-          {members.map((member, index) => (
-            <div key={index} className="p-4 hover:bg-[#F8FAFC] transition-colors">
+          {members.map((member) => (
+            <div key={member.id} className="p-4 hover:bg-[#F8FAFC] transition-colors">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#64748B] to-[#94A3B8] flex items-center justify-center text-white text-sm font-medium flex-shrink-0">
-                    {member.avatar}
+                    {getInitials(member.user_name, member.user_email)}
                   </div>
                   <div className="min-w-0">
-                    <p className="font-medium text-[#1E293B]">{member.name}</p>
-                    <p className="text-sm text-[#64748B] truncate">{member.email}</p>
+                    <p className="font-medium text-[#1E293B]">{member.user_name || 'Unknown'}</p>
+                    <p className="text-sm text-[#64748B] truncate">{member.user_email || '-'}</p>
                   </div>
                 </div>
-                {member.role !== 'Owner' && (
-                  <button className="p-2 rounded-lg hover:bg-[#F1F5F9] text-[#64748B] flex-shrink-0">
-                    <MoreIcon />
-                  </button>
-                )}
+                <button className="p-2 rounded-lg hover:bg-[#F1F5F9] text-[#64748B] flex-shrink-0">
+                  <MoreIcon />
+                </button>
               </div>
               <div className="flex flex-wrap items-center gap-2 mt-3 ml-13">
                 <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium ${
-                  member.role === 'Owner'
+                  member.role === 'admin'
                     ? 'bg-[#EFF6FF] text-[#3B82F6]'
-                    : member.role === 'Admin'
-                    ? 'bg-[#F0FDF4] text-[#22C55E]'
                     : 'bg-[#F8FAFC] text-[#64748B]'
                 }`}>
-                  {member.role === 'Owner' && <CrownIcon className="w-3 h-3" />}
-                  {member.role}
+                  {member.role === 'admin' && <CrownIcon className="w-3 h-3" />}
+                  {member.role.charAt(0).toUpperCase() + member.role.slice(1)}
                 </span>
-                <span className="text-xs text-[#94A3B8]">{member.workspaces}</span>
+                <span className="text-xs text-[#94A3B8]">{workspaces.find(w => w.id === selectedWorkspaceId)?.name || '-'}</span>
               </div>
             </div>
           ))}
@@ -569,18 +752,45 @@ function MembersSettings() {
 
       {/* Invite Modal */}
       <AnimatePresence>
-        {showInviteModal && (
-          <InviteMemberModal onClose={() => setShowInviteModal(false)} />
+        {showInviteModal && selectedWorkspaceId && (
+          <InviteMemberModal
+            workspaceId={selectedWorkspaceId}
+            workspaceName={workspaces.find(w => w.id === selectedWorkspaceId)?.name || 'Workspace'}
+            onClose={() => setShowInviteModal(false)}
+          />
         )}
       </AnimatePresence>
     </motion.div>
   )
 }
 
-function InviteMemberModal({ onClose }: { onClose: () => void }) {
+function InviteMemberModal({
+  workspaceId,
+  workspaceName,
+  onClose,
+}: {
+  workspaceId: string
+  workspaceName: string
+  onClose: () => void
+}) {
   const [email, setEmail] = useState('')
-  const [role, setRole] = useState('member')
-  const [workspace, setWorkspace] = useState('all')
+  const [role, setRole] = useState<'member' | 'admin'>('member')
+  const [error, setError] = useState<string | null>(null)
+  const inviteMember = useInviteWorkspaceMember(workspaceId)
+
+  const handleInvite = async () => {
+    if (!email.trim()) return
+    setError(null)
+    try {
+      await inviteMember.mutateAsync({
+        email: email.trim(),
+        role,
+      })
+      onClose()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to send invitation')
+    }
+  }
 
   return (
     <motion.div
@@ -614,7 +824,7 @@ function InviteMemberModal({ onClose }: { onClose: () => void }) {
             <label className="block text-sm font-medium text-[#1E293B] mb-2">Role</label>
             <select
               value={role}
-              onChange={(e) => setRole(e.target.value)}
+              onChange={(e) => setRole(e.target.value as 'member' | 'admin')}
               className="w-full px-4 py-3 rounded-lg border border-[#E2E8F0] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/20 focus:border-[#3B82F6]"
             >
               <option value="member">Member - Can run campaigns</option>
@@ -622,32 +832,28 @@ function InviteMemberModal({ onClose }: { onClose: () => void }) {
             </select>
           </div>
           <div>
-            <label className="block text-sm font-medium text-[#1E293B] mb-2">Workspace access</label>
-            <select
-              value={workspace}
-              onChange={(e) => setWorkspace(e.target.value)}
-              className="w-full px-4 py-3 rounded-lg border border-[#E2E8F0] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/20 focus:border-[#3B82F6]"
-            >
-              <option value="all">All Workspaces</option>
-              <option value="main">Main Workspace only</option>
-              <option value="sales">Sales Team only</option>
-            </select>
+            <label className="block text-sm font-medium text-[#64748B] mb-2">Workspace</label>
+            <p className="text-[#1E293B] font-medium">{workspaceName}</p>
           </div>
+          {error && (
+            <p className="text-sm text-[#EF4444]">{error}</p>
+          )}
         </div>
 
         <div className="flex gap-3 mt-6">
           <button
             onClick={onClose}
-            className="flex-1 px-4 py-2.5 border border-[#E2E8F0] rounded-lg font-medium text-[#64748B] hover:bg-[#F8FAFC]"
+            disabled={inviteMember.isPending}
+            className="flex-1 px-4 py-2.5 border border-[#E2E8F0] rounded-lg font-medium text-[#64748B] hover:bg-[#F8FAFC] disabled:opacity-50"
           >
             Cancel
           </button>
           <button
-            onClick={onClose}
-            disabled={!email}
+            onClick={handleInvite}
+            disabled={!email.trim() || inviteMember.isPending}
             className="flex-1 px-4 py-2.5 bg-[#3B82F6] text-white rounded-lg font-medium hover:bg-[#2563EB] disabled:opacity-50"
           >
-            Send invitation
+            {inviteMember.isPending ? 'Sending...' : 'Send invitation'}
           </button>
         </div>
       </motion.div>
@@ -790,6 +996,58 @@ function NotificationItem({
 
 // ==================== BILLING SETTINGS ====================
 function BillingSettings() {
+  const { data: billing, isLoading, error, refetch } = useBillingOverview()
+  const createPortal = useCreatePortalSession()
+
+  const handleManageBilling = async () => {
+    try {
+      const result = await createPortal.mutateAsync()
+      window.location.href = result.portal_url
+    } catch (err) {
+      console.error('Failed to open billing portal:', err)
+    }
+  }
+
+  // Format date
+  const formatDate = (dateString: string | null | undefined) => {
+    if (!dateString) return 'N/A'
+    const date = new Date(dateString)
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+  }
+
+  // Format plan name
+  const formatPlanName = (plan: string | undefined) => {
+    if (!plan) return 'Free'
+    return plan.charAt(0).toUpperCase() + plan.slice(1) + ' Plan'
+  }
+
+  if (isLoading) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex items-center justify-center py-12"
+      >
+        <div className="animate-spin w-8 h-8 border-2 border-[#3B82F6] border-t-transparent rounded-full" />
+      </motion.div>
+    )
+  }
+
+  if (error) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="text-center py-12"
+      >
+        <p className="text-[#EF4444]">Failed to load billing information</p>
+        <button onClick={() => refetch()} className="mt-2 text-[#3B82F6] hover:underline">
+          Retry
+        </button>
+      </motion.div>
+    )
+  }
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
@@ -804,25 +1062,37 @@ function BillingSettings() {
       {/* Current Plan */}
       <div className="bg-white rounded-xl border border-[#E2E8F0] p-6">
         <h3 className="font-semibold text-[#1E293B] mb-4">Current Plan</h3>
-        <div className="flex items-center justify-between p-5 bg-gradient-to-r from-[#FF6B35]/10 to-[#FF6B35]/5 rounded-xl border border-[#FF6B35]/20">
+        <div className="flex flex-col md:flex-row md:items-center justify-between p-5 bg-gradient-to-r from-[#FF6B35]/10 to-[#FF6B35]/5 rounded-xl border border-[#FF6B35]/20 gap-4">
           <div>
             <div className="flex items-center gap-3">
-              <span className="text-xl font-bold text-[#1E293B]">Growth Plan</span>
-              <span className="px-2.5 py-1 bg-[#FF6B35] text-white text-xs font-medium rounded-full">Active</span>
+              <span className="text-xl font-bold text-[#1E293B]">{formatPlanName(billing?.plan)}</span>
+              <span className={`px-2.5 py-1 text-xs font-medium rounded-full ${
+                billing?.status === 'active'
+                  ? 'bg-[#FF6B35] text-white'
+                  : billing?.status === 'trialing'
+                  ? 'bg-[#3B82F6] text-white'
+                  : 'bg-[#64748B] text-white'
+              }`}>
+                {billing?.status === 'active' ? 'Active' :
+                 billing?.status === 'trialing' ? 'Trial' :
+                 billing?.status || 'Inactive'}
+              </span>
             </div>
-            <p className="text-sm text-[#64748B] mt-2">10 LinkedIn senders, Unlimited leads, Email enrichment included</p>
+            <p className="text-sm text-[#64748B] mt-2">
+              {billing?.linkedin_accounts_used || 0} LinkedIn senders connected
+            </p>
           </div>
-          <div className="text-right">
-            <p className="text-3xl font-bold text-[#1E293B]">$590<span className="text-base font-normal text-[#64748B]">/mo</span></p>
-            <p className="text-sm text-[#64748B]">Next billing: Feb 1, 2026</p>
+          <div className="md:text-right">
+            <p className="text-sm text-[#64748B]">Next billing: {formatDate(billing?.current_period_end)}</p>
           </div>
         </div>
-        <div className="mt-4 flex gap-3">
-          <button className="px-4 py-2.5 bg-[#FF6B35] text-white font-medium rounded-lg hover:bg-[#E85A2A] transition-colors">
-            Upgrade Plan
-          </button>
-          <button className="px-4 py-2.5 border border-[#E2E8F0] text-[#64748B] font-medium rounded-lg hover:bg-[#F8FAFC] transition-colors">
-            View Invoices
+        <div className="mt-4 flex flex-wrap gap-3">
+          <button
+            onClick={handleManageBilling}
+            disabled={createPortal.isPending}
+            className="px-4 py-2.5 bg-[#FF6B35] text-white font-medium rounded-lg hover:bg-[#E85A2A] transition-colors disabled:opacity-50"
+          >
+            {createPortal.isPending ? 'Loading...' : 'Manage Subscription'}
           </button>
         </div>
       </div>
@@ -832,15 +1102,19 @@ function BillingSettings() {
         <h3 className="font-semibold text-[#1E293B] mb-4">Payment Method</h3>
         <div className="flex items-center justify-between p-4 bg-[#F8FAFC] rounded-lg">
           <div className="flex items-center gap-4">
-            <div className="w-14 h-9 bg-gradient-to-r from-[#1A1F71] to-[#2D45B8] rounded-md flex items-center justify-center">
-              <span className="text-white text-xs font-bold tracking-wide">VISA</span>
+            <div className="w-14 h-9 bg-gradient-to-r from-[#64748B] to-[#94A3B8] rounded-md flex items-center justify-center">
+              <span className="text-white text-xs font-bold tracking-wide">CARD</span>
             </div>
             <div>
-              <p className="font-medium text-[#1E293B]">Ending in 4242</p>
-              <p className="text-sm text-[#64748B]">Expires 12/28</p>
+              <p className="font-medium text-[#1E293B]">Manage payment method in Stripe</p>
+              <p className="text-sm text-[#64748B]">Click below to update</p>
             </div>
           </div>
-          <button className="text-sm text-[#3B82F6] font-medium hover:text-[#2563EB]">
+          <button
+            onClick={handleManageBilling}
+            disabled={createPortal.isPending}
+            className="text-sm text-[#3B82F6] font-medium hover:text-[#2563EB] disabled:opacity-50"
+          >
             Update
           </button>
         </div>
@@ -848,11 +1122,10 @@ function BillingSettings() {
 
       {/* Usage */}
       <div className="bg-white rounded-xl border border-[#E2E8F0] p-6">
-        <h3 className="font-semibold text-[#1E293B] mb-4">Usage This Month</h3>
+        <h3 className="font-semibold text-[#1E293B] mb-4">Usage</h3>
         <div className="space-y-5">
-          <UsageBar label="LinkedIn Senders" used={7} total={10} unit="accounts" />
-          <UsageBar label="Email Enrichments" used={2450} total={0} unit="unlimited" />
-          <UsageBar label="Active Campaigns" used={4} total={20} unit="campaigns" />
+          <UsageBar label="LinkedIn Accounts" used={billing?.linkedin_accounts_used || 0} total={billing?.linkedin_accounts_limit || 10} unit="accounts" />
+          <UsageBar label="Leads" used={billing?.leads_used || 0} total={billing?.leads_limit || 0} unit="leads" />
         </div>
       </div>
     </motion.div>
@@ -895,6 +1168,9 @@ function UsageBar({ label, used, total, unit }: { label: string; used: number; t
 // ==================== INTEGRATION SETTINGS ====================
 function IntegrationSettings() {
   const [showEmailModal, setShowEmailModal] = useState(false)
+  const [showLinkedInModal, setShowLinkedInModal] = useState(false)
+  const { data: emailAccounts = [], isLoading: emailsLoading } = useEmailAccounts()
+  const { data: linkedInAccounts = [], isLoading: linkedInLoading } = useLinkedInAccounts()
 
   return (
     <motion.div
@@ -905,6 +1181,70 @@ function IntegrationSettings() {
     >
       <div>
         <h2 className="text-xl font-bold text-[#1E293B]">Integrations</h2>
+      </div>
+
+      {/* LinkedIn Accounts */}
+      <div className="bg-white rounded-xl border border-[#E2E8F0] p-6">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h3 className="font-semibold text-[#1E293B]">LinkedIn Accounts</h3>
+            <p className="text-sm text-[#64748B] mt-1">Connect LinkedIn accounts to send connection requests and messages</p>
+          </div>
+          <button
+            onClick={() => setShowLinkedInModal(true)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-[#0A66C2] text-white font-medium rounded-lg hover:bg-[#004182] transition-colors"
+          >
+            <PlusIcon />
+            Connect LinkedIn
+          </button>
+        </div>
+
+        {/* Connected LinkedIn Accounts */}
+        {linkedInLoading ? (
+          <div className="flex items-center justify-center py-6">
+            <div className="animate-spin w-6 h-6 border-2 border-[#0A66C2] border-t-transparent rounded-full" />
+          </div>
+        ) : linkedInAccounts.length > 0 ? (
+          <div className="space-y-3">
+            {linkedInAccounts.map((account, index) => (
+              <div key={account.id} className="flex items-center justify-between p-4 bg-[#F8FAFC] rounded-xl border border-[#E2E8F0]">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-lg bg-[#0A66C2]/10 flex items-center justify-center">
+                    {account.avatar_url ? (
+                      <img src={account.avatar_url} alt={account.name || ''} className="w-10 h-10 rounded-lg" />
+                    ) : (
+                      <LinkedInIcon className="w-6 h-6 text-[#0A66C2]" />
+                    )}
+                  </div>
+                  <div>
+                    <p className="font-medium text-[#1E293B]">{account.name || 'LinkedIn Account'}</p>
+                    <p className="text-sm text-[#64748B]">
+                      {account.subscription_type !== 'free' ? `${account.subscription_type} - ` : ''}
+                      {account.status === 'connected' ? 'Connected' : account.status === 'warning' ? 'Warning' : 'Disconnected'}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  {index === 0 && (
+                    <span className="px-2.5 py-1 bg-[#F0FDF4] text-[#22C55E] text-xs font-medium rounded-full">Primary</span>
+                  )}
+                  <button className="p-2 rounded-lg hover:bg-[#E2E8F0] text-[#64748B]">
+                    <MoreIcon />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          /* Empty State */
+          <div className="p-6 border-2 border-dashed border-[#E2E8F0] rounded-xl text-center">
+            <div className="w-12 h-12 mx-auto mb-3 bg-[#F8FAFC] rounded-xl flex items-center justify-center">
+              <LinkedInIcon className="w-6 h-6 text-[#94A3B8]" />
+            </div>
+            <p className="text-sm text-[#64748B]">No LinkedIn accounts connected yet</p>
+            <p className="text-xs text-[#94A3B8] mt-1">Connect a LinkedIn account to start outreach</p>
+          </div>
+        )}
       </div>
 
       {/* Email Accounts for Follow-ups */}
@@ -924,34 +1264,47 @@ function IntegrationSettings() {
         </div>
 
         {/* Connected Email Accounts */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between p-4 bg-[#F8FAFC] rounded-xl border border-[#E2E8F0]">
-            <div className="flex items-center gap-4">
-              <div className="w-10 h-10 rounded-lg bg-[#EA4335]/10 flex items-center justify-center">
-                <GmailIcon className="w-6 h-6" />
-              </div>
-              <div>
-                <p className="font-medium text-[#1E293B]">john@company.com</p>
-                <p className="text-sm text-[#64748B]">Gmail - Connected</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <span className="px-2.5 py-1 bg-[#F0FDF4] text-[#22C55E] text-xs font-medium rounded-full">Primary</span>
-              <button className="p-2 rounded-lg hover:bg-[#E2E8F0] text-[#64748B]">
-                <MoreIcon />
-              </button>
-            </div>
+        {emailsLoading ? (
+          <div className="flex items-center justify-center py-6">
+            <div className="animate-spin w-6 h-6 border-2 border-[#3B82F6] border-t-transparent rounded-full" />
           </div>
-        </div>
-
-        {/* Empty State */}
-        <div className="mt-4 p-6 border-2 border-dashed border-[#E2E8F0] rounded-xl text-center">
-          <div className="w-12 h-12 mx-auto mb-3 bg-[#F8FAFC] rounded-xl flex items-center justify-center">
-            <EmailIcon className="w-6 h-6 text-[#94A3B8]" />
+        ) : emailAccounts.length > 0 ? (
+          <div className="space-y-3">
+            {emailAccounts.map((account, index) => (
+              <div key={account.id} className="flex items-center justify-between p-4 bg-[#F8FAFC] rounded-xl border border-[#E2E8F0]">
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-lg bg-[#EA4335]/10 flex items-center justify-center">
+                    <EmailIcon className="w-6 h-6 text-[#EA4335]" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-[#1E293B]">{account.email_address}</p>
+                    <p className="text-sm text-[#64748B]">
+                      {account.provider ? `${account.provider} - ` : ''}
+                      {account.status === 'connected' ? 'Connected' : account.status === 'reconnect_required' ? 'Reconnect Required' : 'Disconnected'}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  {index === 0 && (
+                    <span className="px-2.5 py-1 bg-[#F0FDF4] text-[#22C55E] text-xs font-medium rounded-full">Primary</span>
+                  )}
+                  <button className="p-2 rounded-lg hover:bg-[#E2E8F0] text-[#64748B]">
+                    <MoreIcon />
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
-          <p className="text-sm text-[#64748B]">Connect additional email accounts for sending follow-ups</p>
-          <p className="text-xs text-[#94A3B8] mt-1">Supports Gmail, Outlook, and custom SMTP</p>
-        </div>
+        ) : (
+          /* Empty State */
+          <div className="p-6 border-2 border-dashed border-[#E2E8F0] rounded-xl text-center">
+            <div className="w-12 h-12 mx-auto mb-3 bg-[#F8FAFC] rounded-xl flex items-center justify-center">
+              <EmailIcon className="w-6 h-6 text-[#94A3B8]" />
+            </div>
+            <p className="text-sm text-[#64748B]">No email accounts connected yet</p>
+            <p className="text-xs text-[#94A3B8] mt-1">Connect an email account to send follow-ups</p>
+          </div>
+        )}
       </div>
 
       {/* CRM Integrations */}
@@ -1033,6 +1386,13 @@ function IntegrationSettings() {
         </div>
       </div>
 
+      {/* LinkedIn Connection Modal */}
+      <AnimatePresence>
+        {showLinkedInModal && (
+          <ConnectLinkedInModal onClose={() => setShowLinkedInModal(false)} />
+        )}
+      </AnimatePresence>
+
       {/* Email Connection Modal */}
       <AnimatePresence>
         {showEmailModal && (
@@ -1085,8 +1445,106 @@ function IntegrationCard({
   )
 }
 
-function ConnectEmailModal({ onClose }: { onClose: () => void }) {
-  const [step, setStep] = useState<'select' | 'gmail' | 'outlook' | 'smtp'>('select')
+// ==================== LINKEDIN CONNECT MODAL ====================
+type LinkedInAuthStep = 'method' | 'credentials' | 'cookie' | 'checkpoint' | 'in_app_validation' | 'success'
+
+function ConnectLinkedInModal({ onClose }: { onClose: () => void }) {
+  const [step, setStep] = useState<LinkedInAuthStep>('method')
+  const [error, setError] = useState('')
+
+  // Credentials form state
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+
+  // Cookie form state
+  const [cookie, setCookie] = useState('')
+  const [userAgent, setUserAgent] = useState('')
+
+  // Checkpoint state
+  const [accountId, setAccountId] = useState('')
+  const [checkpointType, setCheckpointType] = useState<CheckpointType | null>(null)
+  const [verificationCode, setVerificationCode] = useState('')
+
+  const connectWithCredentials = useConnectLinkedInWithCredentials()
+  const connectWithCookie = useConnectLinkedInWithCookie()
+  const solveCheckpoint = useSolveLinkedInCheckpoint()
+  const pollStatus = usePollLinkedInStatus()
+
+  const handleAuthResponse = (data: { status: string; account_id?: string; checkpoint?: { type: CheckpointType } }) => {
+    if (data.status === 'connected') {
+      setStep('success')
+      setTimeout(() => onClose(), 1500)
+    } else if (data.status === 'checkpoint' && data.checkpoint) {
+      setAccountId(data.account_id || '')
+      setCheckpointType(data.checkpoint.type)
+      if (data.checkpoint.type === 'IN_APP_VALIDATION') {
+        setStep('in_app_validation')
+      } else {
+        setStep('checkpoint')
+      }
+    }
+  }
+
+  const handleCredentialsSubmit = async () => {
+    setError('')
+    if (!username || !password) {
+      setError('Please fill in all fields')
+      return
+    }
+
+    try {
+      const result = await connectWithCredentials.mutateAsync({ username, password })
+      handleAuthResponse(result)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to connect')
+    }
+  }
+
+  const handleCookieSubmit = async () => {
+    setError('')
+    if (!cookie) {
+      setError('Please enter the li_at cookie')
+      return
+    }
+
+    try {
+      const result = await connectWithCookie.mutateAsync({
+        access_token: cookie,
+        user_agent: userAgent || undefined,
+      })
+      handleAuthResponse(result)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to connect')
+    }
+  }
+
+  const handleCheckpointSubmit = async () => {
+    setError('')
+    if (!verificationCode) {
+      setError('Please enter the verification code')
+      return
+    }
+
+    try {
+      const result = await solveCheckpoint.mutateAsync({
+        account_id: accountId,
+        code: verificationCode,
+      })
+      handleAuthResponse(result)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to verify')
+    }
+  }
+
+  const handlePollStatus = async () => {
+    setError('')
+    try {
+      const result = await pollStatus.mutateAsync(accountId)
+      handleAuthResponse(result)
+    } catch (err) {
+      setError('Timed out waiting for confirmation. Please try again.')
+    }
+  }
 
   return (
     <motion.div
@@ -1104,219 +1562,342 @@ function ConnectEmailModal({ onClose }: { onClose: () => void }) {
         className="bg-white rounded-2xl w-full max-w-lg overflow-hidden shadow-xl"
       >
         <AnimatePresence mode="wait">
-          {step === 'select' && (
+          {/* Step 1: Choose method */}
+          {step === 'method' && (
             <motion.div
-              key="select"
+              key="method"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               className="p-6"
             >
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-lg font-bold text-[#1E293B]">Connect Email Account</h2>
+                <h2 className="text-lg font-bold text-[#1E293B]">Connect LinkedIn Account</h2>
                 <button onClick={onClose} className="p-2 rounded-lg hover:bg-[#F8FAFC]">
                   <XIcon />
                 </button>
               </div>
 
               <p className="text-[#64748B] mb-6">
-                Connect your email account to send follow-up messages to leads who don't accept your LinkedIn connection request.
+                Choose how you want to connect your LinkedIn account.
               </p>
 
               <div className="space-y-3">
                 <button
-                  onClick={() => setStep('gmail')}
-                  className="w-full flex items-center gap-4 p-4 border border-[#E2E8F0] rounded-xl hover:border-[#EA4335]/30 hover:bg-[#FEF2F2]/30 transition-all group"
+                  onClick={() => setStep('credentials')}
+                  className="w-full flex items-center gap-4 p-4 border border-[#E2E8F0] rounded-xl hover:border-[#0A66C2]/30 hover:bg-[#F8FAFC] transition-all"
                 >
-                  <div className="w-12 h-12 rounded-xl bg-[#EA4335]/10 flex items-center justify-center">
-                    <GmailIcon className="w-7 h-7" />
+                  <div className="w-12 h-12 rounded-xl bg-[#0A66C2]/10 flex items-center justify-center">
+                    <LinkedInIcon className="w-7 h-7 text-[#0A66C2]" />
                   </div>
                   <div className="flex-1 text-left">
-                    <p className="font-semibold text-[#1E293B] group-hover:text-[#EA4335]">Gmail</p>
-                    <p className="text-sm text-[#64748B]">Connect with your Google account</p>
+                    <p className="font-semibold text-[#1E293B]">Email & Password</p>
+                    <p className="text-sm text-[#64748B]">Sign in with your LinkedIn credentials</p>
                   </div>
-                  <ChevronRightIcon className="w-5 h-5 text-[#94A3B8] group-hover:text-[#EA4335]" />
                 </button>
 
                 <button
-                  onClick={() => setStep('outlook')}
-                  className="w-full flex items-center gap-4 p-4 border border-[#E2E8F0] rounded-xl hover:border-[#0078D4]/30 hover:bg-[#EFF6FF]/30 transition-all group"
-                >
-                  <div className="w-12 h-12 rounded-xl bg-[#0078D4]/10 flex items-center justify-center">
-                    <OutlookIcon className="w-7 h-7" />
-                  </div>
-                  <div className="flex-1 text-left">
-                    <p className="font-semibold text-[#1E293B] group-hover:text-[#0078D4]">Outlook / Office 365</p>
-                    <p className="text-sm text-[#64748B]">Connect with your Microsoft account</p>
-                  </div>
-                  <ChevronRightIcon className="w-5 h-5 text-[#94A3B8] group-hover:text-[#0078D4]" />
-                </button>
-
-                <button
-                  onClick={() => setStep('smtp')}
-                  className="w-full flex items-center gap-4 p-4 border border-[#E2E8F0] rounded-xl hover:border-[#64748B]/30 hover:bg-[#F8FAFC] transition-all group"
+                  onClick={() => setStep('cookie')}
+                  className="w-full flex items-center gap-4 p-4 border border-[#E2E8F0] rounded-xl hover:border-[#0A66C2]/30 hover:bg-[#F8FAFC] transition-all"
                 >
                   <div className="w-12 h-12 rounded-xl bg-[#64748B]/10 flex items-center justify-center">
-                    <ServerIcon className="w-7 h-7 text-[#64748B]" />
+                    <CookieIcon className="w-7 h-7 text-[#64748B]" />
                   </div>
                   <div className="flex-1 text-left">
-                    <p className="font-semibold text-[#1E293B]">Custom SMTP</p>
-                    <p className="text-sm text-[#64748B]">Connect any email provider via SMTP</p>
+                    <p className="font-semibold text-[#1E293B]">Session Cookie</p>
+                    <p className="text-sm text-[#64748B]">Use your existing LinkedIn session</p>
                   </div>
-                  <ChevronRightIcon className="w-5 h-5 text-[#94A3B8]" />
                 </button>
-              </div>
-
-              <div className="mt-6 p-4 bg-[#FFF7ED] border border-[#FF6B35]/20 rounded-xl">
-                <div className="flex items-start gap-3">
-                  <InfoIcon className="w-5 h-5 text-[#FF6B35] flex-shrink-0 mt-0.5" />
-                  <div className="text-sm text-[#92400E]">
-                    <p className="font-medium">Why connect email?</p>
-                    <p className="mt-1">When leads don't accept your LinkedIn request, we'll automatically follow up via email - increasing your reply rate by up to 40%.</p>
-                  </div>
-                </div>
               </div>
             </motion.div>
           )}
 
-          {step === 'gmail' && (
+          {/* Step 2a: Credentials form */}
+          {step === 'credentials' && (
             <motion.div
-              key="gmail"
+              key="credentials"
               initial={{ opacity: 0, x: 20 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
               className="p-6"
             >
               <div className="flex items-center gap-3 mb-6">
-                <button onClick={() => setStep('select')} className="p-2 rounded-lg hover:bg-[#F8FAFC]">
-                  <BackIcon />
+                <button onClick={() => setStep('method')} className="p-2 rounded-lg hover:bg-[#F8FAFC]">
+                  <BackArrowIcon />
                 </button>
-                <h2 className="text-lg font-bold text-[#1E293B]">Connect Gmail</h2>
-              </div>
-
-              <div className="text-center py-8">
-                <div className="w-20 h-20 mx-auto mb-4 bg-[#EA4335]/10 rounded-2xl flex items-center justify-center">
-                  <GmailIcon className="w-10 h-10" />
-                </div>
-                <h3 className="text-lg font-semibold text-[#1E293B] mb-2">Sign in with Google</h3>
-                <p className="text-[#64748B] mb-6 max-w-sm mx-auto">
-                  We'll open a secure Google sign-in window. Allow SalesParrot to send emails on your behalf.
-                </p>
-                <button className="px-6 py-3 bg-[#EA4335] text-white font-medium rounded-xl hover:bg-[#D33426] flex items-center gap-2 mx-auto">
-                  <GoogleIcon className="w-5 h-5" />
-                  Sign in with Google
-                </button>
-                <p className="text-xs text-[#94A3B8] mt-4">
-                  We only request permission to send emails. We never read or store your emails.
-                </p>
-              </div>
-            </motion.div>
-          )}
-
-          {step === 'outlook' && (
-            <motion.div
-              key="outlook"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              className="p-6"
-            >
-              <div className="flex items-center gap-3 mb-6">
-                <button onClick={() => setStep('select')} className="p-2 rounded-lg hover:bg-[#F8FAFC]">
-                  <BackIcon />
-                </button>
-                <h2 className="text-lg font-bold text-[#1E293B]">Connect Outlook</h2>
-              </div>
-
-              <div className="text-center py-8">
-                <div className="w-20 h-20 mx-auto mb-4 bg-[#0078D4]/10 rounded-2xl flex items-center justify-center">
-                  <OutlookIcon className="w-10 h-10" />
-                </div>
-                <h3 className="text-lg font-semibold text-[#1E293B] mb-2">Sign in with Microsoft</h3>
-                <p className="text-[#64748B] mb-6 max-w-sm mx-auto">
-                  We'll open a secure Microsoft sign-in window. Allow SalesParrot to send emails on your behalf.
-                </p>
-                <button className="px-6 py-3 bg-[#0078D4] text-white font-medium rounded-xl hover:bg-[#006CBF] flex items-center gap-2 mx-auto">
-                  <MicrosoftIcon className="w-5 h-5" />
-                  Sign in with Microsoft
-                </button>
-                <p className="text-xs text-[#94A3B8] mt-4">
-                  Works with Outlook.com, Office 365, and Exchange accounts.
-                </p>
-              </div>
-            </motion.div>
-          )}
-
-          {step === 'smtp' && (
-            <motion.div
-              key="smtp"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              className="p-6"
-            >
-              <div className="flex items-center gap-3 mb-6">
-                <button onClick={() => setStep('select')} className="p-2 rounded-lg hover:bg-[#F8FAFC]">
-                  <BackIcon />
-                </button>
-                <h2 className="text-lg font-bold text-[#1E293B]">Connect via SMTP</h2>
+                <h2 className="text-lg font-bold text-[#1E293B]">Sign in to LinkedIn</h2>
               </div>
 
               <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-[#1E293B] mb-2">SMTP Host</label>
-                    <input
-                      type="text"
-                      placeholder="smtp.example.com"
-                      className="w-full px-4 py-2.5 rounded-lg border border-[#E2E8F0] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/20 focus:border-[#3B82F6]"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-[#1E293B] mb-2">Port</label>
-                    <input
-                      type="text"
-                      placeholder="587"
-                      className="w-full px-4 py-2.5 rounded-lg border border-[#E2E8F0] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/20 focus:border-[#3B82F6]"
-                    />
-                  </div>
-                </div>
                 <div>
-                  <label className="block text-sm font-medium text-[#1E293B] mb-2">Email Address</label>
+                  <label className="block text-sm font-medium text-[#1E293B] mb-2">Email</label>
                   <input
                     type="email"
-                    placeholder="you@example.com"
-                    className="w-full px-4 py-2.5 rounded-lg border border-[#E2E8F0] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/20 focus:border-[#3B82F6]"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    placeholder="your@email.com"
+                    className="w-full px-4 py-2.5 rounded-lg border border-[#E2E8F0] focus:outline-none focus:ring-2 focus:ring-[#0A66C2]/20 focus:border-[#0A66C2]"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-[#1E293B] mb-2">Password / App Password</label>
+                  <label className="block text-sm font-medium text-[#1E293B] mb-2">Password</label>
                   <input
                     type="password"
-                    placeholder="Your email password or app password"
-                    className="w-full px-4 py-2.5 rounded-lg border border-[#E2E8F0] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/20 focus:border-[#3B82F6]"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Your LinkedIn password"
+                    className="w-full px-4 py-2.5 rounded-lg border border-[#E2E8F0] focus:outline-none focus:ring-2 focus:ring-[#0A66C2]/20 focus:border-[#0A66C2]"
                   />
                 </div>
-                <div className="flex items-center gap-2">
-                  <input type="checkbox" id="tls" className="rounded border-[#E2E8F0] text-[#3B82F6] focus:ring-[#3B82F6]" defaultChecked />
-                  <label htmlFor="tls" className="text-sm text-[#64748B]">Use TLS/SSL encryption</label>
-                </div>
+
+                {error && (
+                  <div className="p-3 bg-[#FEF2F2] border border-[#EF4444]/20 rounded-lg">
+                    <p className="text-sm text-[#EF4444]">{error}</p>
+                  </div>
+                )}
               </div>
 
               <div className="flex gap-3 mt-6">
                 <button
-                  onClick={() => setStep('select')}
+                  onClick={() => setStep('method')}
                   className="flex-1 px-4 py-2.5 border border-[#E2E8F0] rounded-lg font-medium text-[#64748B] hover:bg-[#F8FAFC]"
                 >
-                  Cancel
+                  Back
                 </button>
                 <button
-                  onClick={onClose}
-                  className="flex-1 px-4 py-2.5 bg-[#3B82F6] text-white rounded-lg font-medium hover:bg-[#2563EB]"
+                  onClick={handleCredentialsSubmit}
+                  disabled={connectWithCredentials.isPending}
+                  className="flex-1 px-4 py-2.5 bg-[#0A66C2] text-white rounded-lg font-medium hover:bg-[#004182] disabled:opacity-50 flex items-center justify-center gap-2"
                 >
-                  Test & Connect
+                  {connectWithCredentials.isPending ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Connecting...
+                    </>
+                  ) : (
+                    'Connect'
+                  )}
                 </button>
               </div>
+            </motion.div>
+          )}
+
+          {/* Step 2b: Cookie form */}
+          {step === 'cookie' && (
+            <motion.div
+              key="cookie"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="p-6"
+            >
+              <div className="flex items-center gap-3 mb-6">
+                <button onClick={() => setStep('method')} className="p-2 rounded-lg hover:bg-[#F8FAFC]">
+                  <BackArrowIcon />
+                </button>
+                <h2 className="text-lg font-bold text-[#1E293B]">Connect with Cookie</h2>
+              </div>
+
+              <div className="p-4 bg-[#FFF7ED] border border-[#FF6B35]/20 rounded-xl mb-4">
+                <div className="flex items-start gap-3">
+                  <InfoIcon className="w-5 h-5 text-[#FF6B35] flex-shrink-0 mt-0.5" />
+                  <div className="text-sm text-[#92400E]">
+                    <p className="font-medium">How to get your li_at cookie:</p>
+                    <ol className="mt-1 list-decimal list-inside space-y-1">
+                      <li>Log in to LinkedIn in your browser</li>
+                      <li>Open Developer Tools (F12)</li>
+                      <li>Go to Application &gt; Cookies &gt; linkedin.com</li>
+                      <li>Copy the value of the "li_at" cookie</li>
+                    </ol>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-[#1E293B] mb-2">li_at Cookie</label>
+                  <textarea
+                    value={cookie}
+                    onChange={(e) => setCookie(e.target.value)}
+                    placeholder="Paste your li_at cookie value here"
+                    rows={3}
+                    className="w-full px-4 py-2.5 rounded-lg border border-[#E2E8F0] focus:outline-none focus:ring-2 focus:ring-[#0A66C2]/20 focus:border-[#0A66C2] resize-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-[#1E293B] mb-2">User Agent (Optional)</label>
+                  <input
+                    type="text"
+                    value={userAgent}
+                    onChange={(e) => setUserAgent(e.target.value)}
+                    placeholder="Your browser's user agent"
+                    className="w-full px-4 py-2.5 rounded-lg border border-[#E2E8F0] focus:outline-none focus:ring-2 focus:ring-[#0A66C2]/20 focus:border-[#0A66C2]"
+                  />
+                  <p className="text-xs text-[#64748B] mt-1">Recommended to prevent disconnection</p>
+                </div>
+
+                {error && (
+                  <div className="p-3 bg-[#FEF2F2] border border-[#EF4444]/20 rounded-lg">
+                    <p className="text-sm text-[#EF4444]">{error}</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={() => setStep('method')}
+                  className="flex-1 px-4 py-2.5 border border-[#E2E8F0] rounded-lg font-medium text-[#64748B] hover:bg-[#F8FAFC]"
+                >
+                  Back
+                </button>
+                <button
+                  onClick={handleCookieSubmit}
+                  disabled={connectWithCookie.isPending}
+                  className="flex-1 px-4 py-2.5 bg-[#0A66C2] text-white rounded-lg font-medium hover:bg-[#004182] disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {connectWithCookie.isPending ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      Connecting...
+                    </>
+                  ) : (
+                    'Connect'
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Step 3: Checkpoint (2FA/OTP) */}
+          {step === 'checkpoint' && (
+            <motion.div
+              key="checkpoint"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="p-6"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-lg font-bold text-[#1E293B]">Verification Required</h2>
+                <button onClick={onClose} className="p-2 rounded-lg hover:bg-[#F8FAFC]">
+                  <XIcon />
+                </button>
+              </div>
+
+              <div className="text-center mb-6">
+                <div className="w-16 h-16 mx-auto mb-4 bg-[#0A66C2]/10 rounded-full flex items-center justify-center">
+                  <ShieldIcon className="w-8 h-8 text-[#0A66C2]" />
+                </div>
+                <p className="text-[#64748B]">
+                  {checkpointType === '2FA'
+                    ? 'Enter your two-factor authentication code'
+                    : checkpointType === 'OTP'
+                    ? 'Enter the verification code sent to your email/phone'
+                    : checkpointType === 'PHONE_REGISTER'
+                    ? 'Enter your phone number to receive a verification code'
+                    : 'Additional verification is required'}
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-[#1E293B] mb-2">
+                    {checkpointType === 'PHONE_REGISTER' ? 'Phone Number' : 'Verification Code'}
+                  </label>
+                  <input
+                    type="text"
+                    value={verificationCode}
+                    onChange={(e) => setVerificationCode(e.target.value)}
+                    placeholder={checkpointType === 'PHONE_REGISTER' ? '(+1)1234567890' : 'Enter code'}
+                    className="w-full px-4 py-2.5 rounded-lg border border-[#E2E8F0] focus:outline-none focus:ring-2 focus:ring-[#0A66C2]/20 focus:border-[#0A66C2] text-center text-lg tracking-widest"
+                  />
+                </div>
+
+                {error && (
+                  <div className="p-3 bg-[#FEF2F2] border border-[#EF4444]/20 rounded-lg">
+                    <p className="text-sm text-[#EF4444]">{error}</p>
+                  </div>
+                )}
+              </div>
+
+              <button
+                onClick={handleCheckpointSubmit}
+                disabled={solveCheckpoint.isPending}
+                className="w-full mt-6 px-4 py-2.5 bg-[#0A66C2] text-white rounded-lg font-medium hover:bg-[#004182] disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {solveCheckpoint.isPending ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Verifying...
+                  </>
+                ) : (
+                  'Verify'
+                )}
+              </button>
+            </motion.div>
+          )}
+
+          {/* Step 3b: In-App Validation */}
+          {step === 'in_app_validation' && (
+            <motion.div
+              key="in_app_validation"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="p-6"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-lg font-bold text-[#1E293B]">Confirm in LinkedIn App</h2>
+                <button onClick={onClose} className="p-2 rounded-lg hover:bg-[#F8FAFC]">
+                  <XIcon />
+                </button>
+              </div>
+
+              <div className="text-center mb-6">
+                <div className="w-16 h-16 mx-auto mb-4 bg-[#0A66C2]/10 rounded-full flex items-center justify-center">
+                  <SmartphoneIcon className="w-8 h-8 text-[#0A66C2]" />
+                </div>
+                <p className="text-[#64748B]">
+                  Open the LinkedIn app on your phone and confirm the login request.
+                </p>
+              </div>
+
+              {error && (
+                <div className="p-3 mb-4 bg-[#FEF2F2] border border-[#EF4444]/20 rounded-lg">
+                  <p className="text-sm text-[#EF4444]">{error}</p>
+                </div>
+              )}
+
+              <button
+                onClick={handlePollStatus}
+                disabled={pollStatus.isPending}
+                className="w-full px-4 py-2.5 bg-[#0A66C2] text-white rounded-lg font-medium hover:bg-[#004182] disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {pollStatus.isPending ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Waiting for confirmation...
+                  </>
+                ) : (
+                  'Check Status'
+                )}
+              </button>
+            </motion.div>
+          )}
+
+          {/* Success */}
+          {step === 'success' && (
+            <motion.div
+              key="success"
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="p-6 text-center"
+            >
+              <div className="w-16 h-16 mx-auto mb-4 bg-[#F0FDF4] rounded-full flex items-center justify-center">
+                <CheckIcon className="w-8 h-8 text-[#22C55E]" />
+              </div>
+              <h2 className="text-lg font-bold text-[#1E293B] mb-2">Successfully Connected!</h2>
+              <p className="text-[#64748B]">Your LinkedIn account has been connected.</p>
             </motion.div>
           )}
         </AnimatePresence>
@@ -1325,7 +1906,169 @@ function ConnectEmailModal({ onClose }: { onClose: () => void }) {
   )
 }
 
+function ConnectEmailModal({ onClose }: { onClose: () => void }) {
+  const [error, setError] = useState('')
+  const getEmailAuthLink = useGetEmailAuthLink()
+
+  const handleConnect = async () => {
+    setError('')
+    try {
+      const result = await getEmailAuthLink.mutateAsync()
+      if (result.url) {
+        // Redirect to Unipile hosted auth
+        window.location.href = result.url
+      } else {
+        setError('Failed to get authentication URL')
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to initiate connection')
+    }
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        onClick={(e) => e.stopPropagation()}
+        className="bg-white rounded-2xl w-full max-w-lg overflow-hidden shadow-xl"
+      >
+        <div className="p-6">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-lg font-bold text-[#1E293B]">Connect Email Account</h2>
+            <button onClick={onClose} className="p-2 rounded-lg hover:bg-[#F8FAFC]">
+              <XIcon />
+            </button>
+          </div>
+
+          <p className="text-[#64748B] mb-6">
+            Connect your email account to send follow-up messages to leads who don't accept your LinkedIn connection request.
+          </p>
+
+          <div className="space-y-4">
+            <div className="p-4 bg-[#F8FAFC] rounded-xl border border-[#E2E8F0]">
+              <h3 className="font-medium text-[#1E293B] mb-2">Supported Providers</h3>
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <GmailIcon className="w-5 h-5" />
+                  <span className="text-sm text-[#64748B]">Gmail</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <OutlookIcon className="w-5 h-5" />
+                  <span className="text-sm text-[#64748B]">Outlook</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <EmailIcon className="w-5 h-5" />
+                  <span className="text-sm text-[#64748B]">IMAP</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 bg-[#FFF7ED] border border-[#FF6B35]/20 rounded-xl">
+              <div className="flex items-start gap-3">
+                <InfoIcon className="w-5 h-5 text-[#FF6B35] flex-shrink-0 mt-0.5" />
+                <div className="text-sm text-[#92400E]">
+                  <p className="font-medium">Why connect email?</p>
+                  <p className="mt-1">When leads don't accept your LinkedIn request, we'll automatically follow up via email - increasing your reply rate by up to 40%.</p>
+                </div>
+              </div>
+            </div>
+
+            {error && (
+              <div className="p-3 bg-[#FEF2F2] border border-[#EF4444]/20 rounded-lg">
+                <p className="text-sm text-[#EF4444]">{error}</p>
+              </div>
+            )}
+          </div>
+
+          <div className="flex gap-3 mt-6">
+            <button
+              onClick={onClose}
+              className="flex-1 px-4 py-2.5 border border-[#E2E8F0] rounded-lg font-medium text-[#64748B] hover:bg-[#F8FAFC]"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleConnect}
+              disabled={getEmailAuthLink.isPending}
+              className="flex-1 px-4 py-2.5 bg-[#3B82F6] text-white rounded-lg font-medium hover:bg-[#2563EB] disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {getEmailAuthLink.isPending ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Connecting...
+                </>
+              ) : (
+                'Connect Email Account'
+              )}
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </motion.div>
+  )
+}
+
 // ==================== ICONS ====================
+
+function LinkedInIcon({ className = 'w-6 h-6' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+      <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+    </svg>
+  )
+}
+
+function CookieIcon({ className = 'w-6 h-6' }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10c0-.34-.02-.67-.05-1-.39.07-.79.1-1.2.1-3.87 0-7-3.13-7-7 0-.41.03-.81.1-1.2-.33-.03-.66-.05-1-.05-.34 0-.67.02-1 .05z" />
+      <circle cx="8" cy="10" r="1" fill="currentColor" />
+      <circle cx="12" cy="14" r="1" fill="currentColor" />
+      <circle cx="16" cy="11" r="1" fill="currentColor" />
+    </svg>
+  )
+}
+
+function BackArrowIcon() {
+  return (
+    <svg className="w-5 h-5 text-[#64748B]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+    </svg>
+  )
+}
+
+function ShieldIcon({ className = 'w-6 h-6' }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
+    </svg>
+  )
+}
+
+function SmartphoneIcon({ className = 'w-6 h-6' }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 1.5H8.25A2.25 2.25 0 006 3.75v16.5a2.25 2.25 0 002.25 2.25h7.5A2.25 2.25 0 0018 20.25V3.75a2.25 2.25 0 00-2.25-2.25H13.5m-3 0V3h3V1.5m-3 0h3m-3 18.75h3" />
+    </svg>
+  )
+}
+
+function CheckIcon({ className = 'w-6 h-6' }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+    </svg>
+  )
+}
+
 function SettingsIcon() {
   return (
     <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -1399,9 +2142,9 @@ function PlusIcon() {
   )
 }
 
-function SearchIcon() {
+function SearchIcon({ className }: { className?: string }) {
   return (
-    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <svg className={`w-4 h-4 ${className || ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
     </svg>
   )
@@ -1503,22 +2246,6 @@ function XIcon() {
   )
 }
 
-function BackIcon() {
-  return (
-    <svg className="w-5 h-5 text-[#64748B]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-    </svg>
-  )
-}
-
-function ChevronRightIcon({ className = '' }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-    </svg>
-  )
-}
-
 function GmailIcon({ className = 'w-6 h-6' }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24">
@@ -1531,36 +2258,6 @@ function OutlookIcon({ className = 'w-6 h-6' }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24">
       <path fill="#0078D4" d="M24 7.387v10.478c0 .23-.08.424-.238.576a.806.806 0 01-.59.234h-8.86v-6.521l1.83 1.184a.404.404 0 00.424.012l6.998-4.295v-.017l.198-.104a.236.236 0 00.238-.107zm0-1.58v.788l-7.455 4.578-2.233-1.449V5.75h8.86c.228 0 .42.076.578.228a.79.79 0 01.25.578v-.001zM14.312 5.75v16.5H1.03a.985.985 0 01-.72-.303A1.007 1.007 0 010 21.22V4.03c0-.283.103-.527.31-.732a.992.992 0 01.72-.297h13.282zm-7.24 12.75c1.143 0 2.072-.39 2.787-1.172.716-.781 1.074-1.797 1.074-3.047 0-1.266-.355-2.293-1.066-3.082-.711-.789-1.636-1.183-2.775-1.183-1.154 0-2.089.392-2.803 1.175-.715.783-1.072 1.803-1.072 3.059 0 1.25.354 2.266 1.063 3.047.709.781 1.64 1.172 2.793 1.172zm.04-6.531c.59 0 1.06.236 1.412.707.352.471.528 1.09.528 1.855 0 .782-.174 1.41-.52 1.887-.347.477-.82.715-1.42.715-.608 0-1.083-.234-1.426-.703-.342-.469-.513-1.092-.513-1.87 0-.797.172-1.425.516-1.884.343-.459.816-.688 1.42-.688z"/>
-    </svg>
-  )
-}
-
-function ServerIcon({ className = '' }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 17.25v-.228a4.5 4.5 0 00-.12-1.03l-2.268-9.64a3.375 3.375 0 00-3.285-2.602H7.923a3.375 3.375 0 00-3.285 2.602l-2.268 9.64a4.5 4.5 0 00-.12 1.03v.228m19.5 0a3 3 0 01-3 3H5.25a3 3 0 01-3-3m19.5 0a3 3 0 00-3-3H5.25a3 3 0 00-3 3m16.5 0h.008v.008h-.008v-.008zm-3 0h.008v.008h-.008v-.008z" />
-    </svg>
-  )
-}
-
-function GoogleIcon({ className = '' }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
-      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
-      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-    </svg>
-  )
-}
-
-function MicrosoftIcon({ className = '' }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
-      <path fill="#F25022" d="M1 1h10v10H1z"/>
-      <path fill="#00A4EF" d="M1 13h10v10H1z"/>
-      <path fill="#7FBA00" d="M13 1h10v10H13z"/>
-      <path fill="#FFB900" d="M13 13h10v10H13z"/>
     </svg>
   )
 }

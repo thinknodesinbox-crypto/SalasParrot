@@ -1,26 +1,54 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useState } from 'react'
+import {
+  useLinkedInAccounts,
+  useDeleteLinkedInAccount,
+  useConnectLinkedInWithCredentials,
+  useConnectLinkedInWithCookie,
+  useSolveLinkedInCheckpoint,
+  usePollLinkedInStatus,
+} from '../../lib/hooks/queries'
+import type { LinkedInAccount, CheckpointType } from '../../lib/types'
 
 export const Route = createFileRoute('/dashboard/accounts')({
   component: AccountsPage,
 })
 
-interface LinkedInAccount {
-  id: string
-  name: string
-  email: string
-  avatar?: string
-  status: 'connected' | 'warming' | 'paused' | 'error'
-  dailyLimit: number
-  sentToday: number
-  connectionRate: number
-  campaigns: number
-}
-
 function AccountsPage() {
   const [showConnectModal, setShowConnectModal] = useState(false)
-  const [accounts, setAccounts] = useState<LinkedInAccount[]>([])
+  const { data: accounts = [], isLoading, error, refetch } = useLinkedInAccounts()
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="flex flex-col items-center gap-3">
+          <LoadingSpinner />
+          <p className="text-[#64748B]">Loading accounts...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <div className="w-16 h-16 mx-auto mb-4 bg-[#FEF2F2] rounded-full flex items-center justify-center">
+            <AlertIcon className="w-8 h-8 text-[#EF4444]" />
+          </div>
+          <h3 className="text-lg font-semibold text-[#1E293B] mb-2">Failed to load accounts</h3>
+          <p className="text-[#64748B] mb-4">{error.message}</p>
+          <button
+            onClick={() => refetch()}
+            className="px-4 py-2 bg-[#0A66C2] text-white font-medium rounded-lg hover:bg-[#004182] transition-colors"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-4 md:space-y-6">
@@ -70,10 +98,6 @@ function AccountsPage() {
         {showConnectModal && (
           <ConnectLinkedInModal
             onClose={() => setShowConnectModal(false)}
-            onSuccess={(account) => {
-              setAccounts([...accounts, account])
-              setShowConnectModal(false)
-            }}
           />
         )}
       </AnimatePresence>
@@ -147,6 +171,24 @@ function EmptyState({ onConnect }: { onConnect: () => void }) {
 }
 
 function AccountsList({ accounts }: { accounts: LinkedInAccount[] }) {
+  const deleteAccount = useDeleteLinkedInAccount()
+
+  const handleDelete = async (accountId: string) => {
+    if (confirm('Are you sure you want to disconnect this LinkedIn account?')) {
+      try {
+        await deleteAccount.mutateAsync(accountId)
+      } catch {
+        // Error handling is done in the mutation
+      }
+    }
+  }
+
+  // Calculate total daily capacity from daily_limits
+  const totalDailyCapacity = accounts.reduce((sum, a) => {
+    const limits = a.daily_limits || {}
+    return sum + (limits.connections || 0) + (limits.messages || 0)
+  }, 0)
+
   return (
     <div className="space-y-4">
       {/* Stats Overview */}
@@ -165,13 +207,13 @@ function AccountsList({ accounts }: { accounts: LinkedInAccount[] }) {
         />
         <StatCard
           label="Daily Capacity"
-          value={accounts.reduce((sum, a) => sum + a.dailyLimit, 0).toString()}
+          value={totalDailyCapacity.toString()}
           icon={<CapacityIcon />}
           color="#FF6B35"
         />
         <StatCard
-          label="Sent Today"
-          value={accounts.reduce((sum, a) => sum + a.sentToday, 0).toString()}
+          label="Premium Accounts"
+          value={accounts.filter(a => a.subscription_type !== 'free').length.toString()}
           icon={<SentTodayIcon />}
           color="#8B5CF6"
         />
@@ -186,15 +228,15 @@ function AccountsList({ accounts }: { accounts: LinkedInAccount[] }) {
               <tr className="border-b border-[#E2E8F0] bg-[#F8FAFC]">
                 <th className="text-left px-6 py-3 text-xs font-semibold text-[#64748B] uppercase tracking-wider">Account</th>
                 <th className="text-left px-6 py-3 text-xs font-semibold text-[#64748B] uppercase tracking-wider">Status</th>
-                <th className="text-left px-6 py-3 text-xs font-semibold text-[#64748B] uppercase tracking-wider">Daily Progress</th>
-                <th className="text-left px-6 py-3 text-xs font-semibold text-[#64748B] uppercase tracking-wider">Connection Rate</th>
-                <th className="text-left px-6 py-3 text-xs font-semibold text-[#64748B] uppercase tracking-wider">Campaigns</th>
+                <th className="text-left px-6 py-3 text-xs font-semibold text-[#64748B] uppercase tracking-wider">Daily Limit</th>
+                <th className="text-left px-6 py-3 text-xs font-semibold text-[#64748B] uppercase tracking-wider">Last Synced</th>
+                <th className="text-left px-6 py-3 text-xs font-semibold text-[#64748B] uppercase tracking-wider">Profile</th>
                 <th className="text-right px-6 py-3 text-xs font-semibold text-[#64748B] uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#E2E8F0]">
               {accounts.map((account) => (
-                <AccountRow key={account.id} account={account} />
+                <AccountRow key={account.id} account={account} onDelete={handleDelete} />
               ))}
             </tbody>
           </table>
@@ -203,7 +245,7 @@ function AccountsList({ accounts }: { accounts: LinkedInAccount[] }) {
         {/* Mobile Cards */}
         <div className="lg:hidden divide-y divide-[#E2E8F0]">
           {accounts.map((account) => (
-            <AccountCard key={account.id} account={account} />
+            <AccountCard key={account.id} account={account} onDelete={handleDelete} />
           ))}
         </div>
       </div>
@@ -211,29 +253,46 @@ function AccountsList({ accounts }: { accounts: LinkedInAccount[] }) {
   )
 }
 
-function AccountCard({ account }: { account: LinkedInAccount }) {
+function AccountCard({ account, onDelete }: { account: LinkedInAccount; onDelete: (id: string) => void }) {
   const [menuOpen, setMenuOpen] = useState(false)
 
-  const statusColors = {
+  const statusColors: Record<string, { bg: string; text: string; label: string }> = {
     connected: { bg: 'bg-[#F0FDF4]', text: 'text-[#22C55E]', label: 'Connected' },
-    warming: { bg: 'bg-[#FFFBEB]', text: 'text-[#F59E0B]', label: 'Warming Up' },
-    paused: { bg: 'bg-[#F8FAFC]', text: 'text-[#64748B]', label: 'Paused' },
-    error: { bg: 'bg-[#FEF2F2]', text: 'text-[#EF4444]', label: 'Error' },
+    disconnected: { bg: 'bg-[#F8FAFC]', text: 'text-[#64748B]', label: 'Disconnected' },
+    warning: { bg: 'bg-[#FFFBEB]', text: 'text-[#F59E0B]', label: 'Warning' },
+    banned: { bg: 'bg-[#FEF2F2]', text: 'text-[#EF4444]', label: 'Banned' },
   }
 
-  const status = statusColors[account.status]
-  const progressPercent = (account.sentToday / account.dailyLimit) * 100
+  const status = statusColors[account.status] || statusColors.disconnected
+  const displayName = account.name || 'LinkedIn Account'
+  const initials = displayName.split(' ').map(n => n[0]).join('').slice(0, 2)
+  const dailyLimit = (account.daily_limits?.connections || 0) + (account.daily_limits?.messages || 0)
+
+  const subscriptionLabels: Record<string, string> = {
+    free: 'Free',
+    premium: 'Premium',
+    sales_nav: 'Sales Navigator',
+    recruiter: 'Recruiter',
+  }
 
   return (
     <div className="p-4">
       <div className="flex items-start justify-between gap-3 mb-3">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#0A66C2] to-[#004182] flex items-center justify-center text-white font-semibold flex-shrink-0">
-            {account.name.split(' ').map(n => n[0]).join('')}
-          </div>
+          {account.avatar_url ? (
+            <img
+              src={account.avatar_url}
+              alt={displayName}
+              className="w-10 h-10 rounded-full flex-shrink-0"
+            />
+          ) : (
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#0A66C2] to-[#004182] flex items-center justify-center text-white font-semibold flex-shrink-0">
+              {initials}
+            </div>
+          )}
           <div className="min-w-0">
-            <p className="font-medium text-[#1E293B] truncate">{account.name}</p>
-            <p className="text-sm text-[#64748B] truncate">{account.email}</p>
+            <p className="font-medium text-[#1E293B] truncate">{displayName}</p>
+            <p className="text-sm text-[#64748B] truncate">{subscriptionLabels[account.subscription_type] || 'Free'}</p>
           </div>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
@@ -258,13 +317,23 @@ function AccountCard({ account }: { account: LinkedInAccount }) {
                     exit={{ opacity: 0, scale: 0.95 }}
                     className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg border border-[#E2E8F0] shadow-lg py-1 z-50"
                   >
-                    <button className="w-full px-4 py-2 text-left text-sm text-[#1E293B] hover:bg-[#F8FAFC]">
-                      View Details
-                    </button>
-                    <button className="w-full px-4 py-2 text-left text-sm text-[#F59E0B] hover:bg-[#FFFBEB]">
-                      Pause Account
-                    </button>
-                    <button className="w-full px-4 py-2 text-left text-sm text-[#EF4444] hover:bg-[#FEF2F2]">
+                    {account.profile_url && (
+                      <a
+                        href={account.profile_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block w-full px-4 py-2 text-left text-sm text-[#1E293B] hover:bg-[#F8FAFC]"
+                      >
+                        View LinkedIn Profile
+                      </a>
+                    )}
+                    <button
+                      onClick={() => {
+                        setMenuOpen(false)
+                        onDelete(account.id)
+                      }}
+                      className="w-full px-4 py-2 text-left text-sm text-[#EF4444] hover:bg-[#FEF2F2]"
+                    >
                       Disconnect
                     </button>
                   </motion.div>
@@ -275,58 +344,73 @@ function AccountCard({ account }: { account: LinkedInAccount }) {
         </div>
       </div>
 
-      {/* Progress Bar */}
+      {/* Daily Limits */}
       <div className="mb-3">
         <div className="flex items-center justify-between text-xs mb-1">
-          <span className="text-[#64748B]">Daily: {account.sentToday} / {account.dailyLimit}</span>
-          <span className="font-medium text-[#1E293B]">{Math.round(progressPercent)}%</span>
+          <span className="text-[#64748B]">Daily Limit</span>
+          <span className="font-medium text-[#1E293B]">{dailyLimit} actions</span>
         </div>
         <div className="h-1.5 bg-[#E2E8F0] rounded-full overflow-hidden">
           <div
-            className="h-full bg-[#FF6B35] rounded-full transition-all duration-500"
-            style={{ width: `${progressPercent}%` }}
+            className="h-full bg-[#0A66C2] rounded-full"
+            style={{ width: '100%' }}
           />
         </div>
       </div>
 
       {/* Stats */}
       <div className="flex items-center gap-4 text-sm">
-        <div>
-          <span className="text-[#94A3B8]">Connect: </span>
-          <span className="font-medium text-[#22C55E]">{account.connectionRate}%</span>
-        </div>
-        <div>
-          <span className="text-[#94A3B8]">Campaigns: </span>
-          <span className="text-[#1E293B]">{account.campaigns}</span>
-        </div>
+        {account.last_synced_at && (
+          <div>
+            <span className="text-[#94A3B8]">Last synced: </span>
+            <span className="text-[#1E293B]">{new Date(account.last_synced_at).toLocaleDateString()}</span>
+          </div>
+        )}
       </div>
     </div>
   )
 }
 
-function AccountRow({ account }: { account: LinkedInAccount }) {
+function AccountRow({ account, onDelete }: { account: LinkedInAccount; onDelete: (id: string) => void }) {
   const [menuOpen, setMenuOpen] = useState(false)
 
-  const statusColors = {
+  const statusColors: Record<string, { bg: string; text: string; label: string }> = {
     connected: { bg: 'bg-[#F0FDF4]', text: 'text-[#22C55E]', label: 'Connected' },
-    warming: { bg: 'bg-[#FFFBEB]', text: 'text-[#F59E0B]', label: 'Warming Up' },
-    paused: { bg: 'bg-[#F8FAFC]', text: 'text-[#64748B]', label: 'Paused' },
-    error: { bg: 'bg-[#FEF2F2]', text: 'text-[#EF4444]', label: 'Error' },
+    disconnected: { bg: 'bg-[#F8FAFC]', text: 'text-[#64748B]', label: 'Disconnected' },
+    warning: { bg: 'bg-[#FFFBEB]', text: 'text-[#F59E0B]', label: 'Warning' },
+    banned: { bg: 'bg-[#FEF2F2]', text: 'text-[#EF4444]', label: 'Banned' },
   }
 
-  const status = statusColors[account.status]
-  const progressPercent = (account.sentToday / account.dailyLimit) * 100
+  const status = statusColors[account.status] || statusColors.disconnected
+  const displayName = account.name || 'LinkedIn Account'
+  const initials = displayName.split(' ').map(n => n[0]).join('').slice(0, 2)
+  const dailyLimit = (account.daily_limits?.connections || 0) + (account.daily_limits?.messages || 0)
+
+  const subscriptionLabels: Record<string, string> = {
+    free: 'Free',
+    premium: 'Premium',
+    sales_nav: 'Sales Navigator',
+    recruiter: 'Recruiter',
+  }
 
   return (
     <tr className="hover:bg-[#F8FAFC] transition-colors">
       <td className="px-6 py-4">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#0A66C2] to-[#004182] flex items-center justify-center text-white font-semibold">
-            {account.name.split(' ').map(n => n[0]).join('')}
-          </div>
+          {account.avatar_url ? (
+            <img
+              src={account.avatar_url}
+              alt={displayName}
+              className="w-10 h-10 rounded-full"
+            />
+          ) : (
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#0A66C2] to-[#004182] flex items-center justify-center text-white font-semibold">
+              {initials}
+            </div>
+          )}
           <div>
-            <p className="font-medium text-[#1E293B]">{account.name}</p>
-            <p className="text-sm text-[#64748B]">{account.email}</p>
+            <p className="font-medium text-[#1E293B]">{displayName}</p>
+            <p className="text-sm text-[#64748B]">{subscriptionLabels[account.subscription_type] || 'Free'}</p>
           </div>
         </div>
       </td>
@@ -339,22 +423,37 @@ function AccountRow({ account }: { account: LinkedInAccount }) {
       <td className="px-6 py-4">
         <div className="w-32">
           <div className="flex items-center justify-between text-xs mb-1">
-            <span className="text-[#64748B]">{account.sentToday} / {account.dailyLimit}</span>
-            <span className="font-medium text-[#1E293B]">{Math.round(progressPercent)}%</span>
+            <span className="text-[#64748B]">Daily Limit</span>
+            <span className="font-medium text-[#1E293B]">{dailyLimit}</span>
           </div>
           <div className="h-1.5 bg-[#E2E8F0] rounded-full overflow-hidden">
             <div
-              className="h-full bg-[#FF6B35] rounded-full transition-all duration-500"
-              style={{ width: `${progressPercent}%` }}
+              className="h-full bg-[#0A66C2] rounded-full"
+              style={{ width: '100%' }}
             />
           </div>
         </div>
       </td>
       <td className="px-6 py-4">
-        <span className="font-medium text-[#22C55E]">{account.connectionRate}%</span>
+        {account.last_synced_at ? (
+          <span className="text-[#64748B]">{new Date(account.last_synced_at).toLocaleDateString()}</span>
+        ) : (
+          <span className="text-[#94A3B8]">Never</span>
+        )}
       </td>
       <td className="px-6 py-4">
-        <span className="text-[#1E293B]">{account.campaigns}</span>
+        {account.profile_url ? (
+          <a
+            href={account.profile_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[#0A66C2] hover:underline"
+          >
+            View Profile
+          </a>
+        ) : (
+          <span className="text-[#94A3B8]">-</span>
+        )}
       </td>
       <td className="px-6 py-4 text-right">
         <div className="relative">
@@ -374,16 +473,23 @@ function AccountRow({ account }: { account: LinkedInAccount }) {
                   exit={{ opacity: 0, scale: 0.95 }}
                   className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg border border-[#E2E8F0] shadow-lg py-1 z-50"
                 >
-                  <button className="w-full px-4 py-2 text-left text-sm text-[#1E293B] hover:bg-[#F8FAFC]">
-                    View Details
-                  </button>
-                  <button className="w-full px-4 py-2 text-left text-sm text-[#1E293B] hover:bg-[#F8FAFC]">
-                    Edit Limits
-                  </button>
-                  <button className="w-full px-4 py-2 text-left text-sm text-[#F59E0B] hover:bg-[#FFFBEB]">
-                    Pause Account
-                  </button>
-                  <button className="w-full px-4 py-2 text-left text-sm text-[#EF4444] hover:bg-[#FEF2F2]">
+                  {account.profile_url && (
+                    <a
+                      href={account.profile_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block w-full px-4 py-2 text-left text-sm text-[#1E293B] hover:bg-[#F8FAFC]"
+                    >
+                      View LinkedIn Profile
+                    </a>
+                  )}
+                  <button
+                    onClick={() => {
+                      setMenuOpen(false)
+                      onDelete(account.id)
+                    }}
+                    className="w-full px-4 py-2 text-left text-sm text-[#EF4444] hover:bg-[#FEF2F2]"
+                  >
                     Disconnect
                   </button>
                 </motion.div>
@@ -396,51 +502,109 @@ function AccountRow({ account }: { account: LinkedInAccount }) {
   )
 }
 
-// Simplified Connect LinkedIn Modal - Direct credentials entry
+// Connect LinkedIn Modal - Uses Unipile custom auth
+type LinkedInAuthStep = 'method' | 'credentials' | 'cookie' | 'checkpoint' | 'in_app_validation' | 'success'
+
 function ConnectLinkedInModal({
   onClose,
-  onSuccess
 }: {
   onClose: () => void
-  onSuccess: (account: LinkedInAccount) => void
 }) {
-  const [email, setEmail] = useState('')
+  const [step, setStep] = useState<LinkedInAuthStep>('method')
+  const [error, setError] = useState('')
+
+  // Credentials form state
+  const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
-  const [inboxPrivacy, setInboxPrivacy] = useState<'all' | 'salesparrot_only'>('salesparrot_only')
-  const [isLoading, setIsLoading] = useState(false)
-  const [step, setStep] = useState<'credentials' | 'verification' | 'success'>('credentials')
+
+  // Cookie form state
+  const [cookie, setCookie] = useState('')
+  const [userAgent, setUserAgent] = useState('')
+
+  // Checkpoint state
+  const [accountId, setAccountId] = useState('')
+  const [checkpointType, setCheckpointType] = useState<CheckpointType | null>(null)
   const [verificationCode, setVerificationCode] = useState('')
 
-  const handleConnect = () => {
-    if (!email || !password) return
-    setIsLoading(true)
-    // Simulate connection - in real app this would call API
-    setTimeout(() => {
-      setIsLoading(false)
-      setStep('verification')
-    }, 2000)
-  }
+  const connectWithCredentials = useConnectLinkedInWithCredentials()
+  const connectWithCookie = useConnectLinkedInWithCookie()
+  const solveCheckpoint = useSolveLinkedInCheckpoint()
+  const pollStatus = usePollLinkedInStatus()
 
-  const handleVerify = () => {
-    setIsLoading(true)
-    setTimeout(() => {
-      setIsLoading(false)
+  const handleAuthResponse = (data: { status: string; account_id?: string; checkpoint?: { type: CheckpointType } }) => {
+    if (data.status === 'connected') {
       setStep('success')
-    }, 1500)
+      setTimeout(() => onClose(), 1500)
+    } else if (data.status === 'checkpoint' && data.checkpoint) {
+      setAccountId(data.account_id || '')
+      setCheckpointType(data.checkpoint.type)
+      if (data.checkpoint.type === 'IN_APP_VALIDATION') {
+        setStep('in_app_validation')
+      } else {
+        setStep('checkpoint')
+      }
+    }
   }
 
-  const handleFinish = () => {
-    onSuccess({
-      id: Date.now().toString(),
-      name: email.split('@')[0].split('.').map(n => n.charAt(0).toUpperCase() + n.slice(1)).join(' '),
-      email: email,
-      status: 'warming',
-      dailyLimit: 50,
-      sentToday: 0,
-      connectionRate: 0,
-      campaigns: 0
-    })
+  const handleCredentialsSubmit = async () => {
+    setError('')
+    if (!username || !password) {
+      setError('Please fill in all fields')
+      return
+    }
+
+    try {
+      const result = await connectWithCredentials.mutateAsync({ username, password })
+      handleAuthResponse(result)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to connect')
+    }
+  }
+
+  const handleCookieSubmit = async () => {
+    setError('')
+    if (!cookie) {
+      setError('Please enter the li_at cookie')
+      return
+    }
+
+    try {
+      const result = await connectWithCookie.mutateAsync({
+        access_token: cookie,
+        user_agent: userAgent || undefined,
+      })
+      handleAuthResponse(result)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to connect')
+    }
+  }
+
+  const handleCheckpointSubmit = async () => {
+    setError('')
+    if (!verificationCode) {
+      setError('Please enter the verification code')
+      return
+    }
+
+    try {
+      const result = await solveCheckpoint.mutateAsync({
+        account_id: accountId,
+        code: verificationCode,
+      })
+      handleAuthResponse(result)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to verify')
+    }
+  }
+
+  const handlePollStatus = async () => {
+    setError('')
+    try {
+      const result = await pollStatus.mutateAsync(accountId)
+      handleAuthResponse(result)
+    } catch (err) {
+      setError('Timed out waiting for confirmation. Please try again.')
+    }
   }
 
   return (
@@ -456,263 +620,348 @@ function ConnectLinkedInModal({
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 20 }}
         onClick={(e) => e.stopPropagation()}
-        className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl"
+        className="bg-white rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl"
       >
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-[#E2E8F0] flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-[#EFF6FF] flex items-center justify-center">
-              <LinkedInIcon className="w-5 h-5 text-[#0A66C2]" />
-            </div>
-            <div>
-              <h2 className="text-lg font-bold text-[#1E293B]">Connect LinkedIn</h2>
-              <p className="text-xs text-[#64748B]">Secure connection</p>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-2 rounded-lg hover:bg-[#F8FAFC] transition-colors"
-          >
-            <CloseIcon />
-          </button>
-        </div>
+        <AnimatePresence mode="wait">
+          {/* Step 1: Choose method */}
+          {step === 'method' && (
+            <motion.div
+              key="method"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="p-6"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-lg font-bold text-[#1E293B]">Connect LinkedIn Account</h2>
+                <button onClick={onClose} className="p-2 rounded-lg hover:bg-[#F8FAFC]">
+                  <CloseIcon />
+                </button>
+              </div>
 
-        {/* Content */}
-        <div className="p-6">
-          <AnimatePresence mode="wait">
-            {step === 'credentials' && (
-              <motion.div
-                key="credentials"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                className="space-y-5"
-              >
-                {/* Email Input */}
-                <div>
-                  <label className="block text-sm font-medium text-[#1E293B] mb-2">
-                    LinkedIn Email Address
-                  </label>
-                  <div className="relative">
-                    <div className="absolute left-3 top-1/2 -translate-y-1/2">
-                      <EmailIcon className="w-5 h-5 text-[#94A3B8]" />
-                    </div>
-                    <input
-                      type="email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="you@company.com"
-                      className="w-full pl-10 pr-4 py-3 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-[#0A66C2]/20 focus:border-[#0A66C2] focus:bg-white transition-all text-[#1E293B]"
-                    />
-                  </div>
-                </div>
+              <p className="text-[#64748B] mb-6">
+                Choose how you want to connect your LinkedIn account.
+              </p>
 
-                {/* Password Input */}
-                <div>
-                  <label className="block text-sm font-medium text-[#1E293B] mb-2">
-                    LinkedIn Password
-                  </label>
-                  <div className="relative">
-                    <div className="absolute left-3 top-1/2 -translate-y-1/2">
-                      <LockIcon className="w-5 h-5 text-[#94A3B8]" />
-                    </div>
-                    <input
-                      type={showPassword ? 'text' : 'password'}
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder="Enter your password"
-                      className="w-full pl-10 pr-12 py-3 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-[#0A66C2]/20 focus:border-[#0A66C2] focus:bg-white transition-all text-[#1E293B]"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded hover:bg-[#E2E8F0] transition-colors"
-                    >
-                      {showPassword ? <EyeOffIcon className="w-4 h-4 text-[#64748B]" /> : <EyeIcon className="w-4 h-4 text-[#64748B]" />}
-                    </button>
-                  </div>
-                </div>
-
-                {/* Inbox Privacy Config */}
-                <div>
-                  <label className="block text-sm font-medium text-[#1E293B] mb-2">
-                    Conversation Sync Preference
-                  </label>
-                  <p className="text-xs text-[#64748B] mb-3">
-                    Choose which LinkedIn conversations to sync with SalesParrot
-                  </p>
-                  <div className="space-y-2">
-                    <label
-                      className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
-                        inboxPrivacy === 'salesparrot_only'
-                          ? 'border-[#0A66C2] bg-[#EFF6FF]'
-                          : 'border-[#E2E8F0] hover:border-[#0A66C2]/30'
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="inboxPrivacy"
-                        value="salesparrot_only"
-                        checked={inboxPrivacy === 'salesparrot_only'}
-                        onChange={() => setInboxPrivacy('salesparrot_only')}
-                        className="mt-0.5 text-[#0A66C2] focus:ring-[#0A66C2]"
-                      />
-                      <div>
-                        <p className="text-sm font-medium text-[#1E293B]">SalesParrot conversations only</p>
-                        <p className="text-xs text-[#64748B]">Only sync conversations started through SalesParrot campaigns</p>
-                      </div>
-                    </label>
-                    <label
-                      className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
-                        inboxPrivacy === 'all'
-                          ? 'border-[#0A66C2] bg-[#EFF6FF]'
-                          : 'border-[#E2E8F0] hover:border-[#0A66C2]/30'
-                      }`}
-                    >
-                      <input
-                        type="radio"
-                        name="inboxPrivacy"
-                        value="all"
-                        checked={inboxPrivacy === 'all'}
-                        onChange={() => setInboxPrivacy('all')}
-                        className="mt-0.5 text-[#0A66C2] focus:ring-[#0A66C2]"
-                      />
-                      <div>
-                        <p className="text-sm font-medium text-[#1E293B]">All LinkedIn conversations</p>
-                        <p className="text-xs text-[#64748B]">Sync all your LinkedIn inbox conversations for unified management</p>
-                      </div>
-                    </label>
-                  </div>
-                </div>
-
-                {/* Security Notice */}
-                <div className="flex items-start gap-2 p-3 bg-[#F0FDF4] border border-[#22C55E]/20 rounded-xl">
-                  <ShieldCheckIcon className="w-4 h-4 text-[#22C55E] mt-0.5 flex-shrink-0" />
-                  <p className="text-xs text-[#166534]">
-                    Your credentials are encrypted end-to-end. We use secure session tokens and never store your password.
-                  </p>
-                </div>
-
-                {/* Connect Button */}
+              <div className="space-y-3">
                 <button
-                  onClick={handleConnect}
-                  disabled={!email || !password || isLoading}
-                  className="w-full py-3.5 bg-[#0A66C2] text-white font-semibold rounded-xl hover:bg-[#004182] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  onClick={() => setStep('credentials')}
+                  className="w-full flex items-center gap-4 p-4 border border-[#E2E8F0] rounded-xl hover:border-[#0A66C2]/30 hover:bg-[#F8FAFC] transition-all"
                 >
-                  {isLoading ? (
+                  <div className="w-12 h-12 rounded-xl bg-[#0A66C2]/10 flex items-center justify-center">
+                    <LinkedInIcon className="w-7 h-7 text-[#0A66C2]" />
+                  </div>
+                  <div className="flex-1 text-left">
+                    <p className="font-semibold text-[#1E293B]">Email & Password</p>
+                    <p className="text-sm text-[#64748B]">Sign in with your LinkedIn credentials</p>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => setStep('cookie')}
+                  className="w-full flex items-center gap-4 p-4 border border-[#E2E8F0] rounded-xl hover:border-[#0A66C2]/30 hover:bg-[#F8FAFC] transition-all"
+                >
+                  <div className="w-12 h-12 rounded-xl bg-[#64748B]/10 flex items-center justify-center">
+                    <CookieIcon className="w-7 h-7 text-[#64748B]" />
+                  </div>
+                  <div className="flex-1 text-left">
+                    <p className="font-semibold text-[#1E293B]">Session Cookie</p>
+                    <p className="text-sm text-[#64748B]">Use your existing LinkedIn session</p>
+                  </div>
+                </button>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Step 2a: Credentials form */}
+          {step === 'credentials' && (
+            <motion.div
+              key="credentials"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="p-6"
+            >
+              <div className="flex items-center gap-3 mb-6">
+                <button onClick={() => setStep('method')} className="p-2 rounded-lg hover:bg-[#F8FAFC]">
+                  <BackArrowIcon />
+                </button>
+                <h2 className="text-lg font-bold text-[#1E293B]">Sign in to LinkedIn</h2>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-[#1E293B] mb-2">Email</label>
+                  <input
+                    type="email"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    placeholder="your@email.com"
+                    className="w-full px-4 py-2.5 rounded-lg border border-[#E2E8F0] focus:outline-none focus:ring-2 focus:ring-[#0A66C2]/20 focus:border-[#0A66C2]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-[#1E293B] mb-2">Password</label>
+                  <input
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Your LinkedIn password"
+                    className="w-full px-4 py-2.5 rounded-lg border border-[#E2E8F0] focus:outline-none focus:ring-2 focus:ring-[#0A66C2]/20 focus:border-[#0A66C2]"
+                  />
+                </div>
+
+                {error && (
+                  <div className="p-3 bg-[#FEF2F2] border border-[#EF4444]/20 rounded-lg">
+                    <p className="text-sm text-[#EF4444]">{error}</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={() => setStep('method')}
+                  className="flex-1 px-4 py-2.5 border border-[#E2E8F0] rounded-lg font-medium text-[#64748B] hover:bg-[#F8FAFC]"
+                >
+                  Back
+                </button>
+                <button
+                  onClick={handleCredentialsSubmit}
+                  disabled={connectWithCredentials.isPending}
+                  className="flex-1 px-4 py-2.5 bg-[#0A66C2] text-white rounded-lg font-medium hover:bg-[#004182] disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {connectWithCredentials.isPending ? (
                     <>
                       <LoadingSpinner />
                       Connecting...
                     </>
                   ) : (
-                    <>
-                      <LinkedInIcon className="w-5 h-5" />
-                      Connect Account
-                    </>
+                    'Connect'
                   )}
                 </button>
-              </motion.div>
-            )}
+              </div>
+            </motion.div>
+          )}
 
-            {step === 'verification' && (
-              <motion.div
-                key="verification"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                className="text-center"
-              >
-                <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-[#F0FDF4] to-[#DCFCE7] rounded-2xl flex items-center justify-center">
-                  <ShieldCheckIcon className="w-8 h-8 text-[#22C55E]" />
+          {/* Step 2b: Cookie form */}
+          {step === 'cookie' && (
+            <motion.div
+              key="cookie"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="p-6"
+            >
+              <div className="flex items-center gap-3 mb-6">
+                <button onClick={() => setStep('method')} className="p-2 rounded-lg hover:bg-[#F8FAFC]">
+                  <BackArrowIcon />
+                </button>
+                <h2 className="text-lg font-bold text-[#1E293B]">Connect with Cookie</h2>
+              </div>
+
+              <div className="p-4 bg-[#FFF7ED] border border-[#FF6B35]/20 rounded-xl mb-4">
+                <div className="flex items-start gap-3">
+                  <InfoIcon className="w-5 h-5 text-[#FF6B35] flex-shrink-0 mt-0.5" />
+                  <div className="text-sm text-[#92400E]">
+                    <p className="font-medium">How to get your li_at cookie:</p>
+                    <ol className="mt-1 list-decimal list-inside space-y-1">
+                      <li>Log in to LinkedIn in your browser</li>
+                      <li>Open Developer Tools (F12)</li>
+                      <li>Go to Application &gt; Cookies &gt; linkedin.com</li>
+                      <li>Copy the value of the "li_at" cookie</li>
+                    </ol>
+                  </div>
                 </div>
-                <h3 className="text-lg font-bold text-[#1E293B] mb-1">Verify Your Identity</h3>
-                <p className="text-sm text-[#64748B] mb-6">
-                  LinkedIn sent a verification code to your email or phone
-                </p>
+              </div>
 
-                <div className="mb-6">
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-[#1E293B] mb-2">li_at Cookie</label>
+                  <textarea
+                    value={cookie}
+                    onChange={(e) => setCookie(e.target.value)}
+                    placeholder="Paste your li_at cookie value here"
+                    rows={3}
+                    className="w-full px-4 py-2.5 rounded-lg border border-[#E2E8F0] focus:outline-none focus:ring-2 focus:ring-[#0A66C2]/20 focus:border-[#0A66C2] resize-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-[#1E293B] mb-2">User Agent (Optional)</label>
+                  <input
+                    type="text"
+                    value={userAgent}
+                    onChange={(e) => setUserAgent(e.target.value)}
+                    placeholder="Your browser's user agent"
+                    className="w-full px-4 py-2.5 rounded-lg border border-[#E2E8F0] focus:outline-none focus:ring-2 focus:ring-[#0A66C2]/20 focus:border-[#0A66C2]"
+                  />
+                  <p className="text-xs text-[#64748B] mt-1">Recommended to prevent disconnection</p>
+                </div>
+
+                {error && (
+                  <div className="p-3 bg-[#FEF2F2] border border-[#EF4444]/20 rounded-lg">
+                    <p className="text-sm text-[#EF4444]">{error}</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={() => setStep('method')}
+                  className="flex-1 px-4 py-2.5 border border-[#E2E8F0] rounded-lg font-medium text-[#64748B] hover:bg-[#F8FAFC]"
+                >
+                  Back
+                </button>
+                <button
+                  onClick={handleCookieSubmit}
+                  disabled={connectWithCookie.isPending}
+                  className="flex-1 px-4 py-2.5 bg-[#0A66C2] text-white rounded-lg font-medium hover:bg-[#004182] disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {connectWithCookie.isPending ? (
+                    <>
+                      <LoadingSpinner />
+                      Connecting...
+                    </>
+                  ) : (
+                    'Connect'
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Step 3: Checkpoint (2FA/OTP) */}
+          {step === 'checkpoint' && (
+            <motion.div
+              key="checkpoint"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="p-6"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-lg font-bold text-[#1E293B]">Verification Required</h2>
+                <button onClick={onClose} className="p-2 rounded-lg hover:bg-[#F8FAFC]">
+                  <CloseIcon />
+                </button>
+              </div>
+
+              <div className="text-center mb-6">
+                <div className="w-16 h-16 mx-auto mb-4 bg-[#0A66C2]/10 rounded-full flex items-center justify-center">
+                  <ShieldCheckIcon className="w-8 h-8 text-[#0A66C2]" />
+                </div>
+                <p className="text-[#64748B]">
+                  {checkpointType === '2FA'
+                    ? 'Enter your two-factor authentication code'
+                    : checkpointType === 'OTP'
+                    ? 'Enter the verification code sent to your email/phone'
+                    : checkpointType === 'PHONE_REGISTER'
+                    ? 'Enter your phone number to receive a verification code'
+                    : 'Additional verification is required'}
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-[#1E293B] mb-2">
+                    {checkpointType === 'PHONE_REGISTER' ? 'Phone Number' : 'Verification Code'}
+                  </label>
                   <input
                     type="text"
                     value={verificationCode}
-                    onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                    placeholder="000000"
-                    maxLength={6}
-                    className="w-full px-4 py-4 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] text-center text-2xl tracking-[0.5em] font-mono focus:outline-none focus:ring-2 focus:ring-[#0A66C2]/20 focus:border-[#0A66C2] focus:bg-white transition-all"
+                    onChange={(e) => setVerificationCode(e.target.value)}
+                    placeholder={checkpointType === 'PHONE_REGISTER' ? '(+1)1234567890' : 'Enter code'}
+                    className="w-full px-4 py-2.5 rounded-lg border border-[#E2E8F0] focus:outline-none focus:ring-2 focus:ring-[#0A66C2]/20 focus:border-[#0A66C2] text-center text-lg tracking-widest"
                   />
                 </div>
 
-                <button
-                  onClick={handleVerify}
-                  disabled={verificationCode.length !== 6 || isLoading}
-                  className="w-full py-3.5 bg-[#0A66C2] text-white font-semibold rounded-xl hover:bg-[#004182] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                >
-                  {isLoading ? (
-                    <>
-                      <LoadingSpinner />
-                      Verifying...
-                    </>
-                  ) : (
-                    'Verify & Connect'
-                  )}
-                </button>
+                {error && (
+                  <div className="p-3 bg-[#FEF2F2] border border-[#EF4444]/20 rounded-lg">
+                    <p className="text-sm text-[#EF4444]">{error}</p>
+                  </div>
+                )}
+              </div>
 
-                <p className="text-sm text-[#64748B] mt-4">
-                  Didn't receive a code?{' '}
-                  <button className="text-[#0A66C2] font-medium hover:underline">Resend</button>
-                </p>
-              </motion.div>
-            )}
-
-            {step === 'success' && (
-              <motion.div
-                key="success"
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="text-center py-4"
+              <button
+                onClick={handleCheckpointSubmit}
+                disabled={solveCheckpoint.isPending}
+                className="w-full mt-6 px-4 py-2.5 bg-[#0A66C2] text-white rounded-lg font-medium hover:bg-[#004182] disabled:opacity-50 flex items-center justify-center gap-2"
               >
-                <motion.div
-                  initial={{ scale: 0 }}
-                  animate={{ scale: 1 }}
-                  transition={{ type: 'spring', stiffness: 200, delay: 0.1 }}
-                  className="w-20 h-20 mx-auto mb-6 bg-gradient-to-br from-[#F0FDF4] to-[#DCFCE7] rounded-full flex items-center justify-center"
-                >
-                  <CheckCircleIcon className="w-10 h-10 text-[#22C55E]" />
-                </motion.div>
+                {solveCheckpoint.isPending ? (
+                  <>
+                    <LoadingSpinner />
+                    Verifying...
+                  </>
+                ) : (
+                  'Verify'
+                )}
+              </button>
+            </motion.div>
+          )}
 
-                <h3 className="text-xl font-bold text-[#1E293B] mb-2">Account Connected!</h3>
-                <p className="text-[#64748B] mb-6">
-                  Your LinkedIn account is warming up for safe sending. This takes about 3 days.
-                </p>
-
-                {/* Warmup Progress */}
-                <div className="bg-[#F8FAFC] rounded-xl p-4 mb-6 text-left">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-[#1E293B]">Warmup Progress</span>
-                    <span className="text-xs text-[#64748B]">Day 1 of 3</span>
-                  </div>
-                  <div className="h-2 bg-[#E2E8F0] rounded-full overflow-hidden">
-                    <motion.div
-                      initial={{ width: 0 }}
-                      animate={{ width: '33%' }}
-                      transition={{ delay: 0.3, duration: 0.5 }}
-                      className="h-full bg-gradient-to-r from-[#FF6B35] to-[#F97316] rounded-full"
-                    />
-                  </div>
-                  <p className="text-xs text-[#64748B] mt-2">
-                    Daily limits will gradually increase to protect your account
-                  </p>
-                </div>
-
-                <button
-                  onClick={handleFinish}
-                  className="w-full py-3.5 bg-[#FF6B35] text-white font-semibold rounded-xl hover:bg-[#E85A2A] transition-all"
-                >
-                  View My Accounts
+          {/* Step 3b: In-App Validation */}
+          {step === 'in_app_validation' && (
+            <motion.div
+              key="in_app_validation"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="p-6"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-lg font-bold text-[#1E293B]">Confirm in LinkedIn App</h2>
+                <button onClick={onClose} className="p-2 rounded-lg hover:bg-[#F8FAFC]">
+                  <CloseIcon />
                 </button>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
+              </div>
+
+              <div className="text-center mb-6">
+                <div className="w-16 h-16 mx-auto mb-4 bg-[#0A66C2]/10 rounded-full flex items-center justify-center">
+                  <SmartphoneIcon className="w-8 h-8 text-[#0A66C2]" />
+                </div>
+                <p className="text-[#64748B]">
+                  Open the LinkedIn app on your phone and confirm the login request.
+                </p>
+              </div>
+
+              {error && (
+                <div className="p-3 mb-4 bg-[#FEF2F2] border border-[#EF4444]/20 rounded-lg">
+                  <p className="text-sm text-[#EF4444]">{error}</p>
+                </div>
+              )}
+
+              <button
+                onClick={handlePollStatus}
+                disabled={pollStatus.isPending}
+                className="w-full px-4 py-2.5 bg-[#0A66C2] text-white rounded-lg font-medium hover:bg-[#004182] disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {pollStatus.isPending ? (
+                  <>
+                    <LoadingSpinner />
+                    Waiting for confirmation...
+                  </>
+                ) : (
+                  'Check Status'
+                )}
+              </button>
+            </motion.div>
+          )}
+
+          {/* Success */}
+          {step === 'success' && (
+            <motion.div
+              key="success"
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="p-6 text-center"
+            >
+              <div className="w-16 h-16 mx-auto mb-4 bg-[#F0FDF4] rounded-full flex items-center justify-center">
+                <CheckCircleIcon className="w-8 h-8 text-[#22C55E]" />
+              </div>
+              <h2 className="text-lg font-bold text-[#1E293B] mb-2">Successfully Connected!</h2>
+              <p className="text-[#64748B]">Your LinkedIn account has been connected.</p>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </motion.div>
     </motion.div>
   )
@@ -778,43 +1027,18 @@ function ClockIcon({ className = 'w-5 h-5' }: { className?: string }) {
   )
 }
 
-function EmailIcon({ className = 'w-5 h-5' }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-    </svg>
-  )
-}
-
-function LockIcon({ className = 'w-5 h-5' }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-    </svg>
-  )
-}
-
-function EyeIcon({ className = 'w-5 h-5' }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-      <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-    </svg>
-  )
-}
-
-function EyeOffIcon({ className = 'w-5 h-5' }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
-    </svg>
-  )
-}
-
 function CheckCircleIcon({ className = 'w-5 h-5' }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  )
+}
+
+function AlertIcon({ className = 'w-5 h-5' }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
     </svg>
   )
 }
@@ -872,6 +1096,34 @@ function LoadingSpinner() {
     <svg className="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+    </svg>
+  )
+}
+
+function CookieIcon({ className = 'w-6 h-6' }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4c-4.418 0-8 3.582-8 8s3.582 8 8 8c.35 0 .694-.023 1.032-.066a5.5 5.5 0 01-.032-.934c0-2.485 2.015-4.5 4.5-4.5.322 0 .637.034.941.098C19.455 11.99 16.116 4 12 4z" />
+      <circle cx="8" cy="10" r="1" fill="currentColor" />
+      <circle cx="10" cy="14" r="1" fill="currentColor" />
+      <circle cx="14" cy="11" r="1" fill="currentColor" />
+    </svg>
+  )
+}
+
+function BackArrowIcon() {
+  return (
+    <svg className="w-5 h-5 text-[#64748B]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+    </svg>
+  )
+}
+
+function SmartphoneIcon({ className = 'w-6 h-6' }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <rect x="5" y="2" width="14" height="20" rx="2" ry="2" />
+      <line x1="12" y1="18" x2="12.01" y2="18" />
     </svg>
   )
 }

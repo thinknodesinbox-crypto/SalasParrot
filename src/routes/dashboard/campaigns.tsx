@@ -2,48 +2,62 @@ import { createFileRoute } from '@tanstack/react-router'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useState, useCallback } from 'react'
 import { SequenceCanvas, StepPalette, NodeConfigPanel, type SequenceNode } from '@/components/campaign/SequenceCanvas'
+import { useCampaigns, useCreateCampaign, useDeleteCampaign, useStartCampaign, usePauseCampaign } from '../../lib/hooks/queries'
+import type { Campaign, CampaignStatus } from '../../lib/types'
+import { api } from '@/lib/api'
+import { prepareNodesForSave } from '@/lib/utils/campaignStepMapper'
 
 export const Route = createFileRoute('/dashboard/campaigns')({
   component: CampaignsPage,
 })
 
-interface Campaign {
-  id: string
-  name: string
-  description?: string
-  status: 'draft' | 'active' | 'paused' | 'completed'
-  leads: number
-  sent: number
-  connected: number
-  replied: number
-  connectionRate: number
-  replyRate: number
-  senders: number
-  createdAt: string
-  steps: CampaignStep[]
-}
-
-interface CampaignStep {
-  id: string
-  type: 'linkedin_connect' | 'linkedin_message' | 'linkedin_follow' | 'linkedin_view' | 'email' | 'delay'
-  config: Record<string, unknown>
-}
-
 function CampaignsPage() {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null)
-  const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'paused' | 'draft'>('all')
+  const [filterStatus, setFilterStatus] = useState<'all' | CampaignStatus>('all')
   const [searchQuery, setSearchQuery] = useState('')
 
-  const [campaigns, setCampaigns] = useState<Campaign[]>([
-    // Empty state - remove sample data
-  ])
+  // Use API hooks
+  const { data: campaigns = [], isLoading, error, refetch } = useCampaigns(
+    filterStatus !== 'all' ? { status: filterStatus } : undefined
+  )
 
+  // Client-side search filter (status filtering is done server-side)
   const filteredCampaigns = campaigns.filter(c => {
-    if (filterStatus !== 'all' && c.status !== filterStatus) return false
     if (searchQuery && !c.name.toLowerCase().includes(searchQuery.toLowerCase())) return false
     return true
   })
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="flex flex-col items-center gap-3">
+          <LoadingSpinner />
+          <p className="text-[#64748B]">Loading campaigns...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <div className="w-16 h-16 mx-auto mb-4 bg-[#FEF2F2] rounded-full flex items-center justify-center">
+            <AlertIcon className="w-8 h-8 text-[#EF4444]" />
+          </div>
+          <h3 className="text-lg font-semibold text-[#1E293B] mb-2">Failed to load campaigns</h3>
+          <p className="text-[#64748B] mb-4">{error.message}</p>
+          <button
+            onClick={() => refetch()}
+            className="px-4 py-2 bg-[#FF6B35] text-white font-medium rounded-lg hover:bg-[#E85A2A] transition-colors"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-4 md:space-y-6">
@@ -106,10 +120,6 @@ function CampaignsPage() {
         {showCreateModal && (
           <CreateCampaignModal
             onClose={() => setShowCreateModal(false)}
-            onCreate={(campaign) => {
-              setCampaigns([...campaigns, campaign])
-              setShowCreateModal(false)
-            }}
           />
         )}
       </AnimatePresence>
@@ -213,9 +223,7 @@ function CampaignsList({
             <tr className="border-b border-[#E2E8F0] bg-[#F8FAFC]">
               <th className="text-left px-6 py-3 text-xs font-semibold text-[#64748B] uppercase tracking-wider">Campaign</th>
               <th className="text-left px-6 py-3 text-xs font-semibold text-[#64748B] uppercase tracking-wider">Status</th>
-              <th className="text-left px-6 py-3 text-xs font-semibold text-[#64748B] uppercase tracking-wider">Progress</th>
-              <th className="text-left px-6 py-3 text-xs font-semibold text-[#64748B] uppercase tracking-wider">Performance</th>
-              <th className="text-left px-6 py-3 text-xs font-semibold text-[#64748B] uppercase tracking-wider">Senders</th>
+              <th className="text-left px-6 py-3 text-xs font-semibold text-[#64748B] uppercase tracking-wider">Created</th>
               <th className="text-right px-6 py-3 text-xs font-semibold text-[#64748B] uppercase tracking-wider">Actions</th>
             </tr>
           </thead>
@@ -245,16 +253,26 @@ function CampaignCard({
   onSelect: (campaign: Campaign) => void
 }) {
   const [menuOpen, setMenuOpen] = useState(false)
+  const deleteCampaign = useDeleteCampaign()
 
-  const statusColors = {
+  const statusColors: Record<string, { bg: string; text: string; dot: string }> = {
     draft: { bg: 'bg-[#F8FAFC]', text: 'text-[#64748B]', dot: 'bg-[#94A3B8]' },
     active: { bg: 'bg-[#F0FDF4]', text: 'text-[#22C55E]', dot: 'bg-[#22C55E]' },
     paused: { bg: 'bg-[#FFFBEB]', text: 'text-[#F59E0B]', dot: 'bg-[#F59E0B]' },
     completed: { bg: 'bg-[#EFF6FF]', text: 'text-[#3B82F6]', dot: 'bg-[#3B82F6]' },
   }
 
-  const status = statusColors[campaign.status]
-  const progressPercent = campaign.leads > 0 ? (campaign.sent / campaign.leads) * 100 : 0
+  const status = statusColors[campaign.status] || statusColors.draft
+
+  const handleDelete = async () => {
+    if (confirm('Are you sure you want to delete this campaign?')) {
+      try {
+        await deleteCampaign.mutateAsync(campaign.id)
+      } catch {
+        // Error handling is done in the mutation
+      }
+    }
+  }
 
   return (
     <div
@@ -264,9 +282,9 @@ function CampaignCard({
       <div className="flex items-start justify-between gap-3 mb-3">
         <div className="min-w-0 flex-1">
           <p className="font-medium text-[#1E293B] truncate">{campaign.name}</p>
-          {campaign.description && (
-            <p className="text-sm text-[#64748B] truncate mt-0.5">{campaign.description}</p>
-          )}
+          <p className="text-sm text-[#64748B] truncate mt-0.5">
+            Created {new Date(campaign.created_at).toLocaleDateString()}
+          </p>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${status.bg} ${status.text}`}>
@@ -293,19 +311,14 @@ function CampaignCard({
                     <button className="w-full px-4 py-2 text-left text-sm text-[#1E293B] hover:bg-[#F8FAFC]">
                       View Details
                     </button>
-                    <button className="w-full px-4 py-2 text-left text-sm text-[#1E293B] hover:bg-[#F8FAFC]">
-                      Edit Campaign
-                    </button>
-                    {campaign.status === 'active' ? (
-                      <button className="w-full px-4 py-2 text-left text-sm text-[#F59E0B] hover:bg-[#FFFBEB]">
-                        Pause Campaign
-                      </button>
-                    ) : campaign.status !== 'completed' ? (
-                      <button className="w-full px-4 py-2 text-left text-sm text-[#22C55E] hover:bg-[#F0FDF4]">
-                        Start Campaign
-                      </button>
-                    ) : null}
-                    <button className="w-full px-4 py-2 text-left text-sm text-[#EF4444] hover:bg-[#FEF2F2]">
+                    <CampaignActionButtons campaign={campaign} onClose={() => setMenuOpen(false)} />
+                    <button
+                      onClick={() => {
+                        setMenuOpen(false)
+                        handleDelete()
+                      }}
+                      className="w-full px-4 py-2 text-left text-sm text-[#EF4444] hover:bg-[#FEF2F2]"
+                    >
                       Delete
                     </button>
                   </motion.div>
@@ -316,48 +329,48 @@ function CampaignCard({
         </div>
       </div>
 
-      {/* Progress Bar */}
-      <div className="mb-3">
-        <div className="flex items-center justify-between text-xs mb-1">
-          <span className="text-[#64748B]">{campaign.sent} / {campaign.leads} sent</span>
-          <span className="font-medium text-[#1E293B]">{Math.round(progressPercent)}%</span>
-        </div>
-        <div className="h-1.5 bg-[#E2E8F0] rounded-full overflow-hidden">
-          <div
-            className="h-full bg-[#FF6B35] rounded-full transition-all"
-            style={{ width: `${progressPercent}%` }}
-          />
-        </div>
-      </div>
-
-      {/* Stats */}
-      <div className="flex items-center gap-4 text-sm">
-        <div className="flex items-center gap-1">
-          <ConnectIcon className="w-4 h-4 text-[#22C55E]" />
-          <span className="text-[#64748B]">{campaign.connectionRate}%</span>
-        </div>
-        <div className="flex items-center gap-1">
-          <ReplyIcon className="w-4 h-4 text-[#FF6B35]" />
-          <span className="text-[#64748B]">{campaign.replyRate}%</span>
-        </div>
-        <div className="flex items-center gap-1 ml-auto">
-          <div className="flex -space-x-2">
-            {Array.from({ length: Math.min(campaign.senders, 3) }).map((_, i) => (
-              <div
-                key={i}
-                className="w-6 h-6 rounded-full bg-gradient-to-br from-[#0A66C2] to-[#004182] border-2 border-white flex items-center justify-center text-white text-[10px]"
-              >
-                {String.fromCharCode(65 + i)}
-              </div>
-            ))}
-          </div>
-          {campaign.senders > 3 && (
-            <span className="text-xs text-[#64748B] ml-1">+{campaign.senders - 3}</span>
-          )}
-        </div>
+      {/* Status info */}
+      <div className="flex items-center gap-4 text-sm text-[#64748B]">
+        <span>Created {new Date(campaign.created_at).toLocaleDateString()}</span>
       </div>
     </div>
   )
+}
+
+// Helper component for start/pause buttons
+function CampaignActionButtons({ campaign, onClose }: { campaign: Campaign; onClose: () => void }) {
+  const startCampaign = useStartCampaign(campaign.id)
+  const pauseCampaign = usePauseCampaign(campaign.id)
+
+  if (campaign.status === 'active') {
+    return (
+      <button
+        onClick={async () => {
+          onClose()
+          await pauseCampaign.mutateAsync()
+        }}
+        className="w-full px-4 py-2 text-left text-sm text-[#F59E0B] hover:bg-[#FFFBEB]"
+      >
+        Pause Campaign
+      </button>
+    )
+  }
+
+  if (campaign.status !== 'completed') {
+    return (
+      <button
+        onClick={async () => {
+          onClose()
+          await startCampaign.mutateAsync()
+        }}
+        className="w-full px-4 py-2 text-left text-sm text-[#22C55E] hover:bg-[#F0FDF4]"
+      >
+        Start Campaign
+      </button>
+    )
+  }
+
+  return null
 }
 
 function CampaignRow({
@@ -368,16 +381,26 @@ function CampaignRow({
   onSelect: (campaign: Campaign) => void
 }) {
   const [menuOpen, setMenuOpen] = useState(false)
+  const deleteCampaign = useDeleteCampaign()
 
-  const statusColors = {
+  const statusColors: Record<string, { bg: string; text: string; dot: string }> = {
     draft: { bg: 'bg-[#F8FAFC]', text: 'text-[#64748B]', dot: 'bg-[#94A3B8]' },
     active: { bg: 'bg-[#F0FDF4]', text: 'text-[#22C55E]', dot: 'bg-[#22C55E]' },
     paused: { bg: 'bg-[#FFFBEB]', text: 'text-[#F59E0B]', dot: 'bg-[#F59E0B]' },
     completed: { bg: 'bg-[#EFF6FF]', text: 'text-[#3B82F6]', dot: 'bg-[#3B82F6]' },
   }
 
-  const status = statusColors[campaign.status]
-  const progressPercent = campaign.leads > 0 ? (campaign.sent / campaign.leads) * 100 : 0
+  const status = statusColors[campaign.status] || statusColors.draft
+
+  const handleDelete = async () => {
+    if (confirm('Are you sure you want to delete this campaign?')) {
+      try {
+        await deleteCampaign.mutateAsync(campaign.id)
+      } catch {
+        // Error handling is done in the mutation
+      }
+    }
+  }
 
   return (
     <tr
@@ -387,9 +410,7 @@ function CampaignRow({
       <td className="px-6 py-4">
         <div>
           <p className="font-medium text-[#1E293B]">{campaign.name}</p>
-          {campaign.description && (
-            <p className="text-sm text-[#64748B] truncate max-w-xs">{campaign.description}</p>
-          )}
+          <p className="text-sm text-[#64748B]">ID: {campaign.id.slice(0, 8)}...</p>
         </div>
       </td>
       <td className="px-6 py-4">
@@ -399,47 +420,9 @@ function CampaignRow({
         </span>
       </td>
       <td className="px-6 py-4">
-        <div className="w-32">
-          <div className="flex items-center justify-between text-xs mb-1">
-            <span className="text-[#64748B]">{campaign.sent} / {campaign.leads}</span>
-            <span className="font-medium text-[#1E293B]">{Math.round(progressPercent)}%</span>
-          </div>
-          <div className="h-1.5 bg-[#E2E8F0] rounded-full overflow-hidden">
-            <div
-              className="h-full bg-[#FF6B35] rounded-full transition-all"
-              style={{ width: `${progressPercent}%` }}
-            />
-          </div>
-        </div>
-      </td>
-      <td className="px-6 py-4">
-        <div className="flex items-center gap-4 text-sm">
-          <div className="flex items-center gap-1">
-            <ConnectIcon className="w-4 h-4 text-[#22C55E]" />
-            <span className="text-[#1E293B]">{campaign.connectionRate}%</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <ReplyIcon className="w-4 h-4 text-[#FF6B35]" />
-            <span className="text-[#1E293B]">{campaign.replyRate}%</span>
-          </div>
-        </div>
-      </td>
-      <td className="px-6 py-4">
-        <div className="flex items-center gap-1">
-          <div className="flex -space-x-2">
-            {Array.from({ length: Math.min(campaign.senders, 3) }).map((_, i) => (
-              <div
-                key={i}
-                className="w-7 h-7 rounded-full bg-gradient-to-br from-[#0A66C2] to-[#004182] border-2 border-white flex items-center justify-center text-white text-xs"
-              >
-                {String.fromCharCode(65 + i)}
-              </div>
-            ))}
-          </div>
-          {campaign.senders > 3 && (
-            <span className="text-xs text-[#64748B] ml-1">+{campaign.senders - 3}</span>
-          )}
-        </div>
+        <span className="text-[#64748B]">
+          {new Date(campaign.created_at).toLocaleDateString()}
+        </span>
       </td>
       <td className="px-6 py-4 text-right" onClick={(e) => e.stopPropagation()}>
         <div className="relative">
@@ -462,22 +445,14 @@ function CampaignRow({
                   <button className="w-full px-4 py-2 text-left text-sm text-[#1E293B] hover:bg-[#F8FAFC]">
                     View Details
                   </button>
-                  <button className="w-full px-4 py-2 text-left text-sm text-[#1E293B] hover:bg-[#F8FAFC]">
-                    Edit Campaign
-                  </button>
-                  {campaign.status === 'active' ? (
-                    <button className="w-full px-4 py-2 text-left text-sm text-[#F59E0B] hover:bg-[#FFFBEB]">
-                      Pause Campaign
-                    </button>
-                  ) : campaign.status !== 'completed' ? (
-                    <button className="w-full px-4 py-2 text-left text-sm text-[#22C55E] hover:bg-[#F0FDF4]">
-                      Start Campaign
-                    </button>
-                  ) : null}
-                  <button className="w-full px-4 py-2 text-left text-sm text-[#1E293B] hover:bg-[#F8FAFC]">
-                    Duplicate
-                  </button>
-                  <button className="w-full px-4 py-2 text-left text-sm text-[#EF4444] hover:bg-[#FEF2F2]">
+                  <CampaignActionButtons campaign={campaign} onClose={() => setMenuOpen(false)} />
+                  <button
+                    onClick={() => {
+                      setMenuOpen(false)
+                      handleDelete()
+                    }}
+                    className="w-full px-4 py-2 text-left text-sm text-[#EF4444] hover:bg-[#FEF2F2]"
+                  >
                     Delete
                   </button>
                 </motion.div>
@@ -492,11 +467,10 @@ function CampaignRow({
 
 function CreateCampaignModal({
   onClose,
-  onCreate
 }: {
   onClose: () => void
-  onCreate: (campaign: Campaign) => void
 }) {
+  const createCampaign = useCreateCampaign()
   const [step, setStep] = useState<'name' | 'leads' | 'sequence' | 'senders' | 'review'>('name')
   const [campaignName, setCampaignName] = useState('')
   const [campaignDescription, setCampaignDescription] = useState('')
@@ -506,6 +480,7 @@ function CreateCampaignModal({
     { id: 'end', type: 'end', data: {} },
   ])
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   const selectedNode = sequenceNodes.find(n => n.id === selectedNodeId) || null
 
@@ -533,15 +508,6 @@ function CreateCampaignModal({
     ))
   }, [selectedNodeId])
 
-  // Convert sequence nodes to campaign steps for saving
-  const steps: CampaignStep[] = sequenceNodes
-    .filter(n => n.type !== 'start' && n.type !== 'end')
-    .map(n => ({
-      id: n.id,
-      type: n.type as CampaignStep['type'],
-      config: n.data,
-    }))
-
   const stepConfigs = [
     { id: 'name', label: 'Name', number: 1 },
     { id: 'leads', label: 'Leads', number: 2 },
@@ -552,22 +518,28 @@ function CreateCampaignModal({
 
   const currentStepIndex = stepConfigs.findIndex(s => s.id === step)
 
-  const handleCreate = () => {
-    onCreate({
-      id: Date.now().toString(),
-      name: campaignName,
-      description: campaignDescription,
-      status: 'draft',
-      leads: 0,
-      sent: 0,
-      connected: 0,
-      replied: 0,
-      connectionRate: 0,
-      replyRate: 0,
-      senders: 0,
-      createdAt: 'Just now',
-      steps
-    })
+  const handleCreate = async () => {
+    setError(null)
+    try {
+      // Step 1: Create the campaign
+      const campaign = await createCampaign.mutateAsync({
+        name: campaignName,
+      })
+
+      // Step 2: Save all sequence steps
+      const stepsToSave = prepareNodesForSave(sequenceNodes)
+
+      if (stepsToSave.length > 0) {
+        // Create steps sequentially to maintain order
+        for (const stepData of stepsToSave) {
+          await api.post(`/campaigns/${campaign.id}/steps`, stepData)
+        }
+      }
+
+      onClose()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create campaign')
+    }
   }
 
   return (
@@ -846,7 +818,7 @@ function CreateCampaignModal({
                     </div>
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-sm text-[#64748B]">Sequence Steps</span>
-                      <span className="font-medium text-[#1E293B]">{steps.length} steps</span>
+                      <span className="font-medium text-[#1E293B]">{sequenceNodes.filter(n => n.type !== 'start' && n.type !== 'end').length} steps</span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-[#64748B]">Senders</span>
@@ -861,6 +833,16 @@ function CreateCampaignModal({
                       <p className="text-xs text-[#B45309]">Connect a LinkedIn account to start this campaign.</p>
                     </div>
                   </div>
+
+                  {error && (
+                    <div className="bg-[#FEF2F2] border border-[#EF4444]/20 rounded-xl p-4 flex items-start gap-3">
+                      <AlertIcon className="w-5 h-5 text-[#EF4444] flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-medium text-[#DC2626]">Error creating campaign</p>
+                        <p className="text-xs text-[#EF4444]">{error}</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </motion.div>
             )}
@@ -929,7 +911,7 @@ function CampaignDetailDrawer({
           <div className="px-6 py-4 border-b border-[#E2E8F0] flex items-center justify-between">
             <div>
               <h2 className="text-lg font-bold text-[#1E293B]">{campaign.name}</h2>
-              <p className="text-sm text-[#64748B]">{campaign.description || 'No description'}</p>
+              <p className="text-sm text-[#64748B]">Status: {campaign.status}</p>
             </div>
             <button onClick={onClose} className="p-2 rounded-lg hover:bg-[#F8FAFC]">
               <CloseIcon />
@@ -946,33 +928,6 @@ function CampaignDetailDrawer({
       </motion.div>
     </motion.div>
   )
-}
-
-function StepIcon({ type }: { type: CampaignStep['type'] }) {
-  switch (type) {
-    case 'linkedin_connect':
-      return <div className="w-8 h-8 rounded-lg bg-[#0A66C2]/10 flex items-center justify-center"><LinkedInIcon className="w-4 h-4 text-[#0A66C2]" /></div>
-    case 'linkedin_message':
-      return <div className="w-8 h-8 rounded-lg bg-[#0A66C2]/10 flex items-center justify-center"><MessageIcon className="w-4 h-4 text-[#0A66C2]" /></div>
-    case 'email':
-      return <div className="w-8 h-8 rounded-lg bg-[#14B8A6]/10 flex items-center justify-center"><EmailIcon className="w-4 h-4 text-[#14B8A6]" /></div>
-    case 'delay':
-      return <div className="w-8 h-8 rounded-lg bg-[#F59E0B]/10 flex items-center justify-center"><ClockIcon className="w-4 h-4 text-[#F59E0B]" /></div>
-    default:
-      return null
-  }
-}
-
-function getStepLabel(type: CampaignStep['type']): string {
-  switch (type) {
-    case 'linkedin_connect': return 'Connection Request'
-    case 'linkedin_message': return 'LinkedIn Message'
-    case 'linkedin_follow': return 'Follow Profile'
-    case 'linkedin_view': return 'View Profile'
-    case 'email': return 'Send Email'
-    case 'delay': return 'Wait / Delay'
-    default: return 'Unknown Step'
-  }
 }
 
 // Icons
@@ -1016,22 +971,6 @@ function EmailIcon({ className = 'w-5 h-5' }: { className?: string }) {
   )
 }
 
-function MessageIcon({ className = 'w-5 h-5' }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-    </svg>
-  )
-}
-
-function ClockIcon({ className = 'w-5 h-5' }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-    </svg>
-  )
-}
-
 function CheckIcon({ className = 'w-4 h-4' }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -1044,22 +983,6 @@ function CheckCircleIcon({ className = 'w-5 h-5' }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-    </svg>
-  )
-}
-
-function ConnectIcon({ className = 'w-4 h-4' }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M18 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zM3 19.235v-.11a6.375 6.375 0 0112.75 0v.109A12.318 12.318 0 019.374 21c-2.331 0-4.512-.645-6.374-1.766z" />
-    </svg>
-  )
-}
-
-function ReplyIcon({ className = 'w-4 h-4' }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" />
     </svg>
   )
 }
@@ -1088,18 +1011,28 @@ function ListIcon({ className = 'w-5 h-5' }: { className?: string }) {
   )
 }
 
-function TrashIcon() {
-  return (
-    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-    </svg>
-  )
-}
 
 function WarningIcon({ className = 'w-5 h-5' }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+    </svg>
+  )
+}
+
+function AlertIcon({ className = 'w-5 h-5' }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  )
+}
+
+function LoadingSpinner() {
+  return (
+    <svg className="animate-spin w-5 h-5" fill="none" viewBox="0 0 24 24">
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
     </svg>
   )
 }

@@ -1,5 +1,5 @@
 import { motion, AnimatePresence, Reorder, useDragControls } from 'framer-motion'
-import { useState, useCallback, useRef, useEffect } from 'react'
+import { useState, useCallback, useRef } from 'react'
 
 // Types
 export interface SequenceNode {
@@ -481,7 +481,7 @@ export function StepPalette({ onAddStep, onApplyTemplate }: { onAddStep: (type: 
                   <motion.button
                     key={key}
                     onClick={() => {
-                      onApplyTemplate(template.nodes.map((n, i) => ({ ...n, id: `${n.id}-${Date.now()}-${i}` })))
+                      onApplyTemplate(template.nodes.map((n, i) => ({ ...n, id: `${n.id}-${Date.now()}-${i}` })) as SequenceNode[])
                       setShowTemplates(false)
                     }}
                     className="w-full p-2.5 rounded-lg border border-[#E2E8F0] hover:border-[#FF6B35]/30 hover:bg-[#FFF7ED]/50 transition-all text-left"

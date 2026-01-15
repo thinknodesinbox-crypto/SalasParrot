@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react'
-import { Link, useRouterState } from '@tanstack/react-router'
+import { Link, useRouterState, useNavigate } from '@tanstack/react-router'
 import { motion, AnimatePresence } from 'framer-motion'
 import logoImage from '@/assets/images/logo.png'
+import { useAuth } from '@/lib/auth'
 
 interface DashboardLayoutProps {
   children: React.ReactNode
@@ -27,6 +28,18 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const routerState = useRouterState()
   const currentPath = routerState.location.pathname
+  const navigate = useNavigate()
+  const { user, logout } = useAuth()
+
+  // Get user initials for avatar
+  const userInitials = user?.name
+    ? user.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
+    : user?.email?.[0]?.toUpperCase() || '?'
+
+  const handleLogout = () => {
+    logout()
+    navigate({ to: '/login' })
+  }
 
   // Close mobile menu on route change
   useEffect(() => {
@@ -237,7 +250,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                 className="flex items-center gap-3 p-1.5 rounded-lg hover:bg-[#F8FAFC] transition-colors"
               >
                 <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#FF6B35] to-[#14B8A6] flex items-center justify-center">
-                  <span className="text-white text-sm font-semibold">JD</span>
+                  <span className="text-white text-sm font-semibold">{userInitials}</span>
                 </div>
                 <ChevronDownIcon />
               </button>
@@ -257,8 +270,8 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                       className="absolute right-0 top-full mt-2 w-56 bg-white rounded-xl border border-[#E2E8F0] shadow-lg py-2 z-50"
                     >
                       <div className="px-4 py-3 border-b border-[#E2E8F0]">
-                        <p className="text-sm font-semibold text-[#1E293B]">John Doe</p>
-                        <p className="text-xs text-[#64748B]">john@company.com</p>
+                        <p className="text-sm font-semibold text-[#1E293B]">{user?.name || 'User'}</p>
+                        <p className="text-xs text-[#64748B]">{user?.email}</p>
                       </div>
                       <div className="py-1">
                         <Link
@@ -279,7 +292,10 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                         </Link>
                       </div>
                       <div className="border-t border-[#E2E8F0] pt-1">
-                        <button className="w-full flex items-center gap-3 px-4 py-2 text-sm text-[#EF4444] hover:bg-[#FEF2F2]">
+                        <button
+                          onClick={handleLogout}
+                          className="w-full flex items-center gap-3 px-4 py-2 text-sm text-[#EF4444] hover:bg-[#FEF2F2]"
+                        >
                           <LogoutIcon />
                           Sign out
                         </button>
