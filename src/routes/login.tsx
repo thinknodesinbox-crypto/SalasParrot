@@ -1,37 +1,22 @@
-import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, Link } from '@tanstack/react-router'
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import logoImage from '@/assets/images/logo.png'
-import { useAuthStore } from '@/lib/auth'
-import { getErrorMessage } from '@/lib/api'
 
 export const Route = createFileRoute('/login')({
   component: LoginPage,
 })
 
 function LoginPage() {
-  const navigate = useNavigate()
-  const login = useAuthStore((state) => state.login)
-
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<string | null>(null)
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
-    setError(null)
-
-    try {
-      await login({ email, password })
-      navigate({ to: '/dashboard' })
-    } catch (err) {
-      setError(getErrorMessage(err))
-    } finally {
-      setIsLoading(false)
-    }
+    setTimeout(() => setIsLoading(false), 1500)
   }
 
   return (
@@ -72,17 +57,6 @@ function LoginPage() {
               </Link>
             </p>
           </motion.div>
-
-          {/* Error message */}
-          {error && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="mt-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-600 text-sm"
-            >
-              {error}
-            </motion.div>
-          )}
 
           {/* Form */}
           <motion.form

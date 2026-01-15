@@ -352,7 +352,7 @@ export const SEQUENCE_TEMPLATES = {
       { id: 'start', type: 'start' as const, data: {} },
       { id: 't1', type: 'linkedin_connect' as const, data: { message: 'Hi {{firstName}}, loved your insights on {{company}}!' } },
       { id: 't2', type: 'delay' as const, data: { delayDays: 3, delayHours: 0 } },
-      { id: 't3', type: 'condition' as const, data: { condition: 'connected' } },
+      { id: 't3', type: 'condition' as const, data: { condition: 'connected' as const } },
       { id: 't4', type: 'linkedin_message' as const, data: { message: 'Thanks for connecting! Quick question about {{company}}...' } },
       { id: 't5', type: 'email' as const, data: { subject: 'Quick question, {{firstName}}', message: 'Hi {{firstName}},\n\nI tried connecting on LinkedIn but wanted to make sure my message reached you...' } },
       { id: 'end', type: 'end' as const, data: {} },
@@ -481,7 +481,7 @@ export function StepPalette({ onAddStep, onApplyTemplate }: { onAddStep: (type: 
                   <motion.button
                     key={key}
                     onClick={() => {
-                      onApplyTemplate(template.nodes.map((n, i) => ({ ...n, id: `${n.id}-${Date.now()}-${i}` })) as SequenceNode[])
+                      onApplyTemplate(template.nodes.map((n, i) => ({ ...n, id: `${n.id}-${Date.now()}-${i}` })))
                       setShowTemplates(false)
                     }}
                     className="w-full p-2.5 rounded-lg border border-[#E2E8F0] hover:border-[#FF6B35]/30 hover:bg-[#FFF7ED]/50 transition-all text-left"

@@ -36,11 +36,11 @@ export function Feature({
             transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
             className={imagePosition === 'left' ? 'md:order-2' : ''}
           >
-            <div className="max-w-[420px] mx-auto md:mx-0 text-center md:text-left">
-              <h2 className="text-[24px] sm:text-[28px] md:text-[36px] font-bold text-[#1E293B] leading-tight tracking-[-0.01em] mb-3 sm:mb-5 md:whitespace-nowrap">
+            <div className="max-w-full md:max-w-[420px] mx-auto md:mx-0 text-center md:text-left px-2 sm:px-0">
+              <h2 className="text-[22px] sm:text-[26px] md:text-[32px] lg:text-[36px] font-bold text-[#1E293B] leading-[1.2] tracking-[-0.02em] mb-3 sm:mb-5">
                 {headline}
               </h2>
-              <p className="text-[15px] sm:text-[17px] text-[#475569] leading-[1.75] font-medium">{body}</p>
+              <p className="text-[14px] sm:text-[16px] md:text-[17px] text-[#475569] leading-[1.7] font-medium">{body}</p>
             </div>
           </motion.div>
 
