@@ -2,7 +2,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useState, useCallback } from 'react'
 import { SequenceCanvas, StepPalette, NodeConfigPanel, type SequenceNode } from '@/components/campaign/SequenceCanvas'
-import { useCampaigns, useCreateCampaign, useDeleteCampaign, useStartCampaign, usePauseCampaign } from '../../lib/hooks/queries'
+import { useCampaigns, useCreateCampaign, useDeleteCampaign, useStartCampaign, usePauseCampaign, useLeadLists } from '../../lib/hooks/queries'
 import type { Campaign, CampaignStatus } from '../../lib/types'
 import { api } from '@/lib/api'
 import { prepareNodesForSave } from '@/lib/utils/campaignStepMapper'
@@ -471,10 +471,12 @@ function CreateCampaignModal({
   onClose: () => void
 }) {
   const createCampaign = useCreateCampaign()
+  const { data: leadListsData, isLoading: leadListsLoading } = useLeadLists()
+  const leadLists = leadListsData?.lists || []
   const [step, setStep] = useState<'name' | 'leads' | 'sequence' | 'senders' | 'review'>('name')
   const [campaignName, setCampaignName] = useState('')
   const [campaignDescription, setCampaignDescription] = useState('')
-  const [selectedLeadList, setSelectedLeadList] = useState<string | null>(null)
+  const [selectedLeadListId, setSelectedLeadListId] = useState<string | null>(null)
   const [sequenceNodes, setSequenceNodes] = useState<SequenceNode[]>([
     { id: 'start', type: 'start', data: {} },
     { id: 'end', type: 'end', data: {} },
@@ -644,33 +646,46 @@ function CreateCampaignModal({
                   <h3 className="text-lg font-semibold text-[#1E293B] mb-1">Select your leads</h3>
                   <p className="text-sm text-[#64748B]">Choose a lead list to target with this campaign.</p>
                 </div>
-                <div className="grid gap-3">
-                  {/* Sample lead lists */}
-                  {['Q1 Tech Leaders', 'Series A Founders', 'Agency Partners'].map((list, i) => (
-                    <button
-                      key={i}
-                      onClick={() => setSelectedLeadList(list)}
-                      className={`flex items-center gap-4 p-4 rounded-xl border transition-all ${
-                        selectedLeadList === list
-                          ? 'border-[#FF6B35] bg-[#FFF7ED]'
-                          : 'border-[#E2E8F0] hover:border-[#FF6B35]/30'
-                      }`}
-                    >
-                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                        selectedLeadList === list ? 'bg-[#FF6B35]' : 'bg-[#F8FAFC]'
-                      }`}>
-                        <ListIcon className={`w-5 h-5 ${selectedLeadList === list ? 'text-white' : 'text-[#64748B]'}`} />
-                      </div>
-                      <div className="flex-1 text-left">
-                        <p className="font-medium text-[#1E293B]">{list}</p>
-                        <p className="text-sm text-[#64748B]">{150 + i * 50} leads • {80 + i * 10} enriched</p>
-                      </div>
-                      {selectedLeadList === list && (
-                        <CheckCircleIcon className="w-5 h-5 text-[#FF6B35]" />
-                      )}
-                    </button>
-                  ))}
-                </div>
+                {leadListsLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <LoadingSpinner />
+                  </div>
+                ) : leadLists.length === 0 ? (
+                  <div className="text-center py-8">
+                    <div className="w-12 h-12 mx-auto mb-3 bg-[#F8FAFC] rounded-xl flex items-center justify-center">
+                      <ListIcon className="w-6 h-6 text-[#94A3B8]" />
+                    </div>
+                    <p className="text-[#64748B] mb-2">No lead lists yet</p>
+                    <p className="text-sm text-[#94A3B8]">Import leads first to create a campaign.</p>
+                  </div>
+                ) : (
+                  <div className="grid gap-3">
+                    {leadLists.map((list) => (
+                      <button
+                        key={list.id}
+                        onClick={() => setSelectedLeadListId(list.id)}
+                        className={`flex items-center gap-4 p-4 rounded-xl border transition-all ${
+                          selectedLeadListId === list.id
+                            ? 'border-[#FF6B35] bg-[#FFF7ED]'
+                            : 'border-[#E2E8F0] hover:border-[#FF6B35]/30'
+                        }`}
+                      >
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                          selectedLeadListId === list.id ? 'bg-[#FF6B35]' : 'bg-[#F8FAFC]'
+                        }`}>
+                          <ListIcon className={`w-5 h-5 ${selectedLeadListId === list.id ? 'text-white' : 'text-[#64748B]'}`} />
+                        </div>
+                        <div className="flex-1 text-left">
+                          <p className="font-medium text-[#1E293B]">{list.name}</p>
+                          <p className="text-sm text-[#64748B]">{list.lead_count} leads • {list.enriched_count} enriched</p>
+                        </div>
+                        {selectedLeadListId === list.id && (
+                          <CheckCircleIcon className="w-5 h-5 text-[#FF6B35]" />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
                 <button className="w-full p-4 border-2 border-dashed border-[#E2E8F0] rounded-xl hover:border-[#FF6B35]/50 hover:bg-[#FFF7ED]/50 transition-colors text-center">
                   <PlusIcon className="w-5 h-5 text-[#94A3B8] mx-auto mb-1" />
                   <span className="text-sm text-[#64748B]">Import new leads</span>
@@ -814,7 +829,7 @@ function CreateCampaignModal({
                     </div>
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-sm text-[#64748B]">Lead List</span>
-                      <span className="font-medium text-[#1E293B]">{selectedLeadList || 'None selected'}</span>
+                      <span className="font-medium text-[#1E293B]">{leadLists.find(l => l.id === selectedLeadListId)?.name || 'None selected'}</span>
                     </div>
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-sm text-[#64748B]">Sequence Steps</span>
@@ -872,7 +887,7 @@ function CreateCampaignModal({
                 handleCreate()
               }
             }}
-            disabled={step === 'name' && !campaignName}
+            disabled={(step === 'name' && !campaignName) || (step === 'leads' && !selectedLeadListId)}
             className="px-6 py-2 bg-[#FF6B35] text-white font-medium rounded-lg hover:bg-[#E85A2A] disabled:opacity-50"
           >
             {step === 'review' ? 'Create Campaign' : 'Continue'}
