@@ -25,31 +25,55 @@ export const useAuthStore = create<AuthState>()(
       isAuthenticated: false,
 
       login: async (data: LoginRequest) => {
-        const response = await api.post<AuthResponse>('/auth/login', data)
-        const { user, tokens } = response.data
+        try {
+          const response = await api.post<AuthResponse>('/auth/login', data)
+          const { user, tokens } = response.data
 
-        setAccessToken(tokens.access_token)
-        setRefreshToken(tokens.refresh_token)
+          setAccessToken(tokens.access_token)
+          setRefreshToken(tokens.refresh_token)
 
-        set({
-          user,
-          isAuthenticated: true,
-          isLoading: false,
-        })
+          set({
+            user,
+            isAuthenticated: true,
+            isLoading: false,
+          })
+        } catch (error) {
+          // Extract error message from API response
+          if (error && typeof error === 'object' && 'response' in error) {
+            const axiosError = error as { response?: { data?: { detail?: string } } }
+            const detail = axiosError.response?.data?.detail
+            if (detail) {
+              throw new Error(detail)
+            }
+          }
+          throw error
+        }
       },
 
       signup: async (data: SignupRequest) => {
-        const response = await api.post<AuthResponse>('/auth/register', data)
-        const { user, tokens } = response.data
+        try {
+          const response = await api.post<AuthResponse>('/auth/register', data)
+          const { user, tokens } = response.data
 
-        setAccessToken(tokens.access_token)
-        setRefreshToken(tokens.refresh_token)
+          setAccessToken(tokens.access_token)
+          setRefreshToken(tokens.refresh_token)
 
-        set({
-          user,
-          isAuthenticated: true,
-          isLoading: false,
-        })
+          set({
+            user,
+            isAuthenticated: true,
+            isLoading: false,
+          })
+        } catch (error) {
+          // Extract error message from API response
+          if (error && typeof error === 'object' && 'response' in error) {
+            const axiosError = error as { response?: { data?: { detail?: string } } }
+            const detail = axiosError.response?.data?.detail
+            if (detail) {
+              throw new Error(detail)
+            }
+          }
+          throw error
+        }
       },
 
       logout: () => {
