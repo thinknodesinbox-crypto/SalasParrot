@@ -1,8 +1,18 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { motion, AnimatePresence } from 'framer-motion'
-import { useState, useRef } from 'react'
-import { useLeads, useLeadLists, useImportLeadsFromCSV, useDeleteLeadList } from '../../lib/hooks/queries'
-import type { Lead, LeadList } from '../../lib/types'
+import { useState, useRef, useEffect } from 'react'
+import {
+  useLeads,
+  useLeadLists,
+  useImportLeadsFromCSV,
+  useStartImport,
+  useImportJobStatus,
+  useCancelImport,
+  useLinkedInAccounts,
+  useUpdateLeadList,
+  useDeleteLeadList,
+} from '../../lib/hooks/queries'
+import type { Lead, LeadList, LinkedInAccount, ImportType } from '../../lib/types'
 
 export const Route = createFileRoute('/dashboard/leads')({
   component: LeadsPage,
@@ -26,6 +36,7 @@ const IMPORT_METHODS: {
   icon: React.ReactNode
   color: string
   category: 'linkedin' | 'import'
+  comingSoon?: boolean
 }[] = [
   {
     id: 'linkedin_search',
@@ -66,6 +77,7 @@ const IMPORT_METHODS: {
     icon: <EventIcon />,
     color: '#0A66C2',
     category: 'linkedin',
+    comingSoon: true,
   },
   {
     id: 'linkedin_post_reactors',
@@ -106,13 +118,15 @@ function LeadsPage() {
   const [selectedListId, setSelectedListId] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [filterType, setFilterType] = useState<'all' | 'enriched' | 'not_enriched'>('all')
+  const [editingList, setEditingList] = useState<LeadList | null>(null)
+  const [deletingList, setDeletingList] = useState<LeadList | null>(null)
 
   // Fetch lead lists from API
   const { data: listsResponse, isLoading: listsLoading, error: listsError, refetch: refetchLists } = useLeadLists()
   const lists = listsResponse?.lists || []
 
   // Fetch leads filtered by selected list
-  const { data: leadsResponse, isLoading: leadsLoading, error: leadsError, refetch: refetchLeads } = useLeads(
+  const { data: leadsResponse, isLoading: leadsLoading } = useLeads(
     selectedListId ? { list_id: selectedListId } : undefined
   )
   const leads = leadsResponse?.leads || []
@@ -215,7 +229,34 @@ function LeadsPage() {
           onBack={() => setSelectedListId(null)}
         />
       ) : (
-        <LeadListsGrid lists={lists} onSelectList={setSelectedListId} />
+        <LeadListsGrid
+          lists={lists}
+          onSelectList={setSelectedListId}
+          onEditList={setEditingList}
+          onDeleteList={setDeletingList}
+        />
+      )}
+
+      {/* Edit List Modal */}
+      {editingList && (
+        <EditListModal
+          list={editingList}
+          onClose={() => setEditingList(null)}
+        />
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deletingList && (
+        <DeleteListModal
+          list={deletingList}
+          onClose={() => setDeletingList(null)}
+          onDeleted={() => {
+            setDeletingList(null)
+            if (selectedListId === deletingList.id) {
+              setSelectedListId(null)
+            }
+          }}
+        />
       )}
 
       {/* Import Modal */}
@@ -298,7 +339,31 @@ function EmptyState({ onImport }: { onImport: () => void }) {
   )
 }
 
-function LeadListsGrid({ lists, onSelectList }: { lists: LeadList[]; onSelectList: (id: string) => void }) {
+function LeadListsGrid({
+  lists,
+  onSelectList,
+  onEditList,
+  onDeleteList,
+}: {
+  lists: LeadList[]
+  onSelectList: (id: string) => void
+  onEditList: (list: LeadList) => void
+  onDeleteList: (list: LeadList) => void
+}) {
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setOpenMenuId(null)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr)
     const now = new Date()
@@ -317,36 +382,80 @@ function LeadListsGrid({ lists, onSelectList }: { lists: LeadList[]; onSelectLis
   return (
     <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
       {lists.map((list, index) => (
-        <motion.button
+        <motion.div
           key={list.id}
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: index * 0.05 }}
-          onClick={() => onSelectList(list.id)}
-          className="bg-white rounded-xl border border-[#E2E8F0] p-5 text-left hover:border-[#FF6B35]/30 hover:shadow-md transition-all group"
+          className="bg-white rounded-xl border border-[#E2E8F0] p-5 text-left hover:border-[#FF6B35]/30 hover:shadow-md transition-all group relative"
         >
           <div className="flex items-start justify-between mb-4">
-            <div className="w-10 h-10 rounded-lg bg-[#FFF7ED] flex items-center justify-center">
+            <button
+              onClick={() => onSelectList(list.id)}
+              className="w-10 h-10 rounded-lg bg-[#FFF7ED] flex items-center justify-center"
+            >
               <ListIcon className="w-5 h-5 text-[#FF6B35]" />
+            </button>
+            <div className="relative" ref={openMenuId === list.id ? menuRef : undefined}>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setOpenMenuId(openMenuId === list.id ? null : list.id)
+                }}
+                className="p-1.5 rounded-lg hover:bg-[#F1F5F9] transition-colors opacity-0 group-hover:opacity-100"
+              >
+                <MoreIcon className="w-4 h-4 text-[#64748B]" />
+              </button>
+              {openMenuId === list.id && (
+                <div className="absolute right-0 top-8 w-36 bg-white rounded-lg border border-[#E2E8F0] shadow-lg py-1 z-10">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setOpenMenuId(null)
+                      onEditList(list)
+                    }}
+                    className="w-full px-3 py-2 text-left text-sm text-[#1E293B] hover:bg-[#F8FAFC] flex items-center gap-2"
+                  >
+                    <EditIcon className="w-4 h-4 text-[#64748B]" />
+                    Rename
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      setOpenMenuId(null)
+                      onDeleteList(list)
+                    }}
+                    className="w-full px-3 py-2 text-left text-sm text-[#EF4444] hover:bg-[#FEF2F2] flex items-center gap-2"
+                  >
+                    <TrashIcon className="w-4 h-4" />
+                    Delete
+                  </button>
+                </div>
+              )}
             </div>
           </div>
-          <h3 className="font-semibold text-[#1E293B] mb-1 group-hover:text-[#FF6B35] transition-colors">
-            {list.name}
-          </h3>
-          <div className="flex items-center gap-4 text-sm text-[#64748B]">
-            <span>{list.lead_count} leads</span>
-            <span className="flex items-center gap-1">
-              <EnrichIcon className="w-3.5 h-3.5 text-[#14B8A6]" />
-              {list.enriched_count} enriched
-            </span>
-          </div>
-          <div className="flex items-center justify-between mt-3">
-            {list.source && (
-              <span className="text-xs text-[#94A3B8] px-2 py-0.5 bg-[#F8FAFC] rounded">{list.source}</span>
-            )}
-            <span className="text-xs text-[#94A3B8]">{formatDate(list.created_at)}</span>
-          </div>
-        </motion.button>
+          <button
+            onClick={() => onSelectList(list.id)}
+            className="text-left w-full"
+          >
+            <h3 className="font-semibold text-[#1E293B] mb-1 group-hover:text-[#FF6B35] transition-colors">
+              {list.name}
+            </h3>
+            <div className="flex items-center gap-4 text-sm text-[#64748B]">
+              <span>{list.lead_count} leads</span>
+              <span className="flex items-center gap-1">
+                <EnrichIcon className="w-3.5 h-3.5 text-[#14B8A6]" />
+                {list.enriched_count} enriched
+              </span>
+            </div>
+            <div className="flex items-center justify-between mt-3">
+              {list.source && (
+                <span className="text-xs text-[#94A3B8] px-2 py-0.5 bg-[#F8FAFC] rounded">{list.source}</span>
+              )}
+              <span className="text-xs text-[#94A3B8]">{formatDate(list.created_at)}</span>
+            </div>
+          </button>
+        </motion.div>
       ))}
     </div>
   )
@@ -588,10 +697,55 @@ function ImportLeadsModal({
   const [selectedMethod, setSelectedMethod] = useState<ImportMethod | null>(null)
   const [step, setStep] = useState<'method' | 'configure' | 'processing' | 'complete'>('method')
   const [listName, setListName] = useState('')
+  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null)
   const [importResult, setImportResult] = useState<{ created: number; skipped: number } | null>(null)
   const [importError, setImportError] = useState<string | null>(null)
+  const [currentJobId, setCurrentJobId] = useState<string | null>(null)
 
-  const importMutation = useImportLeadsFromCSV()
+  // Hooks
+  const importCSVMutation = useImportLeadsFromCSV()
+  const startImportMutation = useStartImport()
+  const cancelImportMutation = useCancelImport()
+  const { data: linkedInAccounts, isLoading: accountsLoading } = useLinkedInAccounts()
+
+  // Poll for import job status
+  const { data: jobStatus } = useImportJobStatus(
+    currentJobId || '',
+    !!currentJobId && step === 'processing',
+    2000 // Poll every 2 seconds
+  )
+
+  // Handle job completion
+  useEffect(() => {
+    if (jobStatus && currentJobId) {
+      if (jobStatus.status === 'completed') {
+        setImportResult({
+          created: jobStatus.created_count,
+          skipped: jobStatus.skipped_count,
+        })
+        setStep('complete')
+        setCurrentJobId(null)
+      } else if (jobStatus.status === 'failed') {
+        setImportError(jobStatus.error_message || 'Import failed')
+        setStep('configure')
+        setCurrentJobId(null)
+      } else if (jobStatus.status === 'cancelled') {
+        setImportError('Import was cancelled')
+        setStep('configure')
+        setCurrentJobId(null)
+      }
+    }
+  }, [jobStatus, currentJobId])
+
+  // Set default account when accounts load
+  useEffect(() => {
+    if (linkedInAccounts && linkedInAccounts.length > 0 && !selectedAccountId) {
+      const connectedAccount = linkedInAccounts.find(a => a.status === 'connected')
+      if (connectedAccount) {
+        setSelectedAccountId(connectedAccount.id)
+      }
+    }
+  }, [linkedInAccounts, selectedAccountId])
 
   const handleBack = () => {
     if (step === 'configure') {
@@ -610,7 +764,7 @@ function ImportLeadsModal({
     setImportError(null)
 
     try {
-      const result = await importMutation.mutateAsync({
+      const result = await importCSVMutation.mutateAsync({
         file,
         list_name: listName.trim(),
       })
@@ -620,6 +774,53 @@ function ImportLeadsModal({
       setImportError(error instanceof Error ? error.message : 'Import failed')
       setStep('configure')
     }
+  }
+
+  // For LinkedIn-based imports (starts background job)
+  const handleLinkedInImport = async (sourceUrl: string, sourceData?: string[]) => {
+    if (!listName.trim()) {
+      setImportError('Please enter a list name')
+      return
+    }
+
+    if (!sourceUrl?.trim() && (!sourceData || sourceData.length === 0)) {
+      setImportError('Please enter a URL or data')
+      return
+    }
+
+    if (!selectedAccountId) {
+      setImportError('Please select a LinkedIn account')
+      return
+    }
+
+    setStep('processing')
+    setImportError(null)
+
+    try {
+      const result = await startImportMutation.mutateAsync({
+        list_name: listName.trim(),
+        import_type: selectedMethod as ImportType,
+        linkedin_account_id: selectedAccountId,
+        source_url: sourceUrl || undefined,
+        source_data: sourceData,
+      })
+      setCurrentJobId(result.job_id)
+    } catch (error) {
+      setImportError(error instanceof Error ? error.message : 'Failed to start import')
+      setStep('configure')
+    }
+  }
+
+  const handleCancelImport = async () => {
+    if (currentJobId) {
+      try {
+        await cancelImportMutation.mutateAsync(currentJobId)
+      } catch (error) {
+        // Ignore errors
+      }
+    }
+    setStep('configure')
+    setCurrentJobId(null)
   }
 
   const handleFinish = () => {
@@ -690,26 +891,40 @@ function ImportLeadsModal({
                         <button
                           key={method.id}
                           onClick={() => {
-                            setSelectedMethod(method.id)
-                            setStep('configure')
+                            if (!method.comingSoon) {
+                              setSelectedMethod(method.id)
+                              setStep('configure')
+                            }
                           }}
+                          disabled={method.comingSoon}
                           className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all text-left group ${
-                            selectedMethod === method.id
+                            method.comingSoon
+                              ? 'border-[#E2E8F0] bg-[#F8FAFC] opacity-60 cursor-not-allowed'
+                              : selectedMethod === method.id
                               ? 'border-[#FF6B35] bg-[#FFF7ED]'
                               : 'border-[#E2E8F0] hover:border-[#FF6B35]/30 hover:bg-[#F8FAFC]'
                           }`}
                         >
                           <div
-                            className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-110"
+                            className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 transition-transform ${!method.comingSoon ? 'group-hover:scale-110' : ''}`}
                             style={{ backgroundColor: `${method.color}15` }}
                           >
                             <div style={{ color: method.color }}>{method.icon}</div>
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="font-medium text-[#1E293B] text-sm">{method.title}</p>
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium text-[#1E293B] text-sm">{method.title}</p>
+                              {method.comingSoon && (
+                                <span className="px-1.5 py-0.5 text-[10px] font-medium bg-[#64748B] text-white rounded">
+                                  Coming Soon
+                                </span>
+                              )}
+                            </div>
                             <p className="text-xs text-[#64748B] truncate">{method.description}</p>
                           </div>
-                          <ChevronRightIcon className="w-4 h-4 text-[#94A3B8] flex-shrink-0 group-hover:text-[#FF6B35]" />
+                          {!method.comingSoon && (
+                            <ChevronRightIcon className="w-4 h-4 text-[#94A3B8] flex-shrink-0 group-hover:text-[#FF6B35]" />
+                          )}
                         </button>
                       ))}
                     </div>
@@ -766,8 +981,13 @@ function ImportLeadsModal({
                   method={selectedMethod}
                   listName={listName}
                   setListName={setListName}
-                  onImport={handleCSVImport}
+                  onCSVImport={handleCSVImport}
+                  onLinkedInImport={handleLinkedInImport}
                   importError={importError}
+                  linkedInAccounts={linkedInAccounts || []}
+                  accountsLoading={accountsLoading}
+                  selectedAccountId={selectedAccountId}
+                  setSelectedAccountId={setSelectedAccountId}
                 />
               </motion.div>
             )}
@@ -786,7 +1006,40 @@ function ImportLeadsModal({
                   className="w-16 h-16 mx-auto mb-6 border-4 border-[#E2E8F0] border-t-[#FF6B35] rounded-full"
                 />
                 <h3 className="text-lg font-semibold text-[#1E293B] mb-2">Importing your leads...</h3>
-                <p className="text-[#64748B]">This may take a moment depending on list size.</p>
+                <p className="text-[#64748B] mb-4">This may take a moment depending on list size.</p>
+
+                {/* Progress info */}
+                {jobStatus && (
+                  <div className="max-w-xs mx-auto">
+                    {/* Progress bar */}
+                    <div className="h-2 bg-[#E2E8F0] rounded-full overflow-hidden mb-3">
+                      <motion.div
+                        className="h-full bg-gradient-to-r from-[#FF6B35] to-[#E85A2A] rounded-full"
+                        initial={{ width: 0 }}
+                        animate={{ width: `${jobStatus.progress}%` }}
+                        transition={{ duration: 0.3 }}
+                      />
+                    </div>
+                    <div className="flex justify-between text-sm text-[#64748B]">
+                      <span>{jobStatus.processed_count} processed</span>
+                      <span>{Math.round(jobStatus.progress)}%</span>
+                    </div>
+                    <div className="mt-2 text-sm">
+                      <span className="text-[#22C55E]">{jobStatus.created_count} created</span>
+                      {jobStatus.skipped_count > 0 && (
+                        <span className="text-[#94A3B8] ml-3">{jobStatus.skipped_count} skipped</span>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Cancel button */}
+                <button
+                  onClick={handleCancelImport}
+                  className="mt-6 px-4 py-2 text-sm text-[#64748B] hover:text-[#EF4444] transition-colors"
+                >
+                  Cancel Import
+                </button>
               </motion.div>
             )}
 
@@ -831,14 +1084,24 @@ function ImportMethodConfig({
   method,
   listName,
   setListName,
-  onImport,
-  importError
+  onCSVImport,
+  onLinkedInImport,
+  importError,
+  linkedInAccounts,
+  accountsLoading,
+  selectedAccountId,
+  setSelectedAccountId,
 }: {
   method: ImportMethod
   listName: string
   setListName: (name: string) => void
-  onImport: (file: File) => void
+  onCSVImport: (file: File) => void
+  onLinkedInImport: (sourceUrl: string, sourceData?: string[]) => void
   importError?: string | null
+  linkedInAccounts: LinkedInAccount[]
+  accountsLoading: boolean
+  selectedAccountId: string | null
+  setSelectedAccountId: (id: string | null) => void
 }) {
   const [pastedUrls, setPastedUrls] = useState('')
   const [csvFile, setCsvFile] = useState<File | null>(null)
@@ -846,6 +1109,7 @@ function ImportMethodConfig({
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const methodInfo = IMPORT_METHODS.find(m => m.id === method)!
+  const connectedAccounts = linkedInAccounts.filter(a => a.status === 'connected')
 
   // CSV import
   if (method === 'csv') {
@@ -914,7 +1178,7 @@ function ImportMethodConfig({
         )}
 
         <button
-          onClick={() => csvFile && onImport(csvFile)}
+          onClick={() => csvFile && onCSVImport(csvFile)}
           disabled={!csvFile || !listName.trim()}
           className="w-full py-3.5 bg-[#FF6B35] text-white font-semibold rounded-xl hover:bg-[#E85A2A] disabled:opacity-50 disabled:cursor-not-allowed"
         >
@@ -926,6 +1190,8 @@ function ImportMethodConfig({
 
   // Paste URLs
   if (method === 'paste_urls') {
+    const urlList = pastedUrls.split('\n').map(u => u.trim()).filter(u => u)
+
     return (
       <div className="p-6 space-y-5">
         <div>
@@ -939,6 +1205,14 @@ function ImportMethodConfig({
           />
         </div>
 
+        {/* LinkedIn Account Selector */}
+        <LinkedInAccountSelector
+          accounts={connectedAccounts}
+          loading={accountsLoading}
+          selectedId={selectedAccountId}
+          onSelect={setSelectedAccountId}
+        />
+
         <div>
           <label className="block text-sm font-medium text-[#1E293B] mb-2">LinkedIn Profile URLs</label>
           <textarea
@@ -949,13 +1223,19 @@ function ImportMethodConfig({
             className="w-full px-4 py-3 rounded-xl border border-[#E2E8F0] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20 focus:border-[#FF6B35] resize-none font-mono text-sm"
           />
           <p className="text-xs text-[#64748B] mt-2">
-            {pastedUrls.split('\n').filter(url => url.trim()).length} URLs detected
+            {urlList.length} URLs detected
           </p>
         </div>
 
+        {importError && (
+          <div className="p-3 bg-[#FEF2F2] border border-[#EF4444]/20 rounded-xl text-sm text-[#EF4444]">
+            {importError}
+          </div>
+        )}
+
         <button
-          onClick={onImport}
-          disabled={!pastedUrls.trim() || !listName}
+          onClick={() => onLinkedInImport('', urlList)}
+          disabled={urlList.length === 0 || !listName || !selectedAccountId}
           className="w-full py-3.5 bg-[#FF6B35] text-white font-semibold rounded-xl hover:bg-[#E85A2A] disabled:opacity-50 disabled:cursor-not-allowed"
         >
           Import Leads
@@ -991,6 +1271,14 @@ function ImportMethodConfig({
           className="w-full px-4 py-3 rounded-xl border border-[#E2E8F0] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20 focus:border-[#FF6B35]"
         />
       </div>
+
+      {/* LinkedIn Account Selector */}
+      <LinkedInAccountSelector
+        accounts={connectedAccounts}
+        loading={accountsLoading}
+        selectedId={selectedAccountId}
+        onSelect={setSelectedAccountId}
+      />
 
       <div>
         <label className="block text-sm font-medium text-[#1E293B] mb-2">
@@ -1046,14 +1334,262 @@ function ImportMethodConfig({
         </ol>
       </div>
 
+      {importError && (
+        <div className="p-3 bg-[#FEF2F2] border border-[#EF4444]/20 rounded-xl text-sm text-[#EF4444]">
+          {importError}
+        </div>
+      )}
+
       <button
-        onClick={onImport}
-        disabled={!searchUrl || !listName}
+        onClick={() => onLinkedInImport(searchUrl)}
+        disabled={!searchUrl || !listName || !selectedAccountId}
         className="w-full py-3.5 bg-[#FF6B35] text-white font-semibold rounded-xl hover:bg-[#E85A2A] disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
       >
         Import Leads
       </button>
     </div>
+  )
+}
+
+// LinkedIn Account Selector Component
+function LinkedInAccountSelector({
+  accounts,
+  loading,
+  selectedId,
+  onSelect,
+}: {
+  accounts: LinkedInAccount[]
+  loading: boolean
+  selectedId: string | null
+  onSelect: (id: string | null) => void
+}) {
+  if (loading) {
+    return (
+      <div className="animate-pulse">
+        <div className="h-4 w-32 bg-[#E2E8F0] rounded mb-2" />
+        <div className="h-12 bg-[#E2E8F0] rounded-xl" />
+      </div>
+    )
+  }
+
+  if (accounts.length === 0) {
+    return (
+      <div className="p-4 bg-[#FEF3C7] border border-[#F59E0B]/20 rounded-xl">
+        <div className="flex items-start gap-3">
+          <div className="w-8 h-8 rounded-lg bg-[#F59E0B]/10 flex items-center justify-center flex-shrink-0">
+            <AlertIcon className="w-4 h-4 text-[#F59E0B]" />
+          </div>
+          <div>
+            <p className="font-medium text-[#92400E]">No LinkedIn accounts connected</p>
+            <p className="text-sm text-[#B45309] mt-1">
+              Connect a LinkedIn account in Settings to import leads from LinkedIn.
+            </p>
+            <Link
+              to="/dashboard/settings"
+              className="inline-flex items-center gap-1 text-sm font-medium text-[#F59E0B] hover:text-[#D97706] mt-2"
+            >
+              Go to Settings
+              <ChevronRightIcon className="w-3 h-3" />
+            </Link>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div>
+      <label className="block text-sm font-medium text-[#1E293B] mb-2">
+        LinkedIn Account
+      </label>
+      <div className="space-y-2">
+        {accounts.map((account) => (
+          <button
+            key={account.id}
+            onClick={() => onSelect(account.id)}
+            className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all text-left ${
+              selectedId === account.id
+                ? 'border-[#0A66C2] bg-[#EFF6FF]'
+                : 'border-[#E2E8F0] hover:border-[#0A66C2]/30'
+            }`}
+          >
+            {account.avatar_url ? (
+              <img
+                src={account.avatar_url}
+                alt=""
+                className="w-10 h-10 rounded-full object-cover"
+              />
+            ) : (
+              <div className="w-10 h-10 rounded-full bg-[#0A66C2] flex items-center justify-center text-white font-medium">
+                {account.name?.[0] || 'L'}
+              </div>
+            )}
+            <div className="flex-1 min-w-0">
+              <p className="font-medium text-[#1E293B] truncate">{account.name || 'LinkedIn Account'}</p>
+              <p className="text-xs text-[#64748B] capitalize">{account.subscription_type}</p>
+            </div>
+            {selectedId === account.id && (
+              <div className="w-5 h-5 rounded-full bg-[#0A66C2] flex items-center justify-center">
+                <CheckIcon className="w-3 h-3 text-white" />
+              </div>
+            )}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+// Edit List Modal
+function EditListModal({ list, onClose }: { list: LeadList; onClose: () => void }) {
+  const [name, setName] = useState(list.name)
+  const [error, setError] = useState('')
+  const updateListMutation = useUpdateLeadList()
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
+
+    if (!name.trim()) {
+      setError('List name is required')
+      return
+    }
+
+    try {
+      await updateListMutation.mutateAsync({ listId: list.id, name: name.trim() })
+      onClose()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update list')
+    }
+  }
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+        onClick={onClose}
+      >
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.95 }}
+          className="bg-white rounded-xl shadow-xl w-full max-w-md"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="p-6">
+            <h2 className="text-xl font-bold text-[#1E293B] mb-4">Rename List</h2>
+            <form onSubmit={handleSubmit}>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-[#1E293B] mb-1">
+                  List Name
+                </label>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="w-full px-3 py-2 border border-[#E2E8F0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20 focus:border-[#FF6B35]"
+                  placeholder="Enter list name"
+                  autoFocus
+                />
+                {error && <p className="text-sm text-[#EF4444] mt-1">{error}</p>}
+              </div>
+              <div className="flex gap-3 justify-end">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="px-4 py-2 text-[#64748B] hover:text-[#1E293B] font-medium transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={updateListMutation.isPending}
+                  className="px-4 py-2 bg-[#FF6B35] text-white font-medium rounded-lg hover:bg-[#E85A2A] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {updateListMutation.isPending ? 'Saving...' : 'Save'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
+  )
+}
+
+// Delete List Modal
+function DeleteListModal({
+  list,
+  onClose,
+  onDeleted,
+}: {
+  list: LeadList
+  onClose: () => void
+  onDeleted: () => void
+}) {
+  const [error, setError] = useState('')
+  const deleteListMutation = useDeleteLeadList()
+
+  const handleDelete = async () => {
+    setError('')
+    try {
+      await deleteListMutation.mutateAsync(list.id)
+      onDeleted()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete list')
+    }
+  }
+
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+        onClick={onClose}
+      >
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.95 }}
+          className="bg-white rounded-xl shadow-xl w-full max-w-md"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="p-6">
+            <div className="w-12 h-12 rounded-full bg-[#FEF2F2] flex items-center justify-center mx-auto mb-4">
+              <TrashIcon className="w-6 h-6 text-[#EF4444]" />
+            </div>
+            <h2 className="text-xl font-bold text-[#1E293B] text-center mb-2">Delete List</h2>
+            <p className="text-[#64748B] text-center mb-6">
+              Are you sure you want to delete <span className="font-semibold text-[#1E293B]">"{list.name}"</span>?
+              This will remove the list but keep all {list.lead_count} leads in the system.
+            </p>
+            {error && <p className="text-sm text-[#EF4444] text-center mb-4">{error}</p>}
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex-1 px-4 py-2.5 border border-[#E2E8F0] text-[#1E293B] font-medium rounded-lg hover:bg-[#F8FAFC] transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={deleteListMutation.isPending}
+                className="flex-1 px-4 py-2.5 bg-[#EF4444] text-white font-medium rounded-lg hover:bg-[#DC2626] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {deleteListMutation.isPending ? 'Deleting...' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
   )
 }
 
@@ -1213,10 +1749,26 @@ function CampaignIcon({ className = 'w-5 h-5' }: { className?: string }) {
   )
 }
 
-function MoreIcon() {
+function MoreIcon({ className = 'w-5 h-5' }: { className?: string }) {
   return (
-    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+    </svg>
+  )
+}
+
+function EditIcon({ className = 'w-5 h-5' }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
+    </svg>
+  )
+}
+
+function TrashIcon({ className = 'w-5 h-5' }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
     </svg>
   )
 }
@@ -1257,6 +1809,14 @@ function AlertIcon({ className = 'w-5 h-5' }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  )
+}
+
+function CheckIcon({ className = 'w-5 h-5' }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
     </svg>
   )
 }

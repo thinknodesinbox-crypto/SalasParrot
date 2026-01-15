@@ -373,3 +373,51 @@ export interface PaginationParams {
   limit?: number
   offset?: number
 }
+
+// Import Job types
+export type ImportType =
+  | 'linkedin_search'
+  | 'sales_nav_leads'
+  | 'sales_nav_accounts'
+  | 'linkedin_recruiter'
+  | 'linkedin_events'
+  | 'linkedin_post_reactors'
+  | 'linkedin_companies'
+  | 'csv'
+  | 'paste_urls'
+
+export type ImportJobStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
+
+export interface ImportJob {
+  id: string
+  list_id: string
+  import_type: ImportType
+  status: ImportJobStatus
+  source_url: string | null
+  total_count: number | null
+  processed_count: number
+  created_count: number
+  skipped_count: number
+  error_count: number
+  error_message: string | null
+  progress: number
+  created_at: string
+  updated_at: string
+  completed_at: string | null
+}
+
+export interface ImportJobStartRequest {
+  list_name: string
+  import_type: ImportType
+  linkedin_account_id?: string
+  source_url?: string
+  source_data?: string[]
+  workspace_id?: string
+}
+
+export interface ImportJobStartResponse {
+  job_id: string
+  list_id: string
+  status: ImportJobStatus
+  message: string
+}

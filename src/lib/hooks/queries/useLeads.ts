@@ -1,7 +1,17 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, getErrorMessage } from '../../api'
 import { queryKeys } from '../../queryClient'
-import type { Lead, LeadList, LeadListResponse, LeadListsResponse, LeadStatus } from '../../types'
+import type {
+  Lead,
+  LeadList,
+  LeadListResponse,
+  LeadListsResponse,
+  LeadStatus,
+  ImportJob,
+  ImportJobStartRequest,
+  ImportJobStartResponse,
+  ImportJobStatus,
+} from '../../types'
 
 interface LeadListFilters {
   workspace_id?: string
@@ -90,6 +100,24 @@ export const useCreateLeadList = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.leadLists.all })
+    },
+    onError: (error) => {
+      throw new Error(getErrorMessage(error))
+    },
+  })
+}
+
+export const useUpdateLeadList = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({ listId, name }: { listId: string; name: string }) => {
+      const response = await api.patch<LeadList>(`/leads/lists/${listId}`, { name })
+      return response.data
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.leadLists.all })
+      queryClient.invalidateQueries({ queryKey: queryKeys.leadLists.detail(variables.listId) })
     },
     onError: (error) => {
       throw new Error(getErrorMessage(error))
@@ -321,6 +349,82 @@ export const useRemoveLeadTags = (leadId: string) => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.leads.detail(leadId) })
       queryClient.invalidateQueries({ queryKey: queryKeys.leads.all })
+    },
+    onError: (error) => {
+      throw new Error(getErrorMessage(error))
+    },
+  })
+}
+
+// ==================
+// Import Job Hooks
+// ==================
+
+interface ImportJobFilters {
+  list_id?: string
+  status?: ImportJobStatus
+  limit?: number
+}
+
+// Start a background import job
+export const useStartImport = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (data: ImportJobStartRequest) => {
+      const response = await api.post<ImportJobStartResponse>('/leads/import/start', data)
+      return response.data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.leadLists.all })
+      queryClient.invalidateQueries({ queryKey: ['importJobs'] })
+    },
+    onError: (error) => {
+      throw new Error(getErrorMessage(error))
+    },
+  })
+}
+
+// List import jobs
+export const useImportJobs = (filters?: ImportJobFilters) => {
+  return useQuery({
+    queryKey: ['importJobs', filters],
+    queryFn: async () => {
+      const params = new URLSearchParams()
+      if (filters?.list_id) params.append('list_id', filters.list_id)
+      if (filters?.status) params.append('status_filter', filters.status)
+      if (filters?.limit) params.append('limit', filters.limit.toString())
+
+      const response = await api.get<ImportJob[]>(`/leads/import/jobs?${params}`)
+      return response.data
+    },
+  })
+}
+
+// Get a single import job status (for polling)
+export const useImportJobStatus = (jobId: string, enabled = true, refetchInterval: number | false = false) => {
+  return useQuery({
+    queryKey: ['importJob', jobId],
+    queryFn: async () => {
+      const response = await api.get<ImportJob>(`/leads/import/jobs/${jobId}`)
+      return response.data
+    },
+    enabled: !!jobId && enabled,
+    refetchInterval: refetchInterval,
+  })
+}
+
+// Cancel an import job
+export const useCancelImport = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (jobId: string) => {
+      await api.post(`/leads/import/jobs/${jobId}/cancel`)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['importJobs'] })
+      queryClient.invalidateQueries({ queryKey: ['importJob'] })
     },
     onError: (error) => {
       throw new Error(getErrorMessage(error))
