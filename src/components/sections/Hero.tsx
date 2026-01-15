@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion'
+import { Link } from '@tanstack/react-router'
 import { Container, Button } from '@/components/ui'
 import { HeroDemo } from './HeroDemo'
 
@@ -63,9 +64,11 @@ export function Hero() {
             variants={fadeInUp}
             className="flex justify-center mb-4"
           >
-            <Button variant="primary" size="lg">
-              Get Started
-            </Button>
+            <Link to="/signup">
+              <Button variant="primary" size="lg">
+                Get Started
+              </Button>
+            </Link>
           </motion.div>
 
           {/* Supporting text */}

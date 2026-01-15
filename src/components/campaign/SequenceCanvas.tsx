@@ -293,6 +293,10 @@ function ConditionBranches({
   const falseLabel = conditionType === 'connected' ? 'Not Connected' : conditionType === 'replied' ? 'Not Replied' : 'Not Opened'
   const trueLabel = conditionType === 'connected' ? 'Connected' : conditionType === 'replied' ? 'Replied' : 'Opened'
 
+  // Check if branches have end nodes
+  const falseBranchEnded = falseBranch.some(node => node.type === 'end')
+  const trueBranchEnded = trueBranch.some(node => node.type === 'end')
+
   return (
     <div className="flex flex-col items-center">
       {/* Branch split connector */}
@@ -331,11 +335,16 @@ function ConditionBranches({
             </div>
           ))}
 
-          {/* Add action / End for false branch */}
-          <ConnectorLine height={24} />
-          <BranchEndButtons
-            onAddAction={(type) => onAddNode(type, 'false')}
-          />
+          {/* Add action / End for false branch (only if not ended) */}
+          {!falseBranchEnded && (
+            <>
+              <ConnectorLine height={24} />
+              <BranchEndButtons
+                onAddAction={(type) => onAddNode(type, 'false')}
+                onEnd={() => onAddNode('end', 'false')}
+              />
+            </>
+          )}
         </div>
 
         {/* True Branch (Connected) */}
@@ -359,11 +368,16 @@ function ConditionBranches({
             </div>
           ))}
 
-          {/* Add action / End for true branch */}
-          <ConnectorLine height={24} />
-          <BranchEndButtons
-            onAddAction={(type) => onAddNode(type, 'true')}
-          />
+          {/* Add action / End for true branch (only if not ended) */}
+          {!trueBranchEnded && (
+            <>
+              <ConnectorLine height={24} />
+              <BranchEndButtons
+                onAddAction={(type) => onAddNode(type, 'true')}
+                onEnd={() => onAddNode('end', 'true')}
+              />
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -373,8 +387,10 @@ function ConditionBranches({
 // Branch End Buttons (Add action + End)
 function BranchEndButtons({
   onAddAction,
+  onEnd,
 }: {
   onAddAction: (type: SequenceNode['type']) => void
+  onEnd: () => void
 }) {
   const [showMenu, setShowMenu] = useState(false)
 
@@ -422,6 +438,7 @@ function BranchEndButtons({
       </div>
 
       <motion.button
+        onClick={onEnd}
         className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-[#E2E8F0] text-[#64748B] rounded-lg text-sm font-medium hover:bg-[#F8FAFC] hover:border-[#CBD5E1] transition-colors"
         whileHover={{ scale: 1.02 }}
         whileTap={{ scale: 0.98 }}

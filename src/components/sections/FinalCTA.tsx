@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion'
+import { Link } from '@tanstack/react-router'
 import { Container, Button } from '@/components/ui'
 
 export function FinalCTA() {
@@ -19,9 +20,11 @@ export function FinalCTA() {
             One sequence. One inbox. One dashboard.
           </p>
 
-          <Button variant="primary" size="lg">
-            Get Started
-          </Button>
+          <Link to="/signup">
+            <Button variant="primary" size="lg">
+              Get Started
+            </Button>
+          </Link>
 
           <p className="mt-3 sm:mt-4 text-xs sm:text-[14px] text-[#64748B] font-medium">7-day free trial. Cancel anytime.</p>
         </motion.div>
