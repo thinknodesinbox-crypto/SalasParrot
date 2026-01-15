@@ -515,6 +515,7 @@ function LeadListDetail({
             </button>
             <Link
               to="/dashboard/campaigns"
+              search={{ createWithList: list.id }}
               className="px-4 py-2 bg-[#FF6B35] text-white rounded-lg text-sm font-medium hover:bg-[#E85A2A] transition-colors flex items-center gap-2"
             >
               <CampaignIcon className="w-4 h-4" />
@@ -815,7 +816,7 @@ function ImportLeadsModal({
     if (currentJobId) {
       try {
         await cancelImportMutation.mutateAsync(currentJobId)
-      } catch (error) {
+      } catch {
         // Ignore errors
       }
     }

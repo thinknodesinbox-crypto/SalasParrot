@@ -1,21 +1,43 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, useSearch, useNavigate } from '@tanstack/react-router'
 import { motion, AnimatePresence } from 'framer-motion'
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { SequenceCanvas, StepPalette, NodeConfigPanel, type SequenceNode } from '@/components/campaign/SequenceCanvas'
-import { useCampaigns, useCreateCampaign, useDeleteCampaign, useStartCampaign, usePauseCampaign, useLeadLists } from '../../lib/hooks/queries'
+import { useCampaigns, useCreateCampaign, useDeleteCampaign, useStartCampaign, usePauseCampaign, useLeadLists, useLinkedInAccounts } from '../../lib/hooks/queries'
 import type { Campaign, CampaignStatus } from '../../lib/types'
 import { api } from '@/lib/api'
 import { prepareNodesForSave } from '@/lib/utils/campaignStepMapper'
 
+type CampaignsSearch = {
+  createWithList?: string
+}
+
 export const Route = createFileRoute('/dashboard/campaigns')({
   component: CampaignsPage,
+  validateSearch: (search: Record<string, unknown>): CampaignsSearch => {
+    return {
+      createWithList: search.createWithList as string | undefined,
+    }
+  },
 })
 
 function CampaignsPage() {
+  const { createWithList } = useSearch({ from: '/dashboard/campaigns' })
+  const navigate = useNavigate()
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const [preSelectedLeadListId, setPreSelectedLeadListId] = useState<string | null>(null)
   const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null)
   const [filterStatus, setFilterStatus] = useState<'all' | CampaignStatus>('all')
   const [searchQuery, setSearchQuery] = useState('')
+
+  // Auto-open modal when coming from lead list with createWithList param
+  useEffect(() => {
+    if (createWithList) {
+      setPreSelectedLeadListId(createWithList)
+      setShowCreateModal(true)
+      // Clear the search param from URL
+      navigate({ to: '/dashboard/campaigns', search: {}, replace: true })
+    }
+  }, [createWithList, navigate])
 
   // Use API hooks
   const { data: campaigns = [], isLoading, error, refetch } = useCampaigns(
@@ -119,7 +141,11 @@ function CampaignsPage() {
       <AnimatePresence>
         {showCreateModal && (
           <CreateCampaignModal
-            onClose={() => setShowCreateModal(false)}
+            onClose={() => {
+              setShowCreateModal(false)
+              setPreSelectedLeadListId(null)
+            }}
+            preSelectedLeadListId={preSelectedLeadListId}
           />
         )}
       </AnimatePresence>
@@ -467,16 +493,23 @@ function CampaignRow({
 
 function CreateCampaignModal({
   onClose,
+  preSelectedLeadListId,
 }: {
   onClose: () => void
+  preSelectedLeadListId?: string | null
 }) {
   const createCampaign = useCreateCampaign()
   const { data: leadListsData, isLoading: leadListsLoading } = useLeadLists()
   const leadLists = leadListsData?.lists || []
-  const [step, setStep] = useState<'name' | 'leads' | 'sequence' | 'senders' | 'review'>('name')
+  const { data: linkedInAccounts = [], isLoading: accountsLoading } = useLinkedInAccounts()
+  // If we have a pre-selected lead list, start at 'leads' step so user can confirm or change it
+  const [step, setStep] = useState<'name' | 'leads' | 'sequence' | 'senders' | 'review'>(
+    preSelectedLeadListId ? 'leads' : 'name'
+  )
   const [campaignName, setCampaignName] = useState('')
   const [campaignDescription, setCampaignDescription] = useState('')
-  const [selectedLeadListId, setSelectedLeadListId] = useState<string | null>(null)
+  const [selectedLeadListId, setSelectedLeadListId] = useState<string | null>(preSelectedLeadListId || null)
+  const [selectedSenderIds, setSelectedSenderIds] = useState<string[]>([])
   const [sequenceNodes, setSequenceNodes] = useState<SequenceNode[]>([
     { id: 'start', type: 'start', data: {} },
     { id: 'end', type: 'end', data: {} },
@@ -557,8 +590,8 @@ function CreateCampaignModal({
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 20 }}
         onClick={(e) => e.stopPropagation()}
-        className={`bg-white rounded-2xl w-full overflow-hidden shadow-xl max-h-[90vh] flex flex-col ${
-          step === 'sequence' ? 'max-w-6xl' : 'max-w-3xl'
+        className={`bg-white rounded-2xl w-full overflow-hidden shadow-xl max-h-[95vh] flex flex-col ${
+          step === 'sequence' ? 'max-w-7xl' : 'max-w-3xl'
         }`}
       >
         {/* Header */}
@@ -702,7 +735,7 @@ function CreateCampaignModal({
                 className="h-full -m-6"
               >
                 {/* Mobile Layout - Stacked */}
-                <div className="lg:hidden relative flex flex-col h-[calc(100vh-300px)] min-h-[400px] bg-[#FAFBFC]">
+                <div className="lg:hidden relative flex flex-col h-[calc(100vh-200px)] min-h-[500px] bg-[#FAFBFC]">
                   {/* Mobile Step Palette - Horizontal scroll */}
                   <div className="p-3 border-b border-[#E2E8F0] bg-white">
                     <p className="text-xs font-semibold text-[#94A3B8] uppercase tracking-wider mb-2">Add Steps</p>
@@ -756,7 +789,7 @@ function CreateCampaignModal({
                 </div>
 
                 {/* Desktop Layout - Side by side */}
-                <div className="hidden lg:flex h-[500px] bg-[#FAFBFC] rounded-lg overflow-hidden border border-[#E2E8F0]">
+                <div className="hidden lg:flex h-[70vh] min-h-[500px] max-h-[800px] bg-[#FAFBFC] rounded-lg overflow-hidden border border-[#E2E8F0]">
                   {/* Step Palette */}
                   <StepPalette
                     onAddStep={handleAddStep}
@@ -798,13 +831,117 @@ function CreateCampaignModal({
                   <p className="text-sm text-[#64748B]">Select LinkedIn accounts to send from. We'll auto-rotate between them.</p>
                 </div>
 
-                <div className="bg-[#F8FAFC] rounded-xl p-4 text-center">
-                  <LinkedInIcon className="w-8 h-8 text-[#94A3B8] mx-auto mb-2" />
-                  <p className="text-sm text-[#64748B] mb-3">No LinkedIn accounts connected yet</p>
-                  <button className="px-4 py-2 bg-[#0A66C2] text-white text-sm font-medium rounded-lg hover:bg-[#004182]">
-                    Connect LinkedIn Account
-                  </button>
-                </div>
+                {accountsLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <LoadingSpinner />
+                  </div>
+                ) : linkedInAccounts.length === 0 ? (
+                  <div className="bg-[#F8FAFC] rounded-xl p-4 text-center">
+                    <LinkedInIcon className="w-8 h-8 text-[#94A3B8] mx-auto mb-2" />
+                    <p className="text-sm text-[#64748B] mb-3">No LinkedIn accounts connected yet</p>
+                    <button className="px-4 py-2 bg-[#0A66C2] text-white text-sm font-medium rounded-lg hover:bg-[#004182]">
+                      Connect LinkedIn Account
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {/* Select All */}
+                    <div className="flex items-center justify-between pb-2 border-b border-[#E2E8F0]">
+                      <span className="text-sm text-[#64748B]">
+                        {selectedSenderIds.length} of {linkedInAccounts.length} selected
+                      </span>
+                      <button
+                        onClick={() => {
+                          if (selectedSenderIds.length === linkedInAccounts.length) {
+                            setSelectedSenderIds([])
+                          } else {
+                            setSelectedSenderIds(linkedInAccounts.map(a => a.id))
+                          }
+                        }}
+                        className="text-sm text-[#0A66C2] font-medium hover:underline"
+                      >
+                        {selectedSenderIds.length === linkedInAccounts.length ? 'Deselect all' : 'Select all'}
+                      </button>
+                    </div>
+
+                    {/* Account List */}
+                    <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                      {linkedInAccounts.map((account) => {
+                        const isSelected = selectedSenderIds.includes(account.id)
+                        return (
+                          <motion.div
+                            key={account.id}
+                            onClick={() => {
+                              if (isSelected) {
+                                setSelectedSenderIds(ids => ids.filter(id => id !== account.id))
+                              } else {
+                                setSelectedSenderIds(ids => [...ids, account.id])
+                              }
+                            }}
+                            className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
+                              isSelected
+                                ? 'border-[#0A66C2] bg-[#EFF6FF]'
+                                : 'border-[#E2E8F0] hover:border-[#0A66C2]/30 hover:bg-[#F8FAFC]'
+                            }`}
+                            whileHover={{ scale: 1.01 }}
+                            whileTap={{ scale: 0.99 }}
+                          >
+                            {/* Checkbox */}
+                            <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 transition-colors ${
+                              isSelected ? 'bg-[#0A66C2] border-[#0A66C2]' : 'border-[#D1D5DB]'
+                            }`}>
+                              {isSelected && (
+                                <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                </svg>
+                              )}
+                            </div>
+
+                            {/* Avatar */}
+                            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#0A66C2] to-[#004182] flex items-center justify-center flex-shrink-0">
+                              {account.avatar_url ? (
+                                <img
+                                  src={account.avatar_url}
+                                  alt={account.name || 'Account'}
+                                  className="w-10 h-10 rounded-full object-cover"
+                                />
+                              ) : (
+                                <span className="text-white font-semibold text-sm">
+                                  {account.name?.charAt(0) || 'U'}
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Info */}
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium text-[#1E293B] truncate">{account.name || 'Unknown'}</p>
+                              <p className="text-sm text-[#64748B] truncate">{account.profile_url || 'LinkedIn Account'}</p>
+                            </div>
+
+                            {/* Status */}
+                            <div className={`px-2 py-1 rounded-full text-xs font-medium flex-shrink-0 ${
+                              account.status === 'connected'
+                                ? 'bg-[#DCFCE7] text-[#166534]'
+                                : account.status === 'warning'
+                                ? 'bg-[#FEF3C7] text-[#92400E]'
+                                : 'bg-[#FEE2E2] text-[#DC2626]'
+                            }`}>
+                              {account.status === 'connected' ? 'Connected' : account.status === 'warning' ? 'Warning' : account.status === 'disconnected' ? 'Disconnected' : 'Banned'}
+                            </div>
+                          </motion.div>
+                        )
+                      })}
+                    </div>
+
+                    {/* Info tip */}
+                    <div className="bg-[#F0F9FF] border border-[#3B82F6]/20 rounded-lg p-3 flex items-start gap-2">
+                      <InfoIcon className="w-4 h-4 text-[#3B82F6] flex-shrink-0 mt-0.5" />
+                      <p className="text-xs text-[#1E293B]">
+                        Selected accounts will auto-rotate to send messages, keeping each within safe daily limits.
+                      </p>
+                    </div>
+                  </div>
+                )}
               </motion.div>
             )}
 
@@ -837,17 +974,29 @@ function CreateCampaignModal({
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-[#64748B]">Senders</span>
-                      <span className="font-medium text-[#1E293B]">0 connected</span>
+                      <span className="font-medium text-[#1E293B]">{selectedSenderIds.length} selected</span>
                     </div>
                   </div>
 
-                  <div className="bg-[#FFFBEB] border border-[#F59E0B]/20 rounded-xl p-4 flex items-start gap-3">
-                    <WarningIcon className="w-5 h-5 text-[#F59E0B] flex-shrink-0 mt-0.5" />
-                    <div>
-                      <p className="text-sm font-medium text-[#92400E]">Campaign saved as draft</p>
-                      <p className="text-xs text-[#B45309]">Connect a LinkedIn account to start this campaign.</p>
+                  {selectedSenderIds.length === 0 ? (
+                    <div className="bg-[#FFFBEB] border border-[#F59E0B]/20 rounded-xl p-4 flex items-start gap-3">
+                      <WarningIcon className="w-5 h-5 text-[#F59E0B] flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-medium text-[#92400E]">Campaign saved as draft</p>
+                        <p className="text-xs text-[#B45309]">Select at least one sender to start this campaign.</p>
+                      </div>
                     </div>
-                  </div>
+                  ) : (
+                    <div className="bg-[#DCFCE7] border border-[#22C55E]/20 rounded-xl p-4 flex items-start gap-3">
+                      <CheckIcon className="w-5 h-5 text-[#22C55E] flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-medium text-[#166534]">Ready to launch</p>
+                        <p className="text-xs text-[#15803D]">
+                          {selectedSenderIds.length} sender{selectedSenderIds.length > 1 ? 's' : ''} will auto-rotate to send messages.
+                        </p>
+                      </div>
+                    </div>
+                  )}
 
                   {error && (
                     <div className="bg-[#FEF2F2] border border-[#EF4444]/20 rounded-xl p-4 flex items-start gap-3">
@@ -998,6 +1147,14 @@ function CheckCircleIcon({ className = 'w-5 h-5' }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  )
+}
+
+function InfoIcon({ className = 'w-5 h-5' }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
     </svg>
   )
 }

@@ -1541,7 +1541,7 @@ function ConnectLinkedInModal({ onClose }: { onClose: () => void }) {
     try {
       const result = await pollStatus.mutateAsync(accountId)
       handleAuthResponse(result)
-    } catch (err) {
+    } catch {
       setError('Timed out waiting for confirmation. Please try again.')
     }
   }

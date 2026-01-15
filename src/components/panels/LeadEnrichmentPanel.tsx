@@ -57,6 +57,7 @@ interface LeadEnrichmentPanelProps {
   variant?: 'hero' | 'feature'
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function LeadEnrichmentPanel({ variant: _variant = 'feature' }: LeadEnrichmentPanelProps) {
   const [leads, setLeads] = useState(initialLeads)
   const [hoveredLead, setHoveredLead] = useState<string | null>(null)
