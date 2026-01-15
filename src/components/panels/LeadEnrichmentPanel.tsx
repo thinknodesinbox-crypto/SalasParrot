@@ -14,7 +14,7 @@ const initialLeads: Lead[] = [
   {
     id: '1',
     name: 'Sarah Chen',
-    avatar: 'https://i.pravatar.cc/150?u=sarahchen',
+    avatar: '/images/avatars/sarah-chen.png',
     company: 'Acme Inc',
     email: 'sarah@acme.com',
     status: 'found',
@@ -22,7 +22,7 @@ const initialLeads: Lead[] = [
   {
     id: '2',
     name: 'Mike Johnson',
-    avatar: 'https://i.pravatar.cc/150?u=mikejohnson',
+    avatar: '/images/avatars/mike-johnson.png',
     company: 'TechCorp',
     email: 'mike@techcorp.io',
     status: 'found',
@@ -30,7 +30,7 @@ const initialLeads: Lead[] = [
   {
     id: '3',
     name: 'Lisa Park',
-    avatar: 'https://i.pravatar.cc/150?u=lisapark',
+    avatar: '/images/avatars/lisa-park.png',
     company: 'StartupXYZ',
     email: null,
     status: 'finding',
@@ -38,7 +38,7 @@ const initialLeads: Lead[] = [
   {
     id: '4',
     name: 'James Wilson',
-    avatar: 'https://i.pravatar.cc/150?u=jameswilson',
+    avatar: '/images/avatars/james-wilson.png',
     company: 'BigCo',
     email: 'jwilson@bigco.com',
     status: 'found',
@@ -46,7 +46,7 @@ const initialLeads: Lead[] = [
   {
     id: '5',
     name: 'Anna Lee',
-    avatar: 'https://i.pravatar.cc/150?u=annalee',
+    avatar: '/images/avatars/anna-lee.png',
     company: 'NewCo',
     email: null,
     status: 'queued',

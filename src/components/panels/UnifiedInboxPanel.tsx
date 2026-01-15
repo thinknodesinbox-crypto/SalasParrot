@@ -17,7 +17,7 @@ const initialMessages: Message[] = [
   {
     id: '1',
     name: 'Emily Zhang',
-    avatar: 'https://i.pravatar.cc/150?u=emilyzhang',
+    avatar: '/images/avatars/emily-zhang.png',
     platform: 'linkedin',
     preview: "Let's schedule a call. I'm a startup founder.",
     fullMessage: "Hi! I saw your outreach and I'm really interested. Let's schedule a call. I'm a startup founder looking for exactly this kind of solution. When are you free this week?",
@@ -27,7 +27,7 @@ const initialMessages: Message[] = [
   {
     id: '2',
     name: 'Michael Torres',
-    avatar: 'https://i.pravatar.cc/150?u=michaeltorres',
+    avatar: '/images/avatars/michael-torres.png',
     platform: 'email',
     preview: 'Free Thursday for a quick chat?',
     fullMessage: "Thanks for reaching out! Your product looks promising. I'm free Thursday afternoon for a quick chat. Does 2pm PST work for you? Looking forward to learning more.",
@@ -37,7 +37,7 @@ const initialMessages: Message[] = [
   {
     id: '3',
     name: 'Jessica Patel',
-    avatar: 'https://i.pravatar.cc/150?u=jessicapatel',
+    avatar: '/images/avatars/jessica-patel.png',
     platform: 'linkedin',
     preview: 'Interested! Send more info on pricing.',
     fullMessage: "This looks great! Interested! Could you send more info on pricing? We're a team of 15 and looking to scale our outreach efforts significantly.",
@@ -47,7 +47,7 @@ const initialMessages: Message[] = [
   {
     id: '4',
     name: 'David Okonkwo',
-    avatar: 'https://i.pravatar.cc/150?u=davidokonkwo',
+    avatar: '/images/avatars/david-okonkwo.png',
     platform: 'email',
     preview: "Thanks for reaching out. Let's connect.",
     fullMessage: "Thanks for reaching out. Your timing is perfect - we're actively looking for an outreach solution. Let's connect this week to discuss how you can help us scale.",
@@ -57,7 +57,7 @@ const initialMessages: Message[] = [
   {
     id: '5',
     name: 'Sophie Martin',
-    avatar: 'https://i.pravatar.cc/150?u=sophiemartin',
+    avatar: '/images/avatars/sophie-martin.png',
     platform: 'linkedin',
     preview: 'Sounds promising. Do you have case studies?',
     fullMessage: "Sounds promising. Do you have case studies I could look at? Particularly interested in results from SaaS companies similar to ours. Thanks!",

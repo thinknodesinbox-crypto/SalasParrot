@@ -12,9 +12,9 @@ interface Sender {
 }
 
 const initialSenders: Sender[] = [
-  { id: '1', name: 'Alex Morgan', avatar: 'https://i.pravatar.cc/150?u=alexmorgan', status: 'active', emailsSent: 147, connections: 89, replyRate: 24 },
-  { id: '2', name: 'Jordan Lee', avatar: 'https://i.pravatar.cc/150?u=jordanlee', status: 'active', emailsSent: 203, connections: 156, replyRate: 31 },
-  { id: '3', name: 'Taylor Kim', avatar: 'https://i.pravatar.cc/150?u=taylorkim', status: 'active', emailsSent: 98, connections: 67, replyRate: 28 },
+  { id: '1', name: 'Alex Morgan', avatar: '/images/avatars/alex-morgan.png', status: 'active', emailsSent: 147, connections: 89, replyRate: 24 },
+  { id: '2', name: 'Jordan Lee', avatar: '/images/avatars/jordan-lee.png', status: 'active', emailsSent: 203, connections: 156, replyRate: 31 },
+  { id: '3', name: 'Taylor Kim', avatar: '/images/avatars/taylor-kim.png', status: 'active', emailsSent: 98, connections: 67, replyRate: 28 },
 ]
 
 interface SendersPanelProps {

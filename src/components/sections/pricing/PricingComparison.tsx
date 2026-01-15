@@ -1,15 +1,6 @@
 import { motion } from 'framer-motion'
 import { Container } from '@/components/ui'
 
-const comparisonData = [
-  { feature: 'LinkedIn automation', competitor: true, us: true },
-  { feature: 'Multi-sender rotation', competitor: true, us: true },
-  { feature: 'Unified inbox', competitor: 'LinkedIn only', us: 'LinkedIn + Email' },
-  { feature: 'Native email sending', competitor: false, us: true, competitorNote: 'Need Instantly' },
-  { feature: 'Email enrichment', competitor: false, us: true, competitorNote: 'Need Apollo' },
-  { feature: 'Dedicated proxies', competitor: true, us: true },
-]
-
 export function PricingComparison() {
   return (
     <section className="bg-white py-12 sm:py-20 md:py-28">
@@ -32,69 +23,7 @@ export function PricingComparison() {
           </p>
         </motion.div>
 
-        {/* Comparison Table */}
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.6, delay: 0.1 }}
-          className="max-w-3xl mx-auto"
-        >
-          <div className="bg-[#F8FAFC] rounded-2xl border border-[#E2E8F0] overflow-hidden">
-            {/* Table Header */}
-            <div className="grid grid-cols-3 gap-2 sm:gap-4 px-3 sm:px-6 py-3 sm:py-4 bg-[#1E293B]">
-              <div className="text-white/60 text-xs sm:text-sm font-medium">Feature</div>
-              <div className="text-center text-white/60 text-xs sm:text-sm font-medium">Other Tools</div>
-              <div className="text-center">
-                <span className="px-2 sm:px-3 py-1 bg-[#14B8A6]/20 rounded-full text-[#14B8A6] text-xs sm:text-sm font-semibold">
-                  SalesParrot
-                </span>
-              </div>
-            </div>
-
-            {/* Table Rows */}
-            {comparisonData.map((row, index) => (
-              <motion.div
-                key={row.feature}
-                initial={{ opacity: 0, x: -10 }}
-                whileInView={{ opacity: 1, x: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.4, delay: index * 0.05 }}
-                className={`grid grid-cols-3 gap-2 sm:gap-4 px-3 sm:px-6 py-3 sm:py-4 items-center ${
-                  index !== comparisonData.length - 1 ? 'border-b border-[#E2E8F0]' : ''
-                }`}
-              >
-                <div className="text-[#1E293B] font-medium text-xs sm:text-sm">{row.feature}</div>
-                <div className="text-center">
-                  {row.competitor === true ? (
-                    <CheckIcon className="text-[#64748B]" />
-                  ) : row.competitor === false ? (
-                    <div className="flex flex-col items-center">
-                      <CrossIcon />
-                      {row.competitorNote && (
-                        <span className="text-[10px] text-[#94A3B8] mt-1">{row.competitorNote}</span>
-                      )}
-                    </div>
-                  ) : (
-                    <span className="text-[#94A3B8] text-sm">{row.competitor}</span>
-                  )}
-                </div>
-                <div className="text-center">
-                  {row.us === true ? (
-                    <div className="flex items-center justify-center gap-1">
-                      <CheckIcon className="text-[#14B8A6]" />
-                      <span className="text-[#14B8A6] text-xs font-medium">Included</span>
-                    </div>
-                  ) : (
-                    <span className="text-[#14B8A6] text-sm font-medium">{row.us}</span>
-                  )}
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </motion.div>
-
-        {/* Cost Comparison Cards - Redesigned */}
+        {/* Cost Comparison Cards */}
         <div className="mt-12 sm:mt-20">
           <motion.p
             initial={{ opacity: 0 }}
@@ -308,22 +237,6 @@ export function PricingComparison() {
         </div>
       </Container>
     </section>
-  )
-}
-
-function CheckIcon({ className = '' }: { className?: string }) {
-  return (
-    <svg className={`w-5 h-5 mx-auto ${className}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-    </svg>
-  )
-}
-
-function CrossIcon() {
-  return (
-    <svg className="w-5 h-5 mx-auto text-[#CBD5E1]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-    </svg>
   )
 }
 
