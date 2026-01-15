@@ -1,7 +1,8 @@
-import { createFileRoute, Link } from '@tanstack/react-router'
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import logoImage from '@/assets/images/logo.png'
+import { useAuthStore } from '@/lib/auth'
 
 export const Route = createFileRoute('/signup')({
   component: SignupPage,
@@ -16,16 +17,33 @@ function SignupPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [agreedToTerms, setAgreedToTerms] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const signup = useAuthStore((state) => state.signup)
+  const navigate = useNavigate()
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }))
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!agreedToTerms) return
     setIsLoading(true)
-    setTimeout(() => setIsLoading(false), 1500)
+    setError(null)
+
+    try {
+      await signup({
+        name: formData.fullName,
+        email: formData.email,
+        password: formData.password,
+      })
+      navigate({ to: '/dashboard' })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Signup failed. Please try again.')
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const getPasswordStrength = (password: string) => {
@@ -293,6 +311,17 @@ function SignupPage() {
                 <Link to="/" className="text-[#FF6B35] font-medium hover:underline">Privacy Policy</Link>
               </label>
             </div>
+
+            {/* Error message */}
+            {error && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="p-3 rounded-lg bg-red-50 border border-red-200"
+              >
+                <p className="text-sm text-red-600">{error}</p>
+              </motion.div>
+            )}
 
             {/* Submit */}
             <motion.button
