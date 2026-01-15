@@ -90,18 +90,33 @@ export const useUpdateLinkedInAccount = (accountId: string) => {
   })
 }
 
+interface DeleteLinkedInAccountOptions {
+  accountId: string
+  deleteConversations?: boolean
+}
+
+interface DisconnectAccountResponse {
+  account_deleted: boolean
+  unipile_disconnected: boolean
+  conversations_deleted: number
+  messages_deleted: number
+  error: string | null
+  message: string
+}
+
 export const useDeleteLinkedInAccount = () => {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async (accountId: string) => {
-      await api.delete(`/linkedin-accounts/${accountId}`)
+    mutationFn: async ({ accountId, deleteConversations = false }: DeleteLinkedInAccountOptions) => {
+      const response = await api.post<DisconnectAccountResponse>(
+        `/linkedin-accounts/${accountId}/disconnect`,
+        { delete_conversations: deleteConversations }
+      )
+      return response.data
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.linkedinAccounts.all })
-    },
-    onError: (error) => {
-      throw new Error(getErrorMessage(error))
     },
   })
 }
@@ -120,6 +135,32 @@ export const useSyncLinkedInAccount = (accountId: string) => {
     },
     onError: (error) => {
       throw new Error(getErrorMessage(error))
+    },
+  })
+}
+
+interface SyncChatsResponse {
+  chats_fetched: number
+  leads_created: number
+  conversations_created: number
+  conversations_updated: number
+  messages_synced: number
+}
+
+export const useSyncLinkedInChats = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (linkedinAccountId: string) => {
+      const response = await api.post<SyncChatsResponse>('/inbox/sync', {
+        linkedin_account_id: linkedinAccountId,
+        limit: 100,
+        sync_messages: true,
+      })
+      return response.data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.linkedinAccounts.all })
     },
   })
 }

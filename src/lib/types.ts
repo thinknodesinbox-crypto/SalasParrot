@@ -119,6 +119,24 @@ export interface CampaignWithDetails extends Campaign {
   lead_count: number
 }
 
+// Lead List types
+export interface LeadList {
+  id: string
+  user_id: string
+  workspace_id: string | null
+  name: string
+  source: string | null
+  lead_count: number
+  enriched_count: number
+  created_at: string
+  updated_at: string
+}
+
+export interface LeadListsResponse {
+  lists: LeadList[]
+  total: number
+}
+
 // Lead types
 export type LeadStatus =
   | 'new'
@@ -133,13 +151,16 @@ export interface Lead {
   user_id: string
   workspace_id: string | null
   campaign_id: string | null
+  list_id: string | null
   linkedin_url: string | null
   first_name: string | null
   last_name: string | null
   headline: string | null
   company: string | null
   title: string | null
+  location: string | null
   email: string | null
+  avatar_url: string | null
   profile_data: Record<string, unknown> | null
   ai_icebreaker: string | null
   status: LeadStatus
@@ -278,12 +299,17 @@ export interface Conversation {
   snoozed_until: string | null
   tags: string[] | null
   created_at: string
+  last_message_preview: string | null
+  lead_name: string | null
+  lead_company: string | null
+  lead_avatar_url: string | null
 }
 
 export interface ConversationWithMessages extends Conversation {
   messages: Message[]
   lead_name: string | null
   lead_company: string | null
+  lead_avatar_url: string | null
 }
 
 export interface ConversationListResponse {

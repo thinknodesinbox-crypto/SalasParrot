@@ -1,23 +1,12 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useState, useRef } from 'react'
-import { useLeads } from '../../lib/hooks/queries'
-import type { Lead } from '../../lib/types'
+import { useLeads, useLeadLists, useImportLeadsFromCSV, useDeleteLeadList } from '../../lib/hooks/queries'
+import type { Lead, LeadList } from '../../lib/types'
 
 export const Route = createFileRoute('/dashboard/leads')({
   component: LeadsPage,
 })
-
-// Local UI types for lead lists (not yet in API)
-interface LeadList {
-  id: string
-  name: string
-  leadCount: number
-  enrichedCount: number
-  inCampaign: boolean
-  createdAt: string
-  source: string
-}
 
 type ImportMethod =
   | 'linkedin_search'
@@ -114,16 +103,26 @@ const IMPORT_METHODS: {
 
 function LeadsPage() {
   const [showImportModal, setShowImportModal] = useState(false)
-  const [selectedList, setSelectedList] = useState<string | null>(null)
+  const [selectedListId, setSelectedListId] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [filterType, setFilterType] = useState<'all' | 'enriched' | 'not_enriched'>('all')
 
-  // Use API hooks
-  const { data: leadsResponse, isLoading, error, refetch } = useLeads()
+  // Fetch lead lists from API
+  const { data: listsResponse, isLoading: listsLoading, error: listsError, refetch: refetchLists } = useLeadLists()
+  const lists = listsResponse?.lists || []
+
+  // Fetch leads filtered by selected list
+  const { data: leadsResponse, isLoading: leadsLoading, error: leadsError, refetch: refetchLeads } = useLeads(
+    selectedListId ? { list_id: selectedListId } : undefined
+  )
   const leads = leadsResponse?.leads || []
 
-  // Lead lists are a UI concept for now (could be campaigns or tags in the future)
-  const [lists, setLists] = useState<LeadList[]>([])
+  const isLoading = listsLoading
+  const error = listsError
+  const refetch = refetchLists
+
+  // Get the selected list object
+  const selectedList = selectedListId ? lists.find(l => l.id === selectedListId) : null
 
   if (isLoading) {
     return (
@@ -206,16 +205,17 @@ function LeadsPage() {
       </div>
 
       {/* Content */}
-      {lists.length === 0 && !selectedList ? (
+      {lists.length === 0 && !selectedListId ? (
         <EmptyState onImport={() => setShowImportModal(true)} />
-      ) : selectedList ? (
+      ) : selectedListId && selectedList ? (
         <LeadListDetail
-          list={lists.find(l => l.id === selectedList)!}
+          list={selectedList}
           leads={leads}
-          onBack={() => setSelectedList(null)}
+          isLoading={leadsLoading}
+          onBack={() => setSelectedListId(null)}
         />
       ) : (
-        <LeadListsGrid lists={lists} onSelectList={setSelectedList} />
+        <LeadListsGrid lists={lists} onSelectList={setSelectedListId} />
       )}
 
       {/* Import Modal */}
@@ -223,8 +223,8 @@ function LeadsPage() {
         {showImportModal && (
           <ImportLeadsModal
             onClose={() => setShowImportModal(false)}
-            onImport={(newList) => {
-              setLists([...lists, newList])
+            onSuccess={() => {
+              refetchLists()
               setShowImportModal(false)
             }}
           />
@@ -299,6 +299,21 @@ function EmptyState({ onImport }: { onImport: () => void }) {
 }
 
 function LeadListsGrid({ lists, onSelectList }: { lists: LeadList[]; onSelectList: (id: string) => void }) {
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr)
+    const now = new Date()
+    const diffMs = now.getTime() - date.getTime()
+    const diffMins = Math.floor(diffMs / 60000)
+    const diffHours = Math.floor(diffMs / 3600000)
+    const diffDays = Math.floor(diffMs / 86400000)
+
+    if (diffMins < 1) return 'Just now'
+    if (diffMins < 60) return `${diffMins}m ago`
+    if (diffHours < 24) return `${diffHours}h ago`
+    if (diffDays < 7) return `${diffDays}d ago`
+    return date.toLocaleDateString()
+  }
+
   return (
     <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
       {lists.map((list, index) => (
@@ -314,25 +329,22 @@ function LeadListsGrid({ lists, onSelectList }: { lists: LeadList[]; onSelectLis
             <div className="w-10 h-10 rounded-lg bg-[#FFF7ED] flex items-center justify-center">
               <ListIcon className="w-5 h-5 text-[#FF6B35]" />
             </div>
-            {list.inCampaign && (
-              <span className="text-xs font-medium px-2 py-1 bg-[#F0FDF4] text-[#22C55E] rounded-full">
-                In Campaign
-              </span>
-            )}
           </div>
           <h3 className="font-semibold text-[#1E293B] mb-1 group-hover:text-[#FF6B35] transition-colors">
             {list.name}
           </h3>
           <div className="flex items-center gap-4 text-sm text-[#64748B]">
-            <span>{list.leadCount} leads</span>
+            <span>{list.lead_count} leads</span>
             <span className="flex items-center gap-1">
               <EnrichIcon className="w-3.5 h-3.5 text-[#14B8A6]" />
-              {list.enrichedCount} enriched
+              {list.enriched_count} enriched
             </span>
           </div>
           <div className="flex items-center justify-between mt-3">
-            <span className="text-xs text-[#94A3B8] px-2 py-0.5 bg-[#F8FAFC] rounded">{list.source}</span>
-            <span className="text-xs text-[#94A3B8]">{list.createdAt}</span>
+            {list.source && (
+              <span className="text-xs text-[#94A3B8] px-2 py-0.5 bg-[#F8FAFC] rounded">{list.source}</span>
+            )}
+            <span className="text-xs text-[#94A3B8]">{formatDate(list.created_at)}</span>
           </div>
         </motion.button>
       ))}
@@ -343,13 +355,16 @@ function LeadListsGrid({ lists, onSelectList }: { lists: LeadList[]; onSelectLis
 function LeadListDetail({
   list,
   leads,
+  isLoading,
   onBack
 }: {
   list: LeadList
   leads: Lead[]
+  isLoading: boolean
   onBack: () => void
 }) {
   const [selectedLeads, setSelectedLeads] = useState<string[]>([])
+  const enrichmentPercent = list.lead_count > 0 ? Math.round((list.enriched_count / list.lead_count) * 100) : 0
 
   return (
     <div className="space-y-4">
@@ -373,10 +388,10 @@ function LeadListDetail({
             <div>
               <h2 className="text-xl font-bold text-[#1E293B]">{list.name}</h2>
               <div className="flex items-center gap-4 text-sm text-[#64748B] mt-1">
-                <span>{list.leadCount} leads</span>
+                <span>{list.lead_count} leads</span>
                 <span className="flex items-center gap-1">
                   <EnrichIcon className="w-3.5 h-3.5 text-[#14B8A6]" />
-                  {list.enrichedCount} emails found
+                  {list.enriched_count} emails found
                 </span>
               </div>
             </div>
@@ -403,12 +418,12 @@ function LeadListDetail({
         <div className="mt-6 pt-6 border-t border-[#E2E8F0]">
           <div className="flex items-center justify-between text-sm mb-2">
             <span className="text-[#64748B]">Email enrichment progress</span>
-            <span className="font-medium text-[#1E293B]">{Math.round((list.enrichedCount / list.leadCount) * 100)}%</span>
+            <span className="font-medium text-[#1E293B]">{enrichmentPercent}%</span>
           </div>
           <div className="h-2 bg-[#E2E8F0] rounded-full overflow-hidden">
             <div
               className="h-full bg-gradient-to-r from-[#14B8A6] to-[#0D9488] rounded-full transition-all"
-              style={{ width: `${(list.enrichedCount / list.leadCount) * 100}%` }}
+              style={{ width: `${enrichmentPercent}%` }}
             />
           </div>
         </div>
@@ -430,15 +445,25 @@ function LeadListDetail({
                 </th>
                 <th className="text-left px-6 py-3 text-xs font-semibold text-[#64748B] uppercase tracking-wider">Lead</th>
                 <th className="text-left px-6 py-3 text-xs font-semibold text-[#64748B] uppercase tracking-wider">Company</th>
+                <th className="text-left px-6 py-3 text-xs font-semibold text-[#64748B] uppercase tracking-wider">Location</th>
                 <th className="text-left px-6 py-3 text-xs font-semibold text-[#64748B] uppercase tracking-wider">Email</th>
                 <th className="text-left px-6 py-3 text-xs font-semibold text-[#64748B] uppercase tracking-wider">Status</th>
                 <th className="text-right px-6 py-3 text-xs font-semibold text-[#64748B] uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#E2E8F0]">
-              {leads.length === 0 ? (
+              {isLoading ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-[#64748B]">
+                  <td colSpan={7} className="px-6 py-12 text-center text-[#64748B]">
+                    <div className="flex items-center justify-center gap-2">
+                      <LoadingSpinner />
+                      <span>Loading leads...</span>
+                    </div>
+                  </td>
+                </tr>
+              ) : leads.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-6 py-12 text-center text-[#64748B]">
                     No leads in this list yet
                   </td>
                 </tr>
@@ -498,16 +523,27 @@ function LeadRow({
       </td>
       <td className="px-6 py-4">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#FF6B35] to-[#14B8A6] flex items-center justify-center text-white text-sm font-medium">
-            {[lead.first_name, lead.last_name].filter(Boolean).map((n) => n?.[0] || '').join('')}
-          </div>
+          {lead.avatar_url ? (
+            <img
+              src={lead.avatar_url}
+              alt=""
+              className="w-9 h-9 rounded-full object-cover"
+            />
+          ) : (
+            <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[#FF6B35] to-[#14B8A6] flex items-center justify-center text-white text-sm font-medium">
+              {[lead.first_name, lead.last_name].filter(Boolean).map((n) => n?.[0] || '').join('') || '?'}
+            </div>
+          )}
           <div>
             <p className="font-medium text-[#1E293B]">{[lead.first_name, lead.last_name].filter(Boolean).join(' ') || 'Unknown'}</p>
-            <p className="text-sm text-[#64748B]">{lead.title}</p>
+            <p className="text-sm text-[#64748B] truncate max-w-[200px]" title={lead.headline || lead.title || undefined}>
+              {lead.headline || lead.title}
+            </p>
           </div>
         </div>
       </td>
-      <td className="px-6 py-4 text-[#1E293B]">{lead.company}</td>
+      <td className="px-6 py-4 text-[#1E293B]">{lead.company || '-'}</td>
+      <td className="px-6 py-4 text-[#64748B]">{lead.location || '-'}</td>
       <td className="px-6 py-4">
         {lead.email ? (
           <span className="text-[#1E293B]">{lead.email}</span>
@@ -522,14 +558,16 @@ function LeadRow({
       </td>
       <td className="px-6 py-4 text-right">
         <div className="flex items-center justify-end gap-2">
-          <a
-            href={lead.linkedin_url || '#'}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="p-2 rounded-lg hover:bg-[#EFF6FF] text-[#0A66C2] transition-colors"
-          >
-            <LinkedInSmallIcon />
-          </a>
+          {lead.linkedin_url && (
+            <a
+              href={lead.linkedin_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="p-2 rounded-lg hover:bg-[#EFF6FF] text-[#0A66C2] transition-colors"
+            >
+              <LinkedInSmallIcon />
+            </a>
+          )}
           <button className="p-2 rounded-lg hover:bg-[#F8FAFC] text-[#64748B] transition-colors">
             <MoreIcon />
           </button>
@@ -542,14 +580,18 @@ function LeadRow({
 // Main Import Modal with all methods
 function ImportLeadsModal({
   onClose,
-  onImport
+  onSuccess
 }: {
   onClose: () => void
-  onImport: (list: LeadList) => void
+  onSuccess: () => void
 }) {
   const [selectedMethod, setSelectedMethod] = useState<ImportMethod | null>(null)
   const [step, setStep] = useState<'method' | 'configure' | 'processing' | 'complete'>('method')
   const [listName, setListName] = useState('')
+  const [importResult, setImportResult] = useState<{ created: number; skipped: number } | null>(null)
+  const [importError, setImportError] = useState<string | null>(null)
+
+  const importMutation = useImportLeadsFromCSV()
 
   const handleBack = () => {
     if (step === 'configure') {
@@ -558,22 +600,30 @@ function ImportLeadsModal({
     }
   }
 
-  const handleStartImport = () => {
+  const handleCSVImport = async (file: File) => {
+    if (!listName.trim()) {
+      setImportError('Please enter a list name')
+      return
+    }
+
     setStep('processing')
-    setTimeout(() => setStep('complete'), 3000)
+    setImportError(null)
+
+    try {
+      const result = await importMutation.mutateAsync({
+        file,
+        list_name: listName.trim(),
+      })
+      setImportResult(result)
+      setStep('complete')
+    } catch (error) {
+      setImportError(error instanceof Error ? error.message : 'Import failed')
+      setStep('configure')
+    }
   }
 
   const handleFinish = () => {
-    const method = IMPORT_METHODS.find(m => m.id === selectedMethod)
-    onImport({
-      id: Date.now().toString(),
-      name: listName || 'Imported List',
-      leadCount: Math.floor(Math.random() * 200) + 50,
-      enrichedCount: 0,
-      inCampaign: false,
-      createdAt: 'Just now',
-      source: method?.title || 'Import'
-    })
+    onSuccess()
   }
 
   return (
@@ -716,7 +766,8 @@ function ImportLeadsModal({
                   method={selectedMethod}
                   listName={listName}
                   setListName={setListName}
-                  onImport={handleStartImport}
+                  onImport={handleCSVImport}
+                  importError={importError}
                 />
               </motion.div>
             )}
@@ -755,7 +806,10 @@ function ImportLeadsModal({
                   <CheckCircleIcon className="w-10 h-10 text-[#22C55E]" />
                 </motion.div>
                 <h3 className="text-xl font-bold text-[#1E293B] mb-2">Import Complete!</h3>
-                <p className="text-[#64748B] mb-2">{Math.floor(Math.random() * 200) + 50} leads imported successfully.</p>
+                <p className="text-[#64748B] mb-2">
+                  {importResult?.created || 0} leads imported successfully.
+                  {importResult?.skipped ? ` ${importResult.skipped} duplicates skipped.` : ''}
+                </p>
                 <p className="text-sm text-[#14B8A6] mb-8">Email enrichment is starting in the background.</p>
                 <button
                   onClick={handleFinish}
@@ -777,12 +831,14 @@ function ImportMethodConfig({
   method,
   listName,
   setListName,
-  onImport
+  onImport,
+  importError
 }: {
   method: ImportMethod
   listName: string
   setListName: (name: string) => void
-  onImport: () => void
+  onImport: (file: File) => void
+  importError?: string | null
 }) {
   const [pastedUrls, setPastedUrls] = useState('')
   const [csvFile, setCsvFile] = useState<File | null>(null)
@@ -851,9 +907,15 @@ function ImportMethodConfig({
           </div>
         </div>
 
+        {importError && (
+          <div className="p-3 bg-[#FEF2F2] border border-[#EF4444]/20 rounded-xl text-sm text-[#EF4444]">
+            {importError}
+          </div>
+        )}
+
         <button
-          onClick={onImport}
-          disabled={!csvFile || !listName}
+          onClick={() => csvFile && onImport(csvFile)}
+          disabled={!csvFile || !listName.trim()}
           className="w-full py-3.5 bg-[#FF6B35] text-white font-semibold rounded-xl hover:bg-[#E85A2A] disabled:opacity-50 disabled:cursor-not-allowed"
         >
           Import Leads

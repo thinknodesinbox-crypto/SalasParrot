@@ -16,6 +16,15 @@ export {
   useRemoveCampaignSender,
 } from './useCampaigns'
 
+// Lead Lists
+export {
+  useLeadLists,
+  useLeadList,
+  useCreateLeadList,
+  useDeleteLeadList,
+  useImportLeadsFromCSV,
+} from './useLeads'
+
 // Leads
 export {
   useLeads,
@@ -38,6 +47,7 @@ export {
   useUpdateLinkedInAccount,
   useDeleteLinkedInAccount,
   useSyncLinkedInAccount,
+  useSyncLinkedInChats,
   useConnectLinkedInWithCredentials,
   useConnectLinkedInWithCookie,
   useSolveLinkedInCheckpoint,

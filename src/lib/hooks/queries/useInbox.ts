@@ -83,13 +83,60 @@ export const useSendReply = (conversationId: string) => {
       })
       return response.data
     },
-    onSuccess: () => {
+    onMutate: async ({ content, subject }) => {
+      // Cancel any outgoing refetches
+      await queryClient.cancelQueries({ queryKey: queryKeys.conversations.detail(conversationId) })
+
+      // Snapshot the previous value
+      const previousConversation = queryClient.getQueryData<ConversationWithMessages>(
+        queryKeys.conversations.detail(conversationId)
+      )
+
+      // Optimistically update the conversation with the new message
+      if (previousConversation) {
+        const optimisticMessage: Message = {
+          id: `temp-${Date.now()}`,
+          conversation_id: conversationId,
+          lead_id: previousConversation.lead_id,
+          linkedin_account_id: previousConversation.linkedin_account_id,
+          email_account_id: previousConversation.email_account_id,
+          direction: 'outbound',
+          channel: previousConversation.channel,
+          content,
+          subject: subject || null,
+          unipile_message_id: null,
+          sent_at: new Date().toISOString(),
+          read_at: null,
+          created_at: new Date().toISOString(),
+        }
+
+        queryClient.setQueryData<ConversationWithMessages>(
+          queryKeys.conversations.detail(conversationId),
+          {
+            ...previousConversation,
+            messages: [...(previousConversation.messages || []), optimisticMessage],
+            last_message_at: new Date().toISOString(),
+          }
+        )
+      }
+
+      return { previousConversation }
+    },
+    onError: (error, _variables, context) => {
+      // Roll back to the previous value on error
+      if (context?.previousConversation) {
+        queryClient.setQueryData(
+          queryKeys.conversations.detail(conversationId),
+          context.previousConversation
+        )
+      }
+      throw new Error(getErrorMessage(error))
+    },
+    onSettled: () => {
+      // Always refetch after error or success to get the real server state
       queryClient.invalidateQueries({ queryKey: queryKeys.conversations.detail(conversationId) })
       queryClient.invalidateQueries({ queryKey: queryKeys.conversations.messages(conversationId) })
       queryClient.invalidateQueries({ queryKey: queryKeys.conversations.all })
-    },
-    onError: (error) => {
-      throw new Error(getErrorMessage(error))
     },
   })
 }

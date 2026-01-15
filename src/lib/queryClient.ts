@@ -37,6 +37,13 @@ export const queryKeys = {
     senders: (campaignId: string) => ['campaigns', campaignId, 'senders'] as const,
   },
 
+  // Lead Lists
+  leadLists: {
+    all: ['lead-lists'] as const,
+    list: (filters?: unknown) => ['lead-lists', 'list', filters] as const,
+    detail: (id: string) => ['lead-lists', 'detail', id] as const,
+  },
+
   // Leads
   leads: {
     all: ['leads'] as const,

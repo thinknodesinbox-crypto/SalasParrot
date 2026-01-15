@@ -1,9 +1,10 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { motion, AnimatePresence } from 'framer-motion'
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   useLinkedInAccounts,
   useDeleteLinkedInAccount,
+  useSyncLinkedInChats,
   useConnectLinkedInWithCredentials,
   useConnectLinkedInWithCookie,
   useSolveLinkedInCheckpoint,
@@ -172,15 +173,39 @@ function EmptyState({ onConnect }: { onConnect: () => void }) {
 
 function AccountsList({ accounts }: { accounts: LinkedInAccount[] }) {
   const deleteAccount = useDeleteLinkedInAccount()
+  const syncChats = useSyncLinkedInChats()
+  const [syncingAccountId, setSyncingAccountId] = useState<string | null>(null)
+  const [disconnectModal, setDisconnectModal] = useState<{
+    open: boolean
+    accountId: string
+    accountName: string
+  }>({
+    open: false,
+    accountId: '',
+    accountName: '',
+  })
 
-  const handleDelete = async (accountId: string) => {
-    if (confirm('Are you sure you want to disconnect this LinkedIn account?')) {
-      try {
-        await deleteAccount.mutateAsync(accountId)
-      } catch {
-        // Error handling is done in the mutation
-      }
+  const handleDeleteClick = (accountId: string, accountName: string) => {
+    setDisconnectModal({ open: true, accountId, accountName })
+  }
+
+  const handleSyncClick = async (accountId: string) => {
+    setSyncingAccountId(accountId)
+    try {
+      const result = await syncChats.mutateAsync(accountId)
+      console.log('Sync result:', result)
+    } finally {
+      setSyncingAccountId(null)
     }
+  }
+
+  const closeModal = () => {
+    setDisconnectModal({ open: false, accountId: '', accountName: '' })
+  }
+
+  const handleConfirmDelete = async () => {
+    await deleteAccount.mutateAsync({ accountId: disconnectModal.accountId })
+    closeModal()
   }
 
   // Calculate total daily capacity from daily_limits
@@ -220,9 +245,9 @@ function AccountsList({ accounts }: { accounts: LinkedInAccount[] }) {
       </div>
 
       {/* Accounts Table */}
-      <div className="bg-white rounded-xl border border-[#E2E8F0] overflow-hidden">
+      <div className="bg-white rounded-xl border border-[#E2E8F0]">
         {/* Desktop Table */}
-        <div className="hidden lg:block overflow-x-auto">
+        <div className="hidden lg:block overflow-x-auto rounded-xl">
           <table className="w-full">
             <thead>
               <tr className="border-b border-[#E2E8F0] bg-[#F8FAFC]">
@@ -236,7 +261,13 @@ function AccountsList({ accounts }: { accounts: LinkedInAccount[] }) {
             </thead>
             <tbody className="divide-y divide-[#E2E8F0]">
               {accounts.map((account) => (
-                <AccountRow key={account.id} account={account} onDelete={handleDelete} />
+                <AccountRow
+                  key={account.id}
+                  account={account}
+                  onDelete={handleDeleteClick}
+                  onSync={handleSyncClick}
+                  isSyncing={syncingAccountId === account.id}
+                />
               ))}
             </tbody>
           </table>
@@ -245,16 +276,91 @@ function AccountsList({ accounts }: { accounts: LinkedInAccount[] }) {
         {/* Mobile Cards */}
         <div className="lg:hidden divide-y divide-[#E2E8F0]">
           {accounts.map((account) => (
-            <AccountCard key={account.id} account={account} onDelete={handleDelete} />
+            <AccountCard
+              key={account.id}
+              account={account}
+              onDelete={handleDeleteClick}
+              onSync={handleSyncClick}
+              isSyncing={syncingAccountId === account.id}
+            />
           ))}
         </div>
       </div>
+
+      {/* Disconnect Confirmation Modal */}
+      <AnimatePresence>
+        {disconnectModal.open && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[200] p-4"
+            onClick={closeModal}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-2xl w-full max-w-md overflow-hidden shadow-2xl"
+            >
+              <div className="p-6">
+                <div className="w-12 h-12 rounded-full bg-[#FEF2F2] flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-6 h-6 text-[#EF4444]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-bold text-[#1E293B] text-center mb-2">
+                  Disconnect LinkedIn Account?
+                </h3>
+                <p className="text-[#64748B] text-center mb-6">
+                  Are you sure you want to disconnect <span className="font-medium text-[#1E293B]">{disconnectModal.accountName}</span>? This will stop all active campaigns using this account.
+                </p>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={closeModal}
+                    disabled={deleteAccount.isPending}
+                    className="flex-1 px-4 py-2.5 border border-[#E2E8F0] rounded-xl text-[#1E293B] font-medium hover:bg-[#F8FAFC] transition-colors disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleConfirmDelete}
+                    disabled={deleteAccount.isPending}
+                    className="flex-1 px-4 py-2.5 bg-[#EF4444] text-white rounded-xl font-medium hover:bg-[#DC2626] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {deleteAccount.isPending ? 'Disconnecting...' : 'Disconnect'}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
 
-function AccountCard({ account, onDelete }: { account: LinkedInAccount; onDelete: (id: string) => void }) {
+function AccountCard({ account, onDelete, onSync, isSyncing }: {
+  account: LinkedInAccount
+  onDelete: (id: string, name: string) => void
+  onSync: (id: string) => void
+  isSyncing: boolean
+}) {
   const [menuOpen, setMenuOpen] = useState(false)
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  const [menuPosition, setMenuPosition] = useState({ top: 0, right: 0 })
+
+  useEffect(() => {
+    if (menuOpen && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect()
+      setMenuPosition({
+        top: rect.bottom + 4,
+        right: window.innerWidth - rect.right,
+      })
+    }
+  }, [menuOpen])
 
   const statusColors: Record<string, { bg: string; text: string; label: string }> = {
     connected: { bg: 'bg-[#F0FDF4]', text: 'text-[#22C55E]', label: 'Connected' },
@@ -302,6 +408,7 @@ function AccountCard({ account, onDelete }: { account: LinkedInAccount; onDelete
           </span>
           <div className="relative">
             <button
+              ref={buttonRef}
               onClick={() => setMenuOpen(!menuOpen)}
               className="p-1.5 rounded-lg hover:bg-[#E2E8F0] transition-colors"
             >
@@ -310,13 +417,31 @@ function AccountCard({ account, onDelete }: { account: LinkedInAccount; onDelete
             <AnimatePresence>
               {menuOpen && (
                 <>
-                  <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
+                  <div className="fixed inset-0 z-[100]" onClick={() => setMenuOpen(false)} />
                   <motion.div
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.95 }}
-                    className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg border border-[#E2E8F0] shadow-lg py-1 z-50"
+                    style={{ top: menuPosition.top, right: menuPosition.right }}
+                    className="fixed w-48 bg-white rounded-lg border border-[#E2E8F0] shadow-lg py-1 z-[101]"
                   >
+                    <button
+                      onClick={() => {
+                        setMenuOpen(false)
+                        onSync(account.id)
+                      }}
+                      disabled={isSyncing}
+                      className="w-full px-4 py-2 text-left text-sm text-[#1E293B] hover:bg-[#F8FAFC] disabled:opacity-50 flex items-center gap-2"
+                    >
+                      {isSyncing ? (
+                        <>
+                          <LoadingSpinner />
+                          Syncing...
+                        </>
+                      ) : (
+                        'Sync Messages'
+                      )}
+                    </button>
                     {account.profile_url && (
                       <a
                         href={account.profile_url}
@@ -330,7 +455,7 @@ function AccountCard({ account, onDelete }: { account: LinkedInAccount; onDelete
                     <button
                       onClick={() => {
                         setMenuOpen(false)
-                        onDelete(account.id)
+                        onDelete(account.id, account.name || 'LinkedIn Account')
                       }}
                       className="w-full px-4 py-2 text-left text-sm text-[#EF4444] hover:bg-[#FEF2F2]"
                     >
@@ -371,8 +496,25 @@ function AccountCard({ account, onDelete }: { account: LinkedInAccount; onDelete
   )
 }
 
-function AccountRow({ account, onDelete }: { account: LinkedInAccount; onDelete: (id: string) => void }) {
+function AccountRow({ account, onDelete, onSync, isSyncing }: {
+  account: LinkedInAccount
+  onDelete: (id: string, name: string) => void
+  onSync: (id: string) => void
+  isSyncing: boolean
+}) {
   const [menuOpen, setMenuOpen] = useState(false)
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  const [menuPosition, setMenuPosition] = useState({ top: 0, right: 0 })
+
+  useEffect(() => {
+    if (menuOpen && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect()
+      setMenuPosition({
+        top: rect.bottom + 4,
+        right: window.innerWidth - rect.right,
+      })
+    }
+  }, [menuOpen])
 
   const statusColors: Record<string, { bg: string; text: string; label: string }> = {
     connected: { bg: 'bg-[#F0FDF4]', text: 'text-[#22C55E]', label: 'Connected' },
@@ -458,6 +600,7 @@ function AccountRow({ account, onDelete }: { account: LinkedInAccount; onDelete:
       <td className="px-6 py-4 text-right">
         <div className="relative">
           <button
+            ref={buttonRef}
             onClick={() => setMenuOpen(!menuOpen)}
             className="p-2 rounded-lg hover:bg-[#E2E8F0] transition-colors"
           >
@@ -466,13 +609,31 @@ function AccountRow({ account, onDelete }: { account: LinkedInAccount; onDelete:
           <AnimatePresence>
             {menuOpen && (
               <>
-                <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
+                <div className="fixed inset-0 z-[100]" onClick={() => setMenuOpen(false)} />
                 <motion.div
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.95 }}
-                  className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg border border-[#E2E8F0] shadow-lg py-1 z-50"
+                  style={{ top: menuPosition.top, right: menuPosition.right }}
+                  className="fixed w-48 bg-white rounded-lg border border-[#E2E8F0] shadow-lg py-1 z-[101]"
                 >
+                  <button
+                    onClick={() => {
+                      setMenuOpen(false)
+                      onSync(account.id)
+                    }}
+                    disabled={isSyncing}
+                    className="w-full px-4 py-2 text-left text-sm text-[#1E293B] hover:bg-[#F8FAFC] disabled:opacity-50 flex items-center gap-2"
+                  >
+                    {isSyncing ? (
+                      <>
+                        <LoadingSpinner />
+                        Syncing...
+                      </>
+                    ) : (
+                      'Sync Messages'
+                    )}
+                  </button>
                   {account.profile_url && (
                     <a
                       href={account.profile_url}
@@ -486,7 +647,7 @@ function AccountRow({ account, onDelete }: { account: LinkedInAccount; onDelete:
                   <button
                     onClick={() => {
                       setMenuOpen(false)
-                      onDelete(account.id)
+                      onDelete(account.id, account.name || 'LinkedIn Account')
                     }}
                     className="w-full px-4 py-2 text-left text-sm text-[#EF4444] hover:bg-[#FEF2F2]"
                   >
@@ -531,8 +692,15 @@ function ConnectLinkedInModal({
   const solveCheckpoint = useSolveLinkedInCheckpoint()
   const pollStatus = usePollLinkedInStatus()
 
+  // Auto-polling state
+  const [isPolling, setIsPolling] = useState(false)
+  const [pollAttempts, setPollAttempts] = useState(0)
+  const pollIntervalRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const maxPollAttempts = 10 // Max 10 attempts (~20 minutes total)
+
   const handleAuthResponse = (data: { status: string; account_id?: string; checkpoint?: { type: CheckpointType } }) => {
     if (data.status === 'connected') {
+      stopPolling()
       setStep('success')
       setTimeout(() => onClose(), 1500)
     } else if (data.status === 'checkpoint' && data.checkpoint) {
@@ -544,6 +712,69 @@ function ConnectLinkedInModal({
         setStep('checkpoint')
       }
     }
+  }
+
+  // Stop polling helper
+  const stopPolling = () => {
+    setIsPolling(false)
+    if (pollIntervalRef.current) {
+      clearTimeout(pollIntervalRef.current)
+      pollIntervalRef.current = null
+    }
+  }
+
+  // Auto-poll when in_app_validation step is active
+  useEffect(() => {
+    if (step === 'in_app_validation' && accountId && !isPolling) {
+      startAutoPolling()
+    }
+    return () => {
+      stopPolling()
+    }
+  }, [step, accountId])
+
+  const startAutoPolling = async () => {
+    if (isPolling) return
+    setIsPolling(true)
+    setPollAttempts(0)
+    setError('')
+    pollOnce()
+  }
+
+  const pollOnce = async () => {
+    if (!accountId) return
+
+    try {
+      const result = await pollStatus.mutateAsync(accountId)
+      if (result.status === 'connected') {
+        handleAuthResponse(result)
+      } else if (result.status === 'checkpoint') {
+        // Still waiting or another checkpoint, schedule next poll
+        scheduleNextPoll()
+      } else {
+        // Unknown status, try to handle it
+        handleAuthResponse(result)
+      }
+    } catch {
+      // Timeout or error - retry if under max attempts
+      setPollAttempts(prev => {
+        const newAttempts = prev + 1
+        if (newAttempts < maxPollAttempts) {
+          scheduleNextPoll()
+        } else {
+          setError('Connection timed out. Please try signing in again.')
+          setIsPolling(false)
+        }
+        return newAttempts
+      })
+    }
+  }
+
+  const scheduleNextPoll = () => {
+    // Wait 2 seconds between polls
+    pollIntervalRef.current = setTimeout(() => {
+      pollOnce()
+    }, 2000)
   }
 
   const handleCredentialsSubmit = async () => {
@@ -594,16 +825,6 @@ function ConnectLinkedInModal({
       handleAuthResponse(result)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to verify')
-    }
-  }
-
-  const handlePollStatus = async () => {
-    setError('')
-    try {
-      const result = await pollStatus.mutateAsync(accountId)
-      handleAuthResponse(result)
-    } catch (err) {
-      setError('Timed out waiting for confirmation. Please try again.')
     }
   }
 
@@ -909,18 +1130,29 @@ function ConnectLinkedInModal({
             >
               <div className="flex items-center justify-between mb-6">
                 <h2 className="text-lg font-bold text-[#1E293B]">Confirm in LinkedIn App</h2>
-                <button onClick={onClose} className="p-2 rounded-lg hover:bg-[#F8FAFC]">
+                <button onClick={() => { stopPolling(); onClose(); }} className="p-2 rounded-lg hover:bg-[#F8FAFC]">
                   <CloseIcon />
                 </button>
               </div>
 
               <div className="text-center mb-6">
-                <div className="w-16 h-16 mx-auto mb-4 bg-[#0A66C2]/10 rounded-full flex items-center justify-center">
+                <div className="w-16 h-16 mx-auto mb-4 bg-[#0A66C2]/10 rounded-full flex items-center justify-center relative">
                   <SmartphoneIcon className="w-8 h-8 text-[#0A66C2]" />
+                  {isPolling && (
+                    <div className="absolute inset-0 rounded-full border-2 border-[#0A66C2] border-t-transparent animate-spin" />
+                  )}
                 </div>
-                <p className="text-[#64748B]">
-                  Open the LinkedIn app on your phone and confirm the login request.
+                <p className="text-[#1E293B] font-medium mb-2">
+                  {isPolling ? 'Waiting for confirmation...' : 'Confirm in LinkedIn App'}
                 </p>
+                <p className="text-[#64748B] text-sm">
+                  Open the LinkedIn app on your phone and approve the login request.
+                </p>
+                {isPolling && pollAttempts > 0 && (
+                  <p className="text-xs text-[#94A3B8] mt-2">
+                    Attempt {pollAttempts} of {maxPollAttempts}
+                  </p>
+                )}
               </div>
 
               {error && (
@@ -929,20 +1161,21 @@ function ConnectLinkedInModal({
                 </div>
               )}
 
-              <button
-                onClick={handlePollStatus}
-                disabled={pollStatus.isPending}
-                className="w-full px-4 py-2.5 bg-[#0A66C2] text-white rounded-lg font-medium hover:bg-[#004182] disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                {pollStatus.isPending ? (
-                  <>
-                    <LoadingSpinner />
-                    Waiting for confirmation...
-                  </>
-                ) : (
-                  'Check Status'
-                )}
-              </button>
+              {!isPolling && error && (
+                <button
+                  onClick={startAutoPolling}
+                  className="w-full px-4 py-2.5 bg-[#0A66C2] text-white rounded-lg font-medium hover:bg-[#004182] flex items-center justify-center gap-2"
+                >
+                  Try Again
+                </button>
+              )}
+
+              {isPolling && (
+                <div className="flex items-center justify-center gap-2 text-sm text-[#64748B]">
+                  <LoadingSpinner />
+                  <span>Checking status automatically...</span>
+                </div>
+              )}
             </motion.div>
           )}
 

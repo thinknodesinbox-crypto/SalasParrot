@@ -1,11 +1,16 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api, getErrorMessage } from '../../api'
 import { queryKeys } from '../../queryClient'
-import type { Lead, LeadListResponse, LeadStatus } from '../../types'
+import type { Lead, LeadList, LeadListResponse, LeadListsResponse, LeadStatus } from '../../types'
+
+interface LeadListFilters {
+  workspace_id?: string
+}
 
 interface LeadFilters {
   workspace_id?: string
   campaign_id?: string
+  list_id?: string
   status?: LeadStatus
   search?: string
   limit?: number
@@ -22,6 +27,7 @@ interface CreateLeadData {
   email?: string
   campaign_id?: string
   workspace_id?: string
+  list_id?: string
 }
 
 interface UpdateLeadData {
@@ -39,12 +45,107 @@ interface ImportLeadsData {
   leads: CreateLeadData[]
   campaign_id?: string
   workspace_id?: string
+  list_id?: string
+  list_name?: string
 }
 
 interface ImportResult {
   created: number
   skipped: number
   errors: string[]
+}
+
+// Lead Lists hooks
+export const useLeadLists = (filters?: LeadListFilters) => {
+  return useQuery({
+    queryKey: queryKeys.leadLists.list(filters),
+    queryFn: async () => {
+      const params = new URLSearchParams()
+      if (filters?.workspace_id) params.append('workspace_id', filters.workspace_id)
+
+      const response = await api.get<LeadListsResponse>(`/leads/lists?${params}`)
+      return response.data
+    },
+  })
+}
+
+export const useLeadList = (listId: string) => {
+  return useQuery({
+    queryKey: queryKeys.leadLists.detail(listId),
+    queryFn: async () => {
+      const response = await api.get<LeadList>(`/leads/lists/${listId}`)
+      return response.data
+    },
+    enabled: !!listId,
+  })
+}
+
+export const useCreateLeadList = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (data: { name: string; workspace_id?: string; source?: string }) => {
+      const response = await api.post<LeadList>('/leads/lists', data)
+      return response.data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.leadLists.all })
+    },
+    onError: (error) => {
+      throw new Error(getErrorMessage(error))
+    },
+  })
+}
+
+export const useDeleteLeadList = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (listId: string) => {
+      await api.delete(`/leads/lists/${listId}`)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.leadLists.all })
+      queryClient.invalidateQueries({ queryKey: queryKeys.leads.all })
+    },
+    onError: (error) => {
+      throw new Error(getErrorMessage(error))
+    },
+  })
+}
+
+// Import leads from CSV with list name
+export const useImportLeadsFromCSV = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (data: {
+      file: File
+      list_name: string
+      campaign_id?: string
+      workspace_id?: string
+    }) => {
+      const formData = new FormData()
+      formData.append('file', data.file)
+      formData.append('list_name', data.list_name)
+      if (data.campaign_id) formData.append('campaign_id', data.campaign_id)
+      if (data.workspace_id) formData.append('workspace_id', data.workspace_id)
+
+      const response = await api.post<ImportResult>('/leads/import/csv', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      })
+      return response.data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.leadLists.all })
+      queryClient.invalidateQueries({ queryKey: queryKeys.leads.all })
+    },
+    onError: (error) => {
+      throw new Error(getErrorMessage(error))
+    },
+  })
 }
 
 // List leads
@@ -55,6 +156,7 @@ export const useLeads = (filters?: LeadFilters) => {
       const params = new URLSearchParams()
       if (filters?.workspace_id) params.append('workspace_id', filters.workspace_id)
       if (filters?.campaign_id) params.append('campaign_id', filters.campaign_id)
+      if (filters?.list_id) params.append('list_id', filters.list_id)
       if (filters?.status) params.append('status', filters.status)
       if (filters?.search) params.append('search', filters.search)
       if (filters?.limit) params.append('limit', filters.limit.toString())

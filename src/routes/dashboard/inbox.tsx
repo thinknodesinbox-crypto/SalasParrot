@@ -62,7 +62,7 @@ function InboxPage() {
     if (filter === 'unread' && c.unread_count === 0) return false
     // Client-side search filter
     if (searchQuery) {
-      const leadName = (c as Conversation & { lead_name?: string }).lead_name || ''
+      const leadName = c.lead_name || ''
       if (!leadName.toLowerCase().includes(searchQuery.toLowerCase())) return false
     }
     return true
@@ -124,10 +124,8 @@ function InboxPage() {
   }
 
   // Get the last message content for preview
-  const getMessagePreview = (_conversation: Conversation): string => {
-    // We need to fetch the conversation to get messages, but for the list we'll just show a placeholder
-    // The actual preview would come from the API if it provides last_message content
-    return 'Click to view conversation...'
+  const getMessagePreview = (conversation: Conversation): string => {
+    return conversation.last_message_preview || 'No messages yet'
   }
 
   return (
@@ -184,7 +182,6 @@ function InboxPage() {
             </div>
           ) : (
             filteredConversations.map((conversation) => {
-              const conv = conversation as Conversation & { lead_name?: string; lead_company?: string }
               const isSelected = selectedConversationId === conversation.id
               const isRead = conversation.unread_count === 0
 
@@ -201,50 +198,63 @@ function InboxPage() {
                   }`}
                 >
                   <div className="flex items-start gap-3">
-                    <div className="relative">
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#FF6B35] to-[#14B8A6] flex items-center justify-center text-white text-sm font-medium">
-                        {(conv.lead_name || 'U')
+                    <div className="relative flex-shrink-0">
+                      {conversation.lead_avatar_url ? (
+                        <img
+                          src={conversation.lead_avatar_url}
+                          alt={conversation.lead_name || 'Contact'}
+                          className="w-12 h-12 rounded-full object-cover"
+                          onError={(e) => {
+                            // Fallback to initials if image fails to load
+                            const target = e.target as HTMLImageElement
+                            target.style.display = 'none'
+                            target.nextElementSibling?.classList.remove('hidden')
+                          }}
+                        />
+                      ) : null}
+                      <div
+                        className={`w-12 h-12 rounded-full bg-gradient-to-br from-[#0A66C2] to-[#004182] flex items-center justify-center text-white font-semibold ${conversation.lead_avatar_url ? 'hidden' : ''}`}
+                      >
+                        {(conversation.lead_name || 'U')
                           .split(' ')
                           .map((n) => n[0])
                           .join('')
-                          .slice(0, 2)}
+                          .slice(0, 2)
+                          .toUpperCase()}
                       </div>
                       <div
-                        className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center ${
+                        className={`absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full flex items-center justify-center border-2 border-white ${
                           conversation.channel === 'linkedin' ? 'bg-[#0A66C2]' : 'bg-[#14B8A6]'
                         }`}
                       >
                         {conversation.channel === 'linkedin' ? (
-                          <LinkedInIcon className="w-3 h-3 text-white" />
+                          <LinkedInIcon className="w-2.5 h-2.5 text-white" />
                         ) : (
-                          <EmailIcon className="w-3 h-3 text-white" />
+                          <EmailIcon className="w-2.5 h-2.5 text-white" />
                         )}
                       </div>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center justify-between mb-0.5">
                         <span
-                          className={`text-sm font-medium truncate ${!isRead ? 'text-[#1E293B]' : 'text-[#64748B]'}`}
+                          className={`font-semibold truncate ${!isRead ? 'text-[#1E293B]' : 'text-[#64748B]'}`}
                         >
-                          {conv.lead_name || 'Unknown'}
+                          {conversation.lead_name || 'Unknown'}
                         </span>
                         <span className="text-xs text-[#94A3B8] flex-shrink-0 ml-2">
                           {formatRelativeTime(conversation.last_message_at)}
                         </span>
                       </div>
-                      <p className="text-xs text-[#64748B] truncate mb-1">
-                        {conv.lead_company || 'No company'}
-                      </p>
                       <p className={`text-sm truncate ${!isRead ? 'text-[#1E293B]' : 'text-[#94A3B8]'}`}>
                         {getMessagePreview(conversation)}
                       </p>
                       {conversation.tags && conversation.tags.length > 0 && (
-                        <span className="inline-block mt-2 px-2 py-0.5 bg-[#F8FAFC] rounded text-xs text-[#64748B]">
+                        <span className="inline-block mt-1.5 px-2 py-0.5 bg-[#F8FAFC] rounded text-xs text-[#64748B]">
                           {conversation.tags[0]}
                         </span>
                       )}
                     </div>
-                    {!isRead && <div className="w-2 h-2 rounded-full bg-[#FF6B35] flex-shrink-0 mt-2" />}
+                    {!isRead && <div className="w-2.5 h-2.5 rounded-full bg-[#FF6B35] flex-shrink-0 mt-1.5" />}
                   </div>
                 </button>
               )
@@ -272,13 +282,21 @@ function InboxPage() {
                   >
                     <BackIcon />
                   </button>
-                  <div className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-gradient-to-br from-[#FF6B35] to-[#14B8A6] flex items-center justify-center text-white font-medium text-sm md:text-base">
-                    {(selectedConversation.lead_name || 'U')
-                      .split(' ')
-                      .map((n) => n[0])
-                      .join('')
-                      .slice(0, 2)}
-                  </div>
+                  {selectedConversation.lead_avatar_url ? (
+                    <img
+                      src={selectedConversation.lead_avatar_url}
+                      alt={selectedConversation.lead_name || 'Contact'}
+                      className="w-10 h-10 md:w-12 md:h-12 rounded-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-gradient-to-br from-[#FF6B35] to-[#14B8A6] flex items-center justify-center text-white font-medium text-sm md:text-base">
+                      {(selectedConversation.lead_name || 'U')
+                        .split(' ')
+                        .map((n) => n[0])
+                        .join('')
+                        .slice(0, 2)}
+                    </div>
+                  )}
                   <div className="min-w-0">
                     <div className="flex items-center gap-2">
                       <h2 className="font-semibold text-[#1E293B] truncate">
@@ -294,9 +312,6 @@ function InboxPage() {
                         {selectedConversation.channel === 'linkedin' ? 'LinkedIn' : 'Email'}
                       </span>
                     </div>
-                    <p className="text-sm text-[#64748B] truncate">
-                      {selectedConversation.lead_company || 'No company'}
-                    </p>
                   </div>
                 </div>
                 <div className="flex items-center gap-1 md:gap-2 flex-shrink-0">
