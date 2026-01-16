@@ -14,6 +14,9 @@ interface ConversationFilters {
   workspace_id?: string;
   status_filter?: ConversationStatus;
   channel_filter?: Channel;
+  sender_id?: string;
+  campaign_id?: string;
+  is_read?: boolean;
   limit?: number;
   offset?: number;
 }
@@ -27,6 +30,9 @@ export const useConversations = (filters?: ConversationFilters) => {
       if (filters?.workspace_id) params.append('workspace_id', filters.workspace_id);
       if (filters?.status_filter) params.append('status_filter', filters.status_filter);
       if (filters?.channel_filter) params.append('channel_filter', filters.channel_filter);
+      if (filters?.sender_id) params.append('sender_id', filters.sender_id);
+      if (filters?.campaign_id) params.append('campaign_id', filters.campaign_id);
+      if (filters?.is_read !== undefined) params.append('is_read', filters.is_read.toString());
       if (filters?.limit) params.append('limit', filters.limit.toString());
       if (filters?.offset) params.append('offset', filters.offset.toString());
 

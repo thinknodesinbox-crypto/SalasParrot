@@ -1,11 +1,14 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { motion } from 'framer-motion';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   useConversations,
   useConversation,
   useSendReply,
   useMarkAsRead,
+  useLinkedInAccounts,
+  useEmailAccounts,
+  useCampaigns,
 } from '@/lib/hooks/queries';
 import type { Conversation, Message, Channel } from '@/lib/types';
 
@@ -35,8 +38,35 @@ function InboxPage() {
   const [filter, setFilter] = useState<'all' | 'linkedin' | 'email' | 'unread'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [replyText, setReplyText] = useState('');
+  const [selectedSenderId, setSelectedSenderId] = useState<string>('');
+  const [selectedCampaignId, setSelectedCampaignId] = useState<string>('');
 
-  // Fetch conversation list
+  // Fetch accounts and campaigns for filter dropdowns
+  const { data: linkedInAccounts = [] } = useLinkedInAccounts();
+  const { data: emailAccounts = [] } = useEmailAccounts();
+  const { data: campaigns = [] } = useCampaigns();
+
+  // Combined sender options (LinkedIn + Email accounts)
+  const senderOptions = useMemo(() => {
+    const options: { id: string; name: string; type: 'linkedin' | 'email' }[] = [];
+    linkedInAccounts.forEach((acc) => {
+      options.push({
+        id: acc.id,
+        name: acc.name || acc.profile_url || 'LinkedIn Account',
+        type: 'linkedin',
+      });
+    });
+    emailAccounts.forEach((acc) => {
+      options.push({
+        id: acc.id,
+        name: acc.email_address || 'Email Account',
+        type: 'email',
+      });
+    });
+    return options;
+  }, [linkedInAccounts, emailAccounts]);
+
+  // Fetch conversation list with API filters
   const {
     data: conversationsData,
     isLoading,
@@ -44,6 +74,9 @@ function InboxPage() {
     refetch,
   } = useConversations({
     channel_filter: filter !== 'all' && filter !== 'unread' ? (filter as Channel) : undefined,
+    sender_id: selectedSenderId || undefined,
+    campaign_id: selectedCampaignId || undefined,
+    is_read: filter === 'unread' ? false : undefined,
   });
 
   // Fetch selected conversation with messages
@@ -58,9 +91,7 @@ function InboxPage() {
   // Filter and process conversations
   const conversations = conversationsData?.conversations || [];
   const filteredConversations = conversations.filter((c) => {
-    // Client-side unread filter
-    if (filter === 'unread' && c.unread_count === 0) return false;
-    // Client-side search filter
+    // Client-side search filter only (unread filter now uses API)
     if (searchQuery) {
       const leadName = c.lead_name || '';
       if (!leadName.toLowerCase().includes(searchQuery.toLowerCase())) return false;
@@ -177,6 +208,58 @@ function InboxPage() {
                     : 'Email'}
             </button>
           ))}
+        </div>
+
+        {/* Advanced Filters - Sender & Campaign */}
+        <div className="flex gap-2 border-b border-[#E2E8F0] px-4 py-2">
+          {/* Sender Filter */}
+          <div className="relative flex-1">
+            <select
+              value={selectedSenderId}
+              onChange={(e) => setSelectedSenderId(e.target.value)}
+              className="w-full appearance-none rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] py-1.5 pl-3 pr-8 text-xs text-[#64748B] focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+            >
+              <option value="">All Senders</option>
+              {senderOptions.map((sender) => (
+                <option key={sender.id} value={sender.id}>
+                  {sender.type === 'linkedin' ? '🔗 ' : '📧 '}
+                  {sender.name}
+                </option>
+              ))}
+            </select>
+            <ChevronDownIcon className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94A3B8]" />
+          </div>
+
+          {/* Campaign Filter */}
+          <div className="relative flex-1">
+            <select
+              value={selectedCampaignId}
+              onChange={(e) => setSelectedCampaignId(e.target.value)}
+              className="w-full appearance-none rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] py-1.5 pl-3 pr-8 text-xs text-[#64748B] focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+            >
+              <option value="">All Campaigns</option>
+              {campaigns.map((campaign) => (
+                <option key={campaign.id} value={campaign.id}>
+                  {campaign.name}
+                </option>
+              ))}
+            </select>
+            <ChevronDownIcon className="pointer-events-none absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-[#94A3B8]" />
+          </div>
+
+          {/* Clear Filters Button */}
+          {(selectedSenderId || selectedCampaignId) && (
+            <button
+              onClick={() => {
+                setSelectedSenderId('');
+                setSelectedCampaignId('');
+              }}
+              className="flex items-center gap-1 whitespace-nowrap rounded-lg px-2 py-1.5 text-xs font-medium text-[#64748B] hover:bg-[#FEF2F2] hover:text-[#EF4444]"
+            >
+              <ClearIcon className="h-3 w-3" />
+              Clear
+            </button>
+          )}
         </div>
 
         {/* Conversations List */}
@@ -624,6 +707,34 @@ function AlertIcon({ className = 'w-5 h-5' }: { className?: string }) {
         strokeLinejoin="round"
         d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
       />
+    </svg>
+  );
+}
+
+function ChevronDownIcon({ className = 'w-4 h-4' }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={2}
+    >
+      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+    </svg>
+  );
+}
+
+function ClearIcon({ className = 'w-4 h-4' }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={2}
+    >
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
     </svg>
   );
 }

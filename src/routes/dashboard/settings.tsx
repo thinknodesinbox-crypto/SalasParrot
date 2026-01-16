@@ -12,11 +12,11 @@ import {
   useEmailAccounts,
   useLinkedInAccounts,
   useChangePassword,
-  useGetEmailAuthLink,
   useConnectLinkedInWithCredentials,
   useConnectLinkedInWithCookie,
   useSolveLinkedInCheckpoint,
   usePollLinkedInStatus,
+  useConnectEmailIMAP,
 } from '@/lib/hooks/queries';
 import type { CheckpointType } from '@/lib/types';
 
@@ -2048,22 +2048,62 @@ function ConnectLinkedInModal({ onClose }: { onClose: () => void }) {
   );
 }
 
-function ConnectEmailModal({ onClose }: { onClose: () => void }) {
-  const [error, setError] = useState('');
-  const getEmailAuthLink = useGetEmailAuthLink();
+type EmailAuthStep = 'method' | 'imap' | 'google_info' | 'microsoft_info' | 'success';
 
-  const handleConnect = async () => {
+function ConnectEmailModal({ onClose }: { onClose: () => void }) {
+  const [step, setStep] = useState<EmailAuthStep>('method');
+  const [error, setError] = useState('');
+
+  // IMAP form state
+  const [emailAddress, setEmailAddress] = useState('');
+  const [imapPassword, setImapPassword] = useState('');
+  const [imapHost, setImapHost] = useState('');
+  const [imapPort, setImapPort] = useState(993);
+  const [smtpHost, setSmtpHost] = useState('');
+  const [smtpPort, setSmtpPort] = useState(587);
+  const [displayName, setDisplayName] = useState('');
+
+  const connectIMAP = useConnectEmailIMAP();
+
+  const handleIMAPSubmit = async () => {
     setError('');
+    if (!emailAddress || !imapPassword || !imapHost || !smtpHost) {
+      setError('Please fill in all required fields');
+      return;
+    }
+
     try {
-      const result = await getEmailAuthLink.mutateAsync();
-      if (result.url) {
-        // Redirect to Unipile hosted auth
-        window.location.href = result.url;
-      } else {
-        setError('Failed to get authentication URL');
+      const result = await connectIMAP.mutateAsync({
+        email_address: emailAddress,
+        imap_password: imapPassword,
+        imap_host: imapHost,
+        imap_port: imapPort,
+        smtp_host: smtpHost,
+        smtp_port: smtpPort,
+        display_name: displayName || undefined,
+      });
+      if (result.status === 'connected') {
+        setStep('success');
+        setTimeout(() => onClose(), 1500);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to initiate connection');
+      setError(err instanceof Error ? err.message : 'Failed to connect');
+    }
+  };
+
+  // Auto-detect settings based on email domain
+  const handleEmailChange = (email: string) => {
+    setEmailAddress(email);
+    const domain = email.split('@')[1]?.toLowerCase();
+    if (domain === 'gmail.com') {
+      setImapHost('imap.gmail.com');
+      setSmtpHost('smtp.gmail.com');
+    } else if (domain === 'outlook.com' || domain === 'hotmail.com') {
+      setImapHost('outlook.office365.com');
+      setSmtpHost('smtp.office365.com');
+    } else if (domain === 'yahoo.com') {
+      setImapHost('imap.mail.yahoo.com');
+      setSmtpHost('smtp.mail.yahoo.com');
     }
   };
 
@@ -2072,7 +2112,7 @@ function ConnectEmailModal({ onClose }: { onClose: () => void }) {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
       onClick={onClose}
     >
       <motion.div
@@ -2080,83 +2120,345 @@ function ConnectEmailModal({ onClose }: { onClose: () => void }) {
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 20 }}
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-xl"
+        className="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl"
       >
-        <div className="p-6">
-          <div className="mb-6 flex items-center justify-between">
-            <h2 className="text-lg font-bold text-[#1E293B]">Connect Email Account</h2>
-            <button onClick={onClose} className="rounded-lg p-2 hover:bg-[#F8FAFC]">
-              <XIcon />
-            </button>
-          </div>
-
-          <p className="mb-6 text-[#64748B]">
-            Connect your email account to send follow-up messages to leads who don't accept your
-            LinkedIn connection request.
-          </p>
-
-          <div className="space-y-4">
-            <div className="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
-              <h3 className="mb-2 font-medium text-[#1E293B]">Supported Providers</h3>
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2">
-                  <GmailIcon className="h-5 w-5" />
-                  <span className="text-sm text-[#64748B]">Gmail</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <OutlookIcon className="h-5 w-5" />
-                  <span className="text-sm text-[#64748B]">Outlook</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <EmailIcon className="h-5 w-5" />
-                  <span className="text-sm text-[#64748B]">IMAP</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-xl border border-[#FF6B35]/20 bg-[#FFF7ED] p-4">
-              <div className="flex items-start gap-3">
-                <InfoIcon className="mt-0.5 h-5 w-5 flex-shrink-0 text-[#FF6B35]" />
-                <div className="text-sm text-[#92400E]">
-                  <p className="font-medium">Why connect email?</p>
-                  <p className="mt-1">
-                    When leads don't accept your LinkedIn request, we'll automatically follow up via
-                    email - increasing your reply rate by up to 40%.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {error && (
-              <div className="rounded-lg border border-[#EF4444]/20 bg-[#FEF2F2] p-3">
-                <p className="text-sm text-[#EF4444]">{error}</p>
-              </div>
-            )}
-          </div>
-
-          <div className="mt-6 flex gap-3">
-            <button
-              onClick={onClose}
-              className="flex-1 rounded-lg border border-[#E2E8F0] px-4 py-2.5 font-medium text-[#64748B] hover:bg-[#F8FAFC]"
+        <AnimatePresence mode="wait">
+          {/* Step 1: Choose method */}
+          {step === 'method' && (
+            <motion.div
+              key="method"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="p-6"
             >
-              Cancel
-            </button>
-            <button
-              onClick={handleConnect}
-              disabled={getEmailAuthLink.isPending}
-              className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-[#3B82F6] px-4 py-2.5 font-medium text-white hover:bg-[#2563EB] disabled:opacity-50"
+              <div className="mb-6 flex items-center justify-between">
+                <h2 className="text-lg font-bold text-[#1E293B]">Connect Email Account</h2>
+                <button onClick={onClose} className="rounded-lg p-2 hover:bg-[#F8FAFC]">
+                  <XIcon />
+                </button>
+              </div>
+
+              <p className="mb-6 text-[#64748B]">
+                Choose your email provider to connect your account.
+              </p>
+
+              <div className="space-y-3">
+                <button
+                  onClick={() => setStep('google_info')}
+                  className="flex w-full items-center gap-4 rounded-xl border border-[#E2E8F0] p-4 transition-all hover:border-[#EA4335]/30 hover:bg-[#FEF2F2]"
+                >
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#EA4335]/10">
+                    <GmailIcon className="h-7 w-7" />
+                  </div>
+                  <div className="flex-1 text-left">
+                    <p className="font-semibold text-[#1E293B]">Gmail</p>
+                    <p className="text-sm text-[#64748B]">Connect with Google (App Password)</p>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => setStep('microsoft_info')}
+                  className="flex w-full items-center gap-4 rounded-xl border border-[#E2E8F0] p-4 transition-all hover:border-[#0078D4]/30 hover:bg-[#EFF6FF]"
+                >
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#0078D4]/10">
+                    <OutlookIcon className="h-7 w-7" />
+                  </div>
+                  <div className="flex-1 text-left">
+                    <p className="font-semibold text-[#1E293B]">Outlook / Microsoft 365</p>
+                    <p className="text-sm text-[#64748B]">Connect with Microsoft (App Password)</p>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => setStep('imap')}
+                  className="flex w-full items-center gap-4 rounded-xl border border-[#E2E8F0] p-4 transition-all hover:border-[#64748B]/30 hover:bg-[#F8FAFC]"
+                >
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#64748B]/10">
+                    <EmailIcon className="h-7 w-7 text-[#64748B]" />
+                  </div>
+                  <div className="flex-1 text-left">
+                    <p className="font-semibold text-[#1E293B]">Other Email (IMAP)</p>
+                    <p className="text-sm text-[#64748B]">Connect with IMAP/SMTP credentials</p>
+                  </div>
+                </button>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Google info step */}
+          {step === 'google_info' && (
+            <motion.div
+              key="google_info"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="p-6"
             >
-              {getEmailAuthLink.isPending ? (
-                <>
-                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                  Connecting...
-                </>
-              ) : (
-                'Connect Email Account'
-              )}
-            </button>
-          </div>
-        </div>
+              <div className="mb-6 flex items-center gap-3">
+                <button
+                  onClick={() => setStep('method')}
+                  className="rounded-lg p-2 hover:bg-[#F8FAFC]"
+                >
+                  <BackArrowIcon />
+                </button>
+                <h2 className="text-lg font-bold text-[#1E293B]">Connect Gmail</h2>
+              </div>
+
+              <div className="mb-6 rounded-xl border border-[#EA4335]/20 bg-[#FEF2F2] p-4">
+                <div className="flex items-start gap-3">
+                  <InfoIcon className="mt-0.5 h-5 w-5 flex-shrink-0 text-[#EA4335]" />
+                  <div className="text-sm text-[#92400E]">
+                    <p className="font-medium">Create an App Password:</p>
+                    <ol className="mt-1 list-inside list-decimal space-y-1">
+                      <li>
+                        Go to{' '}
+                        <a
+                          href="https://myaccount.google.com/apppasswords"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[#EA4335] underline"
+                        >
+                          Google App Passwords
+                        </a>
+                      </li>
+                      <li>Select "Mail" and your device</li>
+                      <li>Copy the generated 16-character password</li>
+                      <li>Use it as your password below</li>
+                    </ol>
+                  </div>
+                </div>
+              </div>
+
+              <button
+                onClick={() => {
+                  setImapHost('imap.gmail.com');
+                  setSmtpHost('smtp.gmail.com');
+                  setStep('imap');
+                }}
+                className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#EA4335] px-4 py-2.5 font-medium text-white hover:bg-[#D33B2E]"
+              >
+                Continue with App Password
+              </button>
+            </motion.div>
+          )}
+
+          {/* Microsoft info step */}
+          {step === 'microsoft_info' && (
+            <motion.div
+              key="microsoft_info"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="p-6"
+            >
+              <div className="mb-6 flex items-center gap-3">
+                <button
+                  onClick={() => setStep('method')}
+                  className="rounded-lg p-2 hover:bg-[#F8FAFC]"
+                >
+                  <BackArrowIcon />
+                </button>
+                <h2 className="text-lg font-bold text-[#1E293B]">Connect Outlook</h2>
+              </div>
+
+              <div className="mb-6 rounded-xl border border-[#0078D4]/20 bg-[#EFF6FF] p-4">
+                <div className="flex items-start gap-3">
+                  <InfoIcon className="mt-0.5 h-5 w-5 flex-shrink-0 text-[#0078D4]" />
+                  <div className="text-sm text-[#1E40AF]">
+                    <p className="font-medium">Create an App Password:</p>
+                    <ol className="mt-1 list-inside list-decimal space-y-1">
+                      <li>
+                        Go to{' '}
+                        <a
+                          href="https://account.live.com/proofs/AppPassword"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[#0078D4] underline"
+                        >
+                          Microsoft App Passwords
+                        </a>
+                      </li>
+                      <li>Create a new app password</li>
+                      <li>Copy the generated password</li>
+                      <li>Use it as your password below</li>
+                    </ol>
+                  </div>
+                </div>
+              </div>
+
+              <button
+                onClick={() => {
+                  setImapHost('outlook.office365.com');
+                  setSmtpHost('smtp.office365.com');
+                  setStep('imap');
+                }}
+                className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#0078D4] px-4 py-2.5 font-medium text-white hover:bg-[#0066B4]"
+              >
+                Continue with App Password
+              </button>
+            </motion.div>
+          )}
+
+          {/* IMAP form */}
+          {step === 'imap' && (
+            <motion.div
+              key="imap"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="max-h-[80vh] overflow-y-auto p-6"
+            >
+              <div className="mb-6 flex items-center gap-3">
+                <button
+                  onClick={() => setStep('method')}
+                  className="rounded-lg p-2 hover:bg-[#F8FAFC]"
+                >
+                  <BackArrowIcon />
+                </button>
+                <h2 className="text-lg font-bold text-[#1E293B]">Connect Email</h2>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-[#1E293B]">
+                    Email Address *
+                  </label>
+                  <input
+                    type="email"
+                    value={emailAddress}
+                    onChange={(e) => handleEmailChange(e.target.value)}
+                    placeholder="your@email.com"
+                    className="w-full rounded-lg border border-[#E2E8F0] px-4 py-2.5 focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-[#1E293B]">
+                    Password / App Password *
+                  </label>
+                  <input
+                    type="password"
+                    value={imapPassword}
+                    onChange={(e) => setImapPassword(e.target.value)}
+                    placeholder="Your email password or app password"
+                    className="w-full rounded-lg border border-[#E2E8F0] px-4 py-2.5 focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-[#1E293B]">
+                    Display Name (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                    placeholder="John Doe"
+                    className="w-full rounded-lg border border-[#E2E8F0] px-4 py-2.5 focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-[#1E293B]">
+                      IMAP Host *
+                    </label>
+                    <input
+                      type="text"
+                      value={imapHost}
+                      onChange={(e) => setImapHost(e.target.value)}
+                      placeholder="imap.example.com"
+                      className="w-full rounded-lg border border-[#E2E8F0] px-4 py-2.5 focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-[#1E293B]">
+                      IMAP Port
+                    </label>
+                    <input
+                      type="number"
+                      value={imapPort}
+                      onChange={(e) => setImapPort(Number(e.target.value))}
+                      className="w-full rounded-lg border border-[#E2E8F0] px-4 py-2.5 focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-[#1E293B]">
+                      SMTP Host *
+                    </label>
+                    <input
+                      type="text"
+                      value={smtpHost}
+                      onChange={(e) => setSmtpHost(e.target.value)}
+                      placeholder="smtp.example.com"
+                      className="w-full rounded-lg border border-[#E2E8F0] px-4 py-2.5 focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-[#1E293B]">
+                      SMTP Port
+                    </label>
+                    <input
+                      type="number"
+                      value={smtpPort}
+                      onChange={(e) => setSmtpPort(Number(e.target.value))}
+                      className="w-full rounded-lg border border-[#E2E8F0] px-4 py-2.5 focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+                    />
+                  </div>
+                </div>
+
+                {error && (
+                  <div className="rounded-lg border border-[#EF4444]/20 bg-[#FEF2F2] p-3">
+                    <p className="text-sm text-[#EF4444]">{error}</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-6 flex gap-3">
+                <button
+                  onClick={() => setStep('method')}
+                  className="flex-1 rounded-lg border border-[#E2E8F0] px-4 py-2.5 font-medium text-[#64748B] hover:bg-[#F8FAFC]"
+                >
+                  Back
+                </button>
+                <button
+                  onClick={handleIMAPSubmit}
+                  disabled={connectIMAP.isPending}
+                  className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-[#FF6B35] px-4 py-2.5 font-medium text-white hover:bg-[#E65A2C] disabled:opacity-50"
+                >
+                  {connectIMAP.isPending ? (
+                    <>
+                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                      Connecting...
+                    </>
+                  ) : (
+                    'Connect'
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Success */}
+          {step === 'success' && (
+            <motion.div
+              key="success"
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="p-6 text-center"
+            >
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#F0FDF4]">
+                <CheckIcon className="h-8 w-8 text-[#22C55E]" />
+              </div>
+              <h2 className="mb-2 text-lg font-bold text-[#1E293B]">Successfully Connected!</h2>
+              <p className="text-[#64748B]">Your email account has been connected.</p>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </motion.div>
     </motion.div>
   );

@@ -255,13 +255,67 @@ export interface EmailAccount {
   provider: EmailProvider;
   daily_limit: number;
   status: EmailStatus;
+  display_name: string | null;
+  working_hours: WorkingHours | null;
   last_synced_at: string | null;
   created_at: string;
+}
+
+export interface WorkingHours {
+  start: string;
+  end: string;
+  timezone: string;
+  days: number[];
 }
 
 export interface HostedAuthLinkResponse {
   url: string;
 }
+
+// Email Auth types
+export interface EmailConnectIMAPRequest {
+  email_address: string;
+  imap_password: string;
+  imap_host: string;
+  imap_port?: number;
+  smtp_host: string;
+  smtp_port?: number;
+  imap_encryption?: 'SSL' | 'TLS' | 'NONE';
+  smtp_password?: string;
+  workspace_id?: string;
+  display_name?: string;
+}
+
+export interface EmailConnectGoogleRequest {
+  access_token: string;
+  refresh_token: string;
+  email_address: string;
+  workspace_id?: string;
+  display_name?: string;
+}
+
+export interface EmailConnectMicrosoftRequest {
+  access_token: string;
+  refresh_token: string;
+  email_address: string;
+  user_id: string;
+  workspace_id?: string;
+  display_name?: string;
+}
+
+export interface EmailAuthSuccessResponse {
+  status: 'connected';
+  account_id: string;
+  account?: EmailAccount;
+}
+
+export interface EmailAuthErrorResponse {
+  status: 'error';
+  message: string;
+  error_type?: string;
+}
+
+export type EmailAuthResponse = EmailAuthSuccessResponse | EmailAuthErrorResponse;
 
 // Inbox types
 export type Channel = 'linkedin' | 'email';

@@ -9,6 +9,10 @@ import type {
   LinkedInConnectCookieRequest,
   LinkedInSolveCheckpointRequest,
   LinkedInAuthResponse,
+  EmailConnectIMAPRequest,
+  EmailConnectGoogleRequest,
+  EmailConnectMicrosoftRequest,
+  EmailAuthResponse,
 } from '../../types';
 
 interface AccountFilters {
@@ -325,6 +329,161 @@ export const useSyncEmailAccount = (accountId: string) => {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.emailAccounts.detail(accountId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.emailAccounts.all });
+    },
+    onError: (error) => {
+      throw new Error(getErrorMessage(error));
+    },
+  });
+};
+
+interface UpdateEmailAccountData {
+  daily_limit?: number;
+  display_name?: string;
+  working_hours?: {
+    start: string;
+    end: string;
+    timezone: string;
+    days: number[];
+  };
+  workspace_id?: string;
+}
+
+export const useUpdateEmailAccount = (accountId: string) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: UpdateEmailAccountData) => {
+      const response = await api.patch<EmailAccount>(`/email-accounts/${accountId}`, data);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.emailAccounts.detail(accountId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.emailAccounts.all });
+    },
+    onError: (error) => {
+      throw new Error(getErrorMessage(error));
+    },
+  });
+};
+
+interface SyncEmailsResponse {
+  emails_fetched: number;
+  leads_created: number;
+  conversations_created: number;
+  conversations_updated: number;
+  messages_synced: number;
+}
+
+export const useSyncEmailInbox = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (emailAccountId: string) => {
+      const response = await api.post<SyncEmailsResponse>('/inbox/sync-emails', {
+        email_account_id: emailAccountId,
+        limit: 100,
+        exclude_sent: true,
+      });
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.emailAccounts.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.conversations.all });
+    },
+    onError: (error) => {
+      throw new Error(getErrorMessage(error));
+    },
+  });
+};
+
+interface SendEmailRequest {
+  to: string;
+  subject: string;
+  body: string;
+  to_name?: string;
+  cc?: string[];
+  bcc?: string[];
+}
+
+interface SendEmailResponse {
+  success: boolean;
+  email_id: string | null;
+  thread_id: string | null;
+}
+
+export const useSendEmail = (accountId: string) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: SendEmailRequest) => {
+      const response = await api.post<SendEmailResponse>(
+        `/email-accounts/${accountId}/actions/send-email`,
+        data
+      );
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.conversations.all });
+    },
+    onError: (error) => {
+      throw new Error(getErrorMessage(error));
+    },
+  });
+};
+
+// Email Custom Auth - Connect with IMAP credentials
+export const useConnectEmailIMAP = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: EmailConnectIMAPRequest) => {
+      const response = await api.post<EmailAuthResponse>('/email-accounts/connect/imap', data);
+      return response.data;
+    },
+    onSuccess: (data) => {
+      if (data.status === 'connected') {
+        queryClient.invalidateQueries({ queryKey: queryKeys.emailAccounts.all });
+      }
+    },
+    onError: (error) => {
+      throw new Error(getErrorMessage(error));
+    },
+  });
+};
+
+// Email Custom Auth - Connect with Google OAuth
+export const useConnectEmailGoogle = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: EmailConnectGoogleRequest) => {
+      const response = await api.post<EmailAuthResponse>('/email-accounts/connect/google', data);
+      return response.data;
+    },
+    onSuccess: (data) => {
+      if (data.status === 'connected') {
+        queryClient.invalidateQueries({ queryKey: queryKeys.emailAccounts.all });
+      }
+    },
+    onError: (error) => {
+      throw new Error(getErrorMessage(error));
+    },
+  });
+};
+
+// Email Custom Auth - Connect with Microsoft OAuth
+export const useConnectEmailMicrosoft = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: EmailConnectMicrosoftRequest) => {
+      const response = await api.post<EmailAuthResponse>('/email-accounts/connect/microsoft', data);
+      return response.data;
+    },
+    onSuccess: (data) => {
+      if (data.status === 'connected') {
+        queryClient.invalidateQueries({ queryKey: queryKeys.emailAccounts.all });
+      }
     },
     onError: (error) => {
       throw new Error(getErrorMessage(error));

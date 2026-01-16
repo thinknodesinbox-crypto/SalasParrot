@@ -9,16 +9,41 @@ import {
   useConnectLinkedInWithCookie,
   useSolveLinkedInCheckpoint,
   usePollLinkedInStatus,
+  useEmailAccounts,
+  useDeleteEmailAccount,
+  useSyncEmailInbox,
+  useConnectEmailIMAP,
 } from '../../lib/hooks/queries';
-import type { LinkedInAccount, CheckpointType } from '../../lib/types';
+import type { LinkedInAccount, EmailAccount, CheckpointType } from '../../lib/types';
 
 export const Route = createFileRoute('/dashboard/accounts')({
   component: AccountsPage,
 });
 
+type AccountTab = 'linkedin' | 'email';
+
 function AccountsPage() {
-  const [showConnectModal, setShowConnectModal] = useState(false);
-  const { data: accounts = [], isLoading, error, refetch } = useLinkedInAccounts();
+  const [activeTab, setActiveTab] = useState<AccountTab>('linkedin');
+  const [showConnectLinkedInModal, setShowConnectLinkedInModal] = useState(false);
+  const [showConnectEmailModal, setShowConnectEmailModal] = useState(false);
+
+  const {
+    data: linkedInAccounts = [],
+    isLoading: linkedInLoading,
+    error: linkedInError,
+    refetch: refetchLinkedIn,
+  } = useLinkedInAccounts();
+
+  const {
+    data: emailAccounts = [],
+    isLoading: emailLoading,
+    error: emailError,
+    refetch: refetchEmail,
+  } = useEmailAccounts();
+
+  const isLoading = activeTab === 'linkedin' ? linkedInLoading : emailLoading;
+  const error = activeTab === 'linkedin' ? linkedInError : emailError;
+  const refetch = activeTab === 'linkedin' ? refetchLinkedIn : refetchEmail;
 
   if (isLoading) {
     return (
@@ -53,53 +78,131 @@ function AccountsPage() {
 
   return (
     <div className="space-y-4 md:space-y-6">
-      {/* Page Header */}
-      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
-        <div>
-          <h1 className="text-xl font-bold text-[#1E293B] md:text-2xl">LinkedIn Accounts</h1>
-          <p className="mt-1 text-sm text-[#64748B] md:text-base">
-            Connect and manage your LinkedIn senders
-          </p>
+      {/* Page Header with Tabs */}
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+          <div>
+            <h1 className="text-xl font-bold text-[#1E293B] md:text-2xl">Sender Accounts</h1>
+            <p className="mt-1 text-sm text-[#64748B] md:text-base">
+              Connect and manage your LinkedIn and email senders
+            </p>
+          </div>
+          <button
+            onClick={() =>
+              activeTab === 'linkedin'
+                ? setShowConnectLinkedInModal(true)
+                : setShowConnectEmailModal(true)
+            }
+            className={`flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2.5 font-medium text-white transition-colors sm:w-auto ${
+              activeTab === 'linkedin'
+                ? 'bg-[#0A66C2] hover:bg-[#004182]'
+                : 'bg-[#FF6B35] hover:bg-[#E65A2C]'
+            }`}
+          >
+            {activeTab === 'linkedin' ? <LinkedInIcon /> : <EmailIcon />}
+            Connect {activeTab === 'linkedin' ? 'LinkedIn' : 'Email'}
+          </button>
         </div>
-        <button
-          onClick={() => setShowConnectModal(true)}
-          className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#0A66C2] px-4 py-2.5 font-medium text-white transition-colors hover:bg-[#004182] sm:w-auto"
-        >
-          <LinkedInIcon />
-          Connect Account
-        </button>
+
+        {/* Tabs */}
+        <div className="flex gap-2 border-b border-[#E2E8F0]">
+          <button
+            onClick={() => setActiveTab('linkedin')}
+            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+              activeTab === 'linkedin'
+                ? 'border-b-2 border-[#0A66C2] text-[#0A66C2]'
+                : 'text-[#64748B] hover:text-[#1E293B]'
+            }`}
+          >
+            <LinkedInIcon className="h-4 w-4" />
+            LinkedIn ({linkedInAccounts.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('email')}
+            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+              activeTab === 'email'
+                ? 'border-b-2 border-[#FF6B35] text-[#FF6B35]'
+                : 'text-[#64748B] hover:text-[#1E293B]'
+            }`}
+          >
+            <EmailIcon className="h-4 w-4" />
+            Email ({emailAccounts.length})
+          </button>
+        </div>
       </div>
 
       {/* Info Banner */}
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="flex items-start gap-3 rounded-xl border border-[#3B82F6]/20 bg-gradient-to-r from-[#EFF6FF] to-[#F0F9FF] p-4"
+        className={`flex items-start gap-3 rounded-xl border p-4 ${
+          activeTab === 'linkedin'
+            ? 'border-[#3B82F6]/20 bg-gradient-to-r from-[#EFF6FF] to-[#F0F9FF]'
+            : 'border-[#FF6B35]/20 bg-gradient-to-r from-[#FFF7ED] to-[#FFFBEB]'
+        }`}
       >
-        <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-[#3B82F6]/10">
-          <InfoIcon className="h-5 w-5 text-[#3B82F6]" />
+        <div
+          className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl ${
+            activeTab === 'linkedin' ? 'bg-[#3B82F6]/10' : 'bg-[#FF6B35]/10'
+          }`}
+        >
+          <InfoIcon
+            className={`h-5 w-5 ${activeTab === 'linkedin' ? 'text-[#3B82F6]' : 'text-[#FF6B35]'}`}
+          />
         </div>
         <div>
           <p className="text-sm font-medium text-[#1E293B]">
-            LinkedIn accounts become "senders" when assigned to campaigns
+            {activeTab === 'linkedin'
+              ? 'LinkedIn accounts become "senders" when assigned to campaigns'
+              : 'Email accounts enable follow-up emails in your campaigns'}
           </p>
           <p className="mt-1 text-sm text-[#64748B]">
-            Connect multiple accounts to scale your outreach while each account stays within safe
-            daily limits.
+            {activeTab === 'linkedin'
+              ? 'Connect multiple accounts to scale your outreach while each account stays within safe daily limits.'
+              : 'Connect your email accounts to send personalized follow-ups when LinkedIn connections are not accepted.'}
           </p>
         </div>
       </motion.div>
 
-      {/* Accounts List or Empty State */}
-      {accounts.length === 0 ? (
-        <EmptyState onConnect={() => setShowConnectModal(true)} />
-      ) : (
-        <AccountsList accounts={accounts} />
-      )}
+      {/* Content based on active tab */}
+      <AnimatePresence mode="wait">
+        {activeTab === 'linkedin' ? (
+          <motion.div
+            key="linkedin"
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 20 }}
+          >
+            {linkedInAccounts.length === 0 ? (
+              <EmptyState onConnect={() => setShowConnectLinkedInModal(true)} />
+            ) : (
+              <AccountsList accounts={linkedInAccounts} />
+            )}
+          </motion.div>
+        ) : (
+          <motion.div
+            key="email"
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 20 }}
+          >
+            {emailAccounts.length === 0 ? (
+              <EmailEmptyState onConnect={() => setShowConnectEmailModal(true)} />
+            ) : (
+              <EmailAccountsList accounts={emailAccounts} />
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      {/* Connect Modal */}
+      {/* Connect Modals */}
       <AnimatePresence>
-        {showConnectModal && <ConnectLinkedInModal onClose={() => setShowConnectModal(false)} />}
+        {showConnectLinkedInModal && (
+          <ConnectLinkedInModal onClose={() => setShowConnectLinkedInModal(false)} />
+        )}
+        {showConnectEmailModal && (
+          <ConnectEmailModal onClose={() => setShowConnectEmailModal(false)} />
+        )}
       </AnimatePresence>
     </div>
   );
@@ -1272,6 +1375,746 @@ function ConnectLinkedInModal({ onClose }: { onClose: () => void }) {
   );
 }
 
+// ==================== Email Account Components ====================
+
+function EmailEmptyState({ onConnect }: { onConnect: () => void }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="rounded-xl border border-[#E2E8F0] bg-white p-8 md:p-12"
+    >
+      <div className="mx-auto max-w-lg text-center">
+        <div className="relative mx-auto mb-8 h-40 w-40">
+          <div className="absolute inset-0 animate-pulse rounded-full bg-gradient-to-br from-[#FFF7ED] to-[#FFEDD5]" />
+          <div className="absolute inset-6 rounded-full bg-white shadow-inner" />
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-[#E2E8F0] bg-white shadow-lg">
+              <EmailIcon className="h-8 w-8 text-[#FF6B35]" />
+            </div>
+          </div>
+          <motion.div
+            animate={{ scale: [1, 1.1, 1], rotate: [0, 5, -5, 0] }}
+            transition={{ duration: 3, repeat: Infinity }}
+            className="absolute -right-2 bottom-4 flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-[#FF6B35] to-[#F97316] shadow-lg"
+          >
+            <LinkIcon className="h-6 w-6 text-white" />
+          </motion.div>
+        </div>
+
+        <h2 className="mb-3 text-2xl font-bold text-[#1E293B]">No email accounts connected</h2>
+        <p className="mb-8 text-lg text-[#64748B]">
+          Connect your email account to send follow-up emails when LinkedIn connections aren't
+          accepted.
+        </p>
+
+        <button
+          onClick={onConnect}
+          className="inline-flex items-center gap-3 rounded-xl bg-[#FF6B35] px-8 py-4 font-semibold text-white shadow-[0_4px_14px_rgba(255,107,53,0.35)] transition-all hover:-translate-y-0.5 hover:bg-[#E65A2C] hover:shadow-[0_6px_20px_rgba(255,107,53,0.4)]"
+        >
+          <EmailIcon className="h-5 w-5" />
+          Connect Your First Email
+        </button>
+
+        <div className="mt-10 flex items-center justify-center gap-6 text-sm text-[#64748B]">
+          <div className="flex items-center gap-2">
+            <ShieldCheckIcon className="h-4 w-4 text-[#22C55E]" />
+            <span>Secure OAuth</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <ClockIcon className="h-4 w-4 text-[#3B82F6]" />
+            <span>Daily Limits</span>
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+function EmailAccountsList({ accounts }: { accounts: EmailAccount[] }) {
+  const deleteAccount = useDeleteEmailAccount();
+  const syncInbox = useSyncEmailInbox();
+  const [syncingAccountId, setSyncingAccountId] = useState<string | null>(null);
+  const [disconnectModal, setDisconnectModal] = useState<{
+    open: boolean;
+    accountId: string;
+    accountEmail: string;
+  }>({
+    open: false,
+    accountId: '',
+    accountEmail: '',
+  });
+
+  const handleDeleteClick = (accountId: string, accountEmail: string) => {
+    setDisconnectModal({ open: true, accountId, accountEmail });
+  };
+
+  const handleSyncClick = async (accountId: string) => {
+    setSyncingAccountId(accountId);
+    try {
+      await syncInbox.mutateAsync(accountId);
+    } finally {
+      setSyncingAccountId(null);
+    }
+  };
+
+  const closeModal = () => {
+    setDisconnectModal({ open: false, accountId: '', accountEmail: '' });
+  };
+
+  const handleConfirmDelete = async () => {
+    await deleteAccount.mutateAsync(disconnectModal.accountId);
+    closeModal();
+  };
+
+  const totalDailyCapacity = accounts.reduce((sum, a) => sum + (a.daily_limit || 100), 0);
+
+  return (
+    <div className="space-y-4">
+      {/* Stats Overview */}
+      <div className="grid grid-cols-2 gap-3 md:gap-4 lg:grid-cols-4">
+        <StatCard
+          label="Total Accounts"
+          value={accounts.length.toString()}
+          icon={<EmailIcon />}
+          color="#FF6B35"
+        />
+        <StatCard
+          label="Active"
+          value={accounts.filter((a) => a.status === 'connected').length.toString()}
+          icon={<ActiveIcon />}
+          color="#22C55E"
+        />
+        <StatCard
+          label="Daily Capacity"
+          value={totalDailyCapacity.toString()}
+          icon={<CapacityIcon />}
+          color="#3B82F6"
+        />
+        <StatCard
+          label="Google/Microsoft"
+          value={accounts.filter((a) => a.provider !== 'imap').length.toString()}
+          icon={<SentTodayIcon />}
+          color="#8B5CF6"
+        />
+      </div>
+
+      {/* Accounts List */}
+      <div className="rounded-xl border border-[#E2E8F0] bg-white">
+        <div className="divide-y divide-[#E2E8F0]">
+          {accounts.map((account) => (
+            <EmailAccountRow
+              key={account.id}
+              account={account}
+              onDelete={handleDeleteClick}
+              onSync={handleSyncClick}
+              isSyncing={syncingAccountId === account.id}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* Disconnect Confirmation Modal */}
+      <AnimatePresence>
+        {disconnectModal.open && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+            onClick={closeModal}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl"
+            >
+              <div className="p-6">
+                <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[#FEF2F2]">
+                  <AlertIcon className="h-6 w-6 text-[#EF4444]" />
+                </div>
+                <h3 className="mb-2 text-center text-lg font-bold text-[#1E293B]">
+                  Disconnect Email Account?
+                </h3>
+                <p className="mb-6 text-center text-[#64748B]">
+                  Are you sure you want to disconnect{' '}
+                  <span className="font-medium text-[#1E293B]">{disconnectModal.accountEmail}</span>
+                  ?
+                </p>
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={closeModal}
+                    disabled={deleteAccount.isPending}
+                    className="flex-1 rounded-xl border border-[#E2E8F0] px-4 py-2.5 font-medium text-[#1E293B] transition-colors hover:bg-[#F8FAFC] disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleConfirmDelete}
+                    disabled={deleteAccount.isPending}
+                    className="flex-1 rounded-xl bg-[#EF4444] px-4 py-2.5 font-medium text-white transition-colors hover:bg-[#DC2626] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {deleteAccount.isPending ? 'Disconnecting...' : 'Disconnect'}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function EmailAccountRow({
+  account,
+  onDelete,
+  onSync,
+  isSyncing,
+}: {
+  account: EmailAccount;
+  onDelete: (id: string, email: string) => void;
+  onSync: (id: string) => void;
+  isSyncing: boolean;
+}) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const [menuPosition, setMenuPosition] = useState({ top: 0, right: 0 });
+
+  useEffect(() => {
+    if (menuOpen && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      setMenuPosition({
+        top: rect.bottom + 4,
+        right: window.innerWidth - rect.right,
+      });
+    }
+  }, [menuOpen]);
+
+  const statusColors: Record<string, { bg: string; text: string; label: string }> = {
+    connected: { bg: 'bg-[#F0FDF4]', text: 'text-[#22C55E]', label: 'Connected' },
+    disconnected: { bg: 'bg-[#F8FAFC]', text: 'text-[#64748B]', label: 'Disconnected' },
+    reconnect_required: { bg: 'bg-[#FFFBEB]', text: 'text-[#F59E0B]', label: 'Reconnect Required' },
+  };
+
+  const providerLabels: Record<string, string> = {
+    google: 'Gmail',
+    microsoft: 'Outlook',
+    imap: 'IMAP',
+  };
+
+  const providerColors: Record<string, string> = {
+    google: '#EA4335',
+    microsoft: '#0078D4',
+    imap: '#64748B',
+  };
+
+  const status = statusColors[account.status] || statusColors.disconnected;
+  const displayName = account.display_name || account.email_address;
+  const initials = displayName.split(/[@.]/)[0].slice(0, 2).toUpperCase();
+
+  return (
+    <div className="flex items-center justify-between gap-4 p-4">
+      <div className="flex min-w-0 items-center gap-3">
+        <div
+          className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full font-semibold text-white"
+          style={{ backgroundColor: providerColors[account.provider] || '#64748B' }}
+        >
+          {initials}
+        </div>
+        <div className="min-w-0">
+          <p className="truncate font-medium text-[#1E293B]">{displayName}</p>
+          <p className="truncate text-sm text-[#64748B]">
+            {providerLabels[account.provider]} • {account.daily_limit} emails/day
+          </p>
+        </div>
+      </div>
+
+      <div className="flex flex-shrink-0 items-center gap-3">
+        <span
+          className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${status.bg} ${status.text}`}
+        >
+          <span className="h-1.5 w-1.5 rounded-full bg-current" />
+          {status.label}
+        </span>
+
+        <div className="relative">
+          <button
+            ref={buttonRef}
+            onClick={() => setMenuOpen(!menuOpen)}
+            className="rounded-lg p-1.5 transition-colors hover:bg-[#E2E8F0]"
+          >
+            <MoreIcon />
+          </button>
+          <AnimatePresence>
+            {menuOpen && (
+              <>
+                <div className="fixed inset-0 z-[100]" onClick={() => setMenuOpen(false)} />
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  style={{ top: menuPosition.top, right: menuPosition.right }}
+                  className="fixed z-[101] w-48 rounded-lg border border-[#E2E8F0] bg-white py-1 shadow-lg"
+                >
+                  <button
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onSync(account.id);
+                    }}
+                    disabled={isSyncing}
+                    className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-[#1E293B] hover:bg-[#F8FAFC] disabled:opacity-50"
+                  >
+                    {isSyncing ? (
+                      <>
+                        <LoadingSpinner />
+                        Syncing...
+                      </>
+                    ) : (
+                      'Sync Inbox'
+                    )}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onDelete(account.id, account.email_address);
+                    }}
+                    className="w-full px-4 py-2 text-left text-sm text-[#EF4444] hover:bg-[#FEF2F2]"
+                  >
+                    Disconnect
+                  </button>
+                </motion.div>
+              </>
+            )}
+          </AnimatePresence>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Connect Email Modal - Custom Auth Flow
+type EmailAuthStep = 'method' | 'imap' | 'google_info' | 'microsoft_info' | 'success';
+
+function ConnectEmailModal({ onClose }: { onClose: () => void }) {
+  const [step, setStep] = useState<EmailAuthStep>('method');
+  const [error, setError] = useState('');
+
+  // IMAP form state
+  const [emailAddress, setEmailAddress] = useState('');
+  const [imapPassword, setImapPassword] = useState('');
+  const [imapHost, setImapHost] = useState('');
+  const [imapPort, setImapPort] = useState(993);
+  const [smtpHost, setSmtpHost] = useState('');
+  const [smtpPort, setSmtpPort] = useState(587);
+  const [displayName, setDisplayName] = useState('');
+
+  const connectIMAP = useConnectEmailIMAP();
+  // Note: OAuth flows (connectGoogle, connectMicrosoft) currently guide users to App Passwords
+  // and use IMAP/SMTP instead of direct OAuth tokens
+
+  const handleIMAPSubmit = async () => {
+    setError('');
+    if (!emailAddress || !imapPassword || !imapHost || !smtpHost) {
+      setError('Please fill in all required fields');
+      return;
+    }
+
+    try {
+      const result = await connectIMAP.mutateAsync({
+        email_address: emailAddress,
+        imap_password: imapPassword,
+        imap_host: imapHost,
+        imap_port: imapPort,
+        smtp_host: smtpHost,
+        smtp_port: smtpPort,
+        display_name: displayName || undefined,
+      });
+      if (result.status === 'connected') {
+        setStep('success');
+        setTimeout(() => onClose(), 1500);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to connect');
+    }
+  };
+
+  // Auto-detect settings based on email domain
+  const handleEmailChange = (email: string) => {
+    setEmailAddress(email);
+    const domain = email.split('@')[1]?.toLowerCase();
+    if (domain === 'gmail.com') {
+      setImapHost('imap.gmail.com');
+      setSmtpHost('smtp.gmail.com');
+    } else if (domain === 'outlook.com' || domain === 'hotmail.com') {
+      setImapHost('outlook.office365.com');
+      setSmtpHost('smtp.office365.com');
+    } else if (domain === 'yahoo.com') {
+      setImapHost('imap.mail.yahoo.com');
+      setSmtpHost('smtp.mail.yahoo.com');
+    }
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl"
+      >
+        <AnimatePresence mode="wait">
+          {/* Step 1: Choose method */}
+          {step === 'method' && (
+            <motion.div
+              key="method"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="p-6"
+            >
+              <div className="mb-6 flex items-center justify-between">
+                <h2 className="text-lg font-bold text-[#1E293B]">Connect Email Account</h2>
+                <button onClick={onClose} className="rounded-lg p-2 hover:bg-[#F8FAFC]">
+                  <CloseIcon />
+                </button>
+              </div>
+
+              <p className="mb-6 text-[#64748B]">
+                Choose your email provider to connect your account.
+              </p>
+
+              <div className="space-y-3">
+                <button
+                  onClick={() => setStep('google_info')}
+                  className="flex w-full items-center gap-4 rounded-xl border border-[#E2E8F0] p-4 transition-all hover:border-[#EA4335]/30 hover:bg-[#FEF2F2]"
+                >
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#EA4335]/10">
+                    <GoogleIcon className="h-7 w-7" />
+                  </div>
+                  <div className="flex-1 text-left">
+                    <p className="font-semibold text-[#1E293B]">Gmail</p>
+                    <p className="text-sm text-[#64748B]">Connect with Google (App Password)</p>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => setStep('microsoft_info')}
+                  className="flex w-full items-center gap-4 rounded-xl border border-[#E2E8F0] p-4 transition-all hover:border-[#0078D4]/30 hover:bg-[#EFF6FF]"
+                >
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#0078D4]/10">
+                    <MicrosoftIcon className="h-7 w-7" />
+                  </div>
+                  <div className="flex-1 text-left">
+                    <p className="font-semibold text-[#1E293B]">Outlook / Microsoft 365</p>
+                    <p className="text-sm text-[#64748B]">Connect with Microsoft (App Password)</p>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => setStep('imap')}
+                  className="flex w-full items-center gap-4 rounded-xl border border-[#E2E8F0] p-4 transition-all hover:border-[#64748B]/30 hover:bg-[#F8FAFC]"
+                >
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#64748B]/10">
+                    <EmailIcon className="h-7 w-7 text-[#64748B]" />
+                  </div>
+                  <div className="flex-1 text-left">
+                    <p className="font-semibold text-[#1E293B]">Other Email (IMAP)</p>
+                    <p className="text-sm text-[#64748B]">Connect with IMAP/SMTP credentials</p>
+                  </div>
+                </button>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Google info step */}
+          {step === 'google_info' && (
+            <motion.div
+              key="google_info"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="p-6"
+            >
+              <div className="mb-6 flex items-center gap-3">
+                <button
+                  onClick={() => setStep('method')}
+                  className="rounded-lg p-2 hover:bg-[#F8FAFC]"
+                >
+                  <BackArrowIcon />
+                </button>
+                <h2 className="text-lg font-bold text-[#1E293B]">Connect Gmail</h2>
+              </div>
+
+              <div className="mb-6 rounded-xl border border-[#EA4335]/20 bg-[#FEF2F2] p-4">
+                <div className="flex items-start gap-3">
+                  <InfoIcon className="mt-0.5 h-5 w-5 flex-shrink-0 text-[#EA4335]" />
+                  <div className="text-sm text-[#92400E]">
+                    <p className="font-medium">Create an App Password:</p>
+                    <ol className="mt-1 list-inside list-decimal space-y-1">
+                      <li>
+                        Go to{' '}
+                        <a
+                          href="https://myaccount.google.com/apppasswords"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[#EA4335] underline"
+                        >
+                          Google App Passwords
+                        </a>
+                      </li>
+                      <li>Select "Mail" and your device</li>
+                      <li>Copy the generated 16-character password</li>
+                      <li>Use it as your password below</li>
+                    </ol>
+                  </div>
+                </div>
+              </div>
+
+              <button
+                onClick={() => {
+                  setImapHost('imap.gmail.com');
+                  setSmtpHost('smtp.gmail.com');
+                  setStep('imap');
+                }}
+                className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#EA4335] px-4 py-2.5 font-medium text-white hover:bg-[#D33B2E]"
+              >
+                Continue with App Password
+              </button>
+            </motion.div>
+          )}
+
+          {/* Microsoft info step */}
+          {step === 'microsoft_info' && (
+            <motion.div
+              key="microsoft_info"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="p-6"
+            >
+              <div className="mb-6 flex items-center gap-3">
+                <button
+                  onClick={() => setStep('method')}
+                  className="rounded-lg p-2 hover:bg-[#F8FAFC]"
+                >
+                  <BackArrowIcon />
+                </button>
+                <h2 className="text-lg font-bold text-[#1E293B]">Connect Outlook</h2>
+              </div>
+
+              <div className="mb-6 rounded-xl border border-[#0078D4]/20 bg-[#EFF6FF] p-4">
+                <div className="flex items-start gap-3">
+                  <InfoIcon className="mt-0.5 h-5 w-5 flex-shrink-0 text-[#0078D4]" />
+                  <div className="text-sm text-[#1E40AF]">
+                    <p className="font-medium">Create an App Password:</p>
+                    <ol className="mt-1 list-inside list-decimal space-y-1">
+                      <li>
+                        Go to{' '}
+                        <a
+                          href="https://account.live.com/proofs/AppPassword"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[#0078D4] underline"
+                        >
+                          Microsoft App Passwords
+                        </a>
+                      </li>
+                      <li>Create a new app password</li>
+                      <li>Copy the generated password</li>
+                      <li>Use it as your password below</li>
+                    </ol>
+                  </div>
+                </div>
+              </div>
+
+              <button
+                onClick={() => {
+                  setImapHost('outlook.office365.com');
+                  setSmtpHost('smtp.office365.com');
+                  setStep('imap');
+                }}
+                className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#0078D4] px-4 py-2.5 font-medium text-white hover:bg-[#0066B4]"
+              >
+                Continue with App Password
+              </button>
+            </motion.div>
+          )}
+
+          {/* IMAP form */}
+          {step === 'imap' && (
+            <motion.div
+              key="imap"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="max-h-[80vh] overflow-y-auto p-6"
+            >
+              <div className="mb-6 flex items-center gap-3">
+                <button
+                  onClick={() => setStep('method')}
+                  className="rounded-lg p-2 hover:bg-[#F8FAFC]"
+                >
+                  <BackArrowIcon />
+                </button>
+                <h2 className="text-lg font-bold text-[#1E293B]">Connect Email</h2>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-[#1E293B]">
+                    Email Address *
+                  </label>
+                  <input
+                    type="email"
+                    value={emailAddress}
+                    onChange={(e) => handleEmailChange(e.target.value)}
+                    placeholder="your@email.com"
+                    className="w-full rounded-lg border border-[#E2E8F0] px-4 py-2.5 focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-[#1E293B]">
+                    Password / App Password *
+                  </label>
+                  <input
+                    type="password"
+                    value={imapPassword}
+                    onChange={(e) => setImapPassword(e.target.value)}
+                    placeholder="Your email password or app password"
+                    className="w-full rounded-lg border border-[#E2E8F0] px-4 py-2.5 focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-[#1E293B]">
+                    Display Name (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                    placeholder="John Doe"
+                    className="w-full rounded-lg border border-[#E2E8F0] px-4 py-2.5 focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-[#1E293B]">
+                      IMAP Host *
+                    </label>
+                    <input
+                      type="text"
+                      value={imapHost}
+                      onChange={(e) => setImapHost(e.target.value)}
+                      placeholder="imap.example.com"
+                      className="w-full rounded-lg border border-[#E2E8F0] px-4 py-2.5 focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-[#1E293B]">
+                      IMAP Port
+                    </label>
+                    <input
+                      type="number"
+                      value={imapPort}
+                      onChange={(e) => setImapPort(Number(e.target.value))}
+                      className="w-full rounded-lg border border-[#E2E8F0] px-4 py-2.5 focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-[#1E293B]">
+                      SMTP Host *
+                    </label>
+                    <input
+                      type="text"
+                      value={smtpHost}
+                      onChange={(e) => setSmtpHost(e.target.value)}
+                      placeholder="smtp.example.com"
+                      className="w-full rounded-lg border border-[#E2E8F0] px-4 py-2.5 focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-[#1E293B]">
+                      SMTP Port
+                    </label>
+                    <input
+                      type="number"
+                      value={smtpPort}
+                      onChange={(e) => setSmtpPort(Number(e.target.value))}
+                      className="w-full rounded-lg border border-[#E2E8F0] px-4 py-2.5 focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+                    />
+                  </div>
+                </div>
+
+                {error && (
+                  <div className="rounded-lg border border-[#EF4444]/20 bg-[#FEF2F2] p-3">
+                    <p className="text-sm text-[#EF4444]">{error}</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-6 flex gap-3">
+                <button
+                  onClick={() => setStep('method')}
+                  className="flex-1 rounded-lg border border-[#E2E8F0] px-4 py-2.5 font-medium text-[#64748B] hover:bg-[#F8FAFC]"
+                >
+                  Back
+                </button>
+                <button
+                  onClick={handleIMAPSubmit}
+                  disabled={connectIMAP.isPending}
+                  className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-[#FF6B35] px-4 py-2.5 font-medium text-white hover:bg-[#E65A2C] disabled:opacity-50"
+                >
+                  {connectIMAP.isPending ? (
+                    <>
+                      <LoadingSpinner />
+                      Connecting...
+                    </>
+                  ) : (
+                    'Connect'
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Success */}
+          {step === 'success' && (
+            <motion.div
+              key="success"
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="p-6 text-center"
+            >
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#F0FDF4]">
+                <CheckCircleIcon className="h-8 w-8 text-[#22C55E]" />
+              </div>
+              <h2 className="mb-2 text-lg font-bold text-[#1E293B]">Successfully Connected!</h2>
+              <p className="text-[#64748B]">Your email account has been connected.</p>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.div>
+    </motion.div>
+  );
+}
+
 function StatCard({
   label,
   value,
@@ -1545,6 +2388,58 @@ function SmartphoneIcon({ className = 'w-6 h-6' }: { className?: string }) {
     >
       <rect x="5" y="2" width="14" height="20" rx="2" ry="2" />
       <line x1="12" y1="18" x2="12.01" y2="18" />
+    </svg>
+  );
+}
+
+function EmailIcon({ className = 'w-5 h-5' }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={2}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+      />
+    </svg>
+  );
+}
+
+function GoogleIcon({ className = 'w-6 h-6' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24">
+      <path
+        fill="#EA4335"
+        d="M5.266 9.765A7.077 7.077 0 0 1 12 4.909c1.69 0 3.218.6 4.418 1.582L19.91 3C17.782 1.145 15.055 0 12 0 7.27 0 3.198 2.698 1.24 6.65l4.026 3.115Z"
+      />
+      <path
+        fill="#34A853"
+        d="M16.04 18.013c-1.09.703-2.474 1.078-4.04 1.078a7.077 7.077 0 0 1-6.723-4.823l-4.04 3.067A11.965 11.965 0 0 0 12 24c2.933 0 5.735-1.043 7.834-3l-3.793-2.987Z"
+      />
+      <path
+        fill="#4A90E2"
+        d="M19.834 21c2.195-2.048 3.62-5.096 3.62-9 0-.71-.109-1.473-.272-2.182H12v4.637h6.436c-.317 1.559-1.17 2.766-2.395 3.558L19.834 21Z"
+      />
+      <path
+        fill="#FBBC05"
+        d="M5.277 14.268A7.12 7.12 0 0 1 4.909 12c0-.782.125-1.533.357-2.235L1.24 6.65A11.934 11.934 0 0 0 0 12c0 1.92.445 3.73 1.237 5.335l4.04-3.067Z"
+      />
+    </svg>
+  );
+}
+
+function MicrosoftIcon({ className = 'w-6 h-6' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 23 23">
+      <path fill="#f35325" d="M1 1h10v10H1z" />
+      <path fill="#81bc06" d="M12 1h10v10H12z" />
+      <path fill="#05a6f0" d="M1 12h10v10H1z" />
+      <path fill="#ffba08" d="M12 12h10v10H12z" />
     </svg>
   );
 }

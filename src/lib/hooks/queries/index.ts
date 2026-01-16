@@ -60,9 +60,16 @@ export {
   usePollLinkedInStatus,
   useEmailAccounts,
   useEmailAccount,
+  useUpdateEmailAccount,
   useDeleteEmailAccount,
   useGetEmailAuthLink,
   useSyncEmailAccount,
+  useSyncEmailInbox,
+  useSendEmail,
+  // Email Custom Auth
+  useConnectEmailIMAP,
+  useConnectEmailGoogle,
+  useConnectEmailMicrosoft,
 } from './useAccounts';
 
 // Auth
