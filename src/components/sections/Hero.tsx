@@ -1,7 +1,7 @@
-import { motion } from 'framer-motion'
-import { Link } from '@tanstack/react-router'
-import { Container, Button } from '@/components/ui'
-import { HeroDemo } from './HeroDemo'
+import { motion } from 'framer-motion';
+import { Link } from '@tanstack/react-router';
+import { Container, Button } from '@/components/ui';
+import { HeroDemo } from './HeroDemo';
 
 const fadeInUp = {
   hidden: { opacity: 0, y: 20 },
@@ -10,14 +10,14 @@ const fadeInUp = {
     y: 0,
     transition: { duration: 0.6, ease: [0.22, 1, 0.36, 1] },
   },
-}
+};
 
 const stagger = {
   hidden: {},
   visible: {
     transition: { staggerChildren: 0.15 },
   },
-}
+};
 
 export function Hero() {
   return (
@@ -32,7 +32,7 @@ export function Hero() {
           {/* Headline - ONE line only on desktop */}
           <motion.h1
             variants={fadeInUp}
-            className="text-[32px] sm:text-[44px] md:text-[52px] lg:text-[64px] font-bold text-[#1E293B] leading-[1.1] tracking-[-0.03em] mb-4 sm:mb-6 text-center px-4 sm:px-0"
+            className="mb-4 px-4 text-center text-[32px] font-bold leading-[1.1] tracking-[-0.03em] text-[#1E293B] sm:mb-6 sm:px-0 sm:text-[44px] md:text-[52px] lg:text-[64px]"
           >
             Scale your LinkedIn outreach with ease.
           </motion.h1>
@@ -40,18 +40,18 @@ export function Hero() {
           {/* Subheadline with colored pills */}
           <motion.p
             variants={fadeInUp}
-            className="text-base sm:text-[18px] text-[#475569] leading-[1.7] sm:leading-[1.9] mb-6 sm:mb-8 max-w-[600px] text-center font-medium px-4 sm:px-0"
+            className="mb-6 max-w-[600px] px-4 text-center text-base font-medium leading-[1.7] text-[#475569] sm:mb-8 sm:px-0 sm:text-[18px] sm:leading-[1.9]"
           >
             For agencies, sales teams, and GTM experts who want to automate{' '}
             <span
-              className="inline px-2.5 py-0.5 rounded-full font-semibold whitespace-nowrap"
+              className="inline whitespace-nowrap rounded-full px-2.5 py-0.5 font-semibold"
               style={{ backgroundColor: 'rgba(20, 184, 166, 0.15)', color: '#0D9488' }}
             >
               LinkedIn outreach
             </span>
             , boost reply rates with{' '}
             <span
-              className="inline px-2.5 py-0.5 rounded-full font-semibold whitespace-nowrap"
+              className="inline whitespace-nowrap rounded-full px-2.5 py-0.5 font-semibold"
               style={{ backgroundColor: 'rgba(255, 107, 53, 0.15)', color: '#EA580C' }}
             >
               email follow-ups
@@ -60,10 +60,7 @@ export function Hero() {
           </motion.p>
 
           {/* CTA */}
-          <motion.div
-            variants={fadeInUp}
-            className="flex justify-center mb-4"
-          >
+          <motion.div variants={fadeInUp} className="mb-4 flex justify-center">
             <Link to="/signup">
               <Button variant="primary" size="lg">
                 Get Started
@@ -72,7 +69,10 @@ export function Hero() {
           </motion.div>
 
           {/* Supporting text */}
-          <motion.p variants={fadeInUp} className="text-xs sm:text-[14px] text-[#64748B] font-medium mb-10 sm:mb-16">
+          <motion.p
+            variants={fadeInUp}
+            className="mb-10 text-xs font-medium text-[#64748B] sm:mb-16 sm:text-[14px]"
+          >
             7-day free trial. Cancel anytime.
           </motion.p>
 
@@ -93,5 +93,5 @@ export function Hero() {
         </motion.div>
       </Container>
     </section>
-  )
+  );
 }

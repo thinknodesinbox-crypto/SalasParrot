@@ -1,6 +1,6 @@
 interface ImageContainerProps {
-  children: React.ReactNode
-  className?: string
+  children: React.ReactNode;
+  className?: string;
 }
 
 export function ImageContainer({ children, className }: ImageContainerProps) {
@@ -8,5 +8,5 @@ export function ImageContainer({ children, className }: ImageContainerProps) {
     <div className={`gradient-container ${className || ''}`}>
       <div className="illustration-wrapper">{children}</div>
     </div>
-  )
+  );
 }

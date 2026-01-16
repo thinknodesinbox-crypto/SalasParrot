@@ -1,6 +1,6 @@
-import { useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import { Container } from '@/components/ui'
+import { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Container } from '@/components/ui';
 
 const faqs = [
   {
@@ -8,7 +8,7 @@ const faqs = [
     answer: `We don't charge per action, per email, or per enrichment. You get unlimited LinkedIn actions (we auto-apply safe daily limits to protect your account — typically 80-100 connections/day), unlimited email sending through your connected mailbox, and unlimited email enrichment with no credits. Your price is your price — no hidden usage fees.`,
   },
   {
-    question: "What's a \"sender\"?",
+    question: 'What\'s a "sender"?',
     answer:
       'A sender is one connected LinkedIn account. If you have 3 SDRs doing outreach, you need 3 senders. Each sender gets their own dedicated proxy to keep your accounts safe.',
   },
@@ -52,7 +52,7 @@ const faqs = [
     answer:
       "Yes. Agency plan includes migration assistance. We'll help you move your accounts, campaigns, and data. Book a demo to discuss.",
   },
-]
+];
 
 function FAQItem({
   question,
@@ -61,11 +61,11 @@ function FAQItem({
   onToggle,
   index,
 }: {
-  question: string
-  answer: string
-  isOpen: boolean
-  onToggle: () => void
-  index: number
+  question: string;
+  answer: string;
+  isOpen: boolean;
+  onToggle: () => void;
+  index: number;
 }) {
   return (
     <motion.div
@@ -77,15 +77,15 @@ function FAQItem({
     >
       <button
         onClick={onToggle}
-        className="w-full py-5 flex items-center justify-between text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-[#14B8A6] focus-visible:ring-offset-2 rounded-lg group"
+        className="group flex w-full items-center justify-between rounded-lg py-5 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-[#14B8A6] focus-visible:ring-offset-2"
       >
-        <span className="font-semibold text-[#1E293B] text-[15px] pr-4 group-hover:text-[#14B8A6] transition-colors duration-200">
+        <span className="pr-4 text-[15px] font-semibold text-[#1E293B] transition-colors duration-200 group-hover:text-[#14B8A6]">
           {question}
         </span>
         <motion.span
           animate={{ rotate: isOpen ? 45 : 0 }}
           transition={{ duration: 0.2 }}
-          className="text-[#14B8A6] flex-shrink-0 w-6 h-6 rounded-full bg-[#14B8A6]/10 flex items-center justify-center text-lg"
+          className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-[#14B8A6]/10 text-lg text-[#14B8A6]"
         >
           +
         </motion.span>
@@ -99,16 +99,16 @@ function FAQItem({
             transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
             className="overflow-hidden"
           >
-            <p className="pb-5 text-[#64748B] text-[14px] leading-[1.7] pr-10">{answer}</p>
+            <p className="pb-5 pr-10 text-[14px] leading-[1.7] text-[#64748B]">{answer}</p>
           </motion.div>
         )}
       </AnimatePresence>
     </motion.div>
-  )
+  );
 }
 
 export function PricingFAQ() {
-  const [openIndex, setOpenIndex] = useState<number | null>(0)
+  const [openIndex, setOpenIndex] = useState<number | null>(0);
 
   return (
     <section className="bg-[#F8FAFC] py-20 md:py-28">
@@ -118,9 +118,9 @@ export function PricingFAQ() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: '-100px' }}
           transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-          className="text-center mb-12"
+          className="mb-12 text-center"
         >
-          <h2 className="text-3xl md:text-4xl font-bold text-[#1E293B] leading-tight tracking-[-0.01em]">
+          <h2 className="text-3xl font-bold leading-tight tracking-[-0.01em] text-[#1E293B] md:text-4xl">
             All your doubts, answered
           </h2>
         </motion.div>
@@ -130,7 +130,7 @@ export function PricingFAQ() {
           whileInView={{ opacity: 1 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6, delay: 0.15 }}
-          className="max-w-[720px] mx-auto bg-white rounded-2xl border border-[#E2E8F0] px-6 md:px-8 shadow-sm"
+          className="mx-auto max-w-[720px] rounded-2xl border border-[#E2E8F0] bg-white px-6 shadow-sm md:px-8"
         >
           {faqs.map((faq, index) => (
             <FAQItem
@@ -145,5 +145,5 @@ export function PricingFAQ() {
         </motion.div>
       </Container>
     </section>
-  )
+  );
 }

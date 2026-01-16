@@ -1,4 +1,4 @@
-import { QueryClient } from '@tanstack/react-query'
+import { QueryClient } from '@tanstack/react-query';
 
 export const queryClient = new QueryClient({
   defaultOptions: {
@@ -11,7 +11,7 @@ export const queryClient = new QueryClient({
       retry: 0,
     },
   },
-})
+});
 
 // Query keys factory for type-safe query keys
 export const queryKeys = {
@@ -86,4 +86,4 @@ export const queryKeys = {
     campaign: (campaignId: string) => ['analytics', 'campaign', campaignId] as const,
     accountUsage: (accountId: string) => ['analytics', 'account-usage', accountId] as const,
   },
-}
+};

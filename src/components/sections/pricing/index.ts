@@ -1,5 +1,5 @@
-export { PricingHero } from './PricingHero'
-export { PricingPlans } from './PricingPlans'
-export { PricingComparison } from './PricingComparison'
-export { PricingFAQ } from './PricingFAQ'
-export { PricingCTA } from './PricingCTA'
+export { PricingHero } from './PricingHero';
+export { PricingPlans } from './PricingPlans';
+export { PricingComparison } from './PricingComparison';
+export { PricingFAQ } from './PricingFAQ';
+export { PricingCTA } from './PricingCTA';

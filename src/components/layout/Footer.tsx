@@ -1,5 +1,5 @@
-import { Link } from '@tanstack/react-router'
-import { Container, Logo } from '@/components/ui'
+import { Link } from '@tanstack/react-router';
+import { Container, Logo } from '@/components/ui';
 
 const footerLinks = {
   product: {
@@ -36,21 +36,21 @@ const footerLinks = {
       { label: 'Security', href: '/' },
     ],
   },
-}
+};
 
 export function Footer() {
   return (
-    <footer className="bg-[#F8FAFC] border-t border-[#E2E8F0]">
+    <footer className="border-t border-[#E2E8F0] bg-[#F8FAFC]">
       <Container>
-        <div className="pt-10 sm:pt-16 pb-8">
+        <div className="pb-8 pt-10 sm:pt-16">
           {/* Top section */}
-          <div className="grid grid-cols-2 md:grid-cols-6 gap-6 sm:gap-8 lg:gap-12 mb-8 sm:mb-10">
+          <div className="mb-8 grid grid-cols-2 gap-6 sm:mb-10 sm:gap-8 md:grid-cols-6 lg:gap-12">
             {/* Logo column */}
             <div className="col-span-2">
-              <Link to="/" className="inline-block mb-3 sm:mb-4">
-                <Logo className="w-8 h-8 sm:w-10 sm:h-10" />
+              <Link to="/" className="mb-3 inline-block sm:mb-4">
+                <Logo className="h-8 w-8 sm:h-10 sm:w-10" />
               </Link>
-              <p className="text-[13px] sm:text-[14px] text-[#64748B] leading-relaxed max-w-[280px]">
+              <p className="max-w-[280px] text-[13px] leading-relaxed text-[#64748B] sm:text-[14px]">
                 LinkedIn + Email outreach platform
               </p>
             </div>
@@ -58,13 +58,15 @@ export function Footer() {
             {/* Links columns */}
             {Object.values(footerLinks).map((section) => (
               <div key={section.title}>
-                <h4 className="font-semibold text-[#1E293B] mb-2 sm:mb-4 text-[13px] sm:text-[14px]">{section.title}</h4>
+                <h4 className="mb-2 text-[13px] font-semibold text-[#1E293B] sm:mb-4 sm:text-[14px]">
+                  {section.title}
+                </h4>
                 <ul className="space-y-2 sm:space-y-3">
                   {section.links.map((link) => (
                     <li key={link.label}>
                       <Link
                         to={link.href}
-                        className="text-[#64748B] hover:text-[#1E293B] transition-colors duration-200 text-[12px] sm:text-[14px]"
+                        className="text-[12px] text-[#64748B] transition-colors duration-200 hover:text-[#1E293B] sm:text-[14px]"
                       >
                         {link.label}
                       </Link>
@@ -76,13 +78,13 @@ export function Footer() {
           </div>
 
           {/* Bottom section */}
-          <div className="pt-4 sm:pt-6 border-t border-[#E2E8F0]">
-            <p className="text-[#94A3B8] text-[12px] sm:text-[14px]">
+          <div className="border-t border-[#E2E8F0] pt-4 sm:pt-6">
+            <p className="text-[12px] text-[#94A3B8] sm:text-[14px]">
               &copy; {new Date().getFullYear()} SalesParrot. All rights reserved.
             </p>
           </div>
         </div>
       </Container>
     </footer>
-  )
+  );
 }

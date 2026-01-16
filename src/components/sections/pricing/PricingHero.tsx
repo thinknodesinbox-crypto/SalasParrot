@@ -1,9 +1,9 @@
-import { motion } from 'framer-motion'
-import { Container } from '@/components/ui'
+import { motion } from 'framer-motion';
+import { Container } from '@/components/ui';
 
 export function PricingHero() {
   return (
-    <section className="relative bg-white pt-24 sm:pt-32 pb-12 sm:pb-16 overflow-hidden">
+    <section className="relative overflow-hidden bg-white pb-12 pt-24 sm:pb-16 sm:pt-32">
       {/* Subtle background pattern */}
       <div
         className="absolute inset-0 opacity-[0.02]"
@@ -29,34 +29,33 @@ export function PricingHero() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-          className="text-center max-w-3xl mx-auto"
+          className="mx-auto max-w-3xl text-center"
         >
           {/* Badge */}
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.5, delay: 0.1 }}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-[#FFFBEB] rounded-full border border-[#FF6B35]/20 mb-6"
+            className="mb-6 inline-flex items-center gap-2 rounded-full border border-[#FF6B35]/20 bg-[#FFFBEB] px-4 py-2"
           >
-            <span className="w-2 h-2 bg-[#FF6B35] rounded-full" />
-            <span className="text-[#1E293B] text-sm font-medium">Simple, transparent pricing</span>
+            <span className="h-2 w-2 rounded-full bg-[#FF6B35]" />
+            <span className="text-sm font-medium text-[#1E293B]">Simple, transparent pricing</span>
           </motion.div>
 
           <motion.h1
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.15, ease: [0.22, 1, 0.36, 1] }}
-            className="text-3xl sm:text-4xl md:text-5xl lg:text-[56px] font-bold text-[#1E293B] leading-[1.1] tracking-[-0.02em] mb-4 sm:mb-6 px-4 sm:px-0"
+            className="mb-4 px-4 text-3xl font-bold leading-[1.1] tracking-[-0.02em] text-[#1E293B] sm:mb-6 sm:px-0 sm:text-4xl md:text-5xl lg:text-[56px]"
           >
-            One tool.{' '}
-            <span className="text-[#FF6B35]">Unlimited</span> everything.
+            One tool. <span className="text-[#FF6B35]">Unlimited</span> everything.
           </motion.h1>
 
           <motion.p
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
-            className="text-base sm:text-lg md:text-xl text-[#64748B] leading-relaxed max-w-2xl mx-auto px-4 sm:px-0"
+            className="mx-auto max-w-2xl px-4 text-base leading-relaxed text-[#64748B] sm:px-0 sm:text-lg md:text-xl"
           >
             LinkedIn + Email + Enrichment in one platform.
             <br className="hidden md:block" />
@@ -65,5 +64,5 @@ export function PricingHero() {
         </motion.div>
       </Container>
     </section>
-  )
+  );
 }

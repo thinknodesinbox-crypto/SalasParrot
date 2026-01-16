@@ -1,6 +1,6 @@
-export { Button } from './Button'
-export { Container } from './Container'
-export { Badge } from './Badge'
-export { Logo } from './Logo'
-export { ImageContainer } from './ImageContainer'
-export { MeshBackground } from './MeshBackground'
+export { Button } from './Button';
+export { Container } from './Container';
+export { Badge } from './Badge';
+export { Logo } from './Logo';
+export { ImageContainer } from './ImageContainer';
+export { MeshBackground } from './MeshBackground';

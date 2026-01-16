@@ -18,8 +18,8 @@
 
   body {
     @apply font-sans antialiased;
-    color: #1E293B;
-    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    color: #1e293b;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
     overflow-x: hidden;
     scrollbar-width: none;
     -ms-overflow-style: none;
@@ -38,9 +38,14 @@
     -ms-overflow-style: none;
   }
 
-  h1, h2, h3, h4, h5, h6 {
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
     @apply font-bold;
-    color: #1E293B;
+    color: #1e293b;
     text-wrap: balance;
   }
 
@@ -63,13 +68,15 @@
   /* Custom selection color */
   ::selection {
     background: rgba(20, 184, 166, 0.2);
-    color: #1E293B;
+    color: #1e293b;
   }
 
   /* Focus visible for accessibility */
   :focus-visible {
     outline: none;
-    box-shadow: 0 0 0 2px white, 0 0 0 4px #FF6B35;
+    box-shadow:
+      0 0 0 2px white,
+      0 0 0 4px #ff6b35;
   }
 }
 
@@ -79,7 +86,7 @@
   }
 
   .text-gradient {
-    background: linear-gradient(to right, #FF6B35, #14B8A6);
+    background: linear-gradient(to right, #ff6b35, #14b8a6);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -116,7 +123,7 @@
     /* Teal secondary - top right */
     radial-gradient(ellipse 50% 50% at 80% 15%, rgba(20, 184, 166, 0.3) 0%, transparent 40%),
     /* Deep navy base with slight gradient */
-    linear-gradient(135deg, #1a2332 0%, #1E293B 50%, #1a2332 100%);
+    linear-gradient(135deg, #1a2332 0%, #1e293b 50%, #1a2332 100%);
   overflow: hidden;
 }
 
@@ -149,12 +156,13 @@
 /* Illustration wrapper - white/cream inner container */
 .illustration-wrapper {
   position: relative;
-  background: #FFFFFF;
+  background: #ffffff;
   border-radius: 12px;
   overflow: hidden;
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
-  transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1),
-              box-shadow 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+  transition:
+    transform 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.3s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 /* Hover effect - lift and scale */
@@ -219,7 +227,12 @@
   left: 0;
   right: 0;
   height: 1px;
-  background: linear-gradient(90deg, transparent 10%, rgba(255, 255, 255, 0.9) 50%, transparent 90%);
+  background: linear-gradient(
+    90deg,
+    transparent 10%,
+    rgba(255, 255, 255, 0.9) 50%,
+    transparent 90%
+  );
   pointer-events: none;
 }
 
@@ -266,21 +279,32 @@
   left: 0;
   right: 0;
   height: 1px;
-  background: linear-gradient(90deg, transparent 10%, rgba(255, 255, 255, 0.15) 50%, transparent 90%);
+  background: linear-gradient(
+    90deg,
+    transparent 10%,
+    rgba(255, 255, 255, 0.15) 50%,
+    transparent 90%
+  );
   pointer-events: none;
 }
 
 /* Sequence panel grid background */
 .sequence-panel-bg {
-  background-image:
-    radial-gradient(circle, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-image: radial-gradient(circle, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
   background-size: 20px 20px;
 }
 
 /* Active Badge Pulse */
 @keyframes pulse-active {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.7; transform: scale(1.1); }
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.1);
+  }
 }
 
 .badge-active {
@@ -289,7 +313,9 @@
 
 /* Flow Line Animation */
 @keyframes flow-dash {
-  to { stroke-dashoffset: -20; }
+  to {
+    stroke-dashoffset: -20;
+  }
 }
 
 .flow-line-animated {
@@ -299,7 +325,9 @@
 
 /* Finding Spinner */
 @keyframes spin {
-  to { transform: rotate(360deg); }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .spinner {

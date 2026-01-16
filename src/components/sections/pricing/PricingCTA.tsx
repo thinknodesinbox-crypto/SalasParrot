@@ -1,6 +1,6 @@
-import { motion } from 'framer-motion'
-import { Container } from '@/components/ui'
-import { Link } from '@tanstack/react-router'
+import { motion } from 'framer-motion';
+import { Container } from '@/components/ui';
+import { Link } from '@tanstack/react-router';
 
 export function PricingCTA() {
   return (
@@ -11,10 +11,10 @@ export function PricingCTA() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-          className="relative max-w-3xl mx-auto"
+          className="relative mx-auto max-w-3xl"
         >
           {/* Background card */}
-          <div className="relative bg-[#FFFBEB] rounded-3xl px-8 py-14 md:px-16 md:py-16 overflow-hidden border border-[#FF6B35]/10">
+          <div className="relative overflow-hidden rounded-3xl border border-[#FF6B35]/10 bg-[#FFFBEB] px-8 py-14 md:px-16 md:py-16">
             {/* Subtle gradient accents */}
             <div
               className="absolute inset-0"
@@ -33,7 +33,7 @@ export function PricingCTA() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.6, delay: 0.1 }}
-                className="text-3xl md:text-4xl font-bold text-[#1E293B] leading-tight tracking-[-0.02em] mb-4"
+                className="mb-4 text-3xl font-bold leading-tight tracking-[-0.02em] text-[#1E293B] md:text-4xl"
               >
                 Ready to simplify your stack?
               </motion.h2>
@@ -43,7 +43,7 @@ export function PricingCTA() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.6, delay: 0.2 }}
-                className="text-[#64748B] text-lg mb-10 max-w-lg mx-auto"
+                className="mx-auto mb-10 max-w-lg text-lg text-[#64748B]"
               >
                 LinkedIn + Email + Enrichment. One tool. One price.
               </motion.p>
@@ -54,13 +54,13 @@ export function PricingCTA() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.6, delay: 0.3 }}
-                className="flex flex-col sm:flex-row items-center justify-center gap-4"
+                className="flex flex-col items-center justify-center gap-4 sm:flex-row"
               >
                 <Link to="/signup">
                   <motion.button
                     whileHover={{ scale: 1.02, y: -2 }}
                     whileTap={{ scale: 0.98 }}
-                    className="px-8 py-4 bg-[#FF6B35] text-white font-semibold rounded-xl hover:bg-[#E85A2A] transition-all duration-200 shadow-[0_4px_14px_rgba(255,107,53,0.3)] hover:shadow-[0_6px_20px_rgba(255,107,53,0.4)]"
+                    className="rounded-xl bg-[#FF6B35] px-8 py-4 font-semibold text-white shadow-[0_4px_14px_rgba(255,107,53,0.3)] transition-all duration-200 hover:bg-[#E85A2A] hover:shadow-[0_6px_20px_rgba(255,107,53,0.4)]"
                   >
                     Start $1 Trial
                   </motion.button>
@@ -68,7 +68,7 @@ export function PricingCTA() {
                 <motion.button
                   whileHover={{ scale: 1.02, y: -2 }}
                   whileTap={{ scale: 0.98 }}
-                  className="px-8 py-4 bg-white text-[#1E293B] font-semibold rounded-xl border border-[#E2E8F0] hover:border-[#1E293B] transition-all duration-200 shadow-sm"
+                  className="rounded-xl border border-[#E2E8F0] bg-white px-8 py-4 font-semibold text-[#1E293B] shadow-sm transition-all duration-200 hover:border-[#1E293B]"
                 >
                   Book a Demo
                 </motion.button>
@@ -80,14 +80,17 @@ export function PricingCTA() {
                 whileInView={{ opacity: 1 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.6, delay: 0.4 }}
-                className="text-[#94A3B8] text-sm mt-8"
+                className="mt-8 text-sm text-[#94A3B8]"
               >
-                Questions? <a href="mailto:team@salesparrot.com" className="text-[#FF6B35] hover:underline">team@salesparrot.com</a>
+                Questions?{' '}
+                <a href="mailto:team@salesparrot.com" className="text-[#FF6B35] hover:underline">
+                  team@salesparrot.com
+                </a>
               </motion.p>
             </div>
           </div>
         </motion.div>
       </Container>
     </section>
-  )
+  );
 }

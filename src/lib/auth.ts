@@ -1,20 +1,20 @@
-import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
-import { api, setAccessToken, setRefreshToken, clearTokens, getAccessToken } from './api'
-import type { User, LoginRequest, SignupRequest, AuthResponse } from './types'
+import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
+import { api, setAccessToken, setRefreshToken, clearTokens, getAccessToken } from './api';
+import type { User, LoginRequest, SignupRequest, AuthResponse } from './types';
 
 interface AuthState {
-  user: User | null
-  isLoading: boolean
-  isAuthenticated: boolean
+  user: User | null;
+  isLoading: boolean;
+  isAuthenticated: boolean;
 
   // Actions
-  login: (data: LoginRequest) => Promise<void>
-  signup: (data: SignupRequest) => Promise<void>
-  logout: () => void
-  fetchUser: () => Promise<void>
-  updateUser: (updates: Partial<User>) => void
-  initialize: () => Promise<void>
+  login: (data: LoginRequest) => Promise<void>;
+  signup: (data: SignupRequest) => Promise<void>;
+  logout: () => void;
+  fetchUser: () => Promise<void>;
+  updateUser: (updates: Partial<User>) => void;
+  initialize: () => Promise<void>;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -26,96 +26,96 @@ export const useAuthStore = create<AuthState>()(
 
       login: async (data: LoginRequest) => {
         try {
-          const response = await api.post<AuthResponse>('/auth/login', data)
-          const { user, tokens } = response.data
+          const response = await api.post<AuthResponse>('/auth/login', data);
+          const { user, tokens } = response.data;
 
-          setAccessToken(tokens.access_token)
-          setRefreshToken(tokens.refresh_token)
+          setAccessToken(tokens.access_token);
+          setRefreshToken(tokens.refresh_token);
 
           set({
             user,
             isAuthenticated: true,
             isLoading: false,
-          })
+          });
         } catch (error) {
           // Extract error message from API response
           if (error && typeof error === 'object' && 'response' in error) {
-            const axiosError = error as { response?: { data?: { detail?: string } } }
-            const detail = axiosError.response?.data?.detail
+            const axiosError = error as { response?: { data?: { detail?: string } } };
+            const detail = axiosError.response?.data?.detail;
             if (detail) {
-              throw new Error(detail)
+              throw new Error(detail);
             }
           }
-          throw error
+          throw error;
         }
       },
 
       signup: async (data: SignupRequest) => {
         try {
-          const response = await api.post<AuthResponse>('/auth/register', data)
-          const { user, tokens } = response.data
+          const response = await api.post<AuthResponse>('/auth/register', data);
+          const { user, tokens } = response.data;
 
-          setAccessToken(tokens.access_token)
-          setRefreshToken(tokens.refresh_token)
+          setAccessToken(tokens.access_token);
+          setRefreshToken(tokens.refresh_token);
 
           set({
             user,
             isAuthenticated: true,
             isLoading: false,
-          })
+          });
         } catch (error) {
           // Extract error message from API response
           if (error && typeof error === 'object' && 'response' in error) {
-            const axiosError = error as { response?: { data?: { detail?: string } } }
-            const detail = axiosError.response?.data?.detail
+            const axiosError = error as { response?: { data?: { detail?: string } } };
+            const detail = axiosError.response?.data?.detail;
             if (detail) {
-              throw new Error(detail)
+              throw new Error(detail);
             }
           }
-          throw error
+          throw error;
         }
       },
 
       logout: () => {
-        clearTokens()
+        clearTokens();
         set({
           user: null,
           isAuthenticated: false,
           isLoading: false,
-        })
+        });
       },
 
       fetchUser: async () => {
         try {
-          const response = await api.get<User>('/auth/me')
+          const response = await api.get<User>('/auth/me');
           set({
             user: response.data,
             isAuthenticated: true,
             isLoading: false,
-          })
+          });
         } catch {
-          clearTokens()
+          clearTokens();
           set({
             user: null,
             isAuthenticated: false,
             isLoading: false,
-          })
+          });
         }
       },
 
       updateUser: (updates: Partial<User>) => {
-        const currentUser = get().user
+        const currentUser = get().user;
         if (currentUser) {
-          set({ user: { ...currentUser, ...updates } })
+          set({ user: { ...currentUser, ...updates } });
         }
       },
 
       initialize: async () => {
-        const token = getAccessToken()
+        const token = getAccessToken();
         if (token) {
-          await get().fetchUser()
+          await get().fetchUser();
         } else {
-          set({ isLoading: false, isAuthenticated: false })
+          set({ isLoading: false, isAuthenticated: false });
         }
       },
     }),
@@ -124,16 +124,16 @@ export const useAuthStore = create<AuthState>()(
       partialize: (state) => ({ user: state.user }),
     }
   )
-)
+);
 
 // Hook to check if user is authenticated (for route guards)
 export const useAuth = () => {
-  const { user, isAuthenticated, isLoading, logout } = useAuthStore()
-  return { user, isAuthenticated, isLoading, logout }
-}
+  const { user, isAuthenticated, isLoading, logout } = useAuthStore();
+  return { user, isAuthenticated, isLoading, logout };
+};
 
 // Hook to require authentication (redirects if not authenticated)
 export const useRequireAuth = () => {
-  const { isAuthenticated, isLoading } = useAuthStore()
-  return { isAuthenticated, isLoading }
-}
+  const { isAuthenticated, isLoading } = useAuthStore();
+  return { isAuthenticated, isLoading };
+};

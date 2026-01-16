@@ -1,6 +1,6 @@
-import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios'
+import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL
+const API_BASE_URL = import.meta.env.VITE_API_URL;
 
 // Create axios instance
 export const api = axios.create({
@@ -8,153 +8,153 @@ export const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-})
+});
 
 // Token management
-let accessToken: string | null = null
+let accessToken: string | null = null;
 
 export const setAccessToken = (token: string | null) => {
-  accessToken = token
+  accessToken = token;
   if (token) {
-    localStorage.setItem('access_token', token)
+    localStorage.setItem('access_token', token);
   } else {
-    localStorage.removeItem('access_token')
+    localStorage.removeItem('access_token');
   }
-}
+};
 
 export const getAccessToken = (): string | null => {
   if (!accessToken) {
-    accessToken = localStorage.getItem('access_token')
+    accessToken = localStorage.getItem('access_token');
   }
-  return accessToken
-}
+  return accessToken;
+};
 
 export const setRefreshToken = (token: string | null) => {
   if (token) {
-    localStorage.setItem('refresh_token', token)
+    localStorage.setItem('refresh_token', token);
   } else {
-    localStorage.removeItem('refresh_token')
+    localStorage.removeItem('refresh_token');
   }
-}
+};
 
 export const getRefreshToken = (): string | null => {
-  return localStorage.getItem('refresh_token')
-}
+  return localStorage.getItem('refresh_token');
+};
 
 export const clearTokens = () => {
-  accessToken = null
-  localStorage.removeItem('access_token')
-  localStorage.removeItem('refresh_token')
-}
+  accessToken = null;
+  localStorage.removeItem('access_token');
+  localStorage.removeItem('refresh_token');
+};
 
 // Request interceptor - add auth token
 api.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
-    const token = getAccessToken()
+    const token = getAccessToken();
     if (token && config.headers) {
-      config.headers.Authorization = `Bearer ${token}`
+      config.headers.Authorization = `Bearer ${token}`;
     }
-    return config
+    return config;
   },
   (error) => Promise.reject(error)
-)
+);
 
 // Response interceptor - handle token refresh
-let isRefreshing = false
+let isRefreshing = false;
 let failedQueue: Array<{
-  resolve: (value: unknown) => void
-  reject: (reason?: unknown) => void
-}> = []
+  resolve: (value: unknown) => void;
+  reject: (reason?: unknown) => void;
+}> = [];
 
 const processQueue = (error: AxiosError | null, token: string | null = null) => {
   failedQueue.forEach((prom) => {
     if (error) {
-      prom.reject(error)
+      prom.reject(error);
     } else {
-      prom.resolve(token)
+      prom.resolve(token);
     }
-  })
-  failedQueue = []
-}
+  });
+  failedQueue = [];
+};
 
 api.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
-    const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean }
+    const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
 
     // Don't try to refresh tokens for auth endpoints - let them fail normally
-    const isAuthEndpoint = originalRequest.url?.startsWith('/auth/')
+    const isAuthEndpoint = originalRequest.url?.startsWith('/auth/');
 
     // If 401 and we haven't tried to refresh yet (skip for auth endpoints)
     if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
       if (isRefreshing) {
         // Wait for token refresh
         return new Promise((resolve, reject) => {
-          failedQueue.push({ resolve, reject })
+          failedQueue.push({ resolve, reject });
         })
           .then((token) => {
             if (originalRequest.headers) {
-              originalRequest.headers.Authorization = `Bearer ${token}`
+              originalRequest.headers.Authorization = `Bearer ${token}`;
             }
-            return api(originalRequest)
+            return api(originalRequest);
           })
-          .catch((err) => Promise.reject(err))
+          .catch((err) => Promise.reject(err));
       }
 
-      originalRequest._retry = true
-      isRefreshing = true
+      originalRequest._retry = true;
+      isRefreshing = true;
 
-      const refreshToken = getRefreshToken()
+      const refreshToken = getRefreshToken();
       if (!refreshToken) {
-        clearTokens()
-        window.location.href = '/login'
-        return Promise.reject(error)
+        clearTokens();
+        window.location.href = '/login';
+        return Promise.reject(error);
       }
 
       try {
         const response = await axios.post(`${API_BASE_URL}/api/v1/auth/refresh`, {
           refresh_token: refreshToken,
-        })
+        });
 
-        const { access_token, refresh_token: newRefreshToken } = response.data
-        setAccessToken(access_token)
-        setRefreshToken(newRefreshToken)
-        processQueue(null, access_token)
+        const { access_token, refresh_token: newRefreshToken } = response.data;
+        setAccessToken(access_token);
+        setRefreshToken(newRefreshToken);
+        processQueue(null, access_token);
 
         if (originalRequest.headers) {
-          originalRequest.headers.Authorization = `Bearer ${access_token}`
+          originalRequest.headers.Authorization = `Bearer ${access_token}`;
         }
-        return api(originalRequest)
+        return api(originalRequest);
       } catch (refreshError) {
-        processQueue(refreshError as AxiosError, null)
-        clearTokens()
-        window.location.href = '/login'
-        return Promise.reject(refreshError)
+        processQueue(refreshError as AxiosError, null);
+        clearTokens();
+        window.location.href = '/login';
+        return Promise.reject(refreshError);
       } finally {
-        isRefreshing = false
+        isRefreshing = false;
       }
     }
 
-    return Promise.reject(error)
+    return Promise.reject(error);
   }
-)
+);
 
 // API error type
 export interface ApiError {
-  detail: string
-  status?: number
+  detail: string;
+  status?: number;
 }
 
 export const isApiError = (error: unknown): error is AxiosError<ApiError> => {
-  return axios.isAxiosError(error)
-}
+  return axios.isAxiosError(error);
+};
 
 export const getErrorMessage = (error: unknown): string => {
   if (isApiError(error) && error.response?.data?.detail) {
-    return error.response.data.detail
+    return error.response.data.detail;
   }
   if (error instanceof Error) {
-    return error.message
+    return error.message;
   }
-  return 'An unexpected error occurred'
-}
+  return 'An unexpected error occurred';
+};

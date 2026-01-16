@@ -1,6 +1,6 @@
-import { useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import { Container } from '@/components/ui'
+import { useState } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Container } from '@/components/ui';
 
 const faqs = [
   {
@@ -27,7 +27,7 @@ const faqs = [
     question: 'Can I cancel anytime?',
     answer: 'Yes. Cancel from your dashboard in one click. No contracts, no cancellation fees.',
   },
-]
+];
 
 function FAQItem({
   question,
@@ -36,11 +36,11 @@ function FAQItem({
   onToggle,
   index,
 }: {
-  question: string
-  answer: string
-  isOpen: boolean
-  onToggle: () => void
-  index: number
+  question: string;
+  answer: string;
+  isOpen: boolean;
+  onToggle: () => void;
+  index: number;
 }) {
   return (
     <motion.div
@@ -52,12 +52,12 @@ function FAQItem({
     >
       <button
         onClick={onToggle}
-        className="w-full py-4 sm:py-6 flex items-center justify-between text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-[#14B8A6] focus-visible:ring-offset-2 rounded-lg group"
+        className="group flex w-full items-center justify-between rounded-lg py-4 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-[#14B8A6] focus-visible:ring-offset-2 sm:py-6"
       >
-        <span className="font-semibold text-[#1E293B] text-[14px] sm:text-[16px] pr-3 sm:pr-4 group-hover:text-[#14B8A6] transition-colors duration-200">
+        <span className="pr-3 text-[14px] font-semibold text-[#1E293B] transition-colors duration-200 group-hover:text-[#14B8A6] sm:pr-4 sm:text-[16px]">
           {question}
         </span>
-        <span className="text-[#14B8A6] flex-shrink-0 text-xl sm:text-2xl font-light">
+        <span className="flex-shrink-0 text-xl font-light text-[#14B8A6] sm:text-2xl">
           {isOpen ? '−' : '+'}
         </span>
       </button>
@@ -70,16 +70,18 @@ function FAQItem({
             transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
             className="overflow-hidden"
           >
-            <p className="pb-4 sm:pb-6 text-[#475569] text-[13px] sm:text-[15px] leading-[1.7] pr-6 sm:pr-10 font-medium">{answer}</p>
+            <p className="pb-4 pr-6 text-[13px] font-medium leading-[1.7] text-[#475569] sm:pb-6 sm:pr-10 sm:text-[15px]">
+              {answer}
+            </p>
           </motion.div>
         )}
       </AnimatePresence>
     </motion.div>
-  )
+  );
 }
 
 export function FAQ() {
-  const [openIndex, setOpenIndex] = useState<number | null>(0)
+  const [openIndex, setOpenIndex] = useState<number | null>(0);
 
   return (
     <section className="bg-white py-16 md:py-20">
@@ -89,9 +91,9 @@ export function FAQ() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true, margin: '-100px' }}
           transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-          className="text-center mb-12"
+          className="mb-12 text-center"
         >
-          <h2 className="text-[24px] sm:text-[28px] md:text-[36px] font-bold text-[#1E293B] leading-tight tracking-[-0.01em]">
+          <h2 className="text-[24px] font-bold leading-tight tracking-[-0.01em] text-[#1E293B] sm:text-[28px] md:text-[36px]">
             Frequently asked questions
           </h2>
         </motion.div>
@@ -101,7 +103,7 @@ export function FAQ() {
           whileInView={{ opacity: 1 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6, delay: 0.15 }}
-          className="max-w-[680px] mx-auto"
+          className="mx-auto max-w-[680px]"
         >
           {faqs.map((faq, index) => (
             <FAQItem
@@ -116,5 +118,5 @@ export function FAQ() {
         </motion.div>
       </Container>
     </section>
-  )
+  );
 }

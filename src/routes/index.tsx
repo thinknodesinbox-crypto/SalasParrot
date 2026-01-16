@@ -1,21 +1,21 @@
-import { createFileRoute } from '@tanstack/react-router'
-import { Hero } from '@/components/sections/Hero'
-import { TrustBar } from '@/components/sections/TrustBar'
-import { FeaturesHeader } from '@/components/sections/FeaturesHeader'
-import { Feature } from '@/components/sections/Feature'
-import { DarkSection } from '@/components/sections/DarkSection'
-import { FinalCTA } from '@/components/sections/FinalCTA'
-import { FAQ } from '@/components/sections/FAQ'
+import { createFileRoute } from '@tanstack/react-router';
+import { Hero } from '@/components/sections/Hero';
+import { TrustBar } from '@/components/sections/TrustBar';
+import { FeaturesHeader } from '@/components/sections/FeaturesHeader';
+import { Feature } from '@/components/sections/Feature';
+import { DarkSection } from '@/components/sections/DarkSection';
+import { FinalCTA } from '@/components/sections/FinalCTA';
+import { FAQ } from '@/components/sections/FAQ';
 import {
   SequenceBuilderPanel,
   UnifiedInboxPanel,
   LeadEnrichmentPanel,
   SendersPanel,
-} from '@/components/panels'
+} from '@/components/panels';
 
 export const Route = createFileRoute('/')({
   component: HomePage,
-})
+});
 
 function HomePage() {
   return (
@@ -68,5 +68,5 @@ function HomePage() {
 
       <FAQ />
     </>
-  )
+  );
 }

@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion'
+import { motion } from 'framer-motion';
 
 const integrations = [
   { name: 'Clay', logo: '/images/logos/clay.png', height: 44, width: 100 },
@@ -6,14 +6,14 @@ const integrations = [
   { name: 'Salesforce', logo: '/images/logos/salesforce.png', height: 54, width: 78 },
   { name: 'Pipedrive', logo: '/images/logos/pipedrive.png', height: 38, width: 140 },
   { name: 'Zapier', logo: '/images/logos/zapier.png', height: 42, width: 125 },
-]
+];
 
 export function TrustBar() {
   return (
-    <section className="py-10 md:py-16 bg-[#FAFBFC]">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6">
+    <section className="bg-[#FAFBFC] py-10 md:py-16">
+      <div className="mx-auto max-w-6xl px-4 sm:px-6">
         <motion.p
-          className="text-center text-slate-400 text-[13px] sm:text-[14px] md:text-[15px] font-medium tracking-wide mb-6 sm:mb-8 md:mb-10"
+          className="mb-6 text-center text-[13px] font-medium tracking-wide text-slate-400 sm:mb-8 sm:text-[14px] md:mb-10 md:text-[15px]"
           initial={{ opacity: 0 }}
           whileInView={{ opacity: 1 }}
           viewport={{ once: true }}
@@ -22,11 +22,11 @@ export function TrustBar() {
           Integrates with tools you already use
         </motion.p>
 
-        <div className="flex items-center justify-center gap-6 sm:gap-8 md:gap-14 lg:gap-20 flex-wrap">
+        <div className="flex flex-wrap items-center justify-center gap-6 sm:gap-8 md:gap-14 lg:gap-20">
           {integrations.map((item, index) => (
             <motion.div
               key={item.name}
-              className="flex items-center justify-center scale-[0.65] sm:scale-[0.8] md:scale-100"
+              className="flex scale-[0.65] items-center justify-center sm:scale-[0.8] md:scale-100"
               style={{ width: item.width, height: item.height }}
               initial={{ opacity: 0, y: 10 }}
               whileInView={{ opacity: 1, y: 0 }}
@@ -34,7 +34,7 @@ export function TrustBar() {
               transition={{
                 duration: 0.4,
                 delay: index * 0.08,
-                ease: [0.22, 1, 0.36, 1]
+                ease: [0.22, 1, 0.36, 1],
               }}
             >
               <img
@@ -45,12 +45,12 @@ export function TrustBar() {
                   maxWidth: item.width,
                   objectFit: 'contain',
                 }}
-                className="grayscale opacity-50 hover:grayscale-0 hover:opacity-100 transition-all duration-300"
+                className="opacity-50 grayscale transition-all duration-300 hover:opacity-100 hover:grayscale-0"
               />
             </motion.div>
           ))}
         </div>
       </div>
     </section>
-  )
+  );
 }

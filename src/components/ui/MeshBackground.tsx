@@ -1,14 +1,10 @@
 interface MeshBackgroundProps {
-  children: React.ReactNode
-  className?: string
-  variant?: 'hero' | 'feature'
+  children: React.ReactNode;
+  className?: string;
+  variant?: 'hero' | 'feature';
 }
 
-export function MeshBackground({
-  children,
-  className,
-  variant = 'feature',
-}: MeshBackgroundProps) {
+export function MeshBackground({ children, className, variant = 'feature' }: MeshBackgroundProps) {
   return (
     <div
       className={`mesh-background mesh-background--${variant} ${className || ''}`}
@@ -28,5 +24,5 @@ export function MeshBackground({
     >
       {children}
     </div>
-  )
+  );
 }
