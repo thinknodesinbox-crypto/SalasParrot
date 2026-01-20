@@ -4,7 +4,6 @@ import { queryKeys } from '../../queryClient';
 import type {
   LinkedInAccount,
   EmailAccount,
-  HostedAuthLinkResponse,
   LinkedInConnectCredentialsRequest,
   LinkedInConnectCookieRequest,
   LinkedInSolveCheckpointRequest,
@@ -306,18 +305,6 @@ export const useDeleteEmailAccount = () => {
   });
 };
 
-export const useGetEmailAuthLink = () => {
-  return useMutation({
-    mutationFn: async () => {
-      const response = await api.get<HostedAuthLinkResponse>('/email-accounts/auth-link');
-      return response.data;
-    },
-    onError: (error) => {
-      throw new Error(getErrorMessage(error));
-    },
-  });
-};
-
 export const useSyncEmailAccount = (accountId: string) => {
   const queryClient = useQueryClient();
 
@@ -484,6 +471,45 @@ export const useConnectEmailMicrosoft = () => {
       if (data.status === 'connected') {
         queryClient.invalidateQueries({ queryKey: queryKeys.emailAccounts.all });
       }
+    },
+    onError: (error) => {
+      throw new Error(getErrorMessage(error));
+    },
+  });
+};
+
+// OAuth Flow Initialization
+
+interface OAuthInitResponse {
+  url: string;
+  state: string;
+}
+
+export const useInitGoogleOAuth = () => {
+  return useMutation({
+    mutationFn: async (workspaceId?: string) => {
+      const params = new URLSearchParams();
+      if (workspaceId) params.append('workspace_id', workspaceId);
+      const response = await api.get<OAuthInitResponse>(
+        `/email-accounts/oauth/google/init?${params}`
+      );
+      return response.data;
+    },
+    onError: (error) => {
+      throw new Error(getErrorMessage(error));
+    },
+  });
+};
+
+export const useInitMicrosoftOAuth = () => {
+  return useMutation({
+    mutationFn: async (workspaceId?: string) => {
+      const params = new URLSearchParams();
+      if (workspaceId) params.append('workspace_id', workspaceId);
+      const response = await api.get<OAuthInitResponse>(
+        `/email-accounts/oauth/microsoft/init?${params}`
+      );
+      return response.data;
     },
     onError: (error) => {
       throw new Error(getErrorMessage(error));

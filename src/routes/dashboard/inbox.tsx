@@ -50,9 +50,20 @@ function InboxPage() {
   const senderOptions = useMemo(() => {
     const options: { id: string; name: string; type: 'linkedin' | 'email' }[] = [];
     linkedInAccounts.forEach((acc) => {
+      // Extract username from profile_url as fallback (e.g., "john-doe" from linkedin.com/in/john-doe)
+      let displayName = acc.name;
+      if (!displayName && acc.profile_url) {
+        const match = acc.profile_url.match(/linkedin\.com\/in\/([^/?]+)/);
+        if (match) {
+          // Format the username: "john-doe" -> "john doe"
+          displayName = match[1].replace(/-/g, ' ');
+        } else {
+          displayName = acc.profile_url;
+        }
+      }
       options.push({
         id: acc.id,
-        name: acc.name || acc.profile_url || 'LinkedIn Account',
+        name: displayName || 'LinkedIn Account',
         type: 'linkedin',
       });
     });

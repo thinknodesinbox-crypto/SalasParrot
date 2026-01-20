@@ -244,7 +244,16 @@ export interface LinkedInAuthCheckpointResponse {
   };
 }
 
-export type LinkedInAuthResponse = LinkedInAuthSuccessResponse | LinkedInAuthCheckpointResponse;
+export interface LinkedInAuthPendingResponse {
+  status: 'pending';
+  account_id: string;
+  message: string;
+}
+
+export type LinkedInAuthResponse =
+  | LinkedInAuthSuccessResponse
+  | LinkedInAuthCheckpointResponse
+  | LinkedInAuthPendingResponse;
 
 // Email Account types
 export type EmailProvider = 'google' | 'microsoft' | 'imap';
@@ -270,10 +279,6 @@ export interface WorkingHours {
   end: string;
   timezone: string;
   days: number[];
-}
-
-export interface HostedAuthLinkResponse {
-  url: string;
 }
 
 // Email Auth types

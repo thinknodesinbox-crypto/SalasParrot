@@ -13,9 +13,11 @@ import {
   useDeleteEmailAccount,
   useSyncEmailInbox,
   useConnectEmailIMAP,
-  useGetEmailAuthLink,
+  useInitGoogleOAuth,
+  useInitMicrosoftOAuth,
 } from '../../lib/hooks/queries';
 import type { LinkedInAccount, EmailAccount, CheckpointType } from '../../lib/types';
+import { getErrorMessage } from '../../lib/api';
 
 export const Route = createFileRoute('/dashboard/accounts')({
   component: AccountsPage,
@@ -880,17 +882,22 @@ function ConnectLinkedInModal({ onClose }: { onClose: () => void }) {
   // Auto-poll when in_app_validation step is active
   // Intentionally excludes isPolling/startAutoPolling to prevent infinite loops
   useEffect(() => {
+    console.log('[useEffect] step:', step, 'accountId:', accountId, 'isPolling:', isPolling);
     if (step === 'in_app_validation' && accountId && !isPolling) {
+      console.log('[useEffect] Starting auto polling');
       startAutoPolling();
     }
     return () => {
+      console.log('[useEffect cleanup] Stopping polling');
       stopPolling();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step, accountId]);
 
   const startAutoPolling = async () => {
+    console.log('[startAutoPolling] isPolling:', isPolling);
     if (isPolling) return;
+    console.log('[startAutoPolling] Starting polling');
     setIsPolling(true);
     setPollAttempts(0);
     setError('');
@@ -898,20 +905,40 @@ function ConnectLinkedInModal({ onClose }: { onClose: () => void }) {
   };
 
   const pollOnce = async () => {
-    if (!accountId) return;
+    if (!accountId) {
+      console.log('[pollOnce] No accountId, returning');
+      return;
+    }
+
+    console.log('[pollOnce] Polling with accountId:', accountId);
 
     try {
       const result = await pollStatus.mutateAsync(accountId);
+      console.log('[pollOnce] Poll result:', result);
       if (result.status === 'connected') {
+        console.log('[pollOnce] Status connected, handling response');
         handleAuthResponse(result);
       } else if (result.status === 'checkpoint') {
         // Still waiting or another checkpoint, schedule next poll
+        console.log('[pollOnce] Status checkpoint, scheduling next poll');
+        scheduleNextPoll();
+      } else if (result.status === 'pending') {
+        // Account still being created/verified, continue polling
+        console.log('[pollOnce] Status pending, scheduling next poll');
         scheduleNextPoll();
       } else {
         // Unknown status, try to handle it
-        handleAuthResponse(result);
+        console.log(
+          '[pollOnce] Unknown status:',
+          (result as { status: string }).status,
+          'handling response'
+        );
+        handleAuthResponse(
+          result as { status: string; account_id?: string; checkpoint?: { type: CheckpointType } }
+        );
       }
-    } catch {
+    } catch (err) {
+      console.log('[pollOnce] Error caught:', err);
       // Timeout or error - retry if under max attempts
       setPollAttempts((prev) => {
         const newAttempts = prev + 1;
@@ -928,7 +955,9 @@ function ConnectLinkedInModal({ onClose }: { onClose: () => void }) {
 
   const scheduleNextPoll = () => {
     // Wait 2 seconds between polls
+    console.log('[scheduleNextPoll] Scheduling next poll in 2 seconds');
     pollIntervalRef.current = setTimeout(() => {
+      console.log('[scheduleNextPoll] Timeout fired, calling pollOnce');
       pollOnce();
     }, 2000);
   };
@@ -944,7 +973,7 @@ function ConnectLinkedInModal({ onClose }: { onClose: () => void }) {
       const result = await connectWithCredentials.mutateAsync({ username, password });
       handleAuthResponse(result);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to connect');
+      setError(getErrorMessage(err));
     }
   };
 
@@ -962,7 +991,7 @@ function ConnectLinkedInModal({ onClose }: { onClose: () => void }) {
       });
       handleAuthResponse(result);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to connect');
+      setError(getErrorMessage(err));
     }
   };
 
@@ -980,7 +1009,7 @@ function ConnectLinkedInModal({ onClose }: { onClose: () => void }) {
       });
       handleAuthResponse(result);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to verify');
+      setError(getErrorMessage(err));
     }
   };
 
@@ -1698,7 +1727,7 @@ function EmailAccountRow({
 }
 
 // Connect Email Modal - Custom Auth Flow
-type EmailAuthStep = 'method' | 'imap' | 'google_info' | 'microsoft_info' | 'success';
+type EmailAuthStep = 'method' | 'imap' | 'success' | 'loading';
 
 function ConnectEmailModal({ onClose }: { onClose: () => void }) {
   const [step, setStep] = useState<EmailAuthStep>('method');
@@ -1714,16 +1743,32 @@ function ConnectEmailModal({ onClose }: { onClose: () => void }) {
   const [displayName, setDisplayName] = useState('');
 
   const connectIMAP = useConnectEmailIMAP();
-  const getEmailAuthLink = useGetEmailAuthLink();
+  const initGoogleOAuth = useInitGoogleOAuth();
+  const initMicrosoftOAuth = useInitMicrosoftOAuth();
 
-  // Handle OAuth connection via Unipile
-  const handleOAuthConnect = async () => {
+  const handleGoogleOAuth = async () => {
     setError('');
+    setStep('loading');
     try {
-      const { url } = await getEmailAuthLink.mutateAsync();
-      window.location.href = url;
+      const result = await initGoogleOAuth.mutateAsync(undefined);
+      // Redirect to Google OAuth consent screen
+      window.location.href = result.url;
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to get OAuth link');
+      setError(getErrorMessage(err));
+      setStep('method');
+    }
+  };
+
+  const handleMicrosoftOAuth = async () => {
+    setError('');
+    setStep('loading');
+    try {
+      const result = await initMicrosoftOAuth.mutateAsync(undefined);
+      // Redirect to Microsoft OAuth consent screen
+      window.location.href = result.url;
+    } catch (err) {
+      setError(getErrorMessage(err));
+      setStep('method');
     }
   };
 
@@ -1749,7 +1794,7 @@ function ConnectEmailModal({ onClose }: { onClose: () => void }) {
         setTimeout(() => onClose(), 1500);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to connect');
+      setError(getErrorMessage(err));
     }
   };
 
@@ -1801,36 +1846,9 @@ function ConnectEmailModal({ onClose }: { onClose: () => void }) {
                 </button>
               </div>
 
-              <p className="mb-4 text-[#64748B]">
+              <p className="mb-6 text-[#64748B]">
                 Choose your email provider to connect your account.
               </p>
-
-              {/* OAuth Connection - Recommended */}
-              <div className="mb-4">
-                <p className="mb-2 text-xs font-medium uppercase tracking-wider text-[#94A3B8]">
-                  Recommended
-                </p>
-                <button
-                  onClick={handleOAuthConnect}
-                  disabled={getEmailAuthLink.isPending}
-                  className="flex w-full items-center gap-4 rounded-xl border-2 border-[#FF6B35] bg-[#FFF7ED] p-4 transition-all hover:bg-[#FFEDD5] disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#FF6B35]/10">
-                    <EmailIcon className="h-7 w-7 text-[#FF6B35]" />
-                  </div>
-                  <div className="flex-1 text-left">
-                    <p className="font-semibold text-[#1E293B]">Connect with OAuth</p>
-                    <p className="text-sm text-[#64748B]">
-                      {getEmailAuthLink.isPending
-                        ? 'Preparing connection...'
-                        : 'Gmail, Outlook, or other email (secure OAuth)'}
-                    </p>
-                  </div>
-                  <span className="rounded-full bg-[#22C55E] px-2 py-0.5 text-[10px] font-medium text-white">
-                    Secure
-                  </span>
-                </button>
-              </div>
 
               {error && (
                 <div className="mb-4 rounded-lg border border-[#FECACA] bg-[#FEF2F2] p-3 text-sm text-[#DC2626]">
@@ -1838,163 +1856,46 @@ function ConnectEmailModal({ onClose }: { onClose: () => void }) {
                 </div>
               )}
 
-              {/* Alternative: App Passwords */}
-              <div>
-                <p className="mb-2 text-xs font-medium uppercase tracking-wider text-[#94A3B8]">
-                  Alternative (App Password)
-                </p>
-                <div className="space-y-2">
-                  <button
-                    onClick={() => setStep('google_info')}
-                    className="flex w-full items-center gap-4 rounded-xl border border-[#E2E8F0] p-3 transition-all hover:border-[#EA4335]/30 hover:bg-[#FEF2F2]"
-                  >
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#EA4335]/10">
-                      <GoogleIcon className="h-5 w-5" />
-                    </div>
-                    <div className="flex-1 text-left">
-                      <p className="text-sm font-medium text-[#1E293B]">Gmail (App Password)</p>
-                    </div>
-                  </button>
-
-                  <button
-                    onClick={() => setStep('microsoft_info')}
-                    className="flex w-full items-center gap-4 rounded-xl border border-[#E2E8F0] p-3 transition-all hover:border-[#0078D4]/30 hover:bg-[#EFF6FF]"
-                  >
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#0078D4]/10">
-                      <MicrosoftIcon className="h-5 w-5" />
-                    </div>
-                    <div className="flex-1 text-left">
-                      <p className="text-sm font-medium text-[#1E293B]">Outlook (App Password)</p>
-                    </div>
-                  </button>
-
-                  <button
-                    onClick={() => setStep('imap')}
-                    className="flex w-full items-center gap-4 rounded-xl border border-[#E2E8F0] p-3 transition-all hover:border-[#64748B]/30 hover:bg-[#F8FAFC]"
-                  >
-                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#64748B]/10">
-                      <EmailIcon className="h-5 w-5 text-[#64748B]" />
-                    </div>
-                    <div className="flex-1 text-left">
-                      <p className="text-sm font-medium text-[#1E293B]">Other Email (IMAP)</p>
-                    </div>
-                  </button>
-                </div>
-              </div>
-            </motion.div>
-          )}
-
-          {/* Google info step */}
-          {step === 'google_info' && (
-            <motion.div
-              key="google_info"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              className="p-6"
-            >
-              <div className="mb-6 flex items-center gap-3">
+              <div className="space-y-3">
                 <button
-                  onClick={() => setStep('method')}
-                  className="rounded-lg p-2 hover:bg-[#F8FAFC]"
+                  onClick={handleGoogleOAuth}
+                  className="flex w-full items-center gap-4 rounded-xl border border-[#E2E8F0] p-4 transition-all hover:border-[#EA4335]/30 hover:bg-[#FEF2F2]"
                 >
-                  <BackArrowIcon />
-                </button>
-                <h2 className="text-lg font-bold text-[#1E293B]">Connect Gmail</h2>
-              </div>
-
-              <div className="mb-6 rounded-xl border border-[#EA4335]/20 bg-[#FEF2F2] p-4">
-                <div className="flex items-start gap-3">
-                  <InfoIcon className="mt-0.5 h-5 w-5 flex-shrink-0 text-[#EA4335]" />
-                  <div className="text-sm text-[#92400E]">
-                    <p className="font-medium">Create an App Password:</p>
-                    <ol className="mt-1 list-inside list-decimal space-y-1">
-                      <li>
-                        Go to{' '}
-                        <a
-                          href="https://myaccount.google.com/apppasswords"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-[#EA4335] underline"
-                        >
-                          Google App Passwords
-                        </a>
-                      </li>
-                      <li>Select "Mail" and your device</li>
-                      <li>Copy the generated 16-character password</li>
-                      <li>Use it as your password below</li>
-                    </ol>
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#EA4335]/10">
+                    <GoogleIcon className="h-7 w-7" />
                   </div>
-                </div>
-              </div>
+                  <div className="flex-1 text-left">
+                    <p className="font-semibold text-[#1E293B]">Gmail</p>
+                    <p className="text-sm text-[#64748B]">Connect with Google account</p>
+                  </div>
+                </button>
 
-              <button
-                onClick={() => {
-                  setImapHost('imap.gmail.com');
-                  setSmtpHost('smtp.gmail.com');
-                  setStep('imap');
-                }}
-                className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#EA4335] px-4 py-2.5 font-medium text-white hover:bg-[#D33B2E]"
-              >
-                Continue with App Password
-              </button>
-            </motion.div>
-          )}
-
-          {/* Microsoft info step */}
-          {step === 'microsoft_info' && (
-            <motion.div
-              key="microsoft_info"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              className="p-6"
-            >
-              <div className="mb-6 flex items-center gap-3">
                 <button
-                  onClick={() => setStep('method')}
-                  className="rounded-lg p-2 hover:bg-[#F8FAFC]"
+                  onClick={handleMicrosoftOAuth}
+                  className="flex w-full items-center gap-4 rounded-xl border border-[#E2E8F0] p-4 transition-all hover:border-[#0078D4]/30 hover:bg-[#EFF6FF]"
                 >
-                  <BackArrowIcon />
-                </button>
-                <h2 className="text-lg font-bold text-[#1E293B]">Connect Outlook</h2>
-              </div>
-
-              <div className="mb-6 rounded-xl border border-[#0078D4]/20 bg-[#EFF6FF] p-4">
-                <div className="flex items-start gap-3">
-                  <InfoIcon className="mt-0.5 h-5 w-5 flex-shrink-0 text-[#0078D4]" />
-                  <div className="text-sm text-[#1E40AF]">
-                    <p className="font-medium">Create an App Password:</p>
-                    <ol className="mt-1 list-inside list-decimal space-y-1">
-                      <li>
-                        Go to{' '}
-                        <a
-                          href="https://account.live.com/proofs/AppPassword"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-[#0078D4] underline"
-                        >
-                          Microsoft App Passwords
-                        </a>
-                      </li>
-                      <li>Create a new app password</li>
-                      <li>Copy the generated password</li>
-                      <li>Use it as your password below</li>
-                    </ol>
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#0078D4]/10">
+                    <MicrosoftIcon className="h-7 w-7" />
                   </div>
-                </div>
-              </div>
+                  <div className="flex-1 text-left">
+                    <p className="font-semibold text-[#1E293B]">Outlook / Microsoft 365</p>
+                    <p className="text-sm text-[#64748B]">Connect with Microsoft account</p>
+                  </div>
+                </button>
 
-              <button
-                onClick={() => {
-                  setImapHost('outlook.office365.com');
-                  setSmtpHost('smtp.office365.com');
-                  setStep('imap');
-                }}
-                className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#0078D4] px-4 py-2.5 font-medium text-white hover:bg-[#0066B4]"
-              >
-                Continue with App Password
-              </button>
+                <button
+                  onClick={() => setStep('imap')}
+                  className="flex w-full items-center gap-4 rounded-xl border border-[#E2E8F0] p-4 transition-all hover:border-[#64748B]/30 hover:bg-[#F8FAFC]"
+                >
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#64748B]/10">
+                    <EmailIcon className="h-7 w-7 text-[#64748B]" />
+                  </div>
+                  <div className="flex-1 text-left">
+                    <p className="font-semibold text-[#1E293B]">Other Email (IMAP)</p>
+                    <p className="text-sm text-[#64748B]">Connect with IMAP/SMTP credentials</p>
+                  </div>
+                </button>
+              </div>
             </motion.div>
           )}
 
@@ -2138,6 +2039,22 @@ function ConnectEmailModal({ onClose }: { onClose: () => void }) {
                   )}
                 </button>
               </div>
+            </motion.div>
+          )}
+
+          {/* Loading - OAuth redirect in progress */}
+          {step === 'loading' && (
+            <motion.div
+              key="loading"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="p-6 text-center"
+            >
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center">
+                <LoadingSpinner />
+              </div>
+              <h2 className="mb-2 text-lg font-bold text-[#1E293B]">Redirecting...</h2>
+              <p className="text-[#64748B]">Taking you to sign in with your email provider.</p>
             </motion.div>
           )}
 

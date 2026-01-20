@@ -82,11 +82,19 @@ api.interceptors.response.use(
   async (error: AxiosError) => {
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
 
-    // Don't try to refresh tokens for auth endpoints - let them fail normally
+    // Don't try to refresh tokens for auth endpoints or account connection endpoints
+    // These endpoints may return 401 for invalid credentials (not expired session)
     const isAuthEndpoint = originalRequest.url?.startsWith('/auth/');
+    const isAccountConnectionEndpoint =
+      originalRequest.url?.includes('/connect/') || originalRequest.url?.includes('/checkpoint');
 
-    // If 401 and we haven't tried to refresh yet (skip for auth endpoints)
-    if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
+    // If 401 and we haven't tried to refresh yet (skip for auth/connection endpoints)
+    if (
+      error.response?.status === 401 &&
+      !originalRequest._retry &&
+      !isAuthEndpoint &&
+      !isAccountConnectionEndpoint
+    ) {
       if (isRefreshing) {
         // Wait for token refresh
         return new Promise((resolve, reject) => {
@@ -150,8 +158,16 @@ export const isApiError = (error: unknown): error is AxiosError<ApiError> => {
 };
 
 export const getErrorMessage = (error: unknown): string => {
-  if (isApiError(error) && error.response?.data?.detail) {
-    return error.response.data.detail;
+  if (isApiError(error)) {
+    // FastAPI returns errors in { detail: "message" } format
+    const detail = error.response?.data?.detail;
+    if (detail) {
+      return typeof detail === 'string' ? detail : JSON.stringify(detail);
+    }
+    // Fallback to status text if no detail
+    if (error.response?.statusText) {
+      return error.response.statusText;
+    }
   }
   if (error instanceof Error) {
     return error.message;

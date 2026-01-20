@@ -62,7 +62,6 @@ export {
   useEmailAccount,
   useUpdateEmailAccount,
   useDeleteEmailAccount,
-  useGetEmailAuthLink,
   useSyncEmailAccount,
   useSyncEmailInbox,
   useSendEmail,
@@ -70,6 +69,9 @@ export {
   useConnectEmailIMAP,
   useConnectEmailGoogle,
   useConnectEmailMicrosoft,
+  // Email OAuth Flow
+  useInitGoogleOAuth,
+  useInitMicrosoftOAuth,
 } from './useAccounts';
 
 // Auth

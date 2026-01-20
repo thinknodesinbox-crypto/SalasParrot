@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/lib/auth';
 import {
   useWorkspaces,
@@ -1594,12 +1594,19 @@ function ConnectLinkedInModal({ onClose }: { onClose: () => void }) {
   const solveCheckpoint = useSolveLinkedInCheckpoint();
   const pollStatus = usePollLinkedInStatus();
 
+  // Auto-polling state
+  const [isPolling, setIsPolling] = useState(false);
+  const [pollAttempts, setPollAttempts] = useState(0);
+  const pollIntervalRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const maxPollAttempts = 60; // Max 60 attempts (2 minutes at 2s intervals)
+
   const handleAuthResponse = (data: {
     status: string;
     account_id?: string;
     checkpoint?: { type: CheckpointType };
   }) => {
     if (data.status === 'connected') {
+      stopPolling();
       setStep('success');
       setTimeout(() => onClose(), 1500);
     } else if (data.status === 'checkpoint' && data.checkpoint) {
@@ -1611,6 +1618,94 @@ function ConnectLinkedInModal({ onClose }: { onClose: () => void }) {
         setStep('checkpoint');
       }
     }
+  };
+
+  // Stop polling helper
+  const stopPolling = () => {
+    setIsPolling(false);
+    if (pollIntervalRef.current) {
+      clearTimeout(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    }
+  };
+
+  // Auto-poll when in_app_validation step is active
+  useEffect(() => {
+    console.log(
+      '[settings useEffect] step:',
+      step,
+      'accountId:',
+      accountId,
+      'isPolling:',
+      isPolling
+    );
+    if (step === 'in_app_validation' && accountId && !isPolling) {
+      console.log('[settings useEffect] Starting auto polling');
+      startAutoPolling();
+    }
+    return () => {
+      stopPolling();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, accountId]);
+
+  const startAutoPolling = () => {
+    console.log(
+      '[settings startAutoPolling] called, isPolling:',
+      isPolling,
+      'pollAttempts:',
+      pollAttempts
+    );
+    if (isPolling) return;
+    setIsPolling(true);
+    setPollAttempts(0);
+    setError('');
+    pollOnce();
+  };
+
+  const pollOnce = async () => {
+    console.log('[settings pollOnce] called, accountId:', accountId);
+    if (!accountId) return;
+
+    try {
+      const result = await pollStatus.mutateAsync(accountId);
+      console.log('[settings pollOnce] result:', result);
+      if (result.status === 'connected') {
+        console.log('[settings pollOnce] connected!');
+        handleAuthResponse(result);
+      } else if (result.status === 'checkpoint') {
+        console.log('[settings pollOnce] checkpoint, scheduling next');
+        scheduleNextPoll();
+      } else if (result.status === 'pending') {
+        console.log('[settings pollOnce] pending, scheduling next');
+        scheduleNextPoll();
+      } else {
+        console.log('[settings pollOnce] unknown status:', (result as { status: string }).status);
+        handleAuthResponse(
+          result as { status: string; account_id?: string; checkpoint?: { type: CheckpointType } }
+        );
+      }
+    } catch (err) {
+      console.log('[settings pollOnce] error:', err);
+      setPollAttempts((prev) => {
+        const newAttempts = prev + 1;
+        if (newAttempts < maxPollAttempts) {
+          scheduleNextPoll();
+        } else {
+          setError('Connection timed out. Please try signing in again.');
+          setIsPolling(false);
+        }
+        return newAttempts;
+      });
+    }
+  };
+
+  const scheduleNextPoll = () => {
+    console.log('[settings scheduleNextPoll] scheduling in 2s');
+    pollIntervalRef.current = setTimeout(() => {
+      console.log('[settings scheduleNextPoll] timeout fired');
+      pollOnce();
+    }, 2000);
   };
 
   const handleCredentialsSubmit = async () => {
@@ -1666,12 +1761,8 @@ function ConnectLinkedInModal({ onClose }: { onClose: () => void }) {
 
   const handlePollStatus = async () => {
     setError('');
-    try {
-      const result = await pollStatus.mutateAsync(accountId);
-      handleAuthResponse(result);
-    } catch {
-      setError('Timed out waiting for confirmation. Please try again.');
-    }
+    // Manual check - just calls pollOnce which handles all status types
+    pollOnce();
   };
 
   return (
@@ -2012,10 +2103,10 @@ function ConnectLinkedInModal({ onClose }: { onClose: () => void }) {
 
               <button
                 onClick={handlePollStatus}
-                disabled={pollStatus.isPending}
+                disabled={pollStatus.isPending || isPolling}
                 className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#0A66C2] px-4 py-2.5 font-medium text-white hover:bg-[#004182] disabled:opacity-50"
               >
-                {pollStatus.isPending ? (
+                {pollStatus.isPending || isPolling ? (
                   <>
                     <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
                     Waiting for confirmation...
