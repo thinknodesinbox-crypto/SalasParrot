@@ -115,4 +115,31 @@ export {
 } from './useWorkspaces';
 
 // Analytics
-export { useAnalyticsOverview, useCampaignAnalytics, useAccountUsage } from './useAnalytics';
+export {
+  // Dashboard hooks
+  useDashboardStats,
+  useDashboardChart,
+  useDashboardActivity,
+  useDashboardCampaigns,
+  // Analytics page hooks
+  useAnalyticsOverviewStats,
+  useChannelPerformance,
+  useTopCampaigns,
+  useSenderPerformance,
+  useReplyRateTrend,
+  // Legacy hooks
+  useAnalyticsOverview,
+  useCampaignAnalytics,
+  useAccountUsage,
+} from './useAnalytics';
+
+// Notifications
+export {
+  useNotifications,
+  useUnreadCount,
+  useMarkNotificationsRead,
+  useMarkAllNotificationsRead,
+  useDeleteNotification,
+  useNotificationStream,
+  notificationKeys,
+} from './useNotifications';

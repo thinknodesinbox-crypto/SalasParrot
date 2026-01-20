@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
 import { motion } from 'framer-motion';
+import { GoogleLogin } from '@react-oauth/google';
 import logoImage from '@/assets/images/logo.png';
 import { useAuthStore } from '@/lib/auth';
 
@@ -16,7 +17,27 @@ function LoginPage() {
   const [error, setError] = useState<string | null>(null);
 
   const login = useAuthStore((state) => state.login);
+  const googleLogin = useAuthStore((state) => state.googleLogin);
   const navigate = useNavigate();
+
+  const handleGoogleSuccess = async (credentialResponse: { credential?: string }) => {
+    if (!credentialResponse.credential) {
+      setError('Google sign-in failed. Please try again.');
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      await googleLogin(credentialResponse.credential);
+      navigate({ to: '/dashboard' });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Google sign-in failed. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -176,6 +197,29 @@ function LoginPage() {
                 'Sign in'
               )}
             </motion.button>
+
+            {/* Divider */}
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-[#E2E8F0]" />
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="bg-white px-4 text-[#94A3B8]">or continue with</span>
+              </div>
+            </div>
+
+            {/* Google Sign In */}
+            <div className="flex justify-center">
+              <GoogleLogin
+                onSuccess={handleGoogleSuccess}
+                onError={() => setError('Google sign-in failed. Please try again.')}
+                theme="outline"
+                size="large"
+                width="100%"
+                text="signin_with"
+                shape="rectangular"
+              />
+            </div>
           </motion.form>
 
           {/* Footer note */}

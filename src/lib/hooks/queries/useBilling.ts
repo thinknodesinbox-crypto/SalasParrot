@@ -1,7 +1,13 @@
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, getErrorMessage } from '../../api';
 import { queryKeys } from '../../queryClient';
-import type { PlanInfo, BillingOverview, Invoice, PlanType } from '../../types';
+import type {
+  PlanInfo,
+  BillingOverview,
+  Invoice,
+  PlanType,
+  SenderBillingOverview,
+} from '../../types';
 
 // Get billing plans
 export const usePlans = () => {
@@ -100,6 +106,54 @@ export const useReactivateSubscription = () => {
     mutationFn: async () => {
       const response = await api.post<BillingOverview>('/billing/reactivate');
       return response.data;
+    },
+    onError: (error) => {
+      throw new Error(getErrorMessage(error));
+    },
+  });
+};
+
+// ===== Sender-based billing hooks =====
+
+// Get sender billing overview
+export const useSenderBillingOverview = () => {
+  return useQuery({
+    queryKey: ['billing', 'senders', 'overview'],
+    queryFn: async () => {
+      const response = await api.get<SenderBillingOverview>('/billing/senders/overview');
+      return response.data;
+    },
+  });
+};
+
+// Create sender checkout session
+export const useCreateSenderCheckout = () => {
+  return useMutation({
+    mutationFn: async (senderCount: number) => {
+      const response = await api.post<{ checkout_url: string }>('/billing/senders/checkout', {
+        sender_count: senderCount,
+      });
+      return response.data;
+    },
+    onError: (error) => {
+      throw new Error(getErrorMessage(error));
+    },
+  });
+};
+
+// Update sender count
+export const useUpdateSenderCount = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (senderCount: number) => {
+      const response = await api.post<SenderBillingOverview>('/billing/senders/update', {
+        sender_count: senderCount,
+      });
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['billing', 'senders', 'overview'] });
     },
     onError: (error) => {
       throw new Error(getErrorMessage(error));

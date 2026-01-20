@@ -13,6 +13,7 @@ import {
   useDeleteEmailAccount,
   useSyncEmailInbox,
   useConnectEmailIMAP,
+  useGetEmailAuthLink,
 } from '../../lib/hooks/queries';
 import type { LinkedInAccount, EmailAccount, CheckpointType } from '../../lib/types';
 
@@ -1713,8 +1714,18 @@ function ConnectEmailModal({ onClose }: { onClose: () => void }) {
   const [displayName, setDisplayName] = useState('');
 
   const connectIMAP = useConnectEmailIMAP();
-  // Note: OAuth flows (connectGoogle, connectMicrosoft) currently guide users to App Passwords
-  // and use IMAP/SMTP instead of direct OAuth tokens
+  const getEmailAuthLink = useGetEmailAuthLink();
+
+  // Handle OAuth connection via Unipile
+  const handleOAuthConnect = async () => {
+    setError('');
+    try {
+      const { url } = await getEmailAuthLink.mutateAsync();
+      window.location.href = url;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to get OAuth link');
+    }
+  };
 
   const handleIMAPSubmit = async () => {
     setError('');
@@ -1790,49 +1801,85 @@ function ConnectEmailModal({ onClose }: { onClose: () => void }) {
                 </button>
               </div>
 
-              <p className="mb-6 text-[#64748B]">
+              <p className="mb-4 text-[#64748B]">
                 Choose your email provider to connect your account.
               </p>
 
-              <div className="space-y-3">
+              {/* OAuth Connection - Recommended */}
+              <div className="mb-4">
+                <p className="mb-2 text-xs font-medium uppercase tracking-wider text-[#94A3B8]">
+                  Recommended
+                </p>
                 <button
-                  onClick={() => setStep('google_info')}
-                  className="flex w-full items-center gap-4 rounded-xl border border-[#E2E8F0] p-4 transition-all hover:border-[#EA4335]/30 hover:bg-[#FEF2F2]"
+                  onClick={handleOAuthConnect}
+                  disabled={getEmailAuthLink.isPending}
+                  className="flex w-full items-center gap-4 rounded-xl border-2 border-[#FF6B35] bg-[#FFF7ED] p-4 transition-all hover:bg-[#FFEDD5] disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#EA4335]/10">
-                    <GoogleIcon className="h-7 w-7" />
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#FF6B35]/10">
+                    <EmailIcon className="h-7 w-7 text-[#FF6B35]" />
                   </div>
                   <div className="flex-1 text-left">
-                    <p className="font-semibold text-[#1E293B]">Gmail</p>
-                    <p className="text-sm text-[#64748B]">Connect with Google (App Password)</p>
+                    <p className="font-semibold text-[#1E293B]">Connect with OAuth</p>
+                    <p className="text-sm text-[#64748B]">
+                      {getEmailAuthLink.isPending
+                        ? 'Preparing connection...'
+                        : 'Gmail, Outlook, or other email (secure OAuth)'}
+                    </p>
                   </div>
+                  <span className="rounded-full bg-[#22C55E] px-2 py-0.5 text-[10px] font-medium text-white">
+                    Secure
+                  </span>
                 </button>
+              </div>
 
-                <button
-                  onClick={() => setStep('microsoft_info')}
-                  className="flex w-full items-center gap-4 rounded-xl border border-[#E2E8F0] p-4 transition-all hover:border-[#0078D4]/30 hover:bg-[#EFF6FF]"
-                >
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#0078D4]/10">
-                    <MicrosoftIcon className="h-7 w-7" />
-                  </div>
-                  <div className="flex-1 text-left">
-                    <p className="font-semibold text-[#1E293B]">Outlook / Microsoft 365</p>
-                    <p className="text-sm text-[#64748B]">Connect with Microsoft (App Password)</p>
-                  </div>
-                </button>
+              {error && (
+                <div className="mb-4 rounded-lg border border-[#FECACA] bg-[#FEF2F2] p-3 text-sm text-[#DC2626]">
+                  {error}
+                </div>
+              )}
 
-                <button
-                  onClick={() => setStep('imap')}
-                  className="flex w-full items-center gap-4 rounded-xl border border-[#E2E8F0] p-4 transition-all hover:border-[#64748B]/30 hover:bg-[#F8FAFC]"
-                >
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#64748B]/10">
-                    <EmailIcon className="h-7 w-7 text-[#64748B]" />
-                  </div>
-                  <div className="flex-1 text-left">
-                    <p className="font-semibold text-[#1E293B]">Other Email (IMAP)</p>
-                    <p className="text-sm text-[#64748B]">Connect with IMAP/SMTP credentials</p>
-                  </div>
-                </button>
+              {/* Alternative: App Passwords */}
+              <div>
+                <p className="mb-2 text-xs font-medium uppercase tracking-wider text-[#94A3B8]">
+                  Alternative (App Password)
+                </p>
+                <div className="space-y-2">
+                  <button
+                    onClick={() => setStep('google_info')}
+                    className="flex w-full items-center gap-4 rounded-xl border border-[#E2E8F0] p-3 transition-all hover:border-[#EA4335]/30 hover:bg-[#FEF2F2]"
+                  >
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#EA4335]/10">
+                      <GoogleIcon className="h-5 w-5" />
+                    </div>
+                    <div className="flex-1 text-left">
+                      <p className="text-sm font-medium text-[#1E293B]">Gmail (App Password)</p>
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={() => setStep('microsoft_info')}
+                    className="flex w-full items-center gap-4 rounded-xl border border-[#E2E8F0] p-3 transition-all hover:border-[#0078D4]/30 hover:bg-[#EFF6FF]"
+                  >
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#0078D4]/10">
+                      <MicrosoftIcon className="h-5 w-5" />
+                    </div>
+                    <div className="flex-1 text-left">
+                      <p className="text-sm font-medium text-[#1E293B]">Outlook (App Password)</p>
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={() => setStep('imap')}
+                    className="flex w-full items-center gap-4 rounded-xl border border-[#E2E8F0] p-3 transition-all hover:border-[#64748B]/30 hover:bg-[#F8FAFC]"
+                  >
+                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#64748B]/10">
+                      <EmailIcon className="h-5 w-5 text-[#64748B]" />
+                    </div>
+                    <div className="flex-1 text-left">
+                      <p className="text-sm font-medium text-[#1E293B]">Other Email (IMAP)</p>
+                    </div>
+                  </button>
+                </div>
               </div>
             </motion.div>
           )}

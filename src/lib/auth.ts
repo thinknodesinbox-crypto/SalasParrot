@@ -11,6 +11,7 @@ interface AuthState {
   // Actions
   login: (data: LoginRequest) => Promise<void>;
   signup: (data: SignupRequest) => Promise<void>;
+  googleLogin: (credential: string) => Promise<void>;
   logout: () => void;
   fetchUser: () => Promise<void>;
   updateUser: (updates: Partial<User>) => void;
@@ -53,6 +54,32 @@ export const useAuthStore = create<AuthState>()(
       signup: async (data: SignupRequest) => {
         try {
           const response = await api.post<AuthResponse>('/auth/register', data);
+          const { user, tokens } = response.data;
+
+          setAccessToken(tokens.access_token);
+          setRefreshToken(tokens.refresh_token);
+
+          set({
+            user,
+            isAuthenticated: true,
+            isLoading: false,
+          });
+        } catch (error) {
+          // Extract error message from API response
+          if (error && typeof error === 'object' && 'response' in error) {
+            const axiosError = error as { response?: { data?: { detail?: string } } };
+            const detail = axiosError.response?.data?.detail;
+            if (detail) {
+              throw new Error(detail);
+            }
+          }
+          throw error;
+        }
+      },
+
+      googleLogin: async (credential: string) => {
+        try {
+          const response = await api.post<AuthResponse>('/auth/google', { credential });
           const { user, tokens } = response.data;
 
           setAccessToken(tokens.access_token);

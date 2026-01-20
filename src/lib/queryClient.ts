@@ -82,7 +82,21 @@ export const queryKeys = {
 
   // Analytics
   analytics: {
-    overview: ['analytics', 'overview'] as const,
+    // Dashboard
+    dashboardStats: (dateRange: string) => ['analytics', 'dashboard', 'stats', dateRange] as const,
+    dashboardChart: (dateRange: string) => ['analytics', 'dashboard', 'chart', dateRange] as const,
+    dashboardActivity: (limit?: number) => ['analytics', 'dashboard', 'activity', limit] as const,
+    dashboardCampaigns: ['analytics', 'dashboard', 'campaigns'] as const,
+    // Analytics page
+    overview: (dateRange?: string) => ['analytics', 'overview', dateRange] as const,
+    channelPerformance: (dateRange: string) =>
+      ['analytics', 'channel-performance', dateRange] as const,
+    topCampaigns: (dateRange: string, limit?: number) =>
+      ['analytics', 'top-campaigns', dateRange, limit] as const,
+    senderPerformance: (dateRange: string) =>
+      ['analytics', 'sender-performance', dateRange] as const,
+    replyRateTrend: (dateRange: string) => ['analytics', 'reply-rate-trend', dateRange] as const,
+    // Legacy
     campaign: (campaignId: string) => ['analytics', 'campaign', campaignId] as const,
     accountUsage: (accountId: string) => ['analytics', 'account-usage', accountId] as const,
   },

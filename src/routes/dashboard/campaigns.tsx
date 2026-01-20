@@ -608,6 +608,30 @@ function CreateCampaignModal({
         }
       }
 
+      // Step 3: Add senders to campaign
+      if (selectedSenderIds.length > 0) {
+        for (const senderId of selectedSenderIds) {
+          try {
+            await api.post(`/campaigns/${campaign.id}/senders`, {
+              linkedin_account_id: senderId,
+            });
+          } catch (senderErr) {
+            console.error('Failed to add sender:', senderId, senderErr);
+          }
+        }
+      }
+
+      // Step 4: Assign leads from selected list
+      if (selectedLeadListId) {
+        try {
+          await api.post(`/campaigns/${campaign.id}/assign-leads`, {
+            list_id: selectedLeadListId,
+          });
+        } catch (leadErr) {
+          console.error('Failed to assign leads:', leadErr);
+        }
+      }
+
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create campaign');

@@ -37,6 +37,7 @@ const IMPORT_METHODS: {
   color: string;
   category: 'linkedin' | 'import';
   comingSoon?: boolean;
+  enabled?: boolean;
 }[] = [
   {
     id: 'linkedin_search',
@@ -45,6 +46,7 @@ const IMPORT_METHODS: {
     icon: <LinkedInSearchIcon />,
     color: '#0A66C2',
     category: 'linkedin',
+    enabled: true,
   },
   {
     id: 'sales_nav_leads',
@@ -53,6 +55,7 @@ const IMPORT_METHODS: {
     icon: <SalesNavIcon />,
     color: '#0A66C2',
     category: 'linkedin',
+    enabled: true,
   },
   {
     id: 'sales_nav_accounts',
@@ -61,6 +64,7 @@ const IMPORT_METHODS: {
     icon: <SalesNavAccountsIcon />,
     color: '#0A66C2',
     category: 'linkedin',
+    enabled: true,
   },
   {
     id: 'linkedin_recruiter',
@@ -69,6 +73,8 @@ const IMPORT_METHODS: {
     icon: <RecruiterIcon />,
     color: '#0A66C2',
     category: 'linkedin',
+    enabled: false,
+    comingSoon: true,
   },
   {
     id: 'linkedin_events',
@@ -77,6 +83,7 @@ const IMPORT_METHODS: {
     icon: <EventIcon />,
     color: '#0A66C2',
     category: 'linkedin',
+    enabled: false,
     comingSoon: true,
   },
   {
@@ -86,6 +93,8 @@ const IMPORT_METHODS: {
     icon: <ReactorsIcon />,
     color: '#0A66C2',
     category: 'linkedin',
+    enabled: false,
+    comingSoon: true,
   },
   {
     id: 'linkedin_companies',
@@ -94,6 +103,8 @@ const IMPORT_METHODS: {
     icon: <CompaniesIcon />,
     color: '#0A66C2',
     category: 'linkedin',
+    enabled: false,
+    comingSoon: true,
   },
   {
     id: 'csv',
@@ -102,6 +113,7 @@ const IMPORT_METHODS: {
     icon: <CSVIcon />,
     color: '#22C55E',
     category: 'import',
+    enabled: true,
   },
   {
     id: 'paste_urls',
@@ -110,6 +122,7 @@ const IMPORT_METHODS: {
     icon: <PasteIcon />,
     color: '#8B5CF6',
     category: 'import',
+    enabled: true,
   },
 ];
 
@@ -924,46 +937,51 @@ function ImportLeadsModal({ onClose, onSuccess }: { onClose: () => void; onSucce
                       Import Methods
                     </p>
                     <div className="space-y-2">
-                      {IMPORT_METHODS.map((method) => (
-                        <button
-                          key={method.id}
-                          onClick={() => {
-                            if (!method.comingSoon) {
-                              setSelectedMethod(method.id);
-                              setStep('configure');
-                            }
-                          }}
-                          disabled={method.comingSoon}
-                          className={`group flex w-full items-center gap-3 rounded-xl border p-3 text-left transition-all ${
-                            method.comingSoon
-                              ? 'cursor-not-allowed border-[#E2E8F0] bg-[#F8FAFC] opacity-60'
-                              : selectedMethod === method.id
-                                ? 'border-[#FF6B35] bg-[#FFF7ED]'
-                                : 'border-[#E2E8F0] hover:border-[#FF6B35]/30 hover:bg-[#F8FAFC]'
-                          }`}
-                        >
-                          <div
-                            className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl transition-transform ${!method.comingSoon ? 'group-hover:scale-110' : ''}`}
-                            style={{ backgroundColor: `${method.color}15` }}
+                      {IMPORT_METHODS.map((method) => {
+                        const isDisabled = method.enabled === false || method.comingSoon;
+                        return (
+                          <button
+                            key={method.id}
+                            onClick={() => {
+                              if (!isDisabled) {
+                                setSelectedMethod(method.id);
+                                setStep('configure');
+                              }
+                            }}
+                            disabled={isDisabled}
+                            className={`group relative flex w-full items-center gap-3 rounded-xl border p-3 text-left transition-all ${
+                              isDisabled
+                                ? 'cursor-not-allowed border-[#E2E8F0] bg-[#F8FAFC] opacity-50'
+                                : selectedMethod === method.id
+                                  ? 'border-[#FF6B35] bg-[#FFF7ED]'
+                                  : 'border-[#E2E8F0] hover:border-[#FF6B35]/30 hover:bg-[#F8FAFC]'
+                            }`}
                           >
-                            <div style={{ color: method.color }}>{method.icon}</div>
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2">
-                              <p className="text-sm font-medium text-[#1E293B]">{method.title}</p>
-                              {method.comingSoon && (
-                                <span className="rounded bg-[#64748B] px-1.5 py-0.5 text-[10px] font-medium text-white">
-                                  Coming Soon
-                                </span>
-                              )}
+                            <div
+                              className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl transition-transform ${!isDisabled ? 'group-hover:scale-110' : ''}`}
+                              style={{ backgroundColor: `${method.color}15` }}
+                            >
+                              <div style={{ color: method.color }}>{method.icon}</div>
                             </div>
-                            <p className="truncate text-xs text-[#64748B]">{method.description}</p>
-                          </div>
-                          {!method.comingSoon && (
-                            <ChevronRightIcon className="h-4 w-4 flex-shrink-0 text-[#94A3B8] group-hover:text-[#FF6B35]" />
-                          )}
-                        </button>
-                      ))}
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2">
+                                <p className="text-sm font-medium text-[#1E293B]">{method.title}</p>
+                                {method.comingSoon && (
+                                  <span className="rounded bg-[#64748B] px-1.5 py-0.5 text-[10px] font-medium text-white">
+                                    Coming Soon
+                                  </span>
+                                )}
+                              </div>
+                              <p className="truncate text-xs text-[#64748B]">
+                                {method.description}
+                              </p>
+                            </div>
+                            {!isDisabled && (
+                              <ChevronRightIcon className="h-4 w-4 flex-shrink-0 text-[#94A3B8] group-hover:text-[#FF6B35]" />
+                            )}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
 

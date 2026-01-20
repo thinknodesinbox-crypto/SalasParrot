@@ -1,6 +1,7 @@
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
 import { motion } from 'framer-motion';
+import { GoogleLogin } from '@react-oauth/google';
 import logoImage from '@/assets/images/logo.png';
 import { useAuthStore } from '@/lib/auth';
 
@@ -20,7 +21,27 @@ function SignupPage() {
   const [error, setError] = useState<string | null>(null);
 
   const signup = useAuthStore((state) => state.signup);
+  const googleLogin = useAuthStore((state) => state.googleLogin);
   const navigate = useNavigate();
+
+  const handleGoogleSuccess = async (credentialResponse: { credential?: string }) => {
+    if (!credentialResponse.credential) {
+      setError('Google sign-up failed. Please try again.');
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      await googleLogin(credentialResponse.credential);
+      navigate({ to: '/dashboard' });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Google sign-up failed. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
@@ -363,6 +384,29 @@ function SignupPage() {
                 'Start $1 trial'
               )}
             </motion.button>
+
+            {/* Divider */}
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-[#E2E8F0]" />
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="bg-white px-4 text-[#94A3B8]">or continue with</span>
+              </div>
+            </div>
+
+            {/* Google Sign Up */}
+            <div className="flex justify-center">
+              <GoogleLogin
+                onSuccess={handleGoogleSuccess}
+                onError={() => setError('Google sign-up failed. Please try again.')}
+                theme="outline"
+                size="large"
+                width="100%"
+                text="signup_with"
+                shape="rectangular"
+              />
+            </div>
 
             {/* Trial info */}
             <p className="text-center text-xs text-[#94A3B8]">7-day full access. Cancel anytime.</p>

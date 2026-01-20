@@ -40,6 +40,10 @@ export interface RefreshTokenRequest {
   refresh_token: string;
 }
 
+export interface GoogleAuthRequest {
+  credential: string;
+}
+
 // Workspace types
 export type WorkspaceRole = 'admin' | 'member';
 
@@ -402,7 +406,122 @@ export interface Invoice {
   invoice_pdf: string | null;
 }
 
+// Sender-based billing types
+export interface SenderBillingOverview {
+  sender_count: number;
+  monthly_cost: number;
+  price_per_sender: number;
+  subscription_status: 'active' | 'past_due' | 'canceled' | 'inactive';
+  current_period_end: string | null;
+  linkedin_accounts_connected: number;
+}
+
+export interface SenderCheckoutRequest {
+  sender_count: number;
+  success_url?: string;
+  cancel_url?: string;
+}
+
+export interface UpdateSendersRequest {
+  sender_count: number;
+}
+
 // Analytics types
+
+// Dashboard stats (6 stat cards)
+export interface DashboardStats {
+  connections_sent: number;
+  connections_sent_change: string;
+  connections_accepted: number;
+  acceptance_rate: string;
+  messages_sent: number;
+  messages_sent_change: string;
+  message_replies: number;
+  message_reply_rate: string;
+  emails_sent: number;
+  emails_sent_change: string;
+  email_replies: number;
+  email_reply_rate: string;
+}
+
+// Activity chart data
+export interface ActivityChartData {
+  labels: string[];
+  connections: number[];
+  emails: number[];
+  replies: number[];
+}
+
+// Recent activity item
+export interface RecentActivityItem {
+  type: 'connection' | 'reply' | 'email' | 'status_change';
+  name: string;
+  company: string | null;
+  time: string;
+  status: string;
+  channel: 'linkedin' | 'email' | null;
+}
+
+// Active campaign for dashboard
+export interface ActiveCampaignItem {
+  id: string;
+  name: string;
+  status: 'active' | 'paused';
+  progress: number;
+  leads: number;
+  sent: number;
+  replies: number;
+}
+
+// Analytics page overview stats (4 cards)
+export interface AnalyticsOverviewStats {
+  total_outreach: number;
+  total_outreach_change: string;
+  connections_made: number;
+  connections_made_change: string;
+  reply_rate: string;
+  reply_rate_change: string;
+  meetings_booked: number | null;
+}
+
+// Channel performance
+export interface ChannelPerformance {
+  linkedin_messages_sent: number;
+  linkedin_connection_rate: string;
+  linkedin_reply_rate: string;
+  linkedin_avg_response_time: string | null;
+  email_sent: number;
+  email_open_rate: string | null;
+  email_reply_rate: string;
+  email_bounce_rate: string | null;
+}
+
+// Campaign performance for table
+export interface CampaignPerformanceItem {
+  id: string;
+  name: string;
+  sent: number;
+  connection_rate: number;
+  reply_rate: number;
+  meetings: number | null;
+}
+
+// Sender performance
+export interface SenderPerformanceItem {
+  id: string;
+  name: string;
+  sent: number;
+  connection_rate: number;
+  reply_rate: number;
+}
+
+// Reply rate trend point
+export interface ReplyRateTrendPoint {
+  label: string;
+  rate: number;
+}
+
+// Legacy types (keep for backwards compatibility)
 export interface AnalyticsOverview {
   connections_sent: number;
   connections_change: number;
@@ -474,4 +593,54 @@ export interface ImportJobStartResponse {
   list_id: string;
   status: ImportJobStatus;
   message: string;
+}
+
+// Notification types
+export type NotificationType =
+  | 'campaign_started'
+  | 'campaign_completed'
+  | 'campaign_paused'
+  | 'campaign_error'
+  | 'new_reply'
+  | 'multiple_replies'
+  | 'new_connection'
+  | 'message_sent'
+  | 'message_failed'
+  | 'account_connected'
+  | 'account_disconnected'
+  | 'account_error'
+  | 'subscription_created'
+  | 'subscription_updated'
+  | 'subscription_cancelled'
+  | 'payment_failed'
+  | 'system_alert'
+  | 'daily_digest'
+  | 'weekly_digest';
+
+export interface Notification {
+  id: string;
+  type: NotificationType;
+  title: string;
+  message: string;
+  campaign_id: string | null;
+  lead_id: string | null;
+  is_read: boolean;
+  created_at: string;
+  read_at: string | null;
+}
+
+export interface NotificationListResponse {
+  notifications: Notification[];
+  total: number;
+  unread_count: number;
+}
+
+export interface NotificationSSEEvent {
+  id: string;
+  type: NotificationType;
+  title: string;
+  message: string;
+  campaign_id: string | null;
+  lead_id: string | null;
+  created_at: string;
 }

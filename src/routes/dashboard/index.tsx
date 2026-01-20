@@ -1,6 +1,12 @@
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, Link } from '@tanstack/react-router';
 import { motion } from 'framer-motion';
 import { useState } from 'react';
+import {
+  useDashboardStats,
+  useDashboardChart,
+  useDashboardActivity,
+  useDashboardCampaigns,
+} from '../../lib/hooks/queries';
 
 export const Route = createFileRoute('/dashboard/')({
   component: DashboardHome,
@@ -9,75 +15,56 @@ export const Route = createFileRoute('/dashboard/')({
 function DashboardHome() {
   const [dateRange, setDateRange] = useState('7d');
 
-  // Mock data for demonstration
-  const stats = [
-    { label: 'Connections Sent', value: 156, change: '+12%', trend: 'up', color: '#3B82F6' },
-    { label: 'Connections Accepted', value: 89, rate: '57.1%', trend: 'up', color: '#22C55E' },
-    { label: 'Messages Sent', value: 234, change: '+8%', trend: 'up', color: '#F59E0B' },
-    { label: 'Message Replies', value: 45, rate: '19.2%', trend: 'up', color: '#8B5CF6' },
-    { label: 'Emails Sent', value: 312, change: '+15%', trend: 'up', color: '#FF6B35' },
-    { label: 'Email Replies', value: 67, rate: '21.5%', trend: 'up', color: '#14B8A6' },
-  ];
+  // Fetch real data
+  const { data: statsData, isLoading: statsLoading } = useDashboardStats(dateRange);
+  const { data: chartData, isLoading: chartLoading } = useDashboardChart(dateRange);
+  const { data: activityData, isLoading: activityLoading } = useDashboardActivity(5);
+  const { data: campaignsData, isLoading: campaignsLoading } = useDashboardCampaigns();
 
-  const recentActivity = [
-    {
-      type: 'connection',
-      name: 'Sarah Johnson',
-      company: 'TechCorp',
-      time: '2 min ago',
-      status: 'accepted',
-    },
-    {
-      type: 'reply',
-      name: 'Michael Chen',
-      company: 'StartupXYZ',
-      time: '15 min ago',
-      status: 'replied',
-      channel: 'linkedin',
-    },
-    {
-      type: 'email',
-      name: 'Emily Davis',
-      company: 'GrowthCo',
-      time: '1 hour ago',
-      status: 'opened',
-    },
-    {
-      type: 'connection',
-      name: 'David Wilson',
-      company: 'SalesForce',
-      time: '2 hours ago',
-      status: 'pending',
-    },
-    {
-      type: 'reply',
-      name: 'Lisa Wang',
-      company: 'CloudTech',
-      time: '3 hours ago',
-      status: 'replied',
-      channel: 'email',
-    },
-  ];
+  // Transform stats data for display
+  const stats = statsData
+    ? [
+        {
+          label: 'Connections Sent',
+          value: statsData.connections_sent,
+          change: statsData.connections_sent_change,
+          color: '#3B82F6',
+        },
+        {
+          label: 'Connections Accepted',
+          value: statsData.connections_accepted,
+          rate: statsData.acceptance_rate,
+          color: '#22C55E',
+        },
+        {
+          label: 'Messages Sent',
+          value: statsData.messages_sent,
+          change: statsData.messages_sent_change,
+          color: '#F59E0B',
+        },
+        {
+          label: 'Message Replies',
+          value: statsData.message_replies,
+          rate: statsData.message_reply_rate,
+          color: '#8B5CF6',
+        },
+        {
+          label: 'Emails Sent',
+          value: statsData.emails_sent,
+          change: statsData.emails_sent_change,
+          color: '#FF6B35',
+        },
+        {
+          label: 'Email Replies',
+          value: statsData.email_replies,
+          rate: statsData.email_reply_rate,
+          color: '#14B8A6',
+        },
+      ]
+    : [];
 
-  const activeCampaigns = [
-    {
-      name: 'Q1 Outreach - Tech Leaders',
-      status: 'active',
-      progress: 68,
-      leads: 450,
-      sent: 306,
-      replies: 42,
-    },
-    {
-      name: 'Series A Founders',
-      status: 'active',
-      progress: 45,
-      leads: 200,
-      sent: 90,
-      replies: 18,
-    },
-    { name: 'Agency Partners', status: 'paused', progress: 82, leads: 150, sent: 123, replies: 31 },
-  ];
+  const recentActivity = activityData || [];
+  const activeCampaigns = campaignsData || [];
 
   return (
     <div className="space-y-6">
@@ -104,38 +91,58 @@ function DashboardHome() {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4 lg:grid-cols-6">
-        {stats.map((stat, index) => (
-          <motion.div
-            key={stat.label}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: index * 0.05 }}
-            className="rounded-xl border border-[#E2E8F0] bg-white p-3 transition-colors hover:border-[#FF6B35]/30 md:p-4"
-          >
-            <div className="mb-1.5 flex items-center gap-1.5 md:mb-2 md:gap-2">
+        {statsLoading
+          ? Array.from({ length: 6 }).map((_, index) => (
               <div
-                className="h-2 w-2 flex-shrink-0 rounded-full"
-                style={{ backgroundColor: stat.color }}
-              />
-              <span className="truncate text-[10px] font-medium text-[#64748B] sm:text-xs">
-                {stat.label}
-              </span>
-            </div>
-            <div className="flex items-baseline gap-1 sm:gap-2">
-              <span className="text-xl font-bold text-[#1E293B] sm:text-2xl">{stat.value}</span>
-              {stat.rate && (
-                <span className="text-[10px] font-medium text-[#22C55E] sm:text-xs">
-                  {stat.rate}
-                </span>
-              )}
-              {stat.change && (
-                <span className="text-[10px] font-medium text-[#22C55E] sm:text-xs">
-                  {stat.change}
-                </span>
-              )}
-            </div>
-          </motion.div>
-        ))}
+                key={index}
+                className="animate-pulse rounded-xl border border-[#E2E8F0] bg-white p-3 md:p-4"
+              >
+                <div className="mb-1.5 flex items-center gap-1.5 md:mb-2 md:gap-2">
+                  <div className="h-2 w-2 rounded-full bg-[#E2E8F0]" />
+                  <div className="h-3 w-20 rounded bg-[#E2E8F0]" />
+                </div>
+                <div className="flex items-baseline gap-1 sm:gap-2">
+                  <div className="h-7 w-12 rounded bg-[#E2E8F0]" />
+                  <div className="h-4 w-10 rounded bg-[#E2E8F0]" />
+                </div>
+              </div>
+            ))
+          : stats.map((stat, index) => (
+              <motion.div
+                key={stat.label}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, delay: index * 0.05 }}
+                className="rounded-xl border border-[#E2E8F0] bg-white p-3 transition-colors hover:border-[#FF6B35]/30 md:p-4"
+              >
+                <div className="mb-1.5 flex items-center gap-1.5 md:mb-2 md:gap-2">
+                  <div
+                    className="h-2 w-2 flex-shrink-0 rounded-full"
+                    style={{ backgroundColor: stat.color }}
+                  />
+                  <span className="truncate text-[10px] font-medium text-[#64748B] sm:text-xs">
+                    {stat.label}
+                  </span>
+                </div>
+                <div className="flex items-baseline gap-1 sm:gap-2">
+                  <span className="text-xl font-bold text-[#1E293B] sm:text-2xl">{stat.value}</span>
+                  {stat.rate && (
+                    <span
+                      className={`text-[10px] font-medium sm:text-xs ${stat.rate.startsWith('-') ? 'text-[#EF4444]' : 'text-[#22C55E]'}`}
+                    >
+                      {stat.rate}
+                    </span>
+                  )}
+                  {stat.change && (
+                    <span
+                      className={`text-[10px] font-medium sm:text-xs ${stat.change.startsWith('-') ? 'text-[#EF4444]' : 'text-[#22C55E]'}`}
+                    >
+                      {stat.change}
+                    </span>
+                  )}
+                </div>
+              </motion.div>
+            ))}
       </div>
 
       {/* Main Content Grid */}
@@ -167,36 +174,75 @@ function DashboardHome() {
 
           {/* Chart Area */}
           <div className="flex h-48 items-end justify-between gap-1 px-0 sm:gap-2 sm:px-4 md:h-64">
-            {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((day, i) => {
-              const heights = [45, 62, 58, 78, 85, 42, 35];
-              const emailHeights = [30, 45, 52, 60, 72, 35, 28];
-              const replyHeights = [12, 18, 22, 28, 32, 14, 10];
-              return (
-                <div key={day} className="flex flex-1 flex-col items-center gap-1 sm:gap-2">
+            {chartLoading ? (
+              // Loading skeleton
+              Array.from({ length: 7 }).map((_, i) => (
+                <div key={i} className="flex flex-1 flex-col items-center gap-1 sm:gap-2">
                   <div className="flex h-36 w-full items-end justify-center gap-0.5 sm:gap-1 md:h-48">
-                    <motion.div
-                      initial={{ height: 0 }}
-                      animate={{ height: `${heights[i]}%` }}
-                      transition={{ duration: 0.5, delay: i * 0.05 }}
-                      className="w-2 rounded-t-sm bg-[#3B82F6] sm:w-3"
+                    <div
+                      className="w-2 animate-pulse rounded-t-sm bg-[#E2E8F0] sm:w-3"
+                      style={{ height: '40%' }}
                     />
-                    <motion.div
-                      initial={{ height: 0 }}
-                      animate={{ height: `${emailHeights[i]}%` }}
-                      transition={{ duration: 0.5, delay: i * 0.05 + 0.1 }}
-                      className="w-2 rounded-t-sm bg-[#FF6B35] sm:w-3"
+                    <div
+                      className="w-2 animate-pulse rounded-t-sm bg-[#E2E8F0] sm:w-3"
+                      style={{ height: '30%' }}
                     />
-                    <motion.div
-                      initial={{ height: 0 }}
-                      animate={{ height: `${replyHeights[i]}%` }}
-                      transition={{ duration: 0.5, delay: i * 0.05 + 0.2 }}
-                      className="w-2 rounded-t-sm bg-[#22C55E] sm:w-3"
+                    <div
+                      className="w-2 animate-pulse rounded-t-sm bg-[#E2E8F0] sm:w-3"
+                      style={{ height: '20%' }}
                     />
                   </div>
-                  <span className="text-[10px] text-[#94A3B8] sm:text-xs">{day}</span>
+                  <div className="h-3 w-6 animate-pulse rounded bg-[#E2E8F0]" />
                 </div>
-              );
-            })}
+              ))
+            ) : chartData?.labels?.length ? (
+              chartData.labels.map((label, i) => {
+                // Calculate heights as percentages based on max value
+                const maxConnections = Math.max(...(chartData.connections || []), 1);
+                const maxEmails = Math.max(...(chartData.emails || []), 1);
+                const maxReplies = Math.max(...(chartData.replies || []), 1);
+                const maxVal = Math.max(maxConnections, maxEmails, maxReplies, 1);
+
+                const connectionHeight = ((chartData.connections?.[i] || 0) / maxVal) * 100;
+                const emailHeight = ((chartData.emails?.[i] || 0) / maxVal) * 100;
+                const replyHeight = ((chartData.replies?.[i] || 0) / maxVal) * 100;
+
+                return (
+                  <div key={label} className="flex flex-1 flex-col items-center gap-1 sm:gap-2">
+                    <div className="flex h-36 w-full items-end justify-center gap-0.5 sm:gap-1 md:h-48">
+                      <motion.div
+                        initial={{ height: 0 }}
+                        animate={{ height: `${Math.max(connectionHeight, 2)}%` }}
+                        transition={{ duration: 0.5, delay: i * 0.05 }}
+                        className="w-2 rounded-t-sm bg-[#3B82F6] sm:w-3"
+                        title={`Connections: ${chartData.connections?.[i] || 0}`}
+                      />
+                      <motion.div
+                        initial={{ height: 0 }}
+                        animate={{ height: `${Math.max(emailHeight, 2)}%` }}
+                        transition={{ duration: 0.5, delay: i * 0.05 + 0.1 }}
+                        className="w-2 rounded-t-sm bg-[#FF6B35] sm:w-3"
+                        title={`Emails: ${chartData.emails?.[i] || 0}`}
+                      />
+                      <motion.div
+                        initial={{ height: 0 }}
+                        animate={{ height: `${Math.max(replyHeight, 2)}%` }}
+                        transition={{ duration: 0.5, delay: i * 0.05 + 0.2 }}
+                        className="w-2 rounded-t-sm bg-[#22C55E] sm:w-3"
+                        title={`Replies: ${chartData.replies?.[i] || 0}`}
+                      />
+                    </div>
+                    <span className="text-[10px] text-[#94A3B8] sm:text-xs">{label}</span>
+                  </div>
+                );
+              })
+            ) : (
+              // Empty state
+              <div className="flex h-full w-full flex-col items-center justify-center text-[#94A3B8]">
+                <p className="text-sm">No activity data yet</p>
+                <p className="text-xs">Start a campaign to see your activity here</p>
+              </div>
+            )}
           </div>
         </motion.div>
 
@@ -211,57 +257,89 @@ function DashboardHome() {
             Recent Activity
           </h2>
           <div className="space-y-3 md:space-y-4">
-            {recentActivity.map((activity, index) => (
-              <div key={index} className="flex items-start gap-2 sm:gap-3">
-                <div
-                  className={`flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full sm:h-8 sm:w-8 ${
-                    activity.status === 'accepted'
-                      ? 'bg-[#F0FDF4]'
-                      : activity.status === 'replied'
-                        ? 'bg-[#FFF7ED]'
-                        : activity.status === 'opened'
-                          ? 'bg-[#EFF6FF]'
-                          : 'bg-[#F8FAFC]'
-                  }`}
-                >
-                  {activity.type === 'connection' && (
-                    <ConnectionIcon
-                      className={
-                        activity.status === 'accepted' ? 'text-[#22C55E]' : 'text-[#94A3B8]'
-                      }
-                    />
-                  )}
-                  {activity.type === 'reply' && <ReplyIcon className="text-[#FF6B35]" />}
-                  {activity.type === 'email' && <EmailIcon className="text-[#3B82F6]" />}
+            {activityLoading ? (
+              // Loading skeleton
+              Array.from({ length: 5 }).map((_, index) => (
+                <div key={index} className="flex animate-pulse items-start gap-2 sm:gap-3">
+                  <div className="h-7 w-7 flex-shrink-0 rounded-full bg-[#E2E8F0] sm:h-8 sm:w-8" />
+                  <div className="min-w-0 flex-1">
+                    <div className="mb-1 h-3 w-24 rounded bg-[#E2E8F0]" />
+                    <div className="h-2 w-16 rounded bg-[#E2E8F0]" />
+                  </div>
+                  <div className="flex-shrink-0 text-right">
+                    <div className="h-5 w-16 rounded-full bg-[#E2E8F0]" />
+                    <div className="mt-1 h-2 w-12 rounded bg-[#E2E8F0]" />
+                  </div>
                 </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-xs font-medium text-[#1E293B] sm:text-sm">
-                    {activity.name}
-                  </p>
-                  <p className="text-[10px] text-[#64748B] sm:text-xs">{activity.company}</p>
-                </div>
-                <div className="flex-shrink-0 text-right">
-                  <span
-                    className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium sm:px-2 sm:text-xs ${
+              ))
+            ) : recentActivity.length > 0 ? (
+              recentActivity.map((activity, index) => (
+                <div key={index} className="flex items-start gap-2 sm:gap-3">
+                  <div
+                    className={`flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full sm:h-8 sm:w-8 ${
                       activity.status === 'accepted'
-                        ? 'bg-[#F0FDF4] text-[#22C55E]'
+                        ? 'bg-[#F0FDF4]'
                         : activity.status === 'replied'
-                          ? 'bg-[#FFF7ED] text-[#FF6B35]'
-                          : activity.status === 'opened'
-                            ? 'bg-[#EFF6FF] text-[#3B82F6]'
-                            : 'bg-[#F8FAFC] text-[#94A3B8]'
+                          ? 'bg-[#FFF7ED]'
+                          : activity.status === 'sent'
+                            ? 'bg-[#EFF6FF]'
+                            : 'bg-[#F8FAFC]'
                     }`}
                   >
-                    {activity.status}
-                  </span>
-                  <p className="mt-1 text-[10px] text-[#94A3B8] sm:text-xs">{activity.time}</p>
+                    {activity.type === 'connection' && (
+                      <ConnectionIcon
+                        className={
+                          activity.status === 'accepted' ? 'text-[#22C55E]' : 'text-[#94A3B8]'
+                        }
+                      />
+                    )}
+                    {activity.type === 'reply' && <ReplyIcon className="text-[#FF6B35]" />}
+                    {(activity.type === 'email' || activity.type === 'status_change') && (
+                      <EmailIcon className="text-[#3B82F6]" />
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-xs font-medium text-[#1E293B] sm:text-sm">
+                      {activity.name}
+                    </p>
+                    <p className="text-[10px] text-[#64748B] sm:text-xs">
+                      {activity.company || 'Unknown company'}
+                    </p>
+                  </div>
+                  <div className="flex-shrink-0 text-right">
+                    <span
+                      className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium sm:px-2 sm:text-xs ${
+                        activity.status === 'accepted'
+                          ? 'bg-[#F0FDF4] text-[#22C55E]'
+                          : activity.status === 'replied'
+                            ? 'bg-[#FFF7ED] text-[#FF6B35]'
+                            : activity.status === 'sent'
+                              ? 'bg-[#EFF6FF] text-[#3B82F6]'
+                              : 'bg-[#F8FAFC] text-[#94A3B8]'
+                      }`}
+                    >
+                      {activity.status}
+                    </span>
+                    <p className="mt-1 text-[10px] text-[#94A3B8] sm:text-xs">{activity.time}</p>
+                  </div>
                 </div>
+              ))
+            ) : (
+              // Empty state
+              <div className="flex flex-col items-center justify-center py-8 text-center text-[#94A3B8]">
+                <p className="text-sm">No recent activity</p>
+                <p className="text-xs">Activity will appear here once you start outreach</p>
               </div>
-            ))}
+            )}
           </div>
-          <button className="mt-3 w-full rounded-lg py-2 text-sm font-medium text-[#FF6B35] transition-colors hover:bg-[#FFF7ED] md:mt-4">
-            View all activity
-          </button>
+          {recentActivity.length > 0 && (
+            <Link
+              to="/dashboard/inbox"
+              className="mt-3 block w-full rounded-lg py-2 text-center text-sm font-medium text-[#FF6B35] transition-colors hover:bg-[#FFF7ED] md:mt-4"
+            >
+              View all activity
+            </Link>
+          )}
         </motion.div>
       </div>
 
@@ -274,64 +352,104 @@ function DashboardHome() {
       >
         <div className="flex items-center justify-between border-b border-[#E2E8F0] px-4 py-3 md:px-6 md:py-4">
           <h2 className="text-base font-semibold text-[#1E293B] md:text-lg">Active Campaigns</h2>
-          <button className="text-xs font-medium text-[#FF6B35] transition-colors hover:text-[#E85A2A] sm:text-sm">
+          <Link
+            to="/dashboard/campaigns"
+            className="text-xs font-medium text-[#FF6B35] transition-colors hover:text-[#E85A2A] sm:text-sm"
+          >
             View all
-          </button>
+          </Link>
         </div>
         <div className="divide-y divide-[#E2E8F0]">
-          {activeCampaigns.map((campaign, index) => (
-            <div
-              key={index}
-              className="px-4 py-3 transition-colors hover:bg-[#F8FAFC] md:px-6 md:py-4"
-            >
-              <div className="mb-2 flex flex-col justify-between gap-2 sm:mb-3 sm:flex-row sm:items-center sm:gap-3">
+          {campaignsLoading ? (
+            // Loading skeleton
+            Array.from({ length: 3 }).map((_, index) => (
+              <div key={index} className="animate-pulse px-4 py-3 md:px-6 md:py-4">
+                <div className="mb-2 flex flex-col justify-between gap-2 sm:mb-3 sm:flex-row sm:items-center sm:gap-3">
+                  <div className="flex items-center gap-2 sm:gap-3">
+                    <div className="h-2 w-2 rounded-full bg-[#E2E8F0]" />
+                    <div className="h-4 w-40 rounded bg-[#E2E8F0]" />
+                    <div className="h-5 w-14 rounded-full bg-[#E2E8F0]" />
+                  </div>
+                  <div className="flex items-center gap-3 sm:gap-6">
+                    <div className="h-4 w-12 rounded bg-[#E2E8F0]" />
+                    <div className="h-4 w-12 rounded bg-[#E2E8F0]" />
+                    <div className="h-4 w-12 rounded bg-[#E2E8F0]" />
+                  </div>
+                </div>
                 <div className="flex items-center gap-2 sm:gap-3">
-                  <div
-                    className={`h-2 w-2 flex-shrink-0 rounded-full ${campaign.status === 'active' ? 'bg-[#22C55E]' : 'bg-[#F59E0B]'}`}
-                  />
-                  <span className="truncate text-sm font-medium text-[#1E293B] sm:text-base">
-                    {campaign.name}
-                  </span>
-                  <span
-                    className={`flex-shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium sm:px-2 sm:text-xs ${
-                      campaign.status === 'active'
-                        ? 'bg-[#F0FDF4] text-[#22C55E]'
-                        : 'bg-[#FFFBEB] text-[#F59E0B]'
-                    }`}
-                  >
-                    {campaign.status}
-                  </span>
-                </div>
-                <div className="flex items-center gap-3 text-[10px] text-[#64748B] sm:gap-6 sm:text-sm">
-                  <div className="flex items-center gap-1">
-                    <LeadsSmallIcon />
-                    <span>{campaign.leads}</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <SentIcon />
-                    <span>{campaign.sent}</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <ReplySmallIcon />
-                    <span>{campaign.replies}</span>
-                  </div>
+                  <div className="h-2 flex-1 rounded-full bg-[#E2E8F0]" />
+                  <div className="h-4 w-10 rounded bg-[#E2E8F0]" />
                 </div>
               </div>
-              <div className="flex items-center gap-2 sm:gap-3">
-                <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[#E2E8F0] sm:h-2">
-                  <motion.div
-                    initial={{ width: 0 }}
-                    animate={{ width: `${campaign.progress}%` }}
-                    transition={{ duration: 0.6, delay: index * 0.1 }}
-                    className="h-full rounded-full bg-[#FF6B35]"
-                  />
+            ))
+          ) : activeCampaigns.length > 0 ? (
+            activeCampaigns.map((campaign, index) => (
+              <Link
+                key={campaign.id}
+                to="/dashboard/campaigns"
+                className="block px-4 py-3 transition-colors hover:bg-[#F8FAFC] md:px-6 md:py-4"
+              >
+                <div className="mb-2 flex flex-col justify-between gap-2 sm:mb-3 sm:flex-row sm:items-center sm:gap-3">
+                  <div className="flex items-center gap-2 sm:gap-3">
+                    <div
+                      className={`h-2 w-2 flex-shrink-0 rounded-full ${campaign.status === 'active' ? 'bg-[#22C55E]' : 'bg-[#F59E0B]'}`}
+                    />
+                    <span className="truncate text-sm font-medium text-[#1E293B] sm:text-base">
+                      {campaign.name}
+                    </span>
+                    <span
+                      className={`flex-shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium sm:px-2 sm:text-xs ${
+                        campaign.status === 'active'
+                          ? 'bg-[#F0FDF4] text-[#22C55E]'
+                          : 'bg-[#FFFBEB] text-[#F59E0B]'
+                      }`}
+                    >
+                      {campaign.status}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3 text-[10px] text-[#64748B] sm:gap-6 sm:text-sm">
+                    <div className="flex items-center gap-1">
+                      <LeadsSmallIcon />
+                      <span>{campaign.leads}</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <SentIcon />
+                      <span>{campaign.sent}</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <ReplySmallIcon />
+                      <span>{campaign.replies}</span>
+                    </div>
+                  </div>
                 </div>
-                <span className="text-xs font-medium text-[#1E293B] sm:text-sm">
-                  {campaign.progress}%
-                </span>
-              </div>
+                <div className="flex items-center gap-2 sm:gap-3">
+                  <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[#E2E8F0] sm:h-2">
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${campaign.progress}%` }}
+                      transition={{ duration: 0.6, delay: index * 0.1 }}
+                      className="h-full rounded-full bg-[#FF6B35]"
+                    />
+                  </div>
+                  <span className="text-xs font-medium text-[#1E293B] sm:text-sm">
+                    {campaign.progress}%
+                  </span>
+                </div>
+              </Link>
+            ))
+          ) : (
+            // Empty state
+            <div className="flex flex-col items-center justify-center py-12 text-center text-[#94A3B8]">
+              <p className="text-sm">No active campaigns</p>
+              <p className="mb-4 text-xs">Create your first campaign to start outreach</p>
+              <Link
+                to="/dashboard/campaigns"
+                className="rounded-lg bg-[#FF6B35] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#E85A2A]"
+              >
+                Create Campaign
+              </Link>
             </div>
-          ))}
+          )}
         </div>
       </motion.div>
 
