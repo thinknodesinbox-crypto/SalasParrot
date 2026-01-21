@@ -184,6 +184,14 @@ export interface LeadListResponse {
 export type LinkedInStatus = 'connected' | 'disconnected' | 'warning' | 'banned';
 export type SubscriptionType = 'free' | 'premium' | 'sales_nav' | 'recruiter';
 
+export interface AttachedEmailAccount {
+  id: string;
+  email_address: string;
+  provider: EmailProvider;
+  status: EmailStatus;
+  display_name: string | null;
+}
+
 export interface LinkedInAccount {
   id: string;
   user_id: string;
@@ -199,6 +207,7 @@ export interface LinkedInAccount {
   proxy_ip: string | null;
   last_synced_at: string | null;
   created_at: string;
+  email_account: AttachedEmailAccount | null; // Attached email account
 }
 
 // LinkedIn Auth types
@@ -263,6 +272,7 @@ export interface EmailAccount {
   id: string;
   user_id: string;
   workspace_id: string | null;
+  linkedin_account_id: string | null; // Attached LinkedIn account
   unipile_account_id: string;
   email_address: string;
   provider: EmailProvider;

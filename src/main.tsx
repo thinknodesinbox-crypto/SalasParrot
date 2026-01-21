@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { RouterProvider, createRouter } from '@tanstack/react-router';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { GoogleOAuthProvider } from '@react-oauth/google';
+import { Toaster } from 'react-hot-toast';
 import { routeTree } from './routeTree.gen';
 import { queryClient } from './lib/queryClient';
 import { useAuthStore } from './lib/auth';
@@ -47,6 +48,30 @@ createRoot(document.getElementById('root')!).render(
     <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
       <QueryClientProvider client={queryClient}>
         <App />
+        <Toaster
+          position="top-right"
+          toastOptions={{
+            duration: 4000,
+            style: {
+              background: '#1E293B',
+              color: '#fff',
+              borderRadius: '8px',
+              padding: '12px 16px',
+            },
+            success: {
+              iconTheme: {
+                primary: '#22C55E',
+                secondary: '#fff',
+              },
+            },
+            error: {
+              iconTheme: {
+                primary: '#EF4444',
+                secondary: '#fff',
+              },
+            },
+          }}
+        />
       </QueryClientProvider>
     </GoogleOAuthProvider>
   </StrictMode>

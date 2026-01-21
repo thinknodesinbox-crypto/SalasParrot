@@ -1,16 +1,24 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { motion } from 'framer-motion';
 import { useState, useMemo } from 'react';
+import DOMPurify from 'dompurify';
 import {
   useConversations,
   useConversation,
   useSendReply,
   useMarkAsRead,
   useLinkedInAccounts,
-  useEmailAccounts,
   useCampaigns,
 } from '@/lib/hooks/queries';
 import type { Conversation, Message, Channel } from '@/lib/types';
+
+// Configure DOMPurify to add target="_blank" and rel="noopener noreferrer" to all links
+DOMPurify.addHook('afterSanitizeAttributes', (node) => {
+  if (node.tagName === 'A') {
+    node.setAttribute('target', '_blank');
+    node.setAttribute('rel', 'noopener noreferrer');
+  }
+});
 
 export const Route = createFileRoute('/dashboard/inbox')({
   component: InboxPage,
@@ -43,13 +51,11 @@ function InboxPage() {
 
   // Fetch accounts and campaigns for filter dropdowns
   const { data: linkedInAccounts = [] } = useLinkedInAccounts();
-  const { data: emailAccounts = [] } = useEmailAccounts();
   const { data: campaigns = [] } = useCampaigns();
 
-  // Combined sender options (LinkedIn + Email accounts)
+  // Sender options - only LinkedIn accounts (email is attached to LinkedIn)
   const senderOptions = useMemo(() => {
-    const options: { id: string; name: string; type: 'linkedin' | 'email' }[] = [];
-    linkedInAccounts.forEach((acc) => {
+    return linkedInAccounts.map((acc) => {
       // Extract username from profile_url as fallback (e.g., "john-doe" from linkedin.com/in/john-doe)
       let displayName = acc.name;
       if (!displayName && acc.profile_url) {
@@ -61,21 +67,14 @@ function InboxPage() {
           displayName = acc.profile_url;
         }
       }
-      options.push({
+      return {
         id: acc.id,
         name: displayName || 'LinkedIn Account',
-        type: 'linkedin',
-      });
+        hasEmail: !!acc.email_account,
+        emailAddress: acc.email_account?.email_address || null,
+      };
     });
-    emailAccounts.forEach((acc) => {
-      options.push({
-        id: acc.id,
-        name: acc.email_address || 'Email Account',
-        type: 'email',
-      });
-    });
-    return options;
-  }, [linkedInAccounts, emailAccounts]);
+  }, [linkedInAccounts]);
 
   // Fetch conversation list with API filters
   const {
@@ -223,7 +222,7 @@ function InboxPage() {
 
         {/* Advanced Filters - Sender & Campaign */}
         <div className="flex gap-2 border-b border-[#E2E8F0] px-4 py-2">
-          {/* Sender Filter */}
+          {/* Sender Filter - Shows LinkedIn accounts (with attached email indicator) */}
           <div className="relative flex-1">
             <select
               value={selectedSenderId}
@@ -233,7 +232,7 @@ function InboxPage() {
               <option value="">All Senders</option>
               {senderOptions.map((sender) => (
                 <option key={sender.id} value={sender.id}>
-                  {sender.type === 'linkedin' ? '🔗 ' : '📧 '}
+                  {sender.hasEmail ? '🔗+📧 ' : '🔗 '}
                   {sender.name}
                 </option>
               ))}
@@ -443,49 +442,146 @@ function InboxPage() {
               </div>
 
               {/* Thread */}
-              <div className="flex-1 space-y-6 overflow-y-auto p-6">
-                {selectedConversation.messages && selectedConversation.messages.length > 0 ? (
-                  selectedConversation.messages.map((msg: Message, index: number) => {
-                    const isOutbound = msg.direction === 'outbound';
-                    return (
-                      <motion.div
-                        key={msg.id}
-                        initial={{ opacity: 0, y: 10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: index * 0.1 }}
-                        className={`flex ${isOutbound ? 'justify-end' : 'justify-start'}`}
-                      >
-                        <div className={`max-w-[70%] ${isOutbound ? 'order-2' : ''}`}>
-                          <div
-                            className={`rounded-2xl px-4 py-3 ${
-                              isOutbound
-                                ? 'rounded-br-md bg-[#FF6B35] text-white'
-                                : 'rounded-bl-md bg-[#F8FAFC] text-[#1E293B]'
-                            }`}
+              <div className="flex-1 overflow-y-auto p-6">
+                <div className="mx-auto max-w-3xl space-y-6">
+                  {selectedConversation.messages && selectedConversation.messages.length > 0 ? (
+                    selectedConversation.messages.map((msg: Message, index: number) => {
+                      const isOutbound = msg.direction === 'outbound';
+                      const isEmail = msg.channel === 'email';
+
+                      // Email messages are displayed full-width and centered
+                      if (isEmail) {
+                        return (
+                          <motion.div
+                            key={msg.id}
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: index * 0.1 }}
+                            className="w-full"
                           >
-                            <p className="whitespace-pre-wrap text-sm">{msg.content}</p>
-                          </div>
-                          <div
-                            className={`mt-1 flex items-center gap-2 ${isOutbound ? 'justify-end' : ''}`}
-                          >
-                            <span className="text-xs text-[#94A3B8]">
-                              {formatRelativeTime(msg.sent_at || msg.created_at)}
-                            </span>
-                            {msg.channel === 'linkedin' ? (
-                              <LinkedInIcon className="h-3 w-3 text-[#0A66C2]" />
-                            ) : (
-                              <EmailIcon className="h-3 w-3 text-[#14B8A6]" />
+                            {/* Email subject if available */}
+                            {msg.subject && (
+                              <div className="mb-2 text-sm font-medium text-[#64748B]">
+                                Subject: {msg.subject}
+                              </div>
                             )}
+                            <div
+                              className={`overflow-hidden rounded-xl border ${
+                                isOutbound
+                                  ? 'border-[#FF6B35]/20 bg-[#FFF7ED]'
+                                  : 'border-[#E2E8F0] bg-white'
+                              }`}
+                            >
+                              <div
+                                className="prose prose-sm max-w-none p-4 text-sm text-[#1E293B] [&_a]:text-[#0A66C2] [&_a]:underline [&_img]:max-w-full [&_img]:rounded [&_table]:w-full"
+                                dangerouslySetInnerHTML={{
+                                  __html: DOMPurify.sanitize(msg.content, {
+                                    ALLOWED_TAGS: [
+                                      'p',
+                                      'br',
+                                      'strong',
+                                      'b',
+                                      'em',
+                                      'i',
+                                      'u',
+                                      'a',
+                                      'ul',
+                                      'ol',
+                                      'li',
+                                      'img',
+                                      'div',
+                                      'span',
+                                      'table',
+                                      'tr',
+                                      'td',
+                                      'th',
+                                      'thead',
+                                      'tbody',
+                                      'h1',
+                                      'h2',
+                                      'h3',
+                                      'h4',
+                                      'h5',
+                                      'h6',
+                                      'blockquote',
+                                      'pre',
+                                      'code',
+                                      'hr',
+                                    ],
+                                    ALLOWED_ATTR: [
+                                      'href',
+                                      'src',
+                                      'alt',
+                                      'title',
+                                      'target',
+                                      'rel',
+                                      'style',
+                                      'class',
+                                      'width',
+                                      'height',
+                                      'align',
+                                      'valign',
+                                      'bgcolor',
+                                      'cellpadding',
+                                      'cellspacing',
+                                      'border',
+                                    ],
+                                    ADD_ATTR: ['target'],
+                                    FORBID_TAGS: ['script', 'style', 'iframe', 'form', 'input'],
+                                  }),
+                                }}
+                              />
+                            </div>
+                            <div
+                              className={`mt-2 flex items-center gap-2 ${isOutbound ? 'justify-end' : ''}`}
+                            >
+                              <span className="text-xs text-[#94A3B8]">
+                                {formatRelativeTime(msg.sent_at || msg.created_at)}
+                              </span>
+                              <EmailIcon className="h-3 w-3 text-[#14B8A6]" />
+                              {isOutbound && <span className="text-xs text-[#94A3B8]">Sent</span>}
+                            </div>
+                          </motion.div>
+                        );
+                      }
+
+                      // LinkedIn messages use chat bubble style
+                      return (
+                        <motion.div
+                          key={msg.id}
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: index * 0.1 }}
+                          className={`flex ${isOutbound ? 'justify-end' : 'justify-start'}`}
+                        >
+                          <div className={`max-w-[70%] ${isOutbound ? 'order-2' : ''}`}>
+                            <div
+                              className={`rounded-2xl px-4 py-3 ${
+                                isOutbound
+                                  ? 'rounded-br-md bg-[#FF6B35] text-white'
+                                  : 'rounded-bl-md bg-[#F8FAFC] text-[#1E293B]'
+                              }`}
+                            >
+                              <p className="whitespace-pre-wrap text-sm">{msg.content}</p>
+                            </div>
+                            <div
+                              className={`mt-1 flex items-center gap-2 ${isOutbound ? 'justify-end' : ''}`}
+                            >
+                              <span className="text-xs text-[#94A3B8]">
+                                {formatRelativeTime(msg.sent_at || msg.created_at)}
+                              </span>
+                              <LinkedInIcon className="h-3 w-3 text-[#0A66C2]" />
+                            </div>
                           </div>
-                        </div>
-                      </motion.div>
-                    );
-                  })
-                ) : (
-                  <div className="py-8 text-center text-[#64748B]">
-                    No messages in this conversation
-                  </div>
-                )}
+                        </motion.div>
+                      );
+                    })
+                  ) : (
+                    <div className="py-8 text-center text-[#64748B]">
+                      No messages in this conversation
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Reply Input */}

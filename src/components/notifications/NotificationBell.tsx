@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from '@tanstack/react-router';
+import toast from 'react-hot-toast';
 
 import {
   useNotifications,
@@ -31,6 +32,8 @@ const getNotificationIcon = (type: NotificationType): string => {
     case 'daily_digest':
     case 'weekly_digest':
       return 'M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z';
+    case 'system_alert':
+      return 'M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15'; // Sync/refresh icon
     default:
       return 'M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9';
   }
@@ -56,6 +59,8 @@ const getNotificationColor = (type: NotificationType): string => {
       return 'text-teal-600';
     case 'weekly_digest':
       return 'text-purple-500';
+    case 'system_alert':
+      return 'text-blue-500';
     default:
       return 'text-gray-500';
   }
@@ -85,23 +90,71 @@ export function NotificationBell() {
 
   // SSE for real-time notifications
   const onNotification = useCallback((notification: NotificationSSEEvent) => {
-    // Show browser notification if permission granted
-    if (Notification.permission === 'granted') {
-      new Notification(notification.title, {
-        body: notification.message,
-        icon: '/favicon.ico',
-      });
+    // Determine toast type based on notification type
+    const isError = [
+      'campaign_error',
+      'account_error',
+      'account_disconnected',
+      'payment_failed',
+    ].includes(notification.type);
+    const isSuccess = ['campaign_completed', 'account_connected', 'new_connection'].includes(
+      notification.type
+    );
+    const isSync = notification.type === 'system_alert';
+
+    // Show toast notification
+    if (isError) {
+      toast.error(
+        <div>
+          <p className="font-medium">{notification.title}</p>
+          <p className="text-sm opacity-90">{notification.message}</p>
+        </div>
+      );
+    } else if (isSuccess) {
+      toast.success(
+        <div>
+          <p className="font-medium">{notification.title}</p>
+          <p className="text-sm opacity-90">{notification.message}</p>
+        </div>
+      );
+    } else if (isSync) {
+      // Custom sync toast with loading icon
+      toast(
+        <div className="flex items-center gap-3">
+          <svg className="h-5 w-5 animate-spin text-blue-400" fill="none" viewBox="0 0 24 24">
+            <circle
+              className="opacity-25"
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              strokeWidth="4"
+            />
+            <path
+              className="opacity-75"
+              fill="currentColor"
+              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+            />
+          </svg>
+          <div>
+            <p className="font-medium">{notification.title}</p>
+            <p className="text-sm opacity-90">{notification.message}</p>
+          </div>
+        </div>,
+        { duration: 5000 }
+      );
+    } else {
+      toast(
+        <div>
+          <p className="font-medium">{notification.title}</p>
+          <p className="text-sm opacity-90">{notification.message}</p>
+        </div>,
+        { icon: '🔔' }
+      );
     }
   }, []);
 
   useNotificationStream(onNotification);
-
-  // Request browser notification permission
-  useEffect(() => {
-    if (Notification.permission === 'default') {
-      Notification.requestPermission();
-    }
-  }, []);
 
   // Close dropdown when clicking outside
   useEffect(() => {

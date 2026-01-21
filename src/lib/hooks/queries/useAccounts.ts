@@ -485,13 +485,19 @@ interface OAuthInitResponse {
   state: string;
 }
 
+interface OAuthInitParams {
+  workspaceId?: string;
+  returnUrl?: string;
+}
+
 export const useInitGoogleOAuth = () => {
   return useMutation({
-    mutationFn: async (workspaceId?: string) => {
-      const params = new URLSearchParams();
-      if (workspaceId) params.append('workspace_id', workspaceId);
+    mutationFn: async (params?: OAuthInitParams) => {
+      const searchParams = new URLSearchParams();
+      if (params?.workspaceId) searchParams.append('workspace_id', params.workspaceId);
+      if (params?.returnUrl) searchParams.append('return_url', params.returnUrl);
       const response = await api.get<OAuthInitResponse>(
-        `/email-accounts/oauth/google/init?${params}`
+        `/email-accounts/oauth/google/init?${searchParams}`
       );
       return response.data;
     },
@@ -503,13 +509,61 @@ export const useInitGoogleOAuth = () => {
 
 export const useInitMicrosoftOAuth = () => {
   return useMutation({
-    mutationFn: async (workspaceId?: string) => {
-      const params = new URLSearchParams();
-      if (workspaceId) params.append('workspace_id', workspaceId);
+    mutationFn: async (params?: OAuthInitParams) => {
+      const searchParams = new URLSearchParams();
+      if (params?.workspaceId) searchParams.append('workspace_id', params.workspaceId);
+      if (params?.returnUrl) searchParams.append('return_url', params.returnUrl);
       const response = await api.get<OAuthInitResponse>(
-        `/email-accounts/oauth/microsoft/init?${params}`
+        `/email-accounts/oauth/microsoft/init?${searchParams}`
       );
       return response.data;
+    },
+    onError: (error) => {
+      throw new Error(getErrorMessage(error));
+    },
+  });
+};
+
+// Attach email account to LinkedIn account
+export const useAttachEmailToLinkedIn = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      emailAccountId,
+      linkedinAccountId,
+    }: {
+      emailAccountId: string;
+      linkedinAccountId: string;
+    }) => {
+      const response = await api.post<EmailAccount>(
+        `/email-accounts/${emailAccountId}/attach-to-linkedin`,
+        { linkedin_account_id: linkedinAccountId }
+      );
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['emailAccounts'] });
+      queryClient.invalidateQueries({ queryKey: ['linkedinAccounts'] });
+    },
+    onError: (error) => {
+      throw new Error(getErrorMessage(error));
+    },
+  });
+};
+
+// Detach email account from LinkedIn account
+export const useDetachEmailFromLinkedIn = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (emailAccountId: string) => {
+      const response = await api.post<EmailAccount>(
+        `/email-accounts/${emailAccountId}/detach-from-linkedin`
+      );
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['emailAccounts'] });
+      queryClient.invalidateQueries({ queryKey: ['linkedinAccounts'] });
     },
     onError: (error) => {
       throw new Error(getErrorMessage(error));

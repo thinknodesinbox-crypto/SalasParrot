@@ -72,6 +72,9 @@ export {
   // Email OAuth Flow
   useInitGoogleOAuth,
   useInitMicrosoftOAuth,
+  // Email-LinkedIn Attachment
+  useAttachEmailToLinkedIn,
+  useDetachEmailFromLinkedIn,
 } from './useAccounts';
 
 // Auth
