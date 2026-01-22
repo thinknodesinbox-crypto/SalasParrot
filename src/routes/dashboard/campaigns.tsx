@@ -1,6 +1,7 @@
 import { createFileRoute, useSearch, useNavigate } from '@tanstack/react-router';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState, useCallback, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   SequenceCanvas,
   StepPalette,
@@ -9,16 +10,25 @@ import {
 } from '@/components/campaign/SequenceCanvas';
 import {
   useCampaigns,
+  useCampaign,
   useCreateCampaign,
+  useUpdateCampaign,
   useDeleteCampaign,
   useStartCampaign,
   usePauseCampaign,
+  useCloneCampaign,
   useLeadLists,
   useLinkedInAccounts,
 } from '../../lib/hooks/queries';
 import type { Campaign, CampaignStatus } from '../../lib/types';
 import { api } from '@/lib/api';
-import { prepareNodesForSave } from '@/lib/utils/campaignStepMapper';
+import {
+  prepareNodesForSave,
+  mapStepTypeToNodeType,
+  mapConfigToNodeData,
+} from '@/lib/utils/campaignStepMapper';
+import { showSuccessToast } from '@/lib/toast';
+import { queryKeys } from '@/lib/queryClient';
 
 type CampaignsSearch = {
   createWithList?: string;
@@ -39,6 +49,7 @@ function CampaignsPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [preSelectedLeadListId, setPreSelectedLeadListId] = useState<string | null>(null);
   const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
+  const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null);
   const [filterStatus, setFilterStatus] = useState<'all' | CampaignStatus>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -149,7 +160,14 @@ function CampaignsPage() {
       {campaigns.length === 0 ? (
         <EmptyState onCreate={() => setShowCreateModal(true)} />
       ) : (
-        <CampaignsList campaigns={filteredCampaigns} onSelect={setSelectedCampaign} />
+        <CampaignsList
+          campaigns={filteredCampaigns}
+          onSelect={setSelectedCampaign}
+          onEdit={(campaign) => {
+            setEditingCampaign(campaign);
+            setShowCreateModal(true);
+          }}
+        />
       )}
 
       {/* Create Campaign Modal */}
@@ -159,8 +177,10 @@ function CampaignsPage() {
             onClose={() => {
               setShowCreateModal(false);
               setPreSelectedLeadListId(null);
+              setEditingCampaign(null);
             }}
             preSelectedLeadListId={preSelectedLeadListId}
+            editingCampaign={editingCampaign}
           />
         )}
       </AnimatePresence>
@@ -171,6 +191,11 @@ function CampaignsPage() {
           <CampaignDetailDrawer
             campaign={selectedCampaign}
             onClose={() => setSelectedCampaign(null)}
+            onEdit={(campaign) => {
+              setEditingCampaign(campaign);
+              setSelectedCampaign(null);
+              setShowCreateModal(true);
+            }}
           />
         )}
       </AnimatePresence>
@@ -250,9 +275,11 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
 function CampaignsList({
   campaigns,
   onSelect,
+  onEdit,
 }: {
   campaigns: Campaign[];
   onSelect: (campaign: Campaign) => void;
+  onEdit: (campaign: Campaign) => void;
 }) {
   return (
     <div className="overflow-hidden rounded-xl border border-[#E2E8F0] bg-white">
@@ -277,7 +304,12 @@ function CampaignsList({
           </thead>
           <tbody className="divide-y divide-[#E2E8F0]">
             {campaigns.map((campaign) => (
-              <CampaignRow key={campaign.id} campaign={campaign} onSelect={onSelect} />
+              <CampaignRow
+                key={campaign.id}
+                campaign={campaign}
+                onSelect={onSelect}
+                onEdit={onEdit}
+              />
             ))}
           </tbody>
         </table>
@@ -286,7 +318,7 @@ function CampaignsList({
       {/* Mobile Cards */}
       <div className="divide-y divide-[#E2E8F0] lg:hidden">
         {campaigns.map((campaign) => (
-          <CampaignCard key={campaign.id} campaign={campaign} onSelect={onSelect} />
+          <CampaignCard key={campaign.id} campaign={campaign} onSelect={onSelect} onEdit={onEdit} />
         ))}
       </div>
     </div>
@@ -296,12 +328,16 @@ function CampaignsList({
 function CampaignCard({
   campaign,
   onSelect,
+  onEdit,
 }: {
   campaign: Campaign;
   onSelect: (campaign: Campaign) => void;
+  onEdit: (campaign: Campaign) => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const deleteCampaign = useDeleteCampaign();
+  const startCampaign = useStartCampaign(campaign.id);
+  const pauseCampaign = usePauseCampaign(campaign.id);
 
   const statusColors: Record<string, { bg: string; text: string; dot: string }> = {
     draft: { bg: 'bg-[#F8FAFC]', text: 'text-[#64748B]', dot: 'bg-[#94A3B8]' },
@@ -358,10 +394,59 @@ function CampaignCard({
                     exit={{ opacity: 0, scale: 0.95 }}
                     className="absolute right-0 top-full z-50 mt-1 w-48 rounded-lg border border-[#E2E8F0] bg-white py-1 shadow-lg"
                   >
-                    <button className="w-full px-4 py-2 text-left text-sm text-[#1E293B] hover:bg-[#F8FAFC]">
+                    <button
+                      onClick={() => {
+                        onSelect(campaign);
+                        setMenuOpen(false);
+                      }}
+                      className="w-full px-4 py-2 text-left text-sm text-[#1E293B] hover:bg-[#F8FAFC]"
+                    >
                       View Details
                     </button>
-                    <CampaignActionButtons campaign={campaign} onClose={() => setMenuOpen(false)} />
+                    {campaign.status === 'draft' && (
+                      <>
+                        <button
+                          onClick={() => {
+                            onEdit(campaign);
+                            setMenuOpen(false);
+                          }}
+                          className="w-full px-4 py-2 text-left text-sm text-[#1E293B] hover:bg-[#F8FAFC]"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={async () => {
+                            setMenuOpen(false);
+                            await startCampaign.mutateAsync();
+                          }}
+                          className="w-full px-4 py-2 text-left text-sm text-[#22C55E] hover:bg-[#F0FDF4]"
+                        >
+                          Start Campaign
+                        </button>
+                      </>
+                    )}
+                    {campaign.status === 'active' && (
+                      <button
+                        onClick={async () => {
+                          setMenuOpen(false);
+                          await pauseCampaign.mutateAsync();
+                        }}
+                        className="w-full px-4 py-2 text-left text-sm text-[#F59E0B] hover:bg-[#FFFBEB]"
+                      >
+                        Pause Campaign
+                      </button>
+                    )}
+                    {campaign.status === 'paused' && (
+                      <button
+                        onClick={async () => {
+                          setMenuOpen(false);
+                          await startCampaign.mutateAsync();
+                        }}
+                        className="w-full px-4 py-2 text-left text-sm text-[#22C55E] hover:bg-[#F0FDF4]"
+                      >
+                        Resume Campaign
+                      </button>
+                    )}
                     <button
                       onClick={() => {
                         setMenuOpen(false);
@@ -388,50 +473,19 @@ function CampaignCard({
 }
 
 // Helper component for start/pause buttons
-function CampaignActionButtons({ campaign, onClose }: { campaign: Campaign; onClose: () => void }) {
-  const startCampaign = useStartCampaign(campaign.id);
-  const pauseCampaign = usePauseCampaign(campaign.id);
-
-  if (campaign.status === 'active') {
-    return (
-      <button
-        onClick={async () => {
-          onClose();
-          await pauseCampaign.mutateAsync();
-        }}
-        className="w-full px-4 py-2 text-left text-sm text-[#F59E0B] hover:bg-[#FFFBEB]"
-      >
-        Pause Campaign
-      </button>
-    );
-  }
-
-  if (campaign.status !== 'completed') {
-    return (
-      <button
-        onClick={async () => {
-          onClose();
-          await startCampaign.mutateAsync();
-        }}
-        className="w-full px-4 py-2 text-left text-sm text-[#22C55E] hover:bg-[#F0FDF4]"
-      >
-        Start Campaign
-      </button>
-    );
-  }
-
-  return null;
-}
-
 function CampaignRow({
   campaign,
   onSelect,
+  onEdit,
 }: {
   campaign: Campaign;
   onSelect: (campaign: Campaign) => void;
+  onEdit: (campaign: Campaign) => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const deleteCampaign = useDeleteCampaign();
+  const startCampaign = useStartCampaign(campaign.id);
+  const pauseCampaign = usePauseCampaign(campaign.id);
 
   const statusColors: Record<string, { bg: string; text: string; dot: string }> = {
     draft: { bg: 'bg-[#F8FAFC]', text: 'text-[#64748B]', dot: 'bg-[#94A3B8]' },
@@ -492,10 +546,59 @@ function CampaignRow({
                   exit={{ opacity: 0, scale: 0.95 }}
                   className="absolute right-0 top-full z-50 mt-1 w-48 rounded-lg border border-[#E2E8F0] bg-white py-1 shadow-lg"
                 >
-                  <button className="w-full px-4 py-2 text-left text-sm text-[#1E293B] hover:bg-[#F8FAFC]">
+                  <button
+                    onClick={() => {
+                      onSelect(campaign);
+                      setMenuOpen(false);
+                    }}
+                    className="w-full px-4 py-2 text-left text-sm text-[#1E293B] hover:bg-[#F8FAFC]"
+                  >
                     View Details
                   </button>
-                  <CampaignActionButtons campaign={campaign} onClose={() => setMenuOpen(false)} />
+                  {campaign.status === 'draft' && (
+                    <>
+                      <button
+                        onClick={() => {
+                          onEdit(campaign);
+                          setMenuOpen(false);
+                        }}
+                        className="w-full px-4 py-2 text-left text-sm text-[#1E293B] hover:bg-[#F8FAFC]"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={async () => {
+                          setMenuOpen(false);
+                          await startCampaign.mutateAsync();
+                        }}
+                        className="w-full px-4 py-2 text-left text-sm text-[#22C55E] hover:bg-[#F0FDF4]"
+                      >
+                        Start Campaign
+                      </button>
+                    </>
+                  )}
+                  {campaign.status === 'active' && (
+                    <button
+                      onClick={async () => {
+                        setMenuOpen(false);
+                        await pauseCampaign.mutateAsync();
+                      }}
+                      className="w-full px-4 py-2 text-left text-sm text-[#F59E0B] hover:bg-[#FFFBEB]"
+                    >
+                      Pause Campaign
+                    </button>
+                  )}
+                  {campaign.status === 'paused' && (
+                    <button
+                      onClick={async () => {
+                        setMenuOpen(false);
+                        await startCampaign.mutateAsync();
+                      }}
+                      className="w-full px-4 py-2 text-left text-sm text-[#22C55E] hover:bg-[#F0FDF4]"
+                    >
+                      Resume Campaign
+                    </button>
+                  )}
                   <button
                     onClick={() => {
                       setMenuOpen(false);
@@ -518,18 +621,24 @@ function CampaignRow({
 function CreateCampaignModal({
   onClose,
   preSelectedLeadListId,
+  editingCampaign,
 }: {
   onClose: () => void;
   preSelectedLeadListId?: string | null;
+  editingCampaign?: Campaign | null;
 }) {
+  const isEditMode = !!editingCampaign;
+  const queryClient = useQueryClient();
   const createCampaign = useCreateCampaign();
+  const updateCampaign = useUpdateCampaign(editingCampaign?.id || '');
+  const { data: campaignDetails, isLoading: detailsLoading } = useCampaign(
+    editingCampaign?.id || ''
+  );
   const { data: leadListsData, isLoading: leadListsLoading } = useLeadLists();
   const leadLists = leadListsData?.lists || [];
   const { data: linkedInAccounts = [], isLoading: accountsLoading } = useLinkedInAccounts();
-  // If we have a pre-selected lead list, start at 'leads' step so user can confirm or change it
-  const [step, setStep] = useState<'name' | 'leads' | 'sequence' | 'senders' | 'review'>(
-    preSelectedLeadListId ? 'leads' : 'name'
-  );
+  // Always start at 'name' step, even with pre-selected lead list
+  const [step, setStep] = useState<'name' | 'leads' | 'sequence' | 'senders' | 'review'>('name');
   const [campaignName, setCampaignName] = useState('');
   const [campaignDescription, setCampaignDescription] = useState('');
   const [selectedLeadListId, setSelectedLeadListId] = useState<string | null>(
@@ -544,6 +653,48 @@ function CreateCampaignModal({
   const [error, setError] = useState<string | null>(null);
 
   const selectedNode = sequenceNodes.find((n) => n.id === selectedNodeId) || null;
+
+  // Pre-fill form when editing a campaign
+  useEffect(() => {
+    if (isEditMode && campaignDetails && !detailsLoading) {
+      // Set campaign name
+      setCampaignName(campaignDetails.name || '');
+
+      // Convert backend steps to frontend nodes
+      if (campaignDetails.steps && campaignDetails.steps.length > 0) {
+        const nodes: SequenceNode[] = [{ id: 'start', type: 'start', data: {} }];
+
+        // Sort steps by order
+        const sortedSteps = [...campaignDetails.steps].sort((a, b) => a.order - b.order);
+
+        sortedSteps.forEach((step) => {
+          // Map backend step type to frontend node type
+          const mappedType = mapStepTypeToNodeType(step.type);
+          if (!mappedType) {
+            console.error(`Unknown step type: ${step.type}`);
+            return;
+          }
+
+          nodes.push({
+            id: step.id,
+            type: mappedType,
+            data: mapConfigToNodeData(step.config || {}),
+          });
+        });
+
+        nodes.push({ id: 'end', type: 'end', data: {} });
+        setSequenceNodes(nodes);
+      }
+
+      // Set selected senders
+      if (campaignDetails.senders) {
+        setSelectedSenderIds(campaignDetails.senders.map((s) => s.linkedin_account_id));
+      }
+
+      // Note: We don't set selectedLeadListId because we don't have that info from campaignDetails
+      // The leads are already assigned but we can't change the list in edit mode
+    }
+  }, [isEditMode, campaignDetails, detailsLoading]);
 
   const handleAddStep = useCallback(
     (type: SequenceNode['type']) => {
@@ -590,29 +741,67 @@ function CreateCampaignModal({
 
   const currentStepIndex = stepConfigs.findIndex((s) => s.id === step);
 
-  const handleCreate = async () => {
+  const handleCreate = async (startImmediately = false) => {
     setError(null);
-    try {
-      // Step 1: Create the campaign
-      const campaign = await createCampaign.mutateAsync({
-        name: campaignName,
-      });
 
-      // Step 2: Save all sequence steps
+    // Validate required fields
+    if (!campaignName || !campaignName.trim()) {
+      setError('Campaign name is required');
+      return;
+    }
+
+    try {
+      let campaignId: string;
+
+      if (isEditMode && editingCampaign && updateCampaign) {
+        // Edit mode: Update existing campaign
+        campaignId = editingCampaign.id;
+
+        // Step 1: Update campaign name
+        await updateCampaign.mutateAsync({ name: campaignName });
+
+        // Step 2: Delete all existing steps
+        if (campaignDetails?.steps) {
+          for (const step of campaignDetails.steps) {
+            try {
+              await api.delete(`/campaigns/${campaignId}/steps/${step.id}`);
+            } catch (err) {
+              console.error('Failed to delete step:', step.id, err);
+            }
+          }
+        }
+
+        // Step 3: Delete all existing senders
+        if (campaignDetails?.senders) {
+          for (const sender of campaignDetails.senders) {
+            try {
+              await api.delete(`/campaigns/${campaignId}/senders/${sender.id}`);
+            } catch (err) {
+              console.error('Failed to delete sender:', sender.id, err);
+            }
+          }
+        }
+      } else {
+        // Create mode: Create new campaign
+        const campaign = await createCampaign.mutateAsync({ name: campaignName });
+        campaignId = campaign.id;
+      }
+
+      // Step 4: Save all sequence steps (both create and edit mode)
       const stepsToSave = prepareNodesForSave(sequenceNodes);
 
       if (stepsToSave.length > 0) {
         // Create steps sequentially to maintain order
         for (const stepData of stepsToSave) {
-          await api.post(`/campaigns/${campaign.id}/steps`, stepData);
+          await api.post(`/campaigns/${campaignId}/steps`, stepData);
         }
       }
 
-      // Step 3: Add senders to campaign
+      // Step 5: Add senders to campaign (both create and edit mode)
       if (selectedSenderIds.length > 0) {
         for (const senderId of selectedSenderIds) {
           try {
-            await api.post(`/campaigns/${campaign.id}/senders`, {
+            await api.post(`/campaigns/${campaignId}/senders`, {
               linkedin_account_id: senderId,
             });
           } catch (senderErr) {
@@ -621,10 +810,10 @@ function CreateCampaignModal({
         }
       }
 
-      // Step 4: Assign leads from selected list
+      // Step 6: Assign leads from selected list (both create and edit mode)
       if (selectedLeadListId) {
         try {
-          await api.post(`/campaigns/${campaign.id}/assign-leads`, {
+          await api.post(`/campaigns/${campaignId}/assign-leads`, {
             list_id: selectedLeadListId,
           });
         } catch (leadErr) {
@@ -632,9 +821,41 @@ function CreateCampaignModal({
         }
       }
 
+      // Invalidate queries to refresh campaign data
+      await queryClient.invalidateQueries({ queryKey: queryKeys.campaigns.detail(campaignId) });
+      await queryClient.invalidateQueries({ queryKey: queryKeys.campaigns.all });
+
+      // Step 7: Start campaign if requested
+      if (startImmediately && selectedSenderIds.length > 0) {
+        try {
+          await api.post(`/campaigns/${campaignId}/start`);
+          // Invalidate queries again to update campaign status
+          await queryClient.invalidateQueries({ queryKey: queryKeys.campaigns.detail(campaignId) });
+          await queryClient.invalidateQueries({ queryKey: queryKeys.campaigns.all });
+          showSuccessToast(
+            'Campaign started!',
+            `"${campaignName}" is now active and processing leads.`
+          );
+        } catch (startErr) {
+          console.error('Failed to start campaign:', startErr);
+          setError(
+            'Campaign was created but failed to start. You can start it manually from the campaigns list.'
+          );
+          return; // Don't close modal on error
+        }
+      } else {
+        // Show success toast for save without starting
+        showSuccessToast(
+          isEditMode ? 'Campaign updated!' : 'Campaign saved!',
+          isEditMode
+            ? `"${campaignName}" has been updated successfully.`
+            : `"${campaignName}" has been saved as a draft.`
+        );
+      }
+
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create campaign');
+      setError(err instanceof Error ? err.message : 'Failed to save campaign');
     }
   };
 
@@ -657,554 +878,698 @@ function CreateCampaignModal({
       >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-[#E2E8F0] px-6 py-4">
-          <h2 className="text-lg font-bold text-[#1E293B]">Create Campaign</h2>
+          <h2 className="text-lg font-bold text-[#1E293B]">
+            {isEditMode ? 'Edit Campaign' : 'Create Campaign'}
+          </h2>
           <button onClick={onClose} className="rounded-lg p-2 hover:bg-[#F8FAFC]">
             <CloseIcon />
           </button>
         </div>
 
-        {/* Progress */}
-        <div className="border-b border-[#E2E8F0] px-6 py-4">
-          <div className="flex items-center justify-between">
-            {stepConfigs.map((s, i) => (
-              <div key={s.id} className="flex items-center">
-                <div
-                  className={`flex items-center gap-2 ${i <= currentStepIndex ? 'text-[#FF6B35]' : 'text-[#94A3B8]'}`}
-                >
-                  <div
-                    className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium ${
-                      i < currentStepIndex
-                        ? 'bg-[#FF6B35] text-white'
-                        : i === currentStepIndex
-                          ? 'border-2 border-[#FF6B35] bg-[#FFF7ED] text-[#FF6B35]'
-                          : 'bg-[#F8FAFC] text-[#94A3B8]'
-                    }`}
-                  >
-                    {i < currentStepIndex ? '✓' : s.number}
-                  </div>
-                  <span className="hidden text-sm font-medium sm:block">{s.label}</span>
-                </div>
-                {i < stepConfigs.length - 1 && (
-                  <div
-                    className={`mx-2 h-0.5 w-8 sm:w-12 ${i < currentStepIndex ? 'bg-[#FF6B35]' : 'bg-[#E2E8F0]'}`}
-                  />
-                )}
-              </div>
-            ))}
+        {/* Loading state when fetching campaign details in edit mode */}
+        {isEditMode && detailsLoading ? (
+          <div className="flex min-h-[400px] items-center justify-center p-6">
+            <div className="flex flex-col items-center gap-3">
+              <LoadingSpinner />
+              <p className="text-[#64748B]">Loading campaign details...</p>
+            </div>
           </div>
-        </div>
-
-        {/* Content */}
-        <div className={`flex-1 overflow-y-auto ${step === 'sequence' ? 'p-6' : 'p-6'}`}>
-          <AnimatePresence mode="wait">
-            {step === 'name' && (
-              <motion.div
-                key="name"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                className="space-y-4"
-              >
-                <div>
-                  <h3 className="mb-1 text-lg font-semibold text-[#1E293B]">Name your campaign</h3>
-                  <p className="text-sm text-[#64748B]">
-                    Give your campaign a memorable name and description.
-                  </p>
-                </div>
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-[#1E293B]">
-                    Campaign Name *
-                  </label>
-                  <input
-                    type="text"
-                    value={campaignName}
-                    onChange={(e) => setCampaignName(e.target.value)}
-                    placeholder="e.g., Q1 Tech Leaders Outreach"
-                    className="w-full rounded-xl border border-[#E2E8F0] px-4 py-3 focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
-                  />
-                </div>
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-[#1E293B]">
-                    Description (optional)
-                  </label>
-                  <textarea
-                    value={campaignDescription}
-                    onChange={(e) => setCampaignDescription(e.target.value)}
-                    placeholder="Describe the goal of this campaign..."
-                    rows={3}
-                    className="w-full resize-none rounded-xl border border-[#E2E8F0] px-4 py-3 focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
-                  />
-                </div>
-              </motion.div>
-            )}
-
-            {step === 'leads' && (
-              <motion.div
-                key="leads"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                className="space-y-4"
-              >
-                <div>
-                  <h3 className="mb-1 text-lg font-semibold text-[#1E293B]">Select your leads</h3>
-                  <p className="text-sm text-[#64748B]">
-                    Choose a lead list to target with this campaign.
-                  </p>
-                </div>
-                {leadListsLoading ? (
-                  <div className="flex items-center justify-center py-8">
-                    <LoadingSpinner />
-                  </div>
-                ) : leadLists.length === 0 ? (
-                  <div className="py-8 text-center">
-                    <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-[#F8FAFC]">
-                      <ListIcon className="h-6 w-6 text-[#94A3B8]" />
-                    </div>
-                    <p className="mb-2 text-[#64748B]">No lead lists yet</p>
-                    <p className="text-sm text-[#94A3B8]">
-                      Import leads first to create a campaign.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="grid gap-3">
-                    {leadLists.map((list) => (
-                      <button
-                        key={list.id}
-                        onClick={() => setSelectedLeadListId(list.id)}
-                        className={`flex items-center gap-4 rounded-xl border p-4 transition-all ${
-                          selectedLeadListId === list.id
-                            ? 'border-[#FF6B35] bg-[#FFF7ED]'
-                            : 'border-[#E2E8F0] hover:border-[#FF6B35]/30'
+        ) : (
+          <>
+            {/* Progress */}
+            <div className="border-b border-[#E2E8F0] px-6 py-4">
+              <div className="flex items-center justify-between">
+                {stepConfigs.map((s, i) => (
+                  <div key={s.id} className="flex items-center">
+                    <div
+                      className={`flex items-center gap-2 ${i <= currentStepIndex ? 'text-[#FF6B35]' : 'text-[#94A3B8]'}`}
+                    >
+                      <div
+                        className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium ${
+                          i < currentStepIndex
+                            ? 'bg-[#FF6B35] text-white'
+                            : i === currentStepIndex
+                              ? 'border-2 border-[#FF6B35] bg-[#FFF7ED] text-[#FF6B35]'
+                              : 'bg-[#F8FAFC] text-[#94A3B8]'
                         }`}
                       >
-                        <div
-                          className={`flex h-10 w-10 items-center justify-center rounded-lg ${
-                            selectedLeadListId === list.id ? 'bg-[#FF6B35]' : 'bg-[#F8FAFC]'
-                          }`}
-                        >
-                          <ListIcon
-                            className={`h-5 w-5 ${selectedLeadListId === list.id ? 'text-white' : 'text-[#64748B]'}`}
-                          />
-                        </div>
-                        <div className="flex-1 text-left">
-                          <p className="font-medium text-[#1E293B]">{list.name}</p>
-                          <p className="text-sm text-[#64748B]">
-                            {list.lead_count} leads • {list.enriched_count} enriched
-                          </p>
-                        </div>
-                        {selectedLeadListId === list.id && (
-                          <CheckCircleIcon className="h-5 w-5 text-[#FF6B35]" />
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                )}
-                <button className="w-full rounded-xl border-2 border-dashed border-[#E2E8F0] p-4 text-center transition-colors hover:border-[#FF6B35]/50 hover:bg-[#FFF7ED]/50">
-                  <PlusIcon className="mx-auto mb-1 h-5 w-5 text-[#94A3B8]" />
-                  <span className="text-sm text-[#64748B]">Import new leads</span>
-                </button>
-              </motion.div>
-            )}
-
-            {step === 'sequence' && (
-              <motion.div
-                key="sequence"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                className="-m-6 h-full"
-              >
-                {/* Mobile Layout - Stacked */}
-                <div className="relative flex h-[calc(100vh-200px)] min-h-[500px] flex-col bg-[#FAFBFC] lg:hidden">
-                  {/* Mobile Step Palette - Horizontal scroll */}
-                  <div className="border-b border-[#E2E8F0] bg-white p-3">
-                    <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-[#94A3B8]">
-                      Add Steps
-                    </p>
-                    <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-2">
-                      {[
-                        { type: 'linkedin_connect' as const, label: 'Connect', color: '#0A66C2' },
-                        { type: 'linkedin_message' as const, label: 'Message', color: '#0A66C2' },
-                        { type: 'email' as const, label: 'Email', color: '#14B8A6' },
-                        { type: 'delay' as const, label: 'Wait', color: '#F59E0B' },
-                        { type: 'condition' as const, label: 'If/Then', color: '#8B5CF6' },
-                      ].map((item) => (
-                        <button
-                          key={item.type}
-                          onClick={() => handleAddStep(item.type)}
-                          className="flex-shrink-0 rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 transition-all hover:border-[#FF6B35]/30"
-                        >
-                          <span className="text-xs font-medium" style={{ color: item.color }}>
-                            {item.label}
-                          </span>
-                        </button>
-                      ))}
+                        {i < currentStepIndex ? '✓' : s.number}
+                      </div>
+                      <span className="hidden text-sm font-medium sm:block">{s.label}</span>
                     </div>
+                    {i < stepConfigs.length - 1 && (
+                      <div
+                        className={`mx-2 h-0.5 w-8 sm:w-12 ${i < currentStepIndex ? 'bg-[#FF6B35]' : 'bg-[#E2E8F0]'}`}
+                      />
+                    )}
                   </div>
+                ))}
+              </div>
+            </div>
 
-                  {/* Mobile Canvas */}
-                  <div className="flex-1 overflow-y-auto">
-                    <SequenceCanvas
-                      nodes={sequenceNodes}
-                      onNodesChange={setSequenceNodes}
-                      onNodeSelect={(node) => setSelectedNodeId(node?.id || null)}
-                      selectedNodeId={selectedNodeId}
-                    />
-                  </div>
-
-                  {/* Mobile Config Panel - Bottom Sheet */}
-                  <AnimatePresence>
-                    {selectedNode &&
-                      selectedNode.type !== 'start' &&
-                      selectedNode.type !== 'end' && (
-                        <motion.div
-                          initial={{ y: '100%' }}
-                          animate={{ y: 0 }}
-                          exit={{ y: '100%' }}
-                          className="absolute bottom-0 left-0 right-0 max-h-[60vh] overflow-y-auto rounded-t-2xl border-t border-[#E2E8F0] bg-white shadow-lg"
-                        >
-                          <div className="mx-auto my-3 h-1 w-12 rounded-full bg-[#E2E8F0]" />
-                          <NodeConfigPanel
-                            node={selectedNode}
-                            onUpdate={handleUpdateNode}
-                            onClose={() => setSelectedNodeId(null)}
-                          />
-                        </motion.div>
-                      )}
-                  </AnimatePresence>
-                </div>
-
-                {/* Desktop Layout - Side by side */}
-                <div className="hidden h-[70vh] max-h-[800px] min-h-[500px] overflow-hidden rounded-lg border border-[#E2E8F0] bg-[#FAFBFC] lg:flex">
-                  {/* Step Palette */}
-                  <StepPalette
-                    onAddStep={handleAddStep}
-                    onApplyTemplate={(nodes) => setSequenceNodes(nodes)}
-                  />
-
-                  {/* Main Canvas */}
-                  <SequenceCanvas
-                    nodes={sequenceNodes}
-                    onNodesChange={setSequenceNodes}
-                    onNodeSelect={(node) => setSelectedNodeId(node?.id || null)}
-                    selectedNodeId={selectedNodeId}
-                  />
-
-                  {/* Node Config Panel */}
-                  <AnimatePresence>
-                    {selectedNode &&
-                      selectedNode.type !== 'start' &&
-                      selectedNode.type !== 'end' && (
-                        <NodeConfigPanel
-                          node={selectedNode}
-                          onUpdate={handleUpdateNode}
-                          onClose={() => setSelectedNodeId(null)}
-                        />
-                      )}
-                  </AnimatePresence>
-                </div>
-              </motion.div>
-            )}
-
-            {step === 'senders' && (
-              <motion.div
-                key="senders"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                className="space-y-4"
-              >
-                <div>
-                  <h3 className="mb-1 text-lg font-semibold text-[#1E293B]">Assign senders</h3>
-                  <p className="text-sm text-[#64748B]">
-                    Select LinkedIn accounts to send from. We'll auto-rotate between them.
-                  </p>
-                </div>
-
-                {accountsLoading ? (
-                  <div className="flex items-center justify-center py-8">
-                    <LoadingSpinner />
-                  </div>
-                ) : linkedInAccounts.length === 0 ? (
-                  <div className="rounded-xl bg-[#F8FAFC] p-4 text-center">
-                    <LinkedInIcon className="mx-auto mb-2 h-8 w-8 text-[#94A3B8]" />
-                    <p className="mb-3 text-sm text-[#64748B]">
-                      No LinkedIn accounts connected yet
-                    </p>
-                    <button className="rounded-lg bg-[#0A66C2] px-4 py-2 text-sm font-medium text-white hover:bg-[#004182]">
-                      Connect LinkedIn Account
-                    </button>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {/* Select All */}
-                    <div className="flex items-center justify-between border-b border-[#E2E8F0] pb-2">
-                      <span className="text-sm text-[#64748B]">
-                        {selectedSenderIds.length} of {linkedInAccounts.length} selected
-                      </span>
-                      <button
-                        onClick={() => {
-                          if (selectedSenderIds.length === linkedInAccounts.length) {
-                            setSelectedSenderIds([]);
-                          } else {
-                            setSelectedSenderIds(linkedInAccounts.map((a) => a.id));
-                          }
-                        }}
-                        className="text-sm font-medium text-[#0A66C2] hover:underline"
-                      >
-                        {selectedSenderIds.length === linkedInAccounts.length
-                          ? 'Deselect all'
-                          : 'Select all'}
-                      </button>
-                    </div>
-
-                    {/* Account List */}
-                    <div className="max-h-[300px] space-y-2 overflow-y-auto">
-                      {linkedInAccounts.map((account) => {
-                        const isSelected = selectedSenderIds.includes(account.id);
-                        return (
-                          <motion.div
-                            key={account.id}
-                            onClick={() => {
-                              if (isSelected) {
-                                setSelectedSenderIds((ids) =>
-                                  ids.filter((id) => id !== account.id)
-                                );
-                              } else {
-                                setSelectedSenderIds((ids) => [...ids, account.id]);
-                              }
-                            }}
-                            className={`flex cursor-pointer items-center gap-3 rounded-xl border p-3 transition-all ${
-                              isSelected
-                                ? 'border-[#0A66C2] bg-[#EFF6FF]'
-                                : 'border-[#E2E8F0] hover:border-[#0A66C2]/30 hover:bg-[#F8FAFC]'
-                            }`}
-                            whileHover={{ scale: 1.01 }}
-                            whileTap={{ scale: 0.99 }}
-                          >
-                            {/* Checkbox */}
-                            <div
-                              className={`flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border-2 transition-colors ${
-                                isSelected ? 'border-[#0A66C2] bg-[#0A66C2]' : 'border-[#D1D5DB]'
-                              }`}
-                            >
-                              {isSelected && (
-                                <svg
-                                  className="h-3 w-3 text-white"
-                                  fill="none"
-                                  viewBox="0 0 24 24"
-                                  stroke="currentColor"
-                                  strokeWidth={3}
-                                >
-                                  <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    d="M5 13l4 4L19 7"
-                                  />
-                                </svg>
-                              )}
-                            </div>
-
-                            {/* Avatar */}
-                            <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#0A66C2] to-[#004182]">
-                              {account.avatar_url ? (
-                                <img
-                                  src={account.avatar_url}
-                                  alt={account.name || 'Account'}
-                                  className="h-10 w-10 rounded-full object-cover"
-                                />
-                              ) : (
-                                <span className="text-sm font-semibold text-white">
-                                  {account.name?.charAt(0) || 'U'}
-                                </span>
-                              )}
-                            </div>
-
-                            {/* Info */}
-                            <div className="min-w-0 flex-1">
-                              <p className="truncate font-medium text-[#1E293B]">
-                                {account.name || 'Unknown'}
-                              </p>
-                              <p className="truncate text-sm text-[#64748B]">
-                                {account.profile_url || 'LinkedIn Account'}
-                              </p>
-                            </div>
-
-                            {/* Status */}
-                            <div
-                              className={`flex-shrink-0 rounded-full px-2 py-1 text-xs font-medium ${
-                                account.status === 'connected'
-                                  ? 'bg-[#DCFCE7] text-[#166534]'
-                                  : account.status === 'warning'
-                                    ? 'bg-[#FEF3C7] text-[#92400E]'
-                                    : 'bg-[#FEE2E2] text-[#DC2626]'
-                              }`}
-                            >
-                              {account.status === 'connected'
-                                ? 'Connected'
-                                : account.status === 'warning'
-                                  ? 'Warning'
-                                  : account.status === 'disconnected'
-                                    ? 'Disconnected'
-                                    : 'Banned'}
-                            </div>
-                          </motion.div>
-                        );
-                      })}
-                    </div>
-
-                    {/* Info tip */}
-                    <div className="flex items-start gap-2 rounded-lg border border-[#3B82F6]/20 bg-[#F0F9FF] p-3">
-                      <InfoIcon className="mt-0.5 h-4 w-4 flex-shrink-0 text-[#3B82F6]" />
-                      <p className="text-xs text-[#1E293B]">
-                        Selected accounts will auto-rotate to send messages, keeping each within
-                        safe daily limits.
+            {/* Content */}
+            <div className={`flex-1 overflow-y-auto ${step === 'sequence' ? 'p-6' : 'p-6'}`}>
+              <AnimatePresence mode="wait">
+                {step === 'name' && (
+                  <motion.div
+                    key="name"
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    className="space-y-4"
+                  >
+                    <div>
+                      <h3 className="mb-1 text-lg font-semibold text-[#1E293B]">
+                        Name your campaign
+                      </h3>
+                      <p className="text-sm text-[#64748B]">
+                        Give your campaign a memorable name and description.
                       </p>
                     </div>
-                  </div>
+                    <div>
+                      <label className="mb-2 block text-sm font-medium text-[#1E293B]">
+                        Campaign Name *
+                      </label>
+                      <input
+                        type="text"
+                        value={campaignName}
+                        onChange={(e) => setCampaignName(e.target.value)}
+                        placeholder="e.g., Q1 Tech Leaders Outreach"
+                        className="w-full rounded-xl border border-[#E2E8F0] px-4 py-3 focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-2 block text-sm font-medium text-[#1E293B]">
+                        Description (optional)
+                      </label>
+                      <textarea
+                        value={campaignDescription}
+                        onChange={(e) => setCampaignDescription(e.target.value)}
+                        placeholder="Describe the goal of this campaign..."
+                        rows={3}
+                        className="w-full resize-none rounded-xl border border-[#E2E8F0] px-4 py-3 focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+                      />
+                    </div>
+                  </motion.div>
                 )}
-              </motion.div>
-            )}
 
-            {step === 'review' && (
-              <motion.div
-                key="review"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                className="space-y-4"
+                {step === 'leads' && (
+                  <motion.div
+                    key="leads"
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    className="space-y-4"
+                  >
+                    <div>
+                      <h3 className="mb-1 text-lg font-semibold text-[#1E293B]">
+                        {isEditMode ? 'Add leads to campaign' : 'Select your leads'}
+                      </h3>
+                      <p className="text-sm text-[#64748B]">
+                        {isEditMode
+                          ? `This campaign currently has ${campaignDetails?.lead_count || 0} leads. Select a list to add more.`
+                          : 'Choose a lead list to target with this campaign.'}
+                      </p>
+                    </div>
+                    {leadListsLoading ? (
+                      <div className="flex items-center justify-center py-8">
+                        <LoadingSpinner />
+                      </div>
+                    ) : leadLists.length === 0 ? (
+                      <div className="py-8 text-center">
+                        <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-[#F8FAFC]">
+                          <ListIcon className="h-6 w-6 text-[#94A3B8]" />
+                        </div>
+                        <p className="mb-2 text-[#64748B]">No lead lists yet</p>
+                        <p className="text-sm text-[#94A3B8]">
+                          Import leads first to create a campaign.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {isEditMode && (
+                          <div className="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
+                            <div className="flex items-center gap-3">
+                              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#FF6B35]">
+                                <ListIcon className="h-5 w-5 text-white" />
+                              </div>
+                              <div className="flex-1">
+                                <p className="font-medium text-[#1E293B]">Current Campaign Leads</p>
+                                <p className="text-sm text-[#64748B]">
+                                  {campaignDetails?.lead_count || 0} leads already assigned
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                        <div className="grid gap-3">
+                          {leadLists.map((list) => (
+                            <button
+                              key={list.id}
+                              onClick={() => setSelectedLeadListId(list.id)}
+                              className={`flex items-center gap-4 rounded-xl border p-4 transition-all ${
+                                selectedLeadListId === list.id
+                                  ? 'border-[#FF6B35] bg-[#FFF7ED]'
+                                  : 'border-[#E2E8F0] hover:border-[#FF6B35]/30'
+                              }`}
+                            >
+                              <div
+                                className={`flex h-10 w-10 items-center justify-center rounded-lg ${
+                                  selectedLeadListId === list.id ? 'bg-[#FF6B35]' : 'bg-[#F8FAFC]'
+                                }`}
+                              >
+                                <ListIcon
+                                  className={`h-5 w-5 ${selectedLeadListId === list.id ? 'text-white' : 'text-[#64748B]'}`}
+                                />
+                              </div>
+                              <div className="flex-1 text-left">
+                                <p className="font-medium text-[#1E293B]">{list.name}</p>
+                                <p className="text-sm text-[#64748B]">
+                                  {list.lead_count} leads • {list.enriched_count} enriched
+                                </p>
+                              </div>
+                              {selectedLeadListId === list.id && (
+                                <CheckCircleIcon className="h-5 w-5 text-[#FF6B35]" />
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                        <button className="w-full rounded-xl border-2 border-dashed border-[#E2E8F0] p-4 text-center transition-colors hover:border-[#FF6B35]/50 hover:bg-[#FFF7ED]/50">
+                          <PlusIcon className="mx-auto mb-1 h-5 w-5 text-[#94A3B8]" />
+                          <span className="text-sm text-[#64748B]">Import new leads</span>
+                        </button>
+                      </div>
+                    )}
+                  </motion.div>
+                )}
+
+                {step === 'sequence' && (
+                  <motion.div
+                    key="sequence"
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    className="-m-6 h-full"
+                  >
+                    {/* Mobile Layout - Stacked */}
+                    <div className="relative flex h-[calc(100vh-200px)] min-h-[500px] flex-col bg-[#FAFBFC] lg:hidden">
+                      {/* Mobile Step Palette - Horizontal scroll */}
+                      <div className="border-b border-[#E2E8F0] bg-white p-3">
+                        <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-[#94A3B8]">
+                          Add Steps
+                        </p>
+                        <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-2">
+                          {[
+                            {
+                              type: 'linkedin_connect' as const,
+                              label: 'Connect',
+                              color: '#0A66C2',
+                            },
+                            {
+                              type: 'linkedin_message' as const,
+                              label: 'Message',
+                              color: '#0A66C2',
+                            },
+                            { type: 'email' as const, label: 'Email', color: '#14B8A6' },
+                            { type: 'delay' as const, label: 'Wait', color: '#F59E0B' },
+                            { type: 'condition' as const, label: 'If/Then', color: '#8B5CF6' },
+                          ].map((item) => (
+                            <button
+                              key={item.type}
+                              onClick={() => handleAddStep(item.type)}
+                              className="flex-shrink-0 rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 transition-all hover:border-[#FF6B35]/30"
+                            >
+                              <span className="text-xs font-medium" style={{ color: item.color }}>
+                                {item.label}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Mobile Canvas */}
+                      <div className="flex-1 overflow-y-auto">
+                        <SequenceCanvas
+                          nodes={sequenceNodes}
+                          onNodesChange={setSequenceNodes}
+                          onNodeSelect={(node) => setSelectedNodeId(node?.id || null)}
+                          selectedNodeId={selectedNodeId}
+                        />
+                      </div>
+
+                      {/* Mobile Config Panel - Bottom Sheet */}
+                      <AnimatePresence>
+                        {selectedNode &&
+                          selectedNode.type !== 'start' &&
+                          selectedNode.type !== 'end' && (
+                            <motion.div
+                              initial={{ y: '100%' }}
+                              animate={{ y: 0 }}
+                              exit={{ y: '100%' }}
+                              className="absolute bottom-0 left-0 right-0 max-h-[60vh] overflow-y-auto rounded-t-2xl border-t border-[#E2E8F0] bg-white shadow-lg"
+                            >
+                              <div className="mx-auto my-3 h-1 w-12 rounded-full bg-[#E2E8F0]" />
+                              <NodeConfigPanel
+                                node={selectedNode}
+                                onUpdate={handleUpdateNode}
+                                onClose={() => setSelectedNodeId(null)}
+                              />
+                            </motion.div>
+                          )}
+                      </AnimatePresence>
+                    </div>
+
+                    {/* Desktop Layout - Side by side */}
+                    <div className="hidden h-[70vh] max-h-[800px] min-h-[500px] overflow-hidden rounded-lg border border-[#E2E8F0] bg-[#FAFBFC] lg:flex">
+                      {/* Step Palette */}
+                      <StepPalette
+                        onAddStep={handleAddStep}
+                        onApplyTemplate={(nodes) => setSequenceNodes(nodes)}
+                      />
+
+                      {/* Main Canvas */}
+                      <SequenceCanvas
+                        nodes={sequenceNodes}
+                        onNodesChange={setSequenceNodes}
+                        onNodeSelect={(node) => setSelectedNodeId(node?.id || null)}
+                        selectedNodeId={selectedNodeId}
+                      />
+
+                      {/* Node Config Panel */}
+                      <AnimatePresence>
+                        {selectedNode &&
+                          selectedNode.type !== 'start' &&
+                          selectedNode.type !== 'end' && (
+                            <NodeConfigPanel
+                              node={selectedNode}
+                              onUpdate={handleUpdateNode}
+                              onClose={() => setSelectedNodeId(null)}
+                            />
+                          )}
+                      </AnimatePresence>
+                    </div>
+                  </motion.div>
+                )}
+
+                {step === 'senders' && (
+                  <motion.div
+                    key="senders"
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    className="space-y-4"
+                  >
+                    <div>
+                      <h3 className="mb-1 text-lg font-semibold text-[#1E293B]">Assign senders</h3>
+                      <p className="text-sm text-[#64748B]">
+                        Select LinkedIn accounts to send from. We'll auto-rotate between them.
+                      </p>
+                    </div>
+
+                    {accountsLoading ? (
+                      <div className="flex items-center justify-center py-8">
+                        <LoadingSpinner />
+                      </div>
+                    ) : linkedInAccounts.length === 0 ? (
+                      <div className="rounded-xl bg-[#F8FAFC] p-4 text-center">
+                        <LinkedInIcon className="mx-auto mb-2 h-8 w-8 text-[#94A3B8]" />
+                        <p className="mb-3 text-sm text-[#64748B]">
+                          No LinkedIn accounts connected yet
+                        </p>
+                        <button className="rounded-lg bg-[#0A66C2] px-4 py-2 text-sm font-medium text-white hover:bg-[#004182]">
+                          Connect LinkedIn Account
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        {/* Select All */}
+                        <div className="flex items-center justify-between border-b border-[#E2E8F0] pb-2">
+                          <span className="text-sm text-[#64748B]">
+                            {selectedSenderIds.length} of {linkedInAccounts.length} selected
+                          </span>
+                          <button
+                            onClick={() => {
+                              if (selectedSenderIds.length === linkedInAccounts.length) {
+                                setSelectedSenderIds([]);
+                              } else {
+                                setSelectedSenderIds(linkedInAccounts.map((a) => a.id));
+                              }
+                            }}
+                            className="text-sm font-medium text-[#0A66C2] hover:underline"
+                          >
+                            {selectedSenderIds.length === linkedInAccounts.length
+                              ? 'Deselect all'
+                              : 'Select all'}
+                          </button>
+                        </div>
+
+                        {/* Account List */}
+                        <div className="max-h-[300px] space-y-2 overflow-y-auto">
+                          {linkedInAccounts.map((account) => {
+                            const isSelected = selectedSenderIds.includes(account.id);
+                            return (
+                              <motion.div
+                                key={account.id}
+                                onClick={() => {
+                                  if (isSelected) {
+                                    setSelectedSenderIds((ids) =>
+                                      ids.filter((id) => id !== account.id)
+                                    );
+                                  } else {
+                                    setSelectedSenderIds((ids) => [...ids, account.id]);
+                                  }
+                                }}
+                                className={`flex cursor-pointer items-center gap-3 rounded-xl border p-3 transition-all ${
+                                  isSelected
+                                    ? 'border-[#0A66C2] bg-[#EFF6FF]'
+                                    : 'border-[#E2E8F0] hover:border-[#0A66C2]/30 hover:bg-[#F8FAFC]'
+                                }`}
+                                whileHover={{ scale: 1.01 }}
+                                whileTap={{ scale: 0.99 }}
+                              >
+                                {/* Checkbox */}
+                                <div
+                                  className={`flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border-2 transition-colors ${
+                                    isSelected
+                                      ? 'border-[#0A66C2] bg-[#0A66C2]'
+                                      : 'border-[#D1D5DB]'
+                                  }`}
+                                >
+                                  {isSelected && (
+                                    <svg
+                                      className="h-3 w-3 text-white"
+                                      fill="none"
+                                      viewBox="0 0 24 24"
+                                      stroke="currentColor"
+                                      strokeWidth={3}
+                                    >
+                                      <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        d="M5 13l4 4L19 7"
+                                      />
+                                    </svg>
+                                  )}
+                                </div>
+
+                                {/* Avatar */}
+                                <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#0A66C2] to-[#004182]">
+                                  {account.avatar_url ? (
+                                    <img
+                                      src={account.avatar_url}
+                                      alt={account.name || 'Account'}
+                                      className="h-10 w-10 rounded-full object-cover"
+                                    />
+                                  ) : (
+                                    <span className="text-sm font-semibold text-white">
+                                      {account.name?.charAt(0) || 'U'}
+                                    </span>
+                                  )}
+                                </div>
+
+                                {/* Info */}
+                                <div className="min-w-0 flex-1">
+                                  <p className="truncate font-medium text-[#1E293B]">
+                                    {account.name || 'Unknown'}
+                                  </p>
+                                  <p className="truncate text-sm text-[#64748B]">
+                                    {account.profile_url || 'LinkedIn Account'}
+                                  </p>
+                                </div>
+
+                                {/* Status */}
+                                <div
+                                  className={`flex-shrink-0 rounded-full px-2 py-1 text-xs font-medium ${
+                                    account.status === 'connected'
+                                      ? 'bg-[#DCFCE7] text-[#166534]'
+                                      : account.status === 'warning'
+                                        ? 'bg-[#FEF3C7] text-[#92400E]'
+                                        : 'bg-[#FEE2E2] text-[#DC2626]'
+                                  }`}
+                                >
+                                  {account.status === 'connected'
+                                    ? 'Connected'
+                                    : account.status === 'warning'
+                                      ? 'Warning'
+                                      : account.status === 'disconnected'
+                                        ? 'Disconnected'
+                                        : 'Banned'}
+                                </div>
+                              </motion.div>
+                            );
+                          })}
+                        </div>
+
+                        {/* Info tip */}
+                        <div className="flex items-start gap-2 rounded-lg border border-[#3B82F6]/20 bg-[#F0F9FF] p-3">
+                          <InfoIcon className="mt-0.5 h-4 w-4 flex-shrink-0 text-[#3B82F6]" />
+                          <p className="text-xs text-[#1E293B]">
+                            Selected accounts will auto-rotate to send messages, keeping each within
+                            safe daily limits.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </motion.div>
+                )}
+
+                {step === 'review' && (
+                  <motion.div
+                    key="review"
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -20 }}
+                    className="space-y-4"
+                  >
+                    <div>
+                      <h3 className="mb-1 text-lg font-semibold text-[#1E293B]">
+                        Review your campaign
+                      </h3>
+                      <p className="text-sm text-[#64748B]">
+                        Make sure everything looks good before launching.
+                      </p>
+                    </div>
+
+                    <div className="space-y-4">
+                      <div className="rounded-xl bg-[#F8FAFC] p-4">
+                        <div className="mb-2 flex items-center justify-between">
+                          <span className="text-sm text-[#64748B]">Campaign Name</span>
+                          <span className="font-medium text-[#1E293B]">
+                            {campaignName || 'Untitled'}
+                          </span>
+                        </div>
+                        <div className="mb-2 flex items-center justify-between">
+                          <span className="text-sm text-[#64748B]">
+                            {isEditMode ? 'Leads' : 'Lead List'}
+                          </span>
+                          <span className="font-medium text-[#1E293B]">
+                            {isEditMode ? (
+                              <>
+                                {campaignDetails?.lead_count || 0} current
+                                {selectedLeadListId &&
+                                  ` + ${leadLists.find((l) => l.id === selectedLeadListId)?.lead_count || 0} new`}
+                              </>
+                            ) : (
+                              leadLists.find((l) => l.id === selectedLeadListId)?.name ||
+                              'None selected'
+                            )}
+                          </span>
+                        </div>
+                        <div className="mb-2 flex items-center justify-between">
+                          <span className="text-sm text-[#64748B]">Sequence Steps</span>
+                          <span className="font-medium text-[#1E293B]">
+                            {
+                              sequenceNodes.filter((n) => n.type !== 'start' && n.type !== 'end')
+                                .length
+                            }{' '}
+                            steps
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-[#64748B]">Senders</span>
+                          <span className="font-medium text-[#1E293B]">
+                            {selectedSenderIds.length} selected
+                          </span>
+                        </div>
+                      </div>
+
+                      {selectedSenderIds.length === 0 ? (
+                        <div className="flex items-start gap-3 rounded-xl border border-[#F59E0B]/20 bg-[#FFFBEB] p-4">
+                          <WarningIcon className="mt-0.5 h-5 w-5 flex-shrink-0 text-[#F59E0B]" />
+                          <div>
+                            <p className="text-sm font-medium text-[#92400E]">
+                              Campaign saved as draft
+                            </p>
+                            <p className="text-xs text-[#B45309]">
+                              Select at least one sender to start this campaign.
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-start gap-3 rounded-xl border border-[#22C55E]/20 bg-[#DCFCE7] p-4">
+                          <CheckIcon className="mt-0.5 h-5 w-5 flex-shrink-0 text-[#22C55E]" />
+                          <div>
+                            <p className="text-sm font-medium text-[#166534]">Ready to launch</p>
+                            <p className="text-xs text-[#15803D]">
+                              {selectedSenderIds.length} sender
+                              {selectedSenderIds.length > 1 ? 's' : ''} will auto-rotate to send
+                              messages.
+                            </p>
+                          </div>
+                        </div>
+                      )}
+
+                      {error && (
+                        <div className="flex items-start gap-3 rounded-xl border border-[#EF4444]/20 bg-[#FEF2F2] p-4">
+                          <AlertIcon className="mt-0.5 h-5 w-5 flex-shrink-0 text-[#EF4444]" />
+                          <div>
+                            <p className="text-sm font-medium text-[#DC2626]">
+                              Error creating campaign
+                            </p>
+                            <p className="text-xs text-[#EF4444]">{error}</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* Footer */}
+            <div className="flex items-center justify-between border-t border-[#E2E8F0] px-6 py-4">
+              <button
+                onClick={() => {
+                  const steps: Array<'name' | 'leads' | 'sequence' | 'senders' | 'review'> = [
+                    'name',
+                    'leads',
+                    'sequence',
+                    'senders',
+                    'review',
+                  ];
+                  const currentIndex = steps.indexOf(step);
+                  if (currentIndex > 0) setStep(steps[currentIndex - 1]);
+                }}
+                disabled={step === 'name'}
+                className="px-4 py-2 font-medium text-[#64748B] disabled:opacity-50"
               >
-                <div>
-                  <h3 className="mb-1 text-lg font-semibold text-[#1E293B]">
-                    Review your campaign
-                  </h3>
-                  <p className="text-sm text-[#64748B]">
-                    Make sure everything looks good before launching.
-                  </p>
-                </div>
-
-                <div className="space-y-4">
-                  <div className="rounded-xl bg-[#F8FAFC] p-4">
-                    <div className="mb-2 flex items-center justify-between">
-                      <span className="text-sm text-[#64748B]">Campaign Name</span>
-                      <span className="font-medium text-[#1E293B]">
-                        {campaignName || 'Untitled'}
-                      </span>
-                    </div>
-                    <div className="mb-2 flex items-center justify-between">
-                      <span className="text-sm text-[#64748B]">Lead List</span>
-                      <span className="font-medium text-[#1E293B]">
-                        {leadLists.find((l) => l.id === selectedLeadListId)?.name ||
-                          'None selected'}
-                      </span>
-                    </div>
-                    <div className="mb-2 flex items-center justify-between">
-                      <span className="text-sm text-[#64748B]">Sequence Steps</span>
-                      <span className="font-medium text-[#1E293B]">
-                        {sequenceNodes.filter((n) => n.type !== 'start' && n.type !== 'end').length}{' '}
-                        steps
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-[#64748B]">Senders</span>
-                      <span className="font-medium text-[#1E293B]">
-                        {selectedSenderIds.length} selected
-                      </span>
-                    </div>
-                  </div>
-
-                  {selectedSenderIds.length === 0 ? (
-                    <div className="flex items-start gap-3 rounded-xl border border-[#F59E0B]/20 bg-[#FFFBEB] p-4">
-                      <WarningIcon className="mt-0.5 h-5 w-5 flex-shrink-0 text-[#F59E0B]" />
-                      <div>
-                        <p className="text-sm font-medium text-[#92400E]">
-                          Campaign saved as draft
-                        </p>
-                        <p className="text-xs text-[#B45309]">
-                          Select at least one sender to start this campaign.
-                        </p>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex items-start gap-3 rounded-xl border border-[#22C55E]/20 bg-[#DCFCE7] p-4">
-                      <CheckIcon className="mt-0.5 h-5 w-5 flex-shrink-0 text-[#22C55E]" />
-                      <div>
-                        <p className="text-sm font-medium text-[#166534]">Ready to launch</p>
-                        <p className="text-xs text-[#15803D]">
-                          {selectedSenderIds.length} sender{selectedSenderIds.length > 1 ? 's' : ''}{' '}
-                          will auto-rotate to send messages.
-                        </p>
-                      </div>
-                    </div>
-                  )}
-
-                  {error && (
-                    <div className="flex items-start gap-3 rounded-xl border border-[#EF4444]/20 bg-[#FEF2F2] p-4">
-                      <AlertIcon className="mt-0.5 h-5 w-5 flex-shrink-0 text-[#EF4444]" />
-                      <div>
-                        <p className="text-sm font-medium text-[#DC2626]">
-                          Error creating campaign
-                        </p>
-                        <p className="text-xs text-[#EF4444]">{error}</p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        {/* Footer */}
-        <div className="flex items-center justify-between border-t border-[#E2E8F0] px-6 py-4">
-          <button
-            onClick={() => {
-              const steps: Array<'name' | 'leads' | 'sequence' | 'senders' | 'review'> = [
-                'name',
-                'leads',
-                'sequence',
-                'senders',
-                'review',
-              ];
-              const currentIndex = steps.indexOf(step);
-              if (currentIndex > 0) setStep(steps[currentIndex - 1]);
-            }}
-            disabled={step === 'name'}
-            className="px-4 py-2 font-medium text-[#64748B] disabled:opacity-50"
-          >
-            Back
-          </button>
-          <button
-            onClick={() => {
-              const steps: Array<'name' | 'leads' | 'sequence' | 'senders' | 'review'> = [
-                'name',
-                'leads',
-                'sequence',
-                'senders',
-                'review',
-              ];
-              const currentIndex = steps.indexOf(step);
-              if (currentIndex < steps.length - 1) {
-                setStep(steps[currentIndex + 1]);
-              } else {
-                handleCreate();
-              }
-            }}
-            disabled={
-              (step === 'name' && !campaignName) || (step === 'leads' && !selectedLeadListId)
-            }
-            className="rounded-lg bg-[#FF6B35] px-6 py-2 font-medium text-white hover:bg-[#E85A2A] disabled:opacity-50"
-          >
-            {step === 'review' ? 'Create Campaign' : 'Continue'}
-          </button>
-        </div>
+                Back
+              </button>
+              <div className="flex gap-2">
+                {step === 'review' && (
+                  <>
+                    <button
+                      onClick={() => handleCreate(false)}
+                      disabled={!campaignName}
+                      className="rounded-lg border border-[#E2E8F0] px-6 py-2 font-medium text-[#64748B] hover:bg-[#F8FAFC] disabled:opacity-50"
+                    >
+                      {isEditMode ? 'Save Changes' : 'Save as Draft'}
+                    </button>
+                    {selectedSenderIds.length > 0 && (
+                      <button
+                        onClick={() => handleCreate(true)}
+                        disabled={!campaignName}
+                        className="rounded-lg bg-[#22C55E] px-6 py-2 font-medium text-white hover:bg-[#16A34A] disabled:opacity-50"
+                      >
+                        {isEditMode ? 'Save and Start' : 'Create and Start'}
+                      </button>
+                    )}
+                  </>
+                )}
+                {step !== 'review' && (
+                  <button
+                    onClick={() => {
+                      const steps: Array<'name' | 'leads' | 'sequence' | 'senders' | 'review'> = [
+                        'name',
+                        'leads',
+                        'sequence',
+                        'senders',
+                        'review',
+                      ];
+                      const currentIndex = steps.indexOf(step);
+                      setStep(steps[currentIndex + 1]);
+                    }}
+                    disabled={
+                      !campaignName || // Campaign name is required at all steps
+                      (step === 'name' && !campaignName)
+                    }
+                    className="rounded-lg bg-[#FF6B35] px-6 py-2 font-medium text-white hover:bg-[#E85A2A] disabled:opacity-50"
+                  >
+                    Continue
+                  </button>
+                )}
+              </div>
+            </div>
+          </>
+        )}
       </motion.div>
     </motion.div>
   );
 }
 
-function CampaignDetailDrawer({ campaign, onClose }: { campaign: Campaign; onClose: () => void }) {
+function CampaignDetailDrawer({
+  campaign,
+  onClose,
+  onEdit,
+}: {
+  campaign: Campaign;
+  onClose: () => void;
+  onEdit: (campaign: Campaign) => void;
+}) {
+  const { data: campaignDetails } = useCampaign(campaign.id);
+  const startCampaign = useStartCampaign(campaign.id);
+  const pauseCampaign = usePauseCampaign(campaign.id);
+  const deleteCampaign = useDeleteCampaign();
+  const cloneCampaign = useCloneCampaign();
+  const [showCloneDialog, setShowCloneDialog] = useState(false);
+  const [cloneName, setCloneName] = useState('');
+
+  const steps = campaignDetails?.steps || [];
+  const senders = campaignDetails?.senders || [];
+  const leadCount = campaignDetails?.lead_count || 0;
+
+  const statusColors: Record<string, { bg: string; text: string; dot: string }> = {
+    draft: { bg: 'bg-[#F8FAFC]', text: 'text-[#64748B]', dot: 'bg-[#94A3B8]' },
+    active: { bg: 'bg-[#F0FDF4]', text: 'text-[#22C55E]', dot: 'bg-[#22C55E]' },
+    paused: { bg: 'bg-[#FFFBEB]', text: 'text-[#F59E0B]', dot: 'bg-[#F59E0B]' },
+    completed: { bg: 'bg-[#EFF6FF]', text: 'text-[#3B82F6]', dot: 'bg-[#3B82F6]' },
+  };
+
+  const status = statusColors[campaign.status] || statusColors.draft;
+
+  const handleDelete = async () => {
+    if (confirm('Are you sure you want to delete this campaign?')) {
+      try {
+        await deleteCampaign.mutateAsync(campaign.id);
+        onClose();
+      } catch {
+        // Error handled by mutation
+      }
+    }
+  };
+
+  const handleClone = async () => {
+    if (!cloneName.trim()) {
+      alert('Please enter a name for the cloned campaign');
+      return;
+    }
+    try {
+      await cloneCampaign.mutateAsync({
+        campaignId: campaign.id,
+        name: cloneName,
+      });
+      setShowCloneDialog(false);
+      setCloneName('');
+      showSuccessToast(
+        'Campaign cloned!',
+        `"${cloneName}" has been created with the same sequence.`
+      );
+      onClose();
+    } catch {
+      // Error handled by mutation
+    }
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -1219,24 +1584,217 @@ function CampaignDetailDrawer({ campaign, onClose }: { campaign: Campaign; onClo
         exit={{ x: '100%' }}
         transition={{ type: 'spring', damping: 25, stiffness: 200 }}
         onClick={(e) => e.stopPropagation()}
-        className="absolute right-0 top-0 h-full w-full max-w-2xl bg-white shadow-xl"
+        className="absolute right-0 top-0 h-full w-full max-w-3xl bg-white shadow-xl"
       >
         <div className="flex h-full flex-col">
           {/* Header */}
-          <div className="flex items-center justify-between border-b border-[#E2E8F0] px-6 py-4">
-            <div>
-              <h2 className="text-lg font-bold text-[#1E293B]">{campaign.name}</h2>
-              <p className="text-sm text-[#64748B]">Status: {campaign.status}</p>
+          <div className="border-b border-[#E2E8F0] px-6 py-4">
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <h2 className="text-xl font-bold text-[#1E293B]">
+                  {campaign.name || 'Untitled Campaign'}
+                </h2>
+                <div className="mt-2 flex items-center gap-3">
+                  <span
+                    className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-medium ${status.bg} ${status.text}`}
+                  >
+                    <span className={`h-2 w-2 rounded-full ${status.dot}`} />
+                    {campaign.status.charAt(0).toUpperCase() + campaign.status.slice(1)}
+                  </span>
+                  <span className="text-sm text-[#64748B]">
+                    Created {new Date(campaign.created_at).toLocaleDateString()}
+                  </span>
+                </div>
+              </div>
+              <button onClick={onClose} className="rounded-lg p-2 hover:bg-[#F8FAFC]">
+                <CloseIcon />
+              </button>
             </div>
-            <button onClick={onClose} className="rounded-lg p-2 hover:bg-[#F8FAFC]">
-              <CloseIcon />
-            </button>
+
+            {/* Action Buttons */}
+            <div className="mt-4 flex flex-wrap gap-2">
+              {campaign.status === 'draft' && (
+                <>
+                  <button
+                    onClick={() => onEdit(campaign)}
+                    className="rounded-lg border border-[#FF6B35] px-4 py-2 text-sm font-medium text-[#FF6B35] hover:bg-[#FFF5F2]"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    onClick={async () => {
+                      await startCampaign.mutateAsync();
+                    }}
+                    className="rounded-lg bg-[#22C55E] px-4 py-2 text-sm font-medium text-white hover:bg-[#16A34A]"
+                  >
+                    Start Campaign
+                  </button>
+                </>
+              )}
+              {campaign.status === 'active' && (
+                <button
+                  onClick={async () => {
+                    await pauseCampaign.mutateAsync();
+                  }}
+                  className="rounded-lg bg-[#F59E0B] px-4 py-2 text-sm font-medium text-white hover:bg-[#D97706]"
+                >
+                  Pause Campaign
+                </button>
+              )}
+              {campaign.status === 'paused' && (
+                <button
+                  onClick={async () => {
+                    await startCampaign.mutateAsync();
+                  }}
+                  className="rounded-lg bg-[#22C55E] px-4 py-2 text-sm font-medium text-white hover:bg-[#16A34A]"
+                >
+                  Resume Campaign
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  setCloneName(`${campaign.name} (Copy)`);
+                  setShowCloneDialog(true);
+                }}
+                className="rounded-lg border border-[#64748B] px-4 py-2 text-sm font-medium text-[#64748B] hover:bg-[#F8FAFC]"
+              >
+                Clone
+              </button>
+              <button
+                onClick={handleDelete}
+                className="rounded-lg border border-[#EF4444] px-4 py-2 text-sm font-medium text-[#EF4444] hover:bg-[#FEF2F2]"
+              >
+                Delete
+              </button>
+            </div>
           </div>
+
+          {/* Clone Dialog */}
+          {showCloneDialog && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+              <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
+                <h3 className="mb-4 text-lg font-semibold text-[#1E293B]">Clone Campaign</h3>
+                <p className="mb-4 text-sm text-[#64748B]">
+                  This will create a new campaign with the same sequence and senders, but no leads.
+                </p>
+                <div className="mb-4">
+                  <label className="mb-2 block text-sm font-medium text-[#1E293B]">
+                    New Campaign Name
+                  </label>
+                  <input
+                    type="text"
+                    value={cloneName}
+                    onChange={(e) => setCloneName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleClone();
+                    }}
+                    className="w-full rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+                    placeholder="Enter campaign name"
+                    autoFocus
+                  />
+                </div>
+                <div className="flex justify-end gap-2">
+                  <button
+                    onClick={() => {
+                      setShowCloneDialog(false);
+                      setCloneName('');
+                    }}
+                    className="rounded-lg border border-[#E2E8F0] px-4 py-2 text-sm font-medium text-[#64748B] hover:bg-[#F8FAFC]"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleClone}
+                    disabled={!cloneName.trim()}
+                    className="rounded-lg bg-[#FF6B35] px-4 py-2 text-sm font-medium text-white hover:bg-[#E85A2A] disabled:opacity-50"
+                  >
+                    Clone Campaign
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Content */}
           <div className="flex-1 overflow-y-auto p-6">
-            <div className="py-12 text-center text-[#64748B]">
-              Campaign details would be shown here
+            <div className="space-y-6">
+              {/* Steps Section */}
+              <div>
+                <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-[#64748B]">
+                  Sequence Steps ({steps.length})
+                </h3>
+                {steps.length === 0 ? (
+                  <div className="rounded-lg border border-[#E2E8F0] p-4 text-center text-sm text-[#64748B]">
+                    No steps configured yet
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {steps.map((step, index) => (
+                      <div
+                        key={step.id}
+                        className="flex items-center gap-3 rounded-lg border border-[#E2E8F0] bg-white p-3"
+                      >
+                        <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[#F8FAFC] text-sm font-medium text-[#64748B]">
+                          {index + 1}
+                        </div>
+                        <div className="flex-1">
+                          <p className="font-medium text-[#1E293B]">
+                            {step.type.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase())}
+                          </p>
+                          {step.config.message && (
+                            <p className="mt-1 line-clamp-1 text-sm text-[#64748B]">
+                              {String(step.config.message)}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Senders Section */}
+              <div>
+                <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-[#64748B]">
+                  Senders ({senders.length})
+                </h3>
+                {senders.length === 0 ? (
+                  <div className="rounded-lg border border-[#E2E8F0] p-4 text-center text-sm text-[#64748B]">
+                    No senders assigned yet
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {senders.map((sender) => (
+                      <div
+                        key={sender.id}
+                        className="flex items-center gap-3 rounded-lg border border-[#E2E8F0] bg-white p-3"
+                      >
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#0A66C2] text-white">
+                          <LinkedInIcon className="h-5 w-5" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-[#1E293B]">LinkedIn Account</p>
+                          <p className="text-xs text-[#64748B]">
+                            {sender.linkedin_account_id.slice(0, 8)}...
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Leads Section */}
+              <div>
+                <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-[#64748B]">
+                  Leads ({leadCount})
+                </h3>
+                <div className="rounded-lg border border-[#E2E8F0] p-4">
+                  <p className="text-sm text-[#64748B]">
+                    {leadCount} leads assigned to this campaign
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
         </div>

@@ -52,7 +52,7 @@ export const useCampaigns = (filters?: CampaignFilters) => {
     queryFn: async () => {
       const params = new URLSearchParams();
       if (filters?.workspace_id) params.append('workspace_id', filters.workspace_id);
-      if (filters?.status) params.append('status', filters.status);
+      if (filters?.status) params.append('status_filter', filters.status);
       if (filters?.limit) params.append('limit', filters.limit.toString());
       if (filters?.offset) params.append('offset', filters.offset.toString());
 
@@ -98,7 +98,7 @@ export const useUpdateCampaign = (campaignId: string) => {
 
   return useMutation({
     mutationFn: async (data: UpdateCampaignData) => {
-      const response = await api.put<Campaign>(`/campaigns/${campaignId}`, data);
+      const response = await api.patch<Campaign>(`/campaigns/${campaignId}`, data);
       return response.data;
     },
     onSuccess: () => {
@@ -166,6 +166,24 @@ export const usePauseCampaign = (campaignId: string) => {
   });
 };
 
+// Clone campaign
+export const useCloneCampaign = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async ({ campaignId, name }: { campaignId: string; name: string }) => {
+      const response = await api.post<Campaign>(`/campaigns/${campaignId}/clone`, { name });
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.campaigns.all });
+    },
+    onError: (error) => {
+      throw new Error(getErrorMessage(error));
+    },
+  });
+};
+
 // Campaign steps
 export const useCampaignSteps = (campaignId: string) => {
   return useQuery({
@@ -201,7 +219,7 @@ export const useUpdateCampaignStep = (campaignId: string, stepId: string) => {
 
   return useMutation({
     mutationFn: async (data: UpdateStepData) => {
-      const response = await api.put<CampaignStep>(
+      const response = await api.patch<CampaignStep>(
         `/campaigns/${campaignId}/steps/${stepId}`,
         data
       );

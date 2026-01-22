@@ -9,7 +9,7 @@ export const SEQUENCE_TEMPLATES = {
         id: 't1',
         type: 'linkedin_connect' as const,
         data: {
-          message: 'Hi {{firstName}}, I came across your profile and would love to connect!',
+          message: 'Hi {{first_name}}, I came across your profile and would love to connect!',
         },
       },
       { id: 't2', type: 'delay' as const, data: { delayDays: 2, delayHours: 0 } },
@@ -17,7 +17,7 @@ export const SEQUENCE_TEMPLATES = {
         id: 't3',
         type: 'linkedin_message' as const,
         data: {
-          message: 'Thanks for connecting, {{firstName}}! I wanted to reach out because...',
+          message: 'Thanks for connecting, {{first_name}}! I wanted to reach out because...',
         },
       },
       { id: 'end', type: 'end' as const, data: {} },
@@ -31,7 +31,7 @@ export const SEQUENCE_TEMPLATES = {
       {
         id: 't1',
         type: 'linkedin_connect' as const,
-        data: { message: 'Hi {{firstName}}, loved your insights on {{company}}!' },
+        data: { message: 'Hi {{first_name}}, loved your insights on {{company}}!' },
       },
       { id: 't2', type: 'delay' as const, data: { delayDays: 3, delayHours: 0 } },
       { id: 't3', type: 'condition' as const, data: { condition: 'connected' as const } },
@@ -46,9 +46,9 @@ export const SEQUENCE_TEMPLATES = {
         id: 't5',
         type: 'email' as const,
         data: {
-          subject: 'Quick question, {{firstName}}',
+          subject: 'Quick question, {{first_name}}',
           message:
-            'Hi {{firstName}},\n\nI tried connecting on LinkedIn but wanted to make sure my message reached you...',
+            'Hi {{first_name}},\n\nI tried connecting on LinkedIn but wanted to make sure my message reached you...',
         },
         parentId: 't3',
         branch: 'false' as const,
@@ -66,7 +66,7 @@ export const SEQUENCE_TEMPLATES = {
         type: 'email' as const,
         data: {
           subject: 'Quick question for {{company}}',
-          message: 'Hi {{firstName}},\n\nI noticed that {{company}} is...',
+          message: 'Hi {{first_name}},\n\nI noticed that {{company}} is...',
         },
       },
       { id: 't2', type: 'delay' as const, data: { delayDays: 3, delayHours: 0 } },
@@ -75,7 +75,7 @@ export const SEQUENCE_TEMPLATES = {
         type: 'email' as const,
         data: {
           subject: 'Re: Quick question for {{company}}',
-          message: 'Hi {{firstName}},\n\nJust wanted to follow up on my previous email...',
+          message: 'Hi {{first_name}},\n\nJust wanted to follow up on my previous email...',
         },
       },
       { id: 't4', type: 'delay' as const, data: { delayDays: 4, delayHours: 0 } },
@@ -85,7 +85,7 @@ export const SEQUENCE_TEMPLATES = {
         data: {
           subject: 'Last attempt',
           message:
-            "Hi {{firstName}},\n\nI don't want to be a pest, but I'll close the loop here...",
+            "Hi {{first_name}},\n\nI don't want to be a pest, but I'll close the loop here...",
         },
       },
       { id: 'end', type: 'end' as const, data: {} },

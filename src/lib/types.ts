@@ -150,6 +150,13 @@ export type LeadStatus =
   | 'qualified'
   | 'not_interested';
 
+export type EnrichmentStatus =
+  | 'not_enriched'
+  | 'pending'
+  | 'enriched'
+  | 'failed'
+  | 'no_email_found';
+
 export interface Lead {
   id: string;
   user_id: string;
@@ -169,6 +176,8 @@ export interface Lead {
   ai_icebreaker: string | null;
   status: LeadStatus;
   tags: string[] | null;
+  enrichment_status: EnrichmentStatus;
+  enriched_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -658,4 +667,30 @@ export interface NotificationSSEEvent {
   campaign_id: string | null;
   lead_id: string | null;
   created_at: string;
+}
+
+// Enrichment types
+export type EnrichmentJobStatus = 'pending' | 'processing' | 'completed' | 'failed';
+
+export interface EnrichmentJob {
+  id: string;
+  status: EnrichmentJobStatus;
+  total_count: number;
+  processed_count: number;
+  enriched_count: number;
+  failed_count: number;
+  progress: number;
+  created_at: string;
+  completed_at: string | null;
+}
+
+export interface EnrichLeadsRequest {
+  lead_ids: string[];
+}
+
+export interface EnrichLeadsResponse {
+  job_id: string;
+  status: string;
+  lead_count: number;
+  message: string;
 }

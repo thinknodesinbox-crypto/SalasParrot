@@ -76,7 +76,7 @@ export const useUpdateWorkspace = (workspaceId: string) => {
 
   return useMutation({
     mutationFn: async (data: UpdateWorkspaceData) => {
-      const response = await api.put<Workspace>(`/workspaces/${workspaceId}`, data);
+      const response = await api.patch<Workspace>(`/workspaces/${workspaceId}`, data);
       return response.data;
     },
     onSuccess: () => {
@@ -141,7 +141,7 @@ export const useUpdateWorkspaceMember = (workspaceId: string, memberId: string) 
 
   return useMutation({
     mutationFn: async (data: UpdateMemberData) => {
-      const response = await api.put<WorkspaceMember>(
+      const response = await api.patch<WorkspaceMember>(
         `/workspaces/${workspaceId}/members/${memberId}`,
         data
       );

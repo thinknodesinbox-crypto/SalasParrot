@@ -11,8 +11,12 @@ import {
   useLinkedInAccounts,
   useUpdateLeadList,
   useDeleteLeadList,
+  useDeleteLeads,
+  useEnrichLeads,
+  useEnrichmentJobWithPolling,
 } from '../../lib/hooks/queries';
 import type { Lead, LeadList, LinkedInAccount, ImportType } from '../../lib/types';
+import { validateImportURL, validateProfileURLsBatch } from '../../lib/linkedinValidation';
 
 export const Route = createFileRoute('/dashboard/leads')({
   component: LeadsPage,
@@ -73,8 +77,7 @@ const IMPORT_METHODS: {
     icon: <RecruiterIcon />,
     color: '#0A66C2',
     category: 'linkedin',
-    enabled: false,
-    comingSoon: true,
+    enabled: true,
   },
   {
     id: 'linkedin_events',
@@ -93,8 +96,7 @@ const IMPORT_METHODS: {
     icon: <ReactorsIcon />,
     color: '#0A66C2',
     category: 'linkedin',
-    enabled: false,
-    comingSoon: true,
+    enabled: true,
   },
   {
     id: 'linkedin_companies',
@@ -103,8 +105,7 @@ const IMPORT_METHODS: {
     icon: <CompaniesIcon />,
     color: '#0A66C2',
     category: 'linkedin',
-    enabled: false,
-    comingSoon: true,
+    enabled: true,
   },
   {
     id: 'csv',
@@ -245,6 +246,7 @@ function LeadsPage() {
           leads={leads}
           isLoading={leadsLoading}
           onBack={() => setSelectedListId(null)}
+          onLeadsDeleted={() => refetchLists()}
         />
       ) : (
         <LeadListsGrid
@@ -491,156 +493,396 @@ function LeadListDetail({
   leads,
   isLoading,
   onBack,
+  onLeadsDeleted,
 }: {
   list: LeadList;
   leads: Lead[];
   isLoading: boolean;
   onBack: () => void;
+  onLeadsDeleted?: () => void;
 }) {
   const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [enrichmentJobId, setEnrichmentJobId] = useState<string | null>(null);
+  const deleteLeadsMutation = useDeleteLeads();
+  const enrichLeadsMutation = useEnrichLeads();
+  const { data: enrichmentJob } = useEnrichmentJobWithPolling(enrichmentJobId);
   const enrichmentPercent =
     list.lead_count > 0 ? Math.round((list.enriched_count / list.lead_count) * 100) : 0;
 
-  return (
-    <div className="space-y-4">
-      {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-sm">
-        <button
-          onClick={onBack}
-          className="flex items-center gap-1 text-[#64748B] transition-colors hover:text-[#1E293B]"
-        >
-          <BackIcon className="h-4 w-4" />
-          All Lists
-        </button>
-        <ChevronRightIcon className="h-4 w-4 text-[#94A3B8]" />
-        <span className="font-medium text-[#1E293B]">{list.name}</span>
-      </div>
+  // Clear enrichment job ID when job completes
+  useEffect(() => {
+    if (enrichmentJob?.status === 'completed' || enrichmentJob?.status === 'failed') {
+      // Keep showing for a moment then clear
+      const timer = setTimeout(() => setEnrichmentJobId(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [enrichmentJob?.status]);
 
-      {/* List Header */}
-      <div className="rounded-xl border border-[#E2E8F0] bg-white p-6">
-        <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
-          <div className="flex items-center gap-4">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#FFF7ED]">
-              <ListIcon className="h-6 w-6 text-[#FF6B35]" />
+  const handleDeleteSelected = async () => {
+    try {
+      await deleteLeadsMutation.mutateAsync(selectedLeads);
+      setSelectedLeads([]);
+      setShowDeleteModal(false);
+      onLeadsDeleted?.();
+    } catch {
+      // Error is handled by mutation
+    }
+  };
+
+  const handleEnrichSelected = async () => {
+    try {
+      const result = await enrichLeadsMutation.mutateAsync(selectedLeads);
+      setEnrichmentJobId(result.job_id);
+      setSelectedLeads([]);
+    } catch {
+      // Error is handled by mutation
+    }
+  };
+
+  const handleEnrichAll = async () => {
+    // Filter leads that are not already enriched or pending
+    const leadsToEnrich = leads
+      .filter(
+        (lead) =>
+          lead.enrichment_status === 'not_enriched' ||
+          lead.enrichment_status === 'failed' ||
+          lead.enrichment_status === 'no_email_found'
+      )
+      .map((lead) => lead.id);
+
+    if (leadsToEnrich.length === 0) {
+      return;
+    }
+
+    try {
+      const result = await enrichLeadsMutation.mutateAsync(leadsToEnrich);
+      setEnrichmentJobId(result.job_id);
+    } catch {
+      // Error is handled by mutation
+    }
+  };
+
+  return (
+    <>
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <DeleteLeadsModal
+          count={selectedLeads.length}
+          onClose={() => setShowDeleteModal(false)}
+          onConfirm={handleDeleteSelected}
+          isDeleting={deleteLeadsMutation.isPending}
+        />
+      )}
+      <div className="space-y-4">
+        {/* Breadcrumb */}
+        <div className="flex items-center gap-2 text-sm">
+          <button
+            onClick={onBack}
+            className="flex items-center gap-1 text-[#64748B] transition-colors hover:text-[#1E293B]"
+          >
+            <BackIcon className="h-4 w-4" />
+            All Lists
+          </button>
+          <ChevronRightIcon className="h-4 w-4 text-[#94A3B8]" />
+          <span className="font-medium text-[#1E293B]">{list.name}</span>
+        </div>
+
+        {/* List Header */}
+        <div className="rounded-xl border border-[#E2E8F0] bg-white p-6">
+          <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
+            <div className="flex items-center gap-4">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#FFF7ED]">
+                <ListIcon className="h-6 w-6 text-[#FF6B35]" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-[#1E293B]">{list.name}</h2>
+                <div className="mt-1 flex items-center gap-4 text-sm text-[#64748B]">
+                  <span>{list.lead_count} leads</span>
+                  <span className="flex items-center gap-1">
+                    <EnrichIcon className="h-3.5 w-3.5 text-[#14B8A6]" />
+                    {list.enriched_count} emails found
+                  </span>
+                </div>
+              </div>
             </div>
-            <div>
-              <h2 className="text-xl font-bold text-[#1E293B]">{list.name}</h2>
-              <div className="mt-1 flex items-center gap-4 text-sm text-[#64748B]">
-                <span>{list.lead_count} leads</span>
-                <span className="flex items-center gap-1">
-                  <EnrichIcon className="h-3.5 w-3.5 text-[#14B8A6]" />
-                  {list.enriched_count} emails found
+            <div className="flex flex-wrap items-center gap-3">
+              <button className="rounded-lg border border-[#E2E8F0] px-4 py-2 text-sm font-medium text-[#64748B] transition-colors hover:bg-[#F8FAFC]">
+                Export
+              </button>
+              <button
+                onClick={handleEnrichAll}
+                disabled={enrichLeadsMutation.isPending || !!enrichmentJobId}
+                className="flex items-center gap-2 rounded-lg border border-[#E2E8F0] px-4 py-2 text-sm font-medium text-[#14B8A6] transition-colors hover:bg-[#F0FDFA] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {enrichLeadsMutation.isPending ||
+                (enrichmentJob &&
+                  enrichmentJob.status !== 'completed' &&
+                  enrichmentJob.status !== 'failed') ? (
+                  <>
+                    <LoadingSpinner className="h-4 w-4" />
+                    Enriching...
+                  </>
+                ) : (
+                  <>
+                    <EnrichIcon className="h-4 w-4" />
+                    Enrich All
+                  </>
+                )}
+              </button>
+              <Link
+                to="/dashboard/campaigns"
+                search={{ createWithList: list.id }}
+                className="flex items-center gap-2 rounded-lg bg-[#FF6B35] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#E85A2A]"
+              >
+                <CampaignIcon className="h-4 w-4" />
+                Add to Campaign
+              </Link>
+            </div>
+          </div>
+
+          {/* Progress bar */}
+          <div className="mt-6 border-t border-[#E2E8F0] pt-6">
+            <div className="mb-2 flex items-center justify-between text-sm">
+              <span className="text-[#64748B]">Email enrichment progress</span>
+              <span className="font-medium text-[#1E293B]">{enrichmentPercent}%</span>
+            </div>
+            <div className="h-2 overflow-hidden rounded-full bg-[#E2E8F0]">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-[#14B8A6] to-[#0D9488] transition-all"
+                style={{ width: `${enrichmentPercent}%` }}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Bulk Actions Bar */}
+        {selectedLeads.length > 0 && (
+          <div className="flex items-center justify-between rounded-xl border border-[#FF6B35]/20 bg-[#FFF7ED] px-4 py-3">
+            <div className="flex items-center gap-3">
+              <span className="text-sm font-medium text-[#1E293B]">
+                {selectedLeads.length} lead{selectedLeads.length !== 1 ? 's' : ''} selected
+              </span>
+              <button
+                onClick={() => setSelectedLeads([])}
+                className="text-sm text-[#64748B] hover:text-[#1E293B]"
+              >
+                Clear selection
+              </button>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleEnrichSelected}
+                disabled={enrichLeadsMutation.isPending}
+                className="flex items-center gap-2 rounded-lg border border-[#14B8A6]/20 bg-white px-3 py-1.5 text-sm font-medium text-[#14B8A6] transition-colors hover:bg-[#F0FDFA] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {enrichLeadsMutation.isPending ? (
+                  <LoadingSpinner className="h-4 w-4" />
+                ) : (
+                  <EnrichIcon className="h-4 w-4" />
+                )}
+                Enrich
+              </button>
+              <button
+                onClick={() => setShowDeleteModal(true)}
+                className="flex items-center gap-2 rounded-lg border border-[#EF4444]/20 bg-white px-3 py-1.5 text-sm font-medium text-[#EF4444] transition-colors hover:bg-[#FEF2F2]"
+              >
+                <TrashIcon className="h-4 w-4" />
+                Delete
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Enrichment Progress */}
+        {enrichmentJob &&
+          enrichmentJob.status !== 'completed' &&
+          enrichmentJob.status !== 'failed' && (
+            <div className="flex items-center justify-between rounded-xl border border-[#14B8A6]/20 bg-[#F0FDFA] px-4 py-3">
+              <div className="flex items-center gap-3">
+                <LoadingSpinner className="h-4 w-4 text-[#14B8A6]" />
+                <span className="text-sm font-medium text-[#1E293B]">
+                  Enriching leads... {enrichmentJob.processed_count}/{enrichmentJob.total_count}
+                </span>
+              </div>
+              <div className="flex items-center gap-4">
+                <div className="h-2 w-32 overflow-hidden rounded-full bg-[#E2E8F0]">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-[#14B8A6] to-[#0D9488] transition-all"
+                    style={{ width: `${enrichmentJob.progress}%` }}
+                  />
+                </div>
+                <span className="text-sm text-[#64748B]">
+                  {Math.round(enrichmentJob.progress)}%
                 </span>
               </div>
             </div>
-          </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <button className="rounded-lg border border-[#E2E8F0] px-4 py-2 text-sm font-medium text-[#64748B] transition-colors hover:bg-[#F8FAFC]">
-              Export
-            </button>
-            <button className="flex items-center gap-2 rounded-lg border border-[#E2E8F0] px-4 py-2 text-sm font-medium text-[#14B8A6] transition-colors hover:bg-[#F0FDFA]">
-              <EnrichIcon className="h-4 w-4" />
-              Enrich All
-            </button>
-            <Link
-              to="/dashboard/campaigns"
-              search={{ createWithList: list.id }}
-              className="flex items-center gap-2 rounded-lg bg-[#FF6B35] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#E85A2A]"
-            >
-              <CampaignIcon className="h-4 w-4" />
-              Add to Campaign
-            </Link>
-          </div>
-        </div>
+          )}
 
-        {/* Progress bar */}
-        <div className="mt-6 border-t border-[#E2E8F0] pt-6">
-          <div className="mb-2 flex items-center justify-between text-sm">
-            <span className="text-[#64748B]">Email enrichment progress</span>
-            <span className="font-medium text-[#1E293B]">{enrichmentPercent}%</span>
+        {/* Enrichment Complete Message */}
+        {enrichmentJob && enrichmentJob.status === 'completed' && (
+          <div className="flex items-center justify-between rounded-xl border border-[#22C55E]/20 bg-[#F0FDF4] px-4 py-3">
+            <div className="flex items-center gap-3">
+              <CheckIcon className="h-4 w-4 text-[#22C55E]" />
+              <span className="text-sm font-medium text-[#1E293B]">
+                Enrichment complete! {enrichmentJob.enriched_count} emails found,{' '}
+                {enrichmentJob.failed_count} not found
+              </span>
+            </div>
           </div>
-          <div className="h-2 overflow-hidden rounded-full bg-[#E2E8F0]">
-            <div
-              className="h-full rounded-full bg-gradient-to-r from-[#14B8A6] to-[#0D9488] transition-all"
-              style={{ width: `${enrichmentPercent}%` }}
-            />
-          </div>
-        </div>
-      </div>
+        )}
 
-      {/* Leads Table */}
-      <div className="overflow-hidden rounded-xl border border-[#E2E8F0] bg-white">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-[#E2E8F0] bg-[#F8FAFC]">
-                <th className="px-6 py-3 text-left">
-                  <input
-                    type="checkbox"
-                    checked={selectedLeads.length === leads.length && leads.length > 0}
-                    onChange={(e) =>
-                      setSelectedLeads(e.target.checked ? leads.map((l) => l.id) : [])
-                    }
-                    className="rounded border-[#E2E8F0] text-[#FF6B35] focus:ring-[#FF6B35]"
-                  />
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[#64748B]">
-                  Lead
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[#64748B]">
-                  Company
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[#64748B]">
-                  Location
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[#64748B]">
-                  Email
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[#64748B]">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider text-[#64748B]">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#E2E8F0]">
-              {isLoading ? (
-                <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-[#64748B]">
-                    <div className="flex items-center justify-center gap-2">
-                      <LoadingSpinner />
-                      <span>Loading leads...</span>
-                    </div>
-                  </td>
-                </tr>
-              ) : leads.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-[#64748B]">
-                    No leads in this list yet
-                  </td>
-                </tr>
-              ) : (
-                leads.map((lead) => (
-                  <LeadRow
-                    key={lead.id}
-                    lead={lead}
-                    selected={selectedLeads.includes(lead.id)}
-                    onSelect={(selected) => {
-                      if (selected) {
-                        setSelectedLeads([...selectedLeads, lead.id]);
-                      } else {
-                        setSelectedLeads(selectedLeads.filter((id) => id !== lead.id));
+        {/* Leads Table */}
+        <div className="overflow-hidden rounded-xl border border-[#E2E8F0] bg-white">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-[#E2E8F0] bg-[#F8FAFC]">
+                  <th className="px-6 py-3 text-left">
+                    <input
+                      type="checkbox"
+                      checked={selectedLeads.length === leads.length && leads.length > 0}
+                      onChange={(e) =>
+                        setSelectedLeads(e.target.checked ? leads.map((l) => l.id) : [])
                       }
-                    }}
-                  />
-                ))
-              )}
-            </tbody>
-          </table>
+                      className="rounded border-[#E2E8F0] text-[#FF6B35] focus:ring-[#FF6B35]"
+                    />
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[#64748B]">
+                    Lead
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[#64748B]">
+                    Company
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[#64748B]">
+                    Location
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[#64748B]">
+                    Email
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[#64748B]">
+                    Status
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider text-[#64748B]">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#E2E8F0]">
+                {isLoading ? (
+                  <tr>
+                    <td colSpan={7} className="px-6 py-12 text-center text-[#64748B]">
+                      <div className="flex items-center justify-center gap-2">
+                        <LoadingSpinner />
+                        <span>Loading leads...</span>
+                      </div>
+                    </td>
+                  </tr>
+                ) : leads.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="px-6 py-12 text-center text-[#64748B]">
+                      No leads in this list yet
+                    </td>
+                  </tr>
+                ) : (
+                  leads.map((lead) => (
+                    <LeadRow
+                      key={lead.id}
+                      lead={lead}
+                      selected={selectedLeads.includes(lead.id)}
+                      onSelect={(selected) => {
+                        if (selected) {
+                          setSelectedLeads([...selectedLeads, lead.id]);
+                        } else {
+                          setSelectedLeads(selectedLeads.filter((id) => id !== lead.id));
+                        }
+                      }}
+                      onDelete={(leadId) => {
+                        setSelectedLeads([leadId]);
+                        setShowDeleteModal(true);
+                      }}
+                      onEnrich={async (leadId) => {
+                        try {
+                          const result = await enrichLeadsMutation.mutateAsync([leadId]);
+                          setEnrichmentJobId(result.job_id);
+                        } catch {
+                          // Error is handled by mutation
+                        }
+                      }}
+                    />
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
-    </div>
+    </>
+  );
+}
+
+// Delete Leads Confirmation Modal
+function DeleteLeadsModal({
+  count,
+  onClose,
+  onConfirm,
+  isDeleting,
+}: {
+  count: number;
+  onClose: () => void;
+  onConfirm: () => void;
+  isDeleting: boolean;
+}) {
+  return (
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+        onClick={onClose}
+      >
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.95 }}
+          className="w-full max-w-md rounded-xl bg-white shadow-xl"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="p-6">
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[#FEF2F2]">
+              <TrashIcon className="h-6 w-6 text-[#EF4444]" />
+            </div>
+            <h2 className="mb-2 text-center text-xl font-bold text-[#1E293B]">Delete Leads</h2>
+            <p className="mb-6 text-center text-[#64748B]">
+              Are you sure you want to delete{' '}
+              <span className="font-semibold text-[#1E293B]">
+                {count} lead{count !== 1 ? 's' : ''}
+              </span>
+              ? This action cannot be undone.
+            </p>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={isDeleting}
+                className="flex-1 rounded-lg border border-[#E2E8F0] px-4 py-2.5 font-medium text-[#1E293B] transition-colors hover:bg-[#F8FAFC] disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={onConfirm}
+                disabled={isDeleting}
+                className="flex-1 rounded-lg bg-[#EF4444] px-4 py-2.5 font-medium text-white transition-colors hover:bg-[#DC2626] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isDeleting ? 'Deleting...' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>
   );
 }
 
@@ -648,11 +890,31 @@ function LeadRow({
   lead,
   selected,
   onSelect,
+  onDelete,
+  onEnrich,
 }: {
   lead: Lead;
   selected: boolean;
   onSelect: (selected: boolean) => void;
+  onDelete: (leadId: string) => void;
+  onEnrich: (leadId: string) => void;
 }) {
+  const [showMenu, setShowMenu] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setShowMenu(false);
+      }
+    };
+    if (showMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showMenu]);
+
   const statusColors: Record<string, { bg: string; text: string; label: string }> = {
     new: { bg: 'bg-[#F8FAFC]', text: 'text-[#64748B]', label: 'New' },
     contacted: { bg: 'bg-[#FFF7ED]', text: 'text-[#FF6B35]', label: 'Contacted' },
@@ -702,10 +964,27 @@ function LeadRow({
       <td className="px-6 py-4 text-[#1E293B]">{lead.company || '-'}</td>
       <td className="px-6 py-4 text-[#64748B]">{lead.location || '-'}</td>
       <td className="px-6 py-4">
-        {lead.email ? (
+        {lead.enrichment_status === 'pending' ? (
+          <div className="flex items-center gap-2">
+            <LoadingSpinner className="h-3.5 w-3.5 text-[#14B8A6]" />
+            <span className="text-sm text-[#64748B]">Enriching...</span>
+          </div>
+        ) : lead.enrichment_status === 'enriched' && lead.email ? (
+          <span className="text-[#1E293B]">{lead.email}</span>
+        ) : lead.enrichment_status === 'failed' ? (
+          <span className="text-sm text-[#EF4444]">Failed</span>
+        ) : lead.enrichment_status === 'no_email_found' ? (
+          <span className="text-sm italic text-[#94A3B8]">Not found</span>
+        ) : lead.email ? (
           <span className="text-[#1E293B]">{lead.email}</span>
         ) : (
-          <span className="italic text-[#94A3B8]">Not found</span>
+          <button
+            onClick={() => onEnrich(lead.id)}
+            className="flex items-center gap-1 text-sm text-[#14B8A6] hover:text-[#0D9488]"
+          >
+            <EnrichIcon className="h-3.5 w-3.5" />
+            Find email
+          </button>
         )}
       </td>
       <td className="px-6 py-4">
@@ -727,9 +1006,40 @@ function LeadRow({
               <LinkedInSmallIcon />
             </a>
           )}
-          <button className="rounded-lg p-2 text-[#64748B] transition-colors hover:bg-[#F8FAFC]">
-            <MoreIcon />
-          </button>
+          <div className="relative" ref={menuRef}>
+            <button
+              onClick={() => setShowMenu(!showMenu)}
+              className="rounded-lg p-2 text-[#64748B] transition-colors hover:bg-[#F8FAFC]"
+            >
+              <MoreIcon />
+            </button>
+            {showMenu && (
+              <div className="absolute right-0 top-full z-10 mt-1 w-36 rounded-lg border border-[#E2E8F0] bg-white py-1 shadow-lg">
+                {!lead.email && lead.enrichment_status !== 'pending' && (
+                  <button
+                    onClick={() => {
+                      onEnrich(lead.id);
+                      setShowMenu(false);
+                    }}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-[#14B8A6] hover:bg-[#F0FDFA]"
+                  >
+                    <EnrichIcon className="h-4 w-4" />
+                    Find email
+                  </button>
+                )}
+                <button
+                  onClick={() => {
+                    onDelete(lead.id);
+                    setShowMenu(false);
+                  }}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-[#EF4444] hover:bg-[#FEF2F2]"
+                >
+                  <TrashIcon className="h-4 w-4" />
+                  Delete
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </td>
     </tr>
@@ -837,6 +1147,27 @@ function ImportLeadsModal({ onClose, onSuccess }: { onClose: () => void; onSucce
     if (!selectedAccountId) {
       setImportError('Please select a LinkedIn account');
       return;
+    }
+
+    // Validate URLs before sending to API
+    if (selectedMethod === 'paste_urls' && sourceData && sourceData.length > 0) {
+      // Validate all profile URLs in the batch
+      const { errors } = validateProfileURLsBatch(sourceData);
+      if (errors.length > 0) {
+        const errorSummary =
+          errors.length <= 3
+            ? errors.join('\n')
+            : `${errors.slice(0, 3).join('\n')}\n... and ${errors.length - 3} more invalid URLs`;
+        setImportError(`Invalid profile URLs:\n${errorSummary}`);
+        return;
+      }
+    } else if (sourceUrl?.trim() && selectedMethod) {
+      // Validate the source URL based on import type
+      const validation = validateImportURL(sourceUrl.trim(), selectedMethod);
+      if (!validation.valid) {
+        setImportError(validation.error || 'Invalid URL format');
+        return;
+      }
     }
 
     setStep('processing');
@@ -1254,7 +1585,7 @@ function ImportMethodConfig({
 
         {importError && (
           <div className="rounded-xl border border-[#EF4444]/20 bg-[#FEF2F2] p-3 text-sm text-[#EF4444]">
-            {importError}
+            <pre className="whitespace-pre-wrap font-sans">{importError}</pre>
           </div>
         )}
 
@@ -1313,7 +1644,7 @@ function ImportMethodConfig({
 
         {importError && (
           <div className="rounded-xl border border-[#EF4444]/20 bg-[#FEF2F2] p-3 text-sm text-[#EF4444]">
-            {importError}
+            <pre className="whitespace-pre-wrap font-sans">{importError}</pre>
           </div>
         )}
 
@@ -1435,7 +1766,7 @@ function ImportMethodConfig({
 
       {importError && (
         <div className="rounded-xl border border-[#EF4444]/20 bg-[#FEF2F2] p-3 text-sm text-[#EF4444]">
-          {importError}
+          <pre className="whitespace-pre-wrap font-sans">{importError}</pre>
         </div>
       )}
 

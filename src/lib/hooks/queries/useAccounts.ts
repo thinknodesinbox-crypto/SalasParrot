@@ -80,7 +80,7 @@ export const useUpdateLinkedInAccount = (accountId: string) => {
 
   return useMutation({
     mutationFn: async (data: UpdateLinkedInAccountData) => {
-      const response = await api.put<LinkedInAccount>(`/linkedin-accounts/${accountId}`, data);
+      const response = await api.patch<LinkedInAccount>(`/linkedin-accounts/${accountId}`, data);
       return response.data;
     },
     onSuccess: () => {
@@ -478,6 +478,25 @@ export const useConnectEmailMicrosoft = () => {
   });
 };
 
+// Auth Configuration
+
+interface AuthConfig {
+  gmail_auth_method: 'unipile' | 'custom';
+  microsoft_auth_method: 'custom';
+  imap_auth_method: 'custom';
+}
+
+export const useEmailAuthConfig = () => {
+  return useQuery({
+    queryKey: ['emailAuthConfig'],
+    queryFn: async () => {
+      const response = await api.get<AuthConfig>('/email-accounts/auth-config');
+      return response.data;
+    },
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+  });
+};
+
 // OAuth Flow Initialization
 
 interface OAuthInitResponse {
@@ -490,6 +509,7 @@ interface OAuthInitParams {
   returnUrl?: string;
 }
 
+// Gmail Custom OAuth (when GMAIL_AUTH_METHOD is "custom")
 export const useInitGoogleOAuth = () => {
   return useMutation({
     mutationFn: async (params?: OAuthInitParams) => {
@@ -498,6 +518,24 @@ export const useInitGoogleOAuth = () => {
       if (params?.returnUrl) searchParams.append('return_url', params.returnUrl);
       const response = await api.get<OAuthInitResponse>(
         `/email-accounts/oauth/google/init?${searchParams}`
+      );
+      return response.data;
+    },
+    onError: (error) => {
+      throw new Error(getErrorMessage(error));
+    },
+  });
+};
+
+// Gmail Unipile Hosted Auth (when GMAIL_AUTH_METHOD is "unipile")
+export const useInitGmailHostedAuth = () => {
+  return useMutation({
+    mutationFn: async (params?: OAuthInitParams) => {
+      const searchParams = new URLSearchParams();
+      if (params?.workspaceId) searchParams.append('workspace_id', params.workspaceId);
+      if (params?.returnUrl) searchParams.append('return_url', params.returnUrl);
+      const response = await api.get<OAuthInitResponse>(
+        `/email-accounts/oauth/gmail/hosted-auth-link?${searchParams}`
       );
       return response.data;
     },

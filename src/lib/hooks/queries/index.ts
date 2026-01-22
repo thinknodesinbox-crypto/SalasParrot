@@ -7,6 +7,7 @@ export {
   useDeleteCampaign,
   useStartCampaign,
   usePauseCampaign,
+  useCloneCampaign,
   useCampaignSteps,
   useCreateCampaignStep,
   useUpdateCampaignStep,
@@ -69,9 +70,12 @@ export {
   useConnectEmailIMAP,
   useConnectEmailGoogle,
   useConnectEmailMicrosoft,
+  // Email Auth Config
+  useEmailAuthConfig,
   // Email OAuth Flow
   useInitGoogleOAuth,
   useInitMicrosoftOAuth,
+  useInitGmailHostedAuth,
   // Email-LinkedIn Attachment
   useAttachEmailToLinkedIn,
   useDetachEmailFromLinkedIn,
@@ -148,3 +152,11 @@ export {
   useNotificationStream,
   notificationKeys,
 } from './useNotifications';
+
+// Enrichment
+export {
+  useEnrichLeads,
+  useEnrichmentJobs,
+  useEnrichmentJobStatus,
+  useEnrichmentJobWithPolling,
+} from './useEnrichment';

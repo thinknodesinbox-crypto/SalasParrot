@@ -232,7 +232,7 @@ export const useUpdateLead = (leadId: string) => {
 
   return useMutation({
     mutationFn: async (data: UpdateLeadData) => {
-      const response = await api.put<Lead>(`/leads/${leadId}`, data);
+      const response = await api.patch<Lead>(`/leads/${leadId}`, data);
       return response.data;
     },
     onSuccess: () => {
@@ -286,10 +286,11 @@ export const useDeleteLeads = () => {
 
   return useMutation({
     mutationFn: async (leadIds: string[]) => {
-      await api.post('/leads/delete', { lead_ids: leadIds });
+      await api.post('/leads/bulk/delete', { lead_ids: leadIds });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.leads.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.leadLists.all });
     },
     onError: (error) => {
       throw new Error(getErrorMessage(error));

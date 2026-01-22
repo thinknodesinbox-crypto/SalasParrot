@@ -15,6 +15,8 @@ import {
   useConnectEmailIMAP,
   useInitGoogleOAuth,
   useInitMicrosoftOAuth,
+  useInitGmailHostedAuth,
+  useEmailAuthConfig,
   useAttachEmailToLinkedIn,
   useDetachEmailFromLinkedIn,
 } from '../../lib/hooks/queries';
@@ -1991,7 +1993,9 @@ function ConnectEmailModal({ onClose }: { onClose: () => void }) {
 
   const connectIMAP = useConnectEmailIMAP();
   const initGoogleOAuth = useInitGoogleOAuth();
+  const initGmailHostedAuth = useInitGmailHostedAuth();
   const initMicrosoftOAuth = useInitMicrosoftOAuth();
+  const { data: authConfig } = useEmailAuthConfig();
 
   const handleGoogleOAuth = async () => {
     setError('');
@@ -1999,8 +2003,14 @@ function ConnectEmailModal({ onClose }: { onClose: () => void }) {
     try {
       // Pass current URL so user returns here after OAuth
       const returnUrl = window.location.href.split('?')[0]; // Remove any existing query params
-      const result = await initGoogleOAuth.mutateAsync({ returnUrl });
-      // Redirect to Google OAuth consent screen
+
+      // Use appropriate auth method based on config
+      const isHostedAuth = authConfig?.gmail_auth_method === 'unipile';
+      const result = isHostedAuth
+        ? await initGmailHostedAuth.mutateAsync({ returnUrl })
+        : await initGoogleOAuth.mutateAsync({ returnUrl });
+
+      // Redirect to OAuth consent screen (either Unipile hosted or Google direct)
       window.location.href = result.url;
     } catch (err) {
       setError(getErrorMessage(err));

@@ -951,20 +951,22 @@ export function NodeConfigPanel({
             <textarea
               value={node.data.message || ''}
               onChange={(e) => onUpdate({ message: e.target.value })}
-              placeholder="Hi {{firstName}}, I noticed..."
+              placeholder="Hi {{first_name}}, I noticed..."
               rows={4}
               className="w-full resize-none rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
             />
             <div className="mt-2 flex flex-wrap gap-1.5">
-              {['{{firstName}}', '{{company}}', '{{title}}'].map((variable) => (
-                <button
-                  key={variable}
-                  onClick={() => onUpdate({ message: (node.data.message || '') + variable })}
-                  className="rounded bg-[#FFF7ED] px-2 py-1 text-[10px] font-medium text-[#FF6B35] transition-colors hover:bg-[#FFEDD5]"
-                >
-                  {variable}
-                </button>
-              ))}
+              {['{{first_name}}', '{{last_name}}', '{{company}}', '{{icebreaker}}'].map(
+                (variable) => (
+                  <button
+                    key={variable}
+                    onClick={() => onUpdate({ message: (node.data.message || '') + variable })}
+                    className="rounded bg-[#FFF7ED] px-2 py-1 text-[10px] font-medium text-[#FF6B35] transition-colors hover:bg-[#FFEDD5]"
+                  >
+                    {variable}
+                  </button>
+                )
+              )}
             </div>
           </div>
         )}
@@ -978,7 +980,7 @@ export function NodeConfigPanel({
                 type="text"
                 value={node.data.subject || ''}
                 onChange={(e) => onUpdate({ subject: e.target.value })}
-                placeholder="Quick question, {{firstName}}"
+                placeholder="Quick question, {{first_name}}"
                 className="w-full rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
               />
             </div>
@@ -987,10 +989,23 @@ export function NodeConfigPanel({
               <textarea
                 value={node.data.message || ''}
                 onChange={(e) => onUpdate({ message: e.target.value })}
-                placeholder="Hi {{firstName}}..."
+                placeholder="Hi {{first_name}}..."
                 rows={6}
                 className="w-full resize-none rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
               />
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {['{{first_name}}', '{{last_name}}', '{{company}}', '{{icebreaker}}'].map(
+                  (variable) => (
+                    <button
+                      key={variable}
+                      onClick={() => onUpdate({ message: (node.data.message || '') + variable })}
+                      className="rounded bg-[#FFF7ED] px-2 py-1 text-[10px] font-medium text-[#FF6B35] transition-colors hover:bg-[#FFEDD5]"
+                    >
+                      {variable}
+                    </button>
+                  )
+                )}
+              </div>
             </div>
           </>
         )}
@@ -1081,7 +1096,15 @@ function getNodeConfig(type: SequenceNode['type']) {
       icon: <CheckCircleIcon className="h-4 w-4 text-[#64748B]" />,
     },
   };
-  return configs[type];
+
+  // Fallback for unknown types
+  return (
+    configs[type] ?? {
+      label: 'Unknown',
+      color: '#94A3B8',
+      icon: <UserIcon className="h-4 w-4 text-[#94A3B8]" />,
+    }
+  );
 }
 
 function getDefaultNodeData(type: SequenceNode['type']): NodeData {
