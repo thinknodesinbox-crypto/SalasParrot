@@ -5,12 +5,14 @@ import { useAuth } from '@/lib/auth';
 import {
   useWorkspaces,
   useCreateWorkspace,
+  useUpdateWorkspace,
   useWorkspaceMembers,
   useInviteWorkspaceMember,
   useBillingOverview,
   useCreatePortalSession,
   useEmailAccounts,
   useLinkedInAccounts,
+  useUpdateLinkedInAccount,
   useChangePassword,
   useConnectLinkedInWithCredentials,
   useConnectLinkedInWithCookie,
@@ -18,7 +20,7 @@ import {
   usePollLinkedInStatus,
   useConnectEmailIMAP,
 } from '@/lib/hooks/queries';
-import type { CheckpointType } from '@/lib/types';
+import type { CheckpointType, Workspace, LinkedInAccount } from '@/lib/types';
 
 export const Route = createFileRoute('/dashboard/settings')({
   component: SettingsPage,
@@ -302,6 +304,7 @@ function ProfileSettings() {
 function WorkspaceSettings() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [editingWorkspace, setEditingWorkspace] = useState<Workspace | null>(null);
 
   // Fetch workspaces from API
   const { data: workspacesData = [], isLoading, error, refetch } = useWorkspaces();
@@ -445,8 +448,12 @@ function WorkspaceSettings() {
                     </span>
                   </td>
                   <td className="px-6 py-4 text-right">
-                    <button className="rounded-lg p-2 text-[#64748B] hover:bg-[#F1F5F9]">
-                      <MoreIcon />
+                    <button
+                      onClick={() => setEditingWorkspace(workspace)}
+                      className="rounded-lg p-2 text-[#64748B] hover:bg-[#F1F5F9]"
+                      title="Configure working hours"
+                    >
+                      <SettingsIcon />
                     </button>
                   </td>
                 </tr>
@@ -461,8 +468,12 @@ function WorkspaceSettings() {
             <div key={workspace.id} className="p-4 transition-colors hover:bg-[#F8FAFC]">
               <div className="mb-2 flex items-center justify-between">
                 <span className="font-medium text-[#1E293B]">{workspace.name}</span>
-                <button className="rounded-lg p-2 text-[#64748B] hover:bg-[#F1F5F9]">
-                  <MoreIcon />
+                <button
+                  onClick={() => setEditingWorkspace(workspace)}
+                  className="rounded-lg p-2 text-[#64748B] hover:bg-[#F1F5F9]"
+                  title="Configure working hours"
+                >
+                  <SettingsIcon />
                 </button>
               </div>
               <div className="flex flex-wrap gap-4 text-sm">
@@ -485,6 +496,16 @@ function WorkspaceSettings() {
       {/* Create Workspace Modal */}
       <AnimatePresence>
         {showCreateModal && <CreateWorkspaceModal onClose={() => setShowCreateModal(false)} />}
+      </AnimatePresence>
+
+      {/* Workspace Working Hours Modal */}
+      <AnimatePresence>
+        {editingWorkspace && (
+          <WorkspaceWorkingHoursModal
+            workspace={editingWorkspace}
+            onClose={() => setEditingWorkspace(null)}
+          />
+        )}
       </AnimatePresence>
     </motion.div>
   );
@@ -558,6 +579,239 @@ function CreateWorkspaceModal({ onClose }: { onClose: () => void }) {
             className="flex-1 rounded-lg bg-[#3B82F6] px-4 py-2.5 font-medium text-white hover:bg-[#2563EB] disabled:opacity-50"
           >
             {createWorkspace.isPending ? 'Creating...' : 'Create workspace'}
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+function WorkspaceWorkingHoursModal({
+  workspace,
+  onClose,
+}: {
+  workspace: Workspace;
+  onClose: () => void;
+}) {
+  const updateWorkspace = useUpdateWorkspace(workspace.id);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Initialize working hours from workspace or defaults
+  const [timezone, setTimezone] = useState(workspace.working_hours?.timezone || 'America/New_York');
+  const [startTime, setStartTime] = useState(workspace.working_hours?.start || '09:00');
+  const [endTime, setEndTime] = useState(workspace.working_hours?.end || '18:00');
+  const [selectedDays, setSelectedDays] = useState<number[]>(
+    workspace.working_hours?.days || [1, 2, 3, 4, 5]
+  );
+
+  // Get current time in selected timezone
+  const getCurrentTimeInTimezone = () => {
+    try {
+      return new Date().toLocaleString('en-US', {
+        timeZone: timezone,
+        weekday: 'long',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+      });
+    } catch {
+      return 'Invalid timezone';
+    }
+  };
+
+  const handleToggleDay = (dayValue: number) => {
+    setSelectedDays((prev) =>
+      prev.includes(dayValue) ? prev.filter((d) => d !== dayValue) : [...prev, dayValue].sort()
+    );
+  };
+
+  const handleSave = async () => {
+    setError(null);
+
+    if (selectedDays.length === 0) {
+      setError('Please select at least one working day');
+      return;
+    }
+
+    if (startTime >= endTime) {
+      setError('End time must be after start time');
+      return;
+    }
+
+    setIsSaving(true);
+
+    try {
+      await updateWorkspace.mutateAsync({
+        working_hours: {
+          timezone,
+          start: startTime,
+          end: endTime,
+          days: selectedDays,
+        },
+      });
+      onClose();
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { detail?: string } } };
+      setError(error?.response?.data?.detail || 'Failed to update working hours');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-xl"
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-[#E2E8F0] px-6 py-4">
+          <div>
+            <h2 className="text-lg font-bold text-[#1E293B]">Configure Working Hours</h2>
+            <p className="mt-1 text-sm text-[#64748B]">{workspace.name}</p>
+          </div>
+          <button onClick={onClose} className="rounded-lg p-2 text-[#64748B] hover:bg-[#F8FAFC]">
+            <CloseIcon />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="max-h-[calc(100vh-200px)] overflow-y-auto p-6">
+          <div className="space-y-6">
+            {/* Current Time Display */}
+            <div className="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
+              <p className="text-sm font-medium text-[#64748B]">
+                Current time in selected timezone
+              </p>
+              <p className="mt-1 text-lg font-bold text-[#1E293B]">{getCurrentTimeInTimezone()}</p>
+            </div>
+
+            {/* Timezone Selection */}
+            <div>
+              <label className="block text-sm font-medium text-[#1E293B]">Timezone</label>
+              <select
+                value={timezone}
+                onChange={(e) => setTimezone(e.target.value)}
+                className="mt-2 w-full rounded-lg border border-[#E2E8F0] px-4 py-2.5 text-[#1E293B] focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+              >
+                {COMMON_TIMEZONES.map((tz) => (
+                  <option key={tz.value} value={tz.value}>
+                    {tz.label}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-2 text-xs text-[#64748B]">
+                Choose your timezone so campaigns run during your local working hours
+              </p>
+            </div>
+
+            {/* Working Hours */}
+            <div>
+              <label className="block text-sm font-medium text-[#1E293B]">Working Hours</label>
+              <div className="mt-2 grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs text-[#64748B]">Start Time</label>
+                  <input
+                    type="time"
+                    value={startTime}
+                    onChange={(e) => setStartTime(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-[#E2E8F0] px-4 py-2.5 text-[#1E293B] focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-[#64748B]">End Time</label>
+                  <input
+                    type="time"
+                    value={endTime}
+                    onChange={(e) => setEndTime(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-[#E2E8F0] px-4 py-2.5 text-[#1E293B] focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+                  />
+                </div>
+              </div>
+              <p className="mt-2 text-xs text-[#64748B]">
+                LinkedIn actions will only be sent during these hours
+              </p>
+            </div>
+
+            {/* Working Days */}
+            <div>
+              <label className="block text-sm font-medium text-[#1E293B]">Working Days</label>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {DAYS.map((day) => {
+                  const isSelected = selectedDays.includes(day.value);
+                  return (
+                    <button
+                      key={day.value}
+                      onClick={() => handleToggleDay(day.value)}
+                      className={`rounded-lg border px-4 py-2.5 text-sm font-medium transition-colors ${
+                        isSelected
+                          ? 'border-[#FF6B35] bg-[#FF6B35] text-white'
+                          : 'border-[#E2E8F0] bg-white text-[#64748B] hover:border-[#FF6B35]/50'
+                      }`}
+                    >
+                      <span className="hidden sm:inline">{day.label}</span>
+                      <span className="sm:hidden">{day.short}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="mt-2 text-xs text-[#64748B]">
+                Select the days when campaigns should run
+              </p>
+            </div>
+
+            {/* Error Message */}
+            {error && (
+              <div className="flex items-start gap-3 rounded-xl border border-[#EF4444]/20 bg-[#FEF2F2] p-4">
+                <WarningIcon className="mt-0.5 h-5 w-5 flex-shrink-0 text-[#EF4444]" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-[#991B1B]">Error</p>
+                  <p className="text-xs text-[#DC2626]">{error}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Info Box */}
+            <div className="flex items-start gap-3 rounded-xl border border-[#3B82F6]/20 bg-[#EFF6FF] p-4">
+              <InfoIcon className="mt-0.5 h-5 w-5 flex-shrink-0 text-[#3B82F6]" />
+              <div className="flex-1 text-xs text-[#1E3A8A]">
+                <p className="font-medium">How working hours work</p>
+                <ul className="mt-2 list-inside list-disc space-y-1">
+                  <li>Campaign actions are only sent during your configured working hours</li>
+                  <li>If outside working hours, campaigns pause until working hours resume</li>
+                  <li>This helps maintain natural engagement patterns on LinkedIn</li>
+                  <li>Working hours apply to all senders in this workspace</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between border-t border-[#E2E8F0] px-6 py-4">
+          <button
+            onClick={onClose}
+            disabled={isSaving}
+            className="px-4 py-2 font-medium text-[#64748B] disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={isSaving}
+            className="rounded-lg bg-[#FF6B35] px-6 py-2.5 font-medium text-white hover:bg-[#E85A2A] disabled:opacity-50"
+          >
+            {isSaving ? 'Saving...' : 'Save Working Hours'}
           </button>
         </div>
       </motion.div>
@@ -1253,6 +1507,9 @@ function UsageBar({
 function IntegrationSettings() {
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [showLinkedInModal, setShowLinkedInModal] = useState(false);
+  const [editingLinkedInAccount, setEditingLinkedInAccount] = useState<LinkedInAccount | null>(
+    null
+  );
   const { data: emailAccounts = [], isLoading: emailsLoading } = useEmailAccounts();
   const { data: linkedInAccounts = [], isLoading: linkedInLoading } = useLinkedInAccounts();
 
@@ -1331,8 +1588,12 @@ function IntegrationSettings() {
                       Primary
                     </span>
                   )}
-                  <button className="rounded-lg p-2 text-[#64748B] hover:bg-[#E2E8F0]">
-                    <MoreIcon />
+                  <button
+                    onClick={() => setEditingLinkedInAccount(account)}
+                    className="rounded-lg p-2 text-[#64748B] hover:bg-[#E2E8F0]"
+                    title="Configure working hours and limits"
+                  >
+                    <SettingsIcon />
                   </button>
                 </div>
               </div>
@@ -1511,6 +1772,16 @@ function IntegrationSettings() {
       {/* LinkedIn Connection Modal */}
       <AnimatePresence>
         {showLinkedInModal && <ConnectLinkedInModal onClose={() => setShowLinkedInModal(false)} />}
+      </AnimatePresence>
+
+      {/* LinkedIn Working Hours Modal */}
+      <AnimatePresence>
+        {editingLinkedInAccount && (
+          <LinkedInWorkingHoursModal
+            account={editingLinkedInAccount}
+            onClose={() => setEditingLinkedInAccount(null)}
+          />
+        )}
       </AnimatePresence>
 
       {/* Email Connection Modal */}
@@ -2555,7 +2826,284 @@ function ConnectEmailModal({ onClose }: { onClose: () => void }) {
   );
 }
 
+// ==================== LINKEDIN WORKING HOURS MODAL ====================
+
+const COMMON_TIMEZONES = [
+  { value: 'America/New_York', label: 'Eastern Time (ET)' },
+  { value: 'America/Chicago', label: 'Central Time (CT)' },
+  { value: 'America/Denver', label: 'Mountain Time (MT)' },
+  { value: 'America/Los_Angeles', label: 'Pacific Time (PT)' },
+  { value: 'Europe/London', label: 'London (GMT/BST)' },
+  { value: 'Europe/Paris', label: 'Paris (CET)' },
+  { value: 'Europe/Berlin', label: 'Berlin (CET)' },
+  { value: 'Asia/Dubai', label: 'Dubai (GST)' },
+  { value: 'Asia/Kolkata', label: 'India (IST)' },
+  { value: 'Asia/Singapore', label: 'Singapore (SGT)' },
+  { value: 'Asia/Tokyo', label: 'Tokyo (JST)' },
+  { value: 'Australia/Sydney', label: 'Sydney (AEDT)' },
+];
+
+const DAYS = [
+  { value: 1, label: 'Monday', short: 'Mon' },
+  { value: 2, label: 'Tuesday', short: 'Tue' },
+  { value: 3, label: 'Wednesday', short: 'Wed' },
+  { value: 4, label: 'Thursday', short: 'Thu' },
+  { value: 5, label: 'Friday', short: 'Fri' },
+  { value: 6, label: 'Saturday', short: 'Sat' },
+  { value: 7, label: 'Sunday', short: 'Sun' },
+];
+
+function LinkedInWorkingHoursModal({
+  account,
+  onClose,
+}: {
+  account: LinkedInAccount;
+  onClose: () => void;
+}) {
+  const updateAccount = useUpdateLinkedInAccount(account.id);
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Initialize working hours from account or defaults
+  const [timezone, setTimezone] = useState(account.working_hours?.timezone || 'America/New_York');
+  const [startTime, setStartTime] = useState(account.working_hours?.start || '09:00');
+  const [endTime, setEndTime] = useState(account.working_hours?.end || '18:00');
+  const [selectedDays, setSelectedDays] = useState<number[]>(
+    account.working_hours?.days || [1, 2, 3, 4, 5]
+  );
+
+  // Get current time in selected timezone
+  const getCurrentTimeInTimezone = () => {
+    try {
+      return new Date().toLocaleString('en-US', {
+        timeZone: timezone,
+        weekday: 'long',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true,
+      });
+    } catch {
+      return 'Invalid timezone';
+    }
+  };
+
+  const handleToggleDay = (dayValue: number) => {
+    setSelectedDays((prev) =>
+      prev.includes(dayValue) ? prev.filter((d) => d !== dayValue) : [...prev, dayValue].sort()
+    );
+  };
+
+  const handleSave = async () => {
+    setError(null);
+
+    if (selectedDays.length === 0) {
+      setError('Please select at least one working day');
+      return;
+    }
+
+    if (startTime >= endTime) {
+      setError('End time must be after start time');
+      return;
+    }
+
+    setIsSaving(true);
+
+    try {
+      await updateAccount.mutateAsync({
+        working_hours: {
+          timezone,
+          start: startTime,
+          end: endTime,
+          days: selectedDays,
+        },
+      });
+      onClose();
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { detail?: string } } };
+      setError(error?.response?.data?.detail || 'Failed to update working hours');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-2xl overflow-hidden rounded-2xl bg-white shadow-xl"
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-[#E2E8F0] px-6 py-4">
+          <div>
+            <h2 className="text-lg font-bold text-[#1E293B]">Configure Working Hours</h2>
+            <p className="mt-1 text-sm text-[#64748B]">{account.name}</p>
+          </div>
+          <button onClick={onClose} className="rounded-lg p-2 text-[#64748B] hover:bg-[#F8FAFC]">
+            <CloseIcon />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="max-h-[calc(100vh-200px)] overflow-y-auto p-6">
+          <div className="space-y-6">
+            {/* Current Time Display */}
+            <div className="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
+              <p className="text-sm font-medium text-[#64748B]">
+                Current time in selected timezone
+              </p>
+              <p className="mt-1 text-lg font-bold text-[#1E293B]">{getCurrentTimeInTimezone()}</p>
+            </div>
+
+            {/* Timezone Selection */}
+            <div>
+              <label className="block text-sm font-medium text-[#1E293B]">Timezone</label>
+              <select
+                value={timezone}
+                onChange={(e) => setTimezone(e.target.value)}
+                className="mt-2 w-full rounded-lg border border-[#E2E8F0] px-4 py-2.5 text-[#1E293B] focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+              >
+                {COMMON_TIMEZONES.map((tz) => (
+                  <option key={tz.value} value={tz.value}>
+                    {tz.label}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-2 text-xs text-[#64748B]">
+                Choose your timezone so campaigns run during your local working hours
+              </p>
+            </div>
+
+            {/* Working Hours */}
+            <div>
+              <label className="block text-sm font-medium text-[#1E293B]">Working Hours</label>
+              <div className="mt-2 grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs text-[#64748B]">Start Time</label>
+                  <input
+                    type="time"
+                    value={startTime}
+                    onChange={(e) => setStartTime(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-[#E2E8F0] px-4 py-2.5 text-[#1E293B] focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs text-[#64748B]">End Time</label>
+                  <input
+                    type="time"
+                    value={endTime}
+                    onChange={(e) => setEndTime(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-[#E2E8F0] px-4 py-2.5 text-[#1E293B] focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+                  />
+                </div>
+              </div>
+              <p className="mt-2 text-xs text-[#64748B]">
+                LinkedIn actions will only be sent during these hours
+              </p>
+            </div>
+
+            {/* Working Days */}
+            <div>
+              <label className="block text-sm font-medium text-[#1E293B]">Working Days</label>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {DAYS.map((day) => {
+                  const isSelected = selectedDays.includes(day.value);
+                  return (
+                    <button
+                      key={day.value}
+                      onClick={() => handleToggleDay(day.value)}
+                      className={`rounded-lg border px-4 py-2.5 text-sm font-medium transition-colors ${
+                        isSelected
+                          ? 'border-[#FF6B35] bg-[#FF6B35] text-white'
+                          : 'border-[#E2E8F0] bg-white text-[#64748B] hover:border-[#FF6B35]/50'
+                      }`}
+                    >
+                      <span className="hidden sm:inline">{day.label}</span>
+                      <span className="sm:hidden">{day.short}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="mt-2 text-xs text-[#64748B]">
+                Select the days when campaigns should run
+              </p>
+            </div>
+
+            {/* Error Message */}
+            {error && (
+              <div className="flex items-start gap-3 rounded-xl border border-[#EF4444]/20 bg-[#FEF2F2] p-4">
+                <WarningIcon className="mt-0.5 h-5 w-5 flex-shrink-0 text-[#EF4444]" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-[#991B1B]">Error</p>
+                  <p className="text-xs text-[#DC2626]">{error}</p>
+                </div>
+              </div>
+            )}
+
+            {/* Info Box */}
+            <div className="flex items-start gap-3 rounded-xl border border-[#3B82F6]/20 bg-[#EFF6FF] p-4">
+              <InfoIcon className="mt-0.5 h-5 w-5 flex-shrink-0 text-[#3B82F6]" />
+              <div className="flex-1 text-xs text-[#1E3A8A]">
+                <p className="font-medium">How working hours work</p>
+                <ul className="mt-2 list-inside list-disc space-y-1">
+                  <li>Actions are only sent during your configured working hours</li>
+                  <li>If no senders are available, campaigns pause until working hours resume</li>
+                  <li>This helps maintain natural engagement patterns</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between border-t border-[#E2E8F0] px-6 py-4">
+          <button
+            onClick={onClose}
+            disabled={isSaving}
+            className="px-4 py-2 font-medium text-[#64748B] disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={isSaving}
+            className="rounded-lg bg-[#FF6B35] px-6 py-2.5 font-medium text-white hover:bg-[#E85A2A] disabled:opacity-50"
+          >
+            {isSaving ? 'Saving...' : 'Save Working Hours'}
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
 // ==================== ICONS ====================
+
+function WarningIcon({ className = '' }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={2}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+      />
+    </svg>
+  );
+}
 
 function LinkedInIcon({ className = 'w-6 h-6' }: { className?: string }) {
   return (

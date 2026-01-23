@@ -54,6 +54,7 @@ export interface Workspace {
   slug: string;
   client_name: string | null;
   client_email: string | null;
+  working_hours: WorkingHours | null;
   created_at: string;
 }
 

@@ -15,6 +15,12 @@ interface UpdateWorkspaceData {
   slug?: string;
   client_name?: string;
   client_email?: string;
+  working_hours?: {
+    timezone: string;
+    start: string;
+    end: string;
+    days: number[];
+  };
 }
 
 interface InviteMemberData {

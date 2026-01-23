@@ -166,6 +166,25 @@ export const usePauseCampaign = (campaignId: string) => {
   });
 };
 
+// Resume campaign
+export const useResumeCampaign = (campaignId: string) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async () => {
+      const response = await api.post<Campaign>(`/campaigns/${campaignId}/resume`);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.campaigns.detail(campaignId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.campaigns.all });
+    },
+    onError: (error) => {
+      throw new Error(getErrorMessage(error));
+    },
+  });
+};
+
 // Clone campaign
 export const useCloneCampaign = () => {
   const queryClient = useQueryClient();
@@ -296,5 +315,26 @@ export const useRemoveCampaignSender = (campaignId: string) => {
     onError: (error) => {
       throw new Error(getErrorMessage(error));
     },
+  });
+};
+
+// Lead availability
+export interface LeadAvailability {
+  total: number;
+  available: number;
+  in_active_campaigns: number;
+}
+
+export const useLeadAvailabilityPreview = (listId: string | null) => {
+  return useQuery({
+    queryKey: ['campaigns', 'lead-availability', listId],
+    queryFn: async () => {
+      if (!listId) return null;
+      const response = await api.get<LeadAvailability>(
+        `/campaigns/leads/preview?list_id=${listId}`
+      );
+      return response.data;
+    },
+    enabled: !!listId,
   });
 };

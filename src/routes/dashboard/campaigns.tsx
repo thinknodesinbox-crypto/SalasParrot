@@ -16,9 +16,11 @@ import {
   useDeleteCampaign,
   useStartCampaign,
   usePauseCampaign,
+  useResumeCampaign,
   useCloneCampaign,
   useLeadLists,
   useLinkedInAccounts,
+  useLeadAvailabilityPreview,
 } from '../../lib/hooks/queries';
 import type { Campaign, CampaignStatus } from '../../lib/types';
 import { api } from '@/lib/api';
@@ -338,6 +340,7 @@ function CampaignCard({
   const deleteCampaign = useDeleteCampaign();
   const startCampaign = useStartCampaign(campaign.id);
   const pauseCampaign = usePauseCampaign(campaign.id);
+  const resumeCampaign = useResumeCampaign(campaign.id);
 
   const statusColors: Record<string, { bg: string; text: string; dot: string }> = {
     draft: { bg: 'bg-[#F8FAFC]', text: 'text-[#64748B]', dot: 'bg-[#94A3B8]' },
@@ -440,7 +443,7 @@ function CampaignCard({
                       <button
                         onClick={async () => {
                           setMenuOpen(false);
-                          await startCampaign.mutateAsync();
+                          await resumeCampaign.mutateAsync();
                         }}
                         className="w-full px-4 py-2 text-left text-sm text-[#22C55E] hover:bg-[#F0FDF4]"
                       >
@@ -486,6 +489,7 @@ function CampaignRow({
   const deleteCampaign = useDeleteCampaign();
   const startCampaign = useStartCampaign(campaign.id);
   const pauseCampaign = usePauseCampaign(campaign.id);
+  const resumeCampaign = useResumeCampaign(campaign.id);
 
   const statusColors: Record<string, { bg: string; text: string; dot: string }> = {
     draft: { bg: 'bg-[#F8FAFC]', text: 'text-[#64748B]', dot: 'bg-[#94A3B8]' },
@@ -592,7 +596,7 @@ function CampaignRow({
                     <button
                       onClick={async () => {
                         setMenuOpen(false);
-                        await startCampaign.mutateAsync();
+                        await resumeCampaign.mutateAsync();
                       }}
                       className="w-full px-4 py-2 text-left text-sm text-[#22C55E] hover:bg-[#F0FDF4]"
                     >
@@ -629,15 +633,8 @@ function CreateCampaignModal({
 }) {
   const isEditMode = !!editingCampaign;
   const queryClient = useQueryClient();
-  const createCampaign = useCreateCampaign();
-  const updateCampaign = useUpdateCampaign(editingCampaign?.id || '');
-  const { data: campaignDetails, isLoading: detailsLoading } = useCampaign(
-    editingCampaign?.id || ''
-  );
-  const { data: leadListsData, isLoading: leadListsLoading } = useLeadLists();
-  const leadLists = leadListsData?.lists || [];
-  const { data: linkedInAccounts = [], isLoading: accountsLoading } = useLinkedInAccounts();
-  // Always start at 'name' step, even with pre-selected lead list
+
+  // State declarations
   const [step, setStep] = useState<'name' | 'leads' | 'sequence' | 'senders' | 'review'>('name');
   const [campaignName, setCampaignName] = useState('');
   const [campaignDescription, setCampaignDescription] = useState('');
@@ -651,6 +648,19 @@ function CreateCampaignModal({
   ]);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // API hooks
+  const createCampaign = useCreateCampaign();
+  const updateCampaign = useUpdateCampaign(editingCampaign?.id || '');
+  const { data: campaignDetails, isLoading: detailsLoading } = useCampaign(
+    editingCampaign?.id || ''
+  );
+  const { data: leadListsData, isLoading: leadListsLoading } = useLeadLists();
+  const leadLists = leadListsData?.lists || [];
+  const { data: linkedInAccounts = [], isLoading: accountsLoading } = useLinkedInAccounts();
+  const { data: leadAvailability, isLoading: availabilityLoading } =
+    useLeadAvailabilityPreview(selectedLeadListId);
 
   const selectedNode = sequenceNodes.find((n) => n.id === selectedNodeId) || null;
 
@@ -743,10 +753,12 @@ function CreateCampaignModal({
 
   const handleCreate = async (startImmediately = false) => {
     setError(null);
+    setIsSaving(true);
 
     // Validate required fields
     if (!campaignName || !campaignName.trim()) {
       setError('Campaign name is required');
+      setIsSaving(false);
       return;
     }
 
@@ -836,11 +848,30 @@ function CreateCampaignModal({
             'Campaign started!',
             `"${campaignName}" is now active and processing leads.`
           );
-        } catch (startErr) {
+        } catch (startErr: unknown) {
           console.error('Failed to start campaign:', startErr);
-          setError(
-            'Campaign was created but failed to start. You can start it manually from the campaigns list.'
-          );
+
+          // Parse backend error for better UX
+          let errorMessage = 'Campaign was created but failed to start.';
+
+          const axiosError = startErr as { response?: { data?: { detail?: string } } };
+          if (axiosError?.response?.data?.detail) {
+            const detail = axiosError.response.data.detail;
+            if (typeof detail === 'string') {
+              // Extract the meaningful part of the error
+              if (detail.includes('Campaign has no leads assigned')) {
+                errorMessage =
+                  'Campaign was created but cannot start: No available leads were assigned. All leads from the selected list are already in other active campaigns. Please pause or complete other campaigns to free up leads, then try starting this campaign again.';
+              } else if (detail.includes('validation failed')) {
+                errorMessage = `Campaign was created but cannot start: ${detail}`;
+              } else {
+                errorMessage = `Campaign was created but failed to start: ${detail}`;
+              }
+            }
+          }
+
+          setError(errorMessage);
+          setIsSaving(false);
           return; // Don't close modal on error
         }
       } else {
@@ -856,6 +887,8 @@ function CreateCampaignModal({
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save campaign');
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -881,7 +914,11 @@ function CreateCampaignModal({
           <h2 className="text-lg font-bold text-[#1E293B]">
             {isEditMode ? 'Edit Campaign' : 'Create Campaign'}
           </h2>
-          <button onClick={onClose} className="rounded-lg p-2 hover:bg-[#F8FAFC]">
+          <button
+            onClick={onClose}
+            disabled={isSaving}
+            className="rounded-lg p-2 hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-50"
+          >
             <CloseIcon />
           </button>
         </div>
@@ -1058,6 +1095,66 @@ function CreateCampaignModal({
                           <PlusIcon className="mx-auto mb-1 h-5 w-5 text-[#94A3B8]" />
                           <span className="text-sm text-[#64748B]">Import new leads</span>
                         </button>
+
+                        {/* Lead Availability Info */}
+                        {selectedLeadListId && leadAvailability && !availabilityLoading && (
+                          <div className="mt-4 space-y-2">
+                            {leadAvailability.available === 0 ? (
+                              // Critical: No leads available
+                              <div className="flex items-start gap-3 rounded-xl border border-[#EF4444]/20 bg-[#FEF2F2] p-4">
+                                <WarningIcon className="mt-0.5 h-5 w-5 flex-shrink-0 text-[#EF4444]" />
+                                <div className="flex-1">
+                                  <p className="text-sm font-bold text-[#991B1B]">
+                                    Cannot Create Campaign: No Available Leads
+                                  </p>
+                                  <p className="mt-1 text-xs text-[#DC2626]">
+                                    All {leadAvailability.total} leads from this list are currently
+                                    assigned to active or paused campaigns. You must pause or
+                                    complete other campaigns to free up leads before creating a new
+                                    campaign with this list.
+                                  </p>
+                                  <p className="mt-2 text-xs font-medium text-[#991B1B]">
+                                    Available: {leadAvailability.available} /{' '}
+                                    {leadAvailability.total} leads
+                                  </p>
+                                </div>
+                              </div>
+                            ) : leadAvailability.in_active_campaigns > 0 ? (
+                              // Warning: Some leads unavailable
+                              <div className="flex items-start gap-3 rounded-xl border border-[#F59E0B]/20 bg-[#FFFBEB] p-4">
+                                <WarningIcon className="mt-0.5 h-5 w-5 flex-shrink-0 text-[#F59E0B]" />
+                                <div className="flex-1">
+                                  <p className="text-sm font-medium text-[#92400E]">
+                                    Lead Availability Warning
+                                  </p>
+                                  <p className="mt-1 text-xs text-[#B45309]">
+                                    {leadAvailability.in_active_campaigns} of{' '}
+                                    {leadAvailability.total} leads are already in active or paused
+                                    campaigns and cannot be reassigned.
+                                  </p>
+                                  <p className="mt-2 text-xs font-medium text-[#92400E]">
+                                    Available: {leadAvailability.available} /{' '}
+                                    {leadAvailability.total} leads
+                                  </p>
+                                </div>
+                              </div>
+                            ) : (
+                              // Success: All leads available
+                              <div className="flex items-start gap-3 rounded-xl border border-[#22C55E]/20 bg-[#DCFCE7] p-4">
+                                <CheckIcon className="mt-0.5 h-5 w-5 flex-shrink-0 text-[#22C55E]" />
+                                <div className="flex-1">
+                                  <p className="text-sm font-medium text-[#166534]">
+                                    All leads available
+                                  </p>
+                                  <p className="mt-1 text-xs text-[#15803D]">
+                                    All {leadAvailability.total} leads from this list are available
+                                    to be assigned to this campaign.
+                                  </p>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
                     )}
                   </motion.div>
@@ -1375,6 +1472,20 @@ function CreateCampaignModal({
                             )}
                           </span>
                         </div>
+                        {!isEditMode && selectedLeadListId && leadAvailability && (
+                          <div className="mb-2 flex items-center justify-between">
+                            <span className="text-sm text-[#64748B]">Available Leads</span>
+                            <span
+                              className={`font-medium ${
+                                leadAvailability.available === 0
+                                  ? 'text-[#EF4444]'
+                                  : 'text-[#22C55E]'
+                              }`}
+                            >
+                              {leadAvailability.available} / {leadAvailability.total}
+                            </span>
+                          </div>
+                        )}
                         <div className="mb-2 flex items-center justify-between">
                           <span className="text-sm text-[#64748B]">Sequence Steps</span>
                           <span className="font-medium text-[#1E293B]">
@@ -1393,7 +1504,24 @@ function CreateCampaignModal({
                         </div>
                       </div>
 
-                      {selectedSenderIds.length === 0 ? (
+                      {!isEditMode &&
+                      selectedLeadListId &&
+                      leadAvailability &&
+                      leadAvailability.available === 0 ? (
+                        <div className="flex items-start gap-3 rounded-xl border border-[#EF4444]/20 bg-[#FEF2F2] p-4">
+                          <WarningIcon className="mt-0.5 h-5 w-5 flex-shrink-0 text-[#EF4444]" />
+                          <div>
+                            <p className="text-sm font-bold text-[#991B1B]">
+                              Cannot Start Campaign
+                            </p>
+                            <p className="text-xs text-[#DC2626]">
+                              No leads are available from the selected list. All leads are assigned
+                              to other active campaigns. You can save as draft, but cannot start
+                              until leads become available.
+                            </p>
+                          </div>
+                        </div>
+                      ) : selectedSenderIds.length === 0 ? (
                         <div className="flex items-start gap-3 rounded-xl border border-[#F59E0B]/20 bg-[#FFFBEB] p-4">
                           <WarningIcon className="mt-0.5 h-5 w-5 flex-shrink-0 text-[#F59E0B]" />
                           <div>
@@ -1450,7 +1578,7 @@ function CreateCampaignModal({
                   const currentIndex = steps.indexOf(step);
                   if (currentIndex > 0) setStep(steps[currentIndex - 1]);
                 }}
-                disabled={step === 'name'}
+                disabled={step === 'name' || isSaving}
                 className="px-4 py-2 font-medium text-[#64748B] disabled:opacity-50"
               >
                 Back
@@ -1460,18 +1588,37 @@ function CreateCampaignModal({
                   <>
                     <button
                       onClick={() => handleCreate(false)}
-                      disabled={!campaignName}
+                      disabled={!campaignName || isSaving}
                       className="rounded-lg border border-[#E2E8F0] px-6 py-2 font-medium text-[#64748B] hover:bg-[#F8FAFC] disabled:opacity-50"
                     >
-                      {isEditMode ? 'Save Changes' : 'Save as Draft'}
+                      {isSaving ? 'Saving...' : isEditMode ? 'Save Changes' : 'Save as Draft'}
                     </button>
                     {selectedSenderIds.length > 0 && (
                       <button
                         onClick={() => handleCreate(true)}
-                        disabled={!campaignName}
+                        disabled={
+                          !campaignName ||
+                          isSaving ||
+                          (!isEditMode &&
+                            selectedLeadListId &&
+                            leadAvailability &&
+                            leadAvailability.available === 0)
+                        }
                         className="rounded-lg bg-[#22C55E] px-6 py-2 font-medium text-white hover:bg-[#16A34A] disabled:opacity-50"
+                        title={
+                          !isEditMode &&
+                          selectedLeadListId &&
+                          leadAvailability &&
+                          leadAvailability.available === 0
+                            ? 'Cannot start: No available leads'
+                            : ''
+                        }
                       >
-                        {isEditMode ? 'Save and Start' : 'Create and Start'}
+                        {isSaving
+                          ? 'Starting...'
+                          : isEditMode
+                            ? 'Save and Start'
+                            : 'Create and Start'}
                       </button>
                     )}
                   </>
@@ -1479,6 +1626,19 @@ function CreateCampaignModal({
                 {step !== 'review' && (
                   <button
                     onClick={() => {
+                      // Validate lead availability before moving forward from leads step
+                      if (
+                        step === 'leads' &&
+                        selectedLeadListId &&
+                        leadAvailability &&
+                        leadAvailability.available === 0
+                      ) {
+                        setError(
+                          `Cannot continue: All ${leadAvailability.total} leads from this list are already assigned to active or paused campaigns. Please select a different list or free up leads by completing or pausing other campaigns.`
+                        );
+                        return;
+                      }
+
                       const steps: Array<'name' | 'leads' | 'sequence' | 'senders' | 'review'> = [
                         'name',
                         'leads',
@@ -1491,7 +1651,12 @@ function CreateCampaignModal({
                     }}
                     disabled={
                       !campaignName || // Campaign name is required at all steps
-                      (step === 'name' && !campaignName)
+                      (step === 'name' && !campaignName) ||
+                      (step === 'leads' &&
+                        selectedLeadListId &&
+                        leadAvailability &&
+                        leadAvailability.available === 0) || // Block if no available leads
+                      isSaving
                     }
                     className="rounded-lg bg-[#FF6B35] px-6 py-2 font-medium text-white hover:bg-[#E85A2A] disabled:opacity-50"
                   >
@@ -1519,6 +1684,7 @@ function CampaignDetailDrawer({
   const { data: campaignDetails } = useCampaign(campaign.id);
   const startCampaign = useStartCampaign(campaign.id);
   const pauseCampaign = usePauseCampaign(campaign.id);
+  const resumeCampaign = useResumeCampaign(campaign.id);
   const deleteCampaign = useDeleteCampaign();
   const cloneCampaign = useCloneCampaign();
   const [showCloneDialog, setShowCloneDialog] = useState(false);
@@ -1644,7 +1810,7 @@ function CampaignDetailDrawer({
               {campaign.status === 'paused' && (
                 <button
                   onClick={async () => {
-                    await startCampaign.mutateAsync();
+                    await resumeCampaign.mutateAsync();
                   }}
                   className="rounded-lg bg-[#22C55E] px-4 py-2 text-sm font-medium text-white hover:bg-[#16A34A]"
                 >

@@ -7,6 +7,7 @@ export {
   useDeleteCampaign,
   useStartCampaign,
   usePauseCampaign,
+  useResumeCampaign,
   useCloneCampaign,
   useCampaignSteps,
   useCreateCampaignStep,
@@ -15,7 +16,9 @@ export {
   useCampaignSenders,
   useAddCampaignSender,
   useRemoveCampaignSender,
+  useLeadAvailabilityPreview,
 } from './useCampaigns';
+export type { LeadAvailability } from './useCampaigns';
 
 // Lead Lists
 export {
