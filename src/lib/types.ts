@@ -213,7 +213,12 @@ export interface LinkedInAccount {
   status: LinkedInStatus;
   subscription_type: SubscriptionType;
   daily_limits: Record<string, number>;
-  working_hours: Record<string, unknown>;
+  working_hours: {
+    timezone?: string;
+    start?: string;
+    end?: string;
+    days?: number[];
+  } | null;
   proxy_ip: string | null;
   last_synced_at: string | null;
   created_at: string;
