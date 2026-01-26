@@ -76,7 +76,7 @@ export const queryKeys = {
   // Billing
   billing: {
     overview: ['billing', 'overview'] as const,
-    plans: ['billing', 'plans'] as const,
+    pricing: ['billing', 'pricing'] as const,
     invoices: ['billing', 'invoices'] as const,
   },
 

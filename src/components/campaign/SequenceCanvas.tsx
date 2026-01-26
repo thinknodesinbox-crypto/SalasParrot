@@ -10,7 +10,7 @@ export interface SequenceNode {
     | 'start'
     | 'linkedin_connect'
     | 'linkedin_message'
-    | 'linkedin_follow'
+    | 'linkedin_inmail'
     | 'linkedin_view'
     | 'email'
     | 'delay'
@@ -38,6 +38,7 @@ interface SequenceCanvasProps {
   onNodesChange: (nodes: SequenceNode[]) => void;
   onNodeSelect: (node: SequenceNode | null) => void;
   selectedNodeId: string | null;
+  hasInmailCapability?: boolean; // Whether any connected account supports InMail
 }
 
 export function SequenceCanvas({
@@ -45,6 +46,7 @@ export function SequenceCanvas({
   onNodesChange,
   onNodeSelect,
   selectedNodeId,
+  hasInmailCapability = false,
 }: SequenceCanvasProps) {
   const [zoom, setZoom] = useState(100);
 
@@ -64,11 +66,30 @@ export function SequenceCanvas({
         id: `node-${Date.now()}`,
         type,
         data: getDefaultNodeData(type),
-        parentId: afterId,
+        parentId: branch ? afterId : undefined, // Only set parentId for branch nodes
         branch,
       };
 
-      if (afterId) {
+      if (afterId && branch) {
+        // Adding to a condition branch - find last node in this branch
+        const branchNodes = nodes.filter((n) => n.parentId === afterId && n.branch === branch);
+
+        if (branchNodes.length > 0) {
+          // Insert after the last node in this branch
+          const lastBranchNode = branchNodes[branchNodes.length - 1];
+          const lastBranchIndex = nodes.findIndex((n) => n.id === lastBranchNode.id);
+          const newNodes = [...nodes];
+          newNodes.splice(lastBranchIndex + 1, 0, newNode);
+          onNodesChange(newNodes);
+        } else {
+          // No nodes in branch yet, insert after condition node
+          const afterIndex = nodes.findIndex((n) => n.id === afterId);
+          const newNodes = [...nodes];
+          newNodes.splice(afterIndex + 1, 0, newNode);
+          onNodesChange(newNodes);
+        }
+      } else if (afterId) {
+        // Adding after a specific node in main flow (insert button)
         const afterIndex = nodes.findIndex((n) => n.id === afterId);
         const newNodes = [...nodes];
         newNodes.splice(afterIndex + 1, 0, newNode);
@@ -144,49 +165,66 @@ export function SequenceCanvas({
           style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'top center' }}
         >
           {/* Render tree */}
-          {mainFlow.map((node, index) => (
-            <div key={node.id} className="flex flex-col items-center">
-              {/* Connector line from previous */}
-              {index > 0 && <ConnectorLine />}
+          {mainFlow.map((node, index) => {
+            const isLast = index === mainFlow.length - 1;
+            const prevNode = index > 0 ? mainFlow[index - 1] : null;
 
-              {/* Node */}
-              <TreeNode
-                node={node}
-                isSelected={selectedNodeId === node.id}
-                onSelect={() => onNodeSelect(node)}
-                onDelete={() => handleDeleteNode(node.id)}
-              />
+            return (
+              <div key={node.id} className="flex flex-col items-center">
+                {/* Insert button between nodes (replaces plain connector line) */}
+                {index > 0 && prevNode && prevNode.type !== 'condition' && (
+                  <InsertButton
+                    onAdd={(type) => handleAddNode(type, prevNode.id)}
+                    hasInmailCapability={hasInmailCapability}
+                  />
+                )}
+                {/* Plain connector after condition (can't insert in middle of condition branches) */}
+                {index > 0 && prevNode && prevNode.type === 'condition' && <ConnectorLine />}
 
-              {/* Condition branches */}
-              {node.type === 'condition' && (
-                <ConditionBranches
-                  conditionType={node.data.condition || 'connected'}
-                  trueBranch={conditionBranches.get(node.id)?.true || []}
-                  falseBranch={conditionBranches.get(node.id)?.false || []}
-                  selectedNodeId={selectedNodeId}
-                  onNodeSelect={onNodeSelect}
-                  onDeleteNode={handleDeleteNode}
-                  onAddNode={(type, branch) => handleAddNode(type, node.id, branch)}
+                {/* Node */}
+                <TreeNode
+                  node={node}
+                  isSelected={selectedNodeId === node.id}
+                  onSelect={() => onNodeSelect(node)}
+                  onDelete={() => handleDeleteNode(node.id)}
                 />
-              )}
 
-              {/* Add action button after non-condition nodes (except start) */}
-              {node.type !== 'condition' &&
-                node.type !== 'start' &&
-                index === mainFlow.length - 1 && (
+                {/* Condition branches */}
+                {node.type === 'condition' && (
+                  <ConditionBranches
+                    conditionType={node.data.condition || 'connected'}
+                    trueBranch={conditionBranches.get(node.id)?.true || []}
+                    falseBranch={conditionBranches.get(node.id)?.false || []}
+                    selectedNodeId={selectedNodeId}
+                    onNodeSelect={onNodeSelect}
+                    onDeleteNode={handleDeleteNode}
+                    onAddNode={(type, branch) => handleAddNode(type, node.id, branch)}
+                    hasInmailCapability={hasInmailCapability}
+                  />
+                )}
+
+                {/* Add action button at the end (only for last non-condition node) */}
+                {node.type !== 'condition' && node.type !== 'start' && isLast && (
                   <>
                     <ConnectorLine />
-                    <AddActionButton onAdd={(type) => handleAddNode(type)} />
+                    <AddActionButton
+                      onAdd={(type) => handleAddNode(type)}
+                      hasInmailCapability={hasInmailCapability}
+                    />
                   </>
                 )}
-            </div>
-          ))}
+              </div>
+            );
+          })}
 
           {/* Initial add button if only start node */}
           {mainFlow.length === 1 && mainFlow[0].type === 'start' && (
             <>
               <ConnectorLine />
-              <AddActionButton onAdd={(type) => handleAddNode(type)} />
+              <AddActionButton
+                onAdd={(type) => handleAddNode(type)}
+                hasInmailCapability={hasInmailCapability}
+              />
             </>
           )}
         </div>
@@ -200,6 +238,120 @@ function ConnectorLine({ height = 32 }: { height?: number }) {
   return (
     <div className="flex flex-col items-center" style={{ height }}>
       <div className="h-full w-0.5 bg-[#CBD5E1]" />
+    </div>
+  );
+}
+
+// Insert Button Component (for inserting between nodes)
+function InsertButton({
+  onAdd,
+  hasInmailCapability = false,
+}: {
+  onAdd: (type: SequenceNode['type']) => void;
+  hasInmailCapability?: boolean;
+}) {
+  const [showMenu, setShowMenu] = useState(false);
+
+  return (
+    <div className="group relative flex flex-col items-center" style={{ height: 32 }}>
+      {/* Connector line */}
+      <div className="absolute inset-0 flex flex-col items-center">
+        <div className="h-full w-0.5 bg-[#CBD5E1]" />
+      </div>
+
+      {/* Insert button - visible on hover */}
+      <div className="relative z-10 flex h-full items-center justify-center">
+        <motion.button
+          onClick={() => setShowMenu(!showMenu)}
+          className="flex h-5 w-5 items-center justify-center rounded-full border border-[#CBD5E1] bg-white opacity-0 shadow-sm transition-all hover:border-[#14B8A6] hover:bg-[#14B8A6] hover:text-white group-hover:opacity-100"
+          whileHover={{ scale: 1.1 }}
+          whileTap={{ scale: 0.95 }}
+        >
+          <PlusIcon className="h-3 w-3" />
+        </motion.button>
+      </div>
+
+      <AnimatePresence>
+        {showMenu && (
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: -10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: -10 }}
+              className="absolute left-1/2 top-full z-50 mt-1 w-48 -translate-x-1/2 rounded-xl border border-[#E2E8F0] bg-white py-2 shadow-lg"
+            >
+              <p className="px-3 py-1 text-[10px] font-semibold uppercase text-[#94A3B8]">
+                LinkedIn
+              </p>
+              <ActionMenuItem
+                icon={<LinkedInIcon className="h-4 w-4" />}
+                label="Connection Request"
+                onClick={() => {
+                  onAdd('linkedin_connect');
+                  setShowMenu(false);
+                }}
+              />
+              <ActionMenuItem
+                icon={<MessageIcon className="h-4 w-4" />}
+                label="Send Message"
+                onClick={() => {
+                  onAdd('linkedin_message');
+                  setShowMenu(false);
+                }}
+              />
+              {hasInmailCapability && (
+                <ActionMenuItem
+                  icon={<InMailIcon className="h-4 w-4" />}
+                  label="Send InMail"
+                  onClick={() => {
+                    onAdd('linkedin_inmail');
+                    setShowMenu(false);
+                  }}
+                />
+              )}
+              <ActionMenuItem
+                icon={<EyeIcon className="h-4 w-4" />}
+                label="View Profile"
+                onClick={() => {
+                  onAdd('linkedin_view');
+                  setShowMenu(false);
+                }}
+              />
+
+              <div className="my-1 border-t border-[#E2E8F0]" />
+              <p className="px-3 py-1 text-[10px] font-semibold uppercase text-[#94A3B8]">Email</p>
+              <ActionMenuItem
+                icon={<EmailIcon className="h-4 w-4" />}
+                label="Send Email"
+                onClick={() => {
+                  onAdd('email');
+                  setShowMenu(false);
+                }}
+              />
+
+              <div className="my-1 border-t border-[#E2E8F0]" />
+              <p className="px-3 py-1 text-[10px] font-semibold uppercase text-[#94A3B8]">Logic</p>
+              <ActionMenuItem
+                icon={<ClockIcon className="h-4 w-4" />}
+                label="Wait / Delay"
+                onClick={() => {
+                  onAdd('delay');
+                  setShowMenu(false);
+                }}
+              />
+              <ActionMenuItem
+                icon={<BranchIcon className="h-4 w-4" />}
+                label="If / Then"
+                onClick={() => {
+                  onAdd('condition');
+                  setShowMenu(false);
+                }}
+              />
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -253,8 +405,8 @@ function TreeNode({
         return 'Connect';
       case 'linkedin_message':
         return 'Message';
-      case 'linkedin_follow':
-        return 'Follow';
+      case 'linkedin_inmail':
+        return 'InMail';
       case 'email':
         return 'Email';
       default:
@@ -312,6 +464,7 @@ function ConditionBranches({
   onNodeSelect,
   onDeleteNode,
   onAddNode,
+  hasInmailCapability = false,
 }: {
   conditionType: string;
   trueBranch: SequenceNode[];
@@ -320,6 +473,7 @@ function ConditionBranches({
   onNodeSelect: (node: SequenceNode | null) => void;
   onDeleteNode: (id: string) => void;
   onAddNode: (type: SequenceNode['type'], branch: 'true' | 'false') => void;
+  hasInmailCapability?: boolean;
 }) {
   const falseLabel =
     conditionType === 'connected'
@@ -383,6 +537,7 @@ function ConditionBranches({
               <BranchEndButtons
                 onAddAction={(type) => onAddNode(type, 'false')}
                 onEnd={() => onAddNode('end', 'false')}
+                hasInmailCapability={hasInmailCapability}
               />
             </>
           )}
@@ -416,6 +571,7 @@ function ConditionBranches({
               <BranchEndButtons
                 onAddAction={(type) => onAddNode(type, 'true')}
                 onEnd={() => onAddNode('end', 'true')}
+                hasInmailCapability={hasInmailCapability}
               />
             </>
           )}
@@ -429,9 +585,11 @@ function ConditionBranches({
 function BranchEndButtons({
   onAddAction,
   onEnd,
+  hasInmailCapability = false,
 }: {
   onAddAction: (type: SequenceNode['type']) => void;
   onEnd: () => void;
+  hasInmailCapability?: boolean;
 }) {
   const [showMenu, setShowMenu] = useState(false);
 
@@ -477,19 +635,21 @@ function BranchEndButtons({
                     setShowMenu(false);
                   }}
                 />
+                {hasInmailCapability && (
+                  <ActionMenuItem
+                    icon={<InMailIcon className="h-4 w-4" />}
+                    label="Send InMail"
+                    onClick={() => {
+                      onAddAction('linkedin_inmail');
+                      setShowMenu(false);
+                    }}
+                  />
+                )}
                 <ActionMenuItem
                   icon={<EyeIcon className="h-4 w-4" />}
                   label="View Profile"
                   onClick={() => {
                     onAddAction('linkedin_view');
-                    setShowMenu(false);
-                  }}
-                />
-                <ActionMenuItem
-                  icon={<FollowIcon className="h-4 w-4" />}
-                  label="Follow"
-                  onClick={() => {
-                    onAddAction('linkedin_follow');
                     setShowMenu(false);
                   }}
                 />
@@ -547,7 +707,13 @@ function BranchEndButtons({
 }
 
 // Add Action Button (main flow)
-function AddActionButton({ onAdd }: { onAdd: (type: SequenceNode['type']) => void }) {
+function AddActionButton({
+  onAdd,
+  hasInmailCapability = false,
+}: {
+  onAdd: (type: SequenceNode['type']) => void;
+  hasInmailCapability?: boolean;
+}) {
   const [showMenu, setShowMenu] = useState(false);
 
   return (
@@ -591,19 +757,21 @@ function AddActionButton({ onAdd }: { onAdd: (type: SequenceNode['type']) => voi
                   setShowMenu(false);
                 }}
               />
+              {hasInmailCapability && (
+                <ActionMenuItem
+                  icon={<InMailIcon className="h-4 w-4" />}
+                  label="Send InMail"
+                  onClick={() => {
+                    onAdd('linkedin_inmail');
+                    setShowMenu(false);
+                  }}
+                />
+              )}
               <ActionMenuItem
                 icon={<EyeIcon className="h-4 w-4" />}
                 label="View Profile"
                 onClick={() => {
                   onAdd('linkedin_view');
-                  setShowMenu(false);
-                }}
-              />
-              <ActionMenuItem
-                icon={<FollowIcon className="h-4 w-4" />}
-                label="Follow"
-                onClick={() => {
-                  onAdd('linkedin_follow');
                   setShowMenu(false);
                 }}
               />
@@ -670,37 +838,46 @@ function ActionMenuItem({
 export function StepPalette({
   onAddStep,
   onApplyTemplate,
+  hasInmailCapability = false,
 }: {
   onAddStep: (type: SequenceNode['type']) => void;
   onApplyTemplate?: (nodes: SequenceNode[]) => void;
+  hasInmailCapability?: boolean;
 }) {
   const [showTemplates, setShowTemplates] = useState(false);
+  const linkedInSteps: Array<{ type: SequenceNode['type']; label: string; icon: React.ReactNode }> =
+    [
+      {
+        type: 'linkedin_connect',
+        label: 'Connection Request',
+        icon: <LinkedInIcon className="h-4 w-4" />,
+      },
+      {
+        type: 'linkedin_message',
+        label: 'Send Message',
+        icon: <MessageIcon className="h-4 w-4" />,
+      },
+      ...(hasInmailCapability
+        ? [
+            {
+              type: 'linkedin_inmail' as const,
+              label: 'Send InMail',
+              icon: <InMailIcon className="h-4 w-4" />,
+            },
+          ]
+        : []),
+      {
+        type: 'linkedin_view',
+        label: 'View Profile',
+        icon: <EyeIcon className="h-4 w-4" />,
+      },
+    ];
+
   const stepCategories = [
     {
       title: 'LinkedIn',
       color: '#0A66C2',
-      steps: [
-        {
-          type: 'linkedin_connect' as const,
-          label: 'Connection Request',
-          icon: <LinkedInIcon className="h-4 w-4" />,
-        },
-        {
-          type: 'linkedin_message' as const,
-          label: 'Send Message',
-          icon: <MessageIcon className="h-4 w-4" />,
-        },
-        {
-          type: 'linkedin_view' as const,
-          label: 'View Profile',
-          icon: <EyeIcon className="h-4 w-4" />,
-        },
-        {
-          type: 'linkedin_follow' as const,
-          label: 'Follow',
-          icon: <FollowIcon className="h-4 w-4" />,
-        },
-      ],
+      steps: linkedInSteps,
     },
     {
       title: 'Email',
@@ -971,6 +1148,51 @@ export function NodeConfigPanel({
           </div>
         )}
 
+        {/* InMail Configuration */}
+        {node.type === 'linkedin_inmail' && (
+          <>
+            <div>
+              <label className="mb-2 block text-sm font-medium text-[#1E293B]">Subject Line</label>
+              <input
+                type="text"
+                value={node.data.subject || ''}
+                onChange={(e) => onUpdate({ subject: e.target.value })}
+                placeholder="Quick question about {{company}}"
+                className="w-full rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+              />
+            </div>
+            <div>
+              <label className="mb-2 block text-sm font-medium text-[#1E293B]">Message</label>
+              <textarea
+                value={node.data.message || ''}
+                onChange={(e) => onUpdate({ message: e.target.value })}
+                placeholder="Hi {{first_name}}..."
+                rows={6}
+                className="w-full resize-none rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+              />
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {['{{first_name}}', '{{last_name}}', '{{company}}', '{{icebreaker}}'].map(
+                  (variable) => (
+                    <button
+                      key={variable}
+                      onClick={() => onUpdate({ message: (node.data.message || '') + variable })}
+                      className="rounded bg-[#FFF7ED] px-2 py-1 text-[10px] font-medium text-[#FF6B35] transition-colors hover:bg-[#FFEDD5]"
+                    >
+                      {variable}
+                    </button>
+                  )
+                )}
+              </div>
+            </div>
+            <div className="rounded-lg bg-[#FFF7ED] p-3">
+              <p className="text-xs text-[#92400E]">
+                InMail messages can be sent to anyone on LinkedIn, but require a Premium, Sales
+                Navigator, or Recruiter subscription.
+              </p>
+            </div>
+          </>
+        )}
+
         {/* Email Configuration */}
         {node.type === 'email' && (
           <>
@@ -1065,10 +1287,10 @@ function getNodeConfig(type: SequenceNode['type']) {
       color: '#0A66C2',
       icon: <MessageIcon className="h-4 w-4 text-[#0A66C2]" />,
     },
-    linkedin_follow: {
-      label: 'Follow Profile',
+    linkedin_inmail: {
+      label: 'InMail',
       color: '#0A66C2',
-      icon: <FollowIcon className="h-4 w-4 text-[#0A66C2]" />,
+      icon: <InMailIcon className="h-4 w-4 text-[#0A66C2]" />,
     },
     linkedin_view: {
       label: 'View Profile',
@@ -1173,6 +1395,25 @@ function EmailIcon({ className = 'w-4 h-4' }: { className?: string }) {
   );
 }
 
+function InMailIcon({ className = 'w-4 h-4' }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={2}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
+      />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 11v4m0-4l-2 2m2-2l2 2" />
+    </svg>
+  );
+}
+
 function MessageIcon({ className = 'w-4 h-4' }: { className?: string }) {
   return (
     <svg
@@ -1223,24 +1464,6 @@ function EyeIcon({ className = 'w-4 h-4' }: { className?: string }) {
         strokeLinecap="round"
         strokeLinejoin="round"
         d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-      />
-    </svg>
-  );
-}
-
-function FollowIcon({ className = 'w-4 h-4' }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      fill="none"
-      viewBox="0 0 24 24"
-      stroke="currentColor"
-      strokeWidth={2}
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"
       />
     </svg>
   );

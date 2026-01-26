@@ -80,12 +80,11 @@ export type StepType =
   | 'message'
   | 'inmail'
   | 'profile_view'
-  | 'follow'
-  | 'like_post'
   | 'wait'
   | 'condition'
   | 'email'
-  | 'email_followup';
+  | 'email_followup'
+  | 'end';
 
 export interface CampaignStep {
   id: string;
@@ -95,6 +94,7 @@ export interface CampaignStep {
   config: Record<string, unknown>;
   true_branch_step_id: string | null;
   false_branch_step_id: string | null;
+  next_step_id: string | null;
   created_at: string;
 }
 
@@ -109,7 +109,7 @@ export interface CampaignSender {
 export interface Campaign {
   id: string;
   user_id: string;
-  workspace_id: string | null;
+  workspace_id: string; // Required - campaigns must belong to a workspace
   name: string;
   status: CampaignStatus;
   created_by: string | null;
@@ -401,54 +401,81 @@ export interface ConversationListResponse {
 }
 
 // Billing types
-export interface PlanInfo {
+
+export interface SubscriptionInfo {
   id: string;
-  name: string;
-  price: number;
-  linkedin_accounts: number;
-  email_accounts: number;
-  leads_per_month: number;
-  workspaces: number;
-  features: string[];
+  status: string;
+  plan: 'growth' | 'agency';
+  current_period_start: string;
+  current_period_end: string;
+  cancel_at_period_end: boolean;
+  quantity: number;
 }
 
 export interface BillingOverview {
-  plan: PlanType;
-  status: string;
-  current_period_end: string | null;
-  cancel_at_period_end: boolean;
-  linkedin_accounts_used: number;
-  linkedin_accounts_limit: number;
-  leads_used: number;
-  leads_limit: number;
+  plan: 'growth' | 'agency';
+  subscription: SubscriptionInfo | null;
+  sender_count: number;
+  monthly_cost: number;
+  price_per_sender: number;
+  volume_discount: number;
+  included_senders: number;
+  extra_senders: number;
+  linkedin_accounts_connected: number;
+  workspaces: number;
+  recommend_agency: boolean;
 }
 
 export interface Invoice {
   id: string;
-  amount: number;
+  amount_due: number;
+  amount_paid: number;
+  currency: string;
   status: string;
-  created: string;
   invoice_pdf: string | null;
+  created: string;
 }
 
-// Sender-based billing types
-export interface SenderBillingOverview {
-  sender_count: number;
-  monthly_cost: number;
+// Pricing info
+export interface VolumePricingTier {
+  min_senders: number;
+  max_senders: number;
   price_per_sender: number;
-  subscription_status: 'active' | 'past_due' | 'canceled' | 'inactive';
-  current_period_end: string | null;
-  linkedin_accounts_connected: number;
 }
 
-export interface SenderCheckoutRequest {
+export interface PricingInfo {
+  growth_tiers: VolumePricingTier[];
+  agency_monthly: number;
+  agency_annual: number;
+  agency_included_senders: number;
+  agency_extra_sender_price: number;
+}
+
+// Checkout requests
+export interface TrialCheckoutRequest {
+  sender_count?: number;
+  success_url?: string;
+  cancel_url?: string;
+}
+
+export interface GrowthCheckoutRequest {
   sender_count: number;
   success_url?: string;
   cancel_url?: string;
 }
 
-export interface UpdateSendersRequest {
+export interface AgencyCheckoutRequest {
+  annual?: boolean;
+  success_url?: string;
+  cancel_url?: string;
+}
+
+export interface UpdateGrowthSendersRequest {
   sender_count: number;
+}
+
+export interface UpdateAgencyExtraSendersRequest {
+  extra_sender_count: number;
 }
 
 // Analytics types

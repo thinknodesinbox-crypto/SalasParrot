@@ -4,6 +4,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import logoImage from '@/assets/images/logo.png';
 import { useAuth } from '@/lib/auth';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
+import { useWorkspaceStore } from '@/lib/workspace';
+import { useWorkspaces } from '@/lib/hooks/queries';
 
 interface DashboardLayoutProps {
   children: React.ReactNode;
@@ -27,10 +29,32 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false);
   const routerState = useRouterState();
   const currentPath = routerState.location.pathname;
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+
+  // Workspace context
+  const { currentWorkspace, currentWorkspaceId, setCurrentWorkspace } = useWorkspaceStore();
+  const { data: workspaces = [] } = useWorkspaces();
+
+  // Auto-select first workspace if none selected
+  useEffect(() => {
+    if (!currentWorkspaceId && workspaces.length > 0) {
+      setCurrentWorkspace(workspaces[0]);
+    }
+  }, [workspaces, currentWorkspaceId, setCurrentWorkspace]);
+
+  // Sync current workspace object when workspaces are loaded
+  useEffect(() => {
+    if (currentWorkspaceId && workspaces.length > 0 && !currentWorkspace) {
+      const workspace = workspaces.find((w) => w.id === currentWorkspaceId);
+      if (workspace) {
+        setCurrentWorkspace(workspace);
+      }
+    }
+  }, [workspaces, currentWorkspaceId, currentWorkspace, setCurrentWorkspace]);
 
   // Get user initials for avatar
   const userInitials = user?.name
@@ -232,6 +256,82 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
             <Link to="/dashboard" className="flex items-center gap-2 lg:hidden">
               <img src={logoImage} alt="SalesParrot" className="h-8 w-8 object-contain" />
             </Link>
+
+            {/* Workspace Switcher */}
+            {workspaces.length > 0 && (
+              <div className="relative">
+                <button
+                  onClick={() => setWorkspaceMenuOpen(!workspaceMenuOpen)}
+                  className="flex items-center gap-2 rounded-lg border border-[#E2E8F0] bg-white px-3 py-1.5 text-sm font-medium text-[#1E293B] transition-colors hover:bg-[#F8FAFC]"
+                >
+                  <WorkspaceIcon />
+                  <span className="max-w-[150px] truncate">
+                    {currentWorkspace?.name || 'Select Workspace'}
+                  </span>
+                  <ChevronDownIcon />
+                </button>
+
+                <AnimatePresence>
+                  {workspaceMenuOpen && (
+                    <>
+                      <div
+                        className="fixed inset-0 z-40"
+                        onClick={() => setWorkspaceMenuOpen(false)}
+                      />
+                      <motion.div
+                        initial={{ opacity: 0, y: 8, scale: 0.96 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 8, scale: 0.96 }}
+                        transition={{ duration: 0.15 }}
+                        className="absolute left-0 top-full z-50 mt-2 w-56 rounded-xl border border-[#E2E8F0] bg-white py-2 shadow-lg"
+                      >
+                        <div className="border-b border-[#E2E8F0] px-4 py-2">
+                          <p className="text-xs font-medium uppercase tracking-wider text-[#64748B]">
+                            Workspaces
+                          </p>
+                        </div>
+                        <div className="max-h-64 overflow-y-auto py-1">
+                          {workspaces.map((workspace) => (
+                            <button
+                              key={workspace.id}
+                              onClick={() => {
+                                setCurrentWorkspace(workspace);
+                                setWorkspaceMenuOpen(false);
+                              }}
+                              className={`flex w-full items-center gap-3 px-4 py-2 text-sm transition-colors ${
+                                currentWorkspaceId === workspace.id
+                                  ? 'bg-[#FFF7ED] text-[#FF6B35]'
+                                  : 'text-[#64748B] hover:bg-[#F8FAFC] hover:text-[#1E293B]'
+                              }`}
+                            >
+                              <div
+                                className={`flex h-6 w-6 items-center justify-center rounded ${
+                                  currentWorkspaceId === workspace.id
+                                    ? 'bg-[#FF6B35]'
+                                    : 'bg-[#E2E8F0]'
+                                }`}
+                              >
+                                <span
+                                  className={`text-xs font-semibold ${
+                                    currentWorkspaceId === workspace.id
+                                      ? 'text-white'
+                                      : 'text-[#64748B]'
+                                  }`}
+                                >
+                                  {workspace.name.charAt(0).toUpperCase()}
+                                </span>
+                              </div>
+                              <span className="flex-1 truncate text-left">{workspace.name}</span>
+                              {currentWorkspaceId === workspace.id && <CheckIcon />}
+                            </button>
+                          ))}
+                        </div>
+                      </motion.div>
+                    </>
+                  )}
+                </AnimatePresence>
+              </div>
+            )}
           </div>
 
           <div className="flex items-center gap-2 md:gap-4">
@@ -615,6 +715,38 @@ function CloseIcon() {
       strokeWidth={1.5}
     >
       <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+    </svg>
+  );
+}
+
+function WorkspaceIcon() {
+  return (
+    <svg
+      className="h-4 w-4"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={1.5}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21M3 3h12m-.75 4.5H21m-3.75 3.75h.008v.008h-.008v-.008zm0 3h.008v.008h-.008v-.008zm0 3h.008v.008h-.008v-.008z"
+      />
+    </svg>
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg
+      className="h-4 w-4 text-[#FF6B35]"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={2}
+    >
+      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
     </svg>
   );
 }

@@ -22,13 +22,23 @@ import {
   useLinkedInAccounts,
   useLeadAvailabilityPreview,
 } from '../../lib/hooks/queries';
+import { useCurrentWorkspace } from '../../lib/workspace';
 import type { Campaign, CampaignStatus } from '../../lib/types';
 import { api } from '@/lib/api';
 import {
   prepareNodesForSave,
+  buildBranchRelationships,
+  buildNextStepRelationships,
+  reconstructBranchInfo,
   mapStepTypeToNodeType,
   mapConfigToNodeData,
 } from '@/lib/utils/campaignStepMapper';
+import {
+  validateCampaignSequence,
+  hasSequenceWarnings,
+  type SequenceWarning,
+  type ValidationContext,
+} from '@/lib/utils/campaignSequenceValidator';
 import { showSuccessToast } from '@/lib/toast';
 import { queryKeys } from '@/lib/queryClient';
 
@@ -649,6 +659,9 @@ function CreateCampaignModal({
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [validationWarnings, setValidationWarnings] = useState<SequenceWarning[]>([]);
+  const [showWarningDialog, setShowWarningDialog] = useState(false);
+  const [pendingStartImmediately, setPendingStartImmediately] = useState(false);
 
   // API hooks
   const createCampaign = useCreateCampaign();
@@ -661,6 +674,16 @@ function CreateCampaignModal({
   const { data: linkedInAccounts = [], isLoading: accountsLoading } = useLinkedInAccounts();
   const { data: leadAvailability, isLoading: availabilityLoading } =
     useLeadAvailabilityPreview(selectedLeadListId);
+
+  // Check if any connected account has InMail capability (Premium, Sales Nav, or Recruiter)
+  const hasInmailCapability = linkedInAccounts.some(
+    (account) =>
+      account.status === 'connected' &&
+      ['premium', 'sales_nav', 'recruiter'].includes(account.subscription_type)
+  );
+
+  // Get current workspace from global store
+  const { currentWorkspaceId } = useCurrentWorkspace();
 
   const selectedNode = sequenceNodes.find((n) => n.id === selectedNodeId) || null;
 
@@ -677,6 +700,9 @@ function CreateCampaignModal({
         // Sort steps by order
         const sortedSteps = [...campaignDetails.steps].sort((a, b) => a.order - b.order);
 
+        // Reconstruct branch relationships from condition steps
+        const branchInfo = reconstructBranchInfo(sortedSteps);
+
         sortedSteps.forEach((step) => {
           // Map backend step type to frontend node type
           const mappedType = mapStepTypeToNodeType(step.type);
@@ -685,10 +711,15 @@ function CreateCampaignModal({
             return;
           }
 
+          // Check if this step belongs to a branch
+          const branchData = branchInfo.get(step.id);
+
           nodes.push({
             id: step.id,
             type: mappedType,
             data: mapConfigToNodeData(step.config || {}),
+            parentId: branchData?.parentId,
+            branch: branchData?.branch,
           });
         });
 
@@ -741,6 +772,50 @@ function CreateCampaignModal({
     [selectedNodeId]
   );
 
+  // Validate sequence nodes before proceeding
+  const validateSequence = useCallback((): { valid: boolean; errors: string[] } => {
+    const errors: string[] = [];
+    const actionNodes = sequenceNodes.filter((n) => n.type !== 'start' && n.type !== 'end');
+
+    if (actionNodes.length === 0) {
+      errors.push('Add at least one action to your sequence');
+      return { valid: false, errors };
+    }
+
+    actionNodes.forEach((node, index) => {
+      const stepNum = index + 1;
+
+      if (node.type === 'linkedin_message') {
+        if (!node.data.message || !node.data.message.trim()) {
+          errors.push(`Step ${stepNum} (Message): Message text is required`);
+        }
+      }
+
+      if (node.type === 'email') {
+        if (!node.data.subject || !node.data.subject.trim()) {
+          errors.push(`Step ${stepNum} (Email): Subject is required`);
+        }
+        if (!node.data.message || !node.data.message.trim()) {
+          errors.push(`Step ${stepNum} (Email): Email body is required`);
+        }
+      }
+
+      if (node.type === 'delay') {
+        const days = node.data.delayDays || 0;
+        const hours = node.data.delayHours || 0;
+        if (days <= 0 && hours <= 0) {
+          errors.push(`Step ${stepNum} (Wait): Set a delay of at least 1 hour or 1 day`);
+        }
+      }
+    });
+
+    return { valid: errors.length === 0, errors };
+  }, [sequenceNodes]);
+
+  // Check if sequence is valid (for disabling Continue button)
+  const sequenceValidation = validateSequence();
+  const isSequenceValid = sequenceValidation.valid;
+
   const stepConfigs = [
     { id: 'name', label: 'Name', number: 1 },
     { id: 'leads', label: 'Leads', number: 2 },
@@ -751,9 +826,49 @@ function CreateCampaignModal({
 
   const currentStepIndex = stepConfigs.findIndex((s) => s.id === step);
 
+  // Validate sequence and show warning dialog if needed
+  const handleSaveWithValidation = (startImmediately = false) => {
+    setError(null);
+
+    // Validate required fields first
+    if (!campaignName || !campaignName.trim()) {
+      setError('Campaign name is required');
+      return;
+    }
+
+    // Validate sequence for potential issues
+    // Check if any selected sender has InMail capability
+    const hasInmailCapableSenders = selectedSenderIds.some((senderId) => {
+      const account = linkedInAccounts.find((a) => a.id === senderId);
+      return (
+        account &&
+        account.status === 'connected' &&
+        ['premium', 'sales_nav', 'recruiter'].includes(account.subscription_type)
+      );
+    });
+
+    const validationContext: ValidationContext = {
+      hasInmailCapableSenders,
+    };
+
+    const warnings = validateCampaignSequence(sequenceNodes, validationContext);
+
+    if (hasSequenceWarnings(warnings)) {
+      // Show warning dialog and let user decide
+      setValidationWarnings(warnings);
+      setPendingStartImmediately(startImmediately);
+      setShowWarningDialog(true);
+      return;
+    }
+
+    // No warnings, proceed with save
+    handleCreate(startImmediately);
+  };
+
   const handleCreate = async (startImmediately = false) => {
     setError(null);
     setIsSaving(true);
+    setShowWarningDialog(false);
 
     // Validate required fields
     if (!campaignName || !campaignName.trim()) {
@@ -795,17 +910,71 @@ function CreateCampaignModal({
         }
       } else {
         // Create mode: Create new campaign
-        const campaign = await createCampaign.mutateAsync({ name: campaignName });
+        if (!currentWorkspaceId) {
+          setError('No workspace selected. Please select a workspace from the header first.');
+          setIsSaving(false);
+          return;
+        }
+        const campaign = await createCampaign.mutateAsync({
+          name: campaignName,
+          workspace_id: currentWorkspaceId,
+        });
         campaignId = campaign.id;
       }
 
       // Step 4: Save all sequence steps (both create and edit mode)
       const stepsToSave = prepareNodesForSave(sequenceNodes);
+      const nodeIdToStepId = new Map<string, string>();
+      const createdStepIds: string[] = [];
 
       if (stepsToSave.length > 0) {
-        // Create steps sequentially to maintain order
-        for (const stepData of stepsToSave) {
-          await api.post(`/campaigns/${campaignId}/steps`, stepData);
+        try {
+          // Create steps sequentially to maintain order
+          for (const stepData of stepsToSave) {
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            const { nodeId, parentNodeId, branch, ...stepPayload } = stepData;
+            const response = await api.post(`/campaigns/${campaignId}/steps`, stepPayload);
+            const stepId = response.data.id;
+            // Track the mapping from frontend nodeId to backend stepId
+            nodeIdToStepId.set(nodeId, stepId);
+            createdStepIds.push(stepId);
+          }
+
+          // Step 4b: Update condition steps with their branch relationships and next_step_id
+          const branchRelationships = buildBranchRelationships(stepsToSave, nodeIdToStepId);
+          const nextStepRelationships = buildNextStepRelationships(stepsToSave, nodeIdToStepId);
+
+          for (const [conditionStepId, branches] of branchRelationships) {
+            // Get the next_step_id for fall-through when branches are empty
+            const nextStepId = nextStepRelationships.get(conditionStepId);
+            await api.patch(`/campaigns/${campaignId}/steps/${conditionStepId}`, {
+              true_branch_step_id: branches.trueBranchStepId || null,
+              false_branch_step_id: branches.falseBranchStepId || null,
+              next_step_id: nextStepId, // For fall-through when branches are empty
+            });
+          }
+
+          // Step 4c: Update non-condition steps with their next_step_id for proper sequencing
+          for (const [stepId, nextStepId] of nextStepRelationships) {
+            const step = stepsToSave.find((s) => nodeIdToStepId.get(s.nodeId) === stepId);
+            // Skip condition steps (already updated above with branch IDs)
+            if (step && step.type !== 'condition') {
+              await api.patch(`/campaigns/${campaignId}/steps/${stepId}`, {
+                next_step_id: nextStepId,
+              });
+            }
+          }
+        } catch (stepError) {
+          // Rollback: delete any created steps if there was an error
+          console.error('Error creating steps, rolling back:', stepError);
+          for (const stepId of createdStepIds) {
+            try {
+              await api.delete(`/campaigns/${campaignId}/steps/${stepId}`);
+            } catch (deleteErr) {
+              console.error('Failed to rollback step:', stepId, deleteErr);
+            }
+          }
+          throw stepError; // Re-throw to be caught by outer error handler
         }
       }
 
@@ -893,782 +1062,906 @@ function CreateCampaignModal({
   };
 
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-      onClick={onClose}
-    >
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95, y: 20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: 20 }}
-        onClick={(e) => e.stopPropagation()}
-        className={`flex max-h-[95vh] w-full flex-col overflow-hidden rounded-2xl bg-white shadow-xl ${
-          step === 'sequence' ? 'max-w-7xl' : 'max-w-3xl'
-        }`}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-[#E2E8F0] px-6 py-4">
-          <h2 className="text-lg font-bold text-[#1E293B]">
-            {isEditMode ? 'Edit Campaign' : 'Create Campaign'}
-          </h2>
-          <button
-            onClick={onClose}
-            disabled={isSaving}
-            className="rounded-lg p-2 hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-50"
+    <>
+      {/* Validation Warning Dialog */}
+      <AnimatePresence>
+        {showWarningDialog && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4"
+            onClick={() => setShowWarningDialog(false)}
           >
-            <CloseIcon />
-          </button>
-        </div>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-lg rounded-xl bg-white p-6 shadow-xl"
+            >
+              <div className="mb-4 flex items-start gap-3">
+                <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-amber-100">
+                  <WarningIcon className="h-5 w-5 text-amber-600" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-[#1E293B]">
+                    Potential Issues Detected
+                  </h3>
+                  <p className="mt-1 text-sm text-[#64748B]">
+                    We found some patterns in your sequence that might not work as expected.
+                  </p>
+                </div>
+              </div>
 
-        {/* Loading state when fetching campaign details in edit mode */}
-        {isEditMode && detailsLoading ? (
-          <div className="flex min-h-[400px] items-center justify-center p-6">
-            <div className="flex flex-col items-center gap-3">
-              <LoadingSpinner />
-              <p className="text-[#64748B]">Loading campaign details...</p>
-            </div>
-          </div>
-        ) : (
-          <>
-            {/* Progress */}
-            <div className="border-b border-[#E2E8F0] px-6 py-4">
-              <div className="flex items-center justify-between">
-                {stepConfigs.map((s, i) => (
-                  <div key={s.id} className="flex items-center">
-                    <div
-                      className={`flex items-center gap-2 ${i <= currentStepIndex ? 'text-[#FF6B35]' : 'text-[#94A3B8]'}`}
-                    >
-                      <div
-                        className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium ${
-                          i < currentStepIndex
-                            ? 'bg-[#FF6B35] text-white'
-                            : i === currentStepIndex
-                              ? 'border-2 border-[#FF6B35] bg-[#FFF7ED] text-[#FF6B35]'
-                              : 'bg-[#F8FAFC] text-[#94A3B8]'
-                        }`}
+              <div className="mb-6 max-h-64 overflow-y-auto rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] p-4">
+                <ul className="space-y-3">
+                  {validationWarnings.map((warning, index) => (
+                    <li key={index} className="flex gap-2 text-sm">
+                      <span
+                        className={`mt-0.5 flex-shrink-0 ${warning.type === 'error' ? 'text-red-500' : 'text-amber-500'}`}
                       >
-                        {i < currentStepIndex ? '✓' : s.number}
+                        {warning.type === 'error' ? '✕' : '⚠'}
+                      </span>
+                      <div>
+                        <p className="font-medium text-[#1E293B]">{warning.message}</p>
+                        {warning.suggestion && (
+                          <p className="mt-1 text-[#64748B]">{warning.suggestion}</p>
+                        )}
                       </div>
-                      <span className="hidden text-sm font-medium sm:block">{s.label}</span>
-                    </div>
-                    {i < stepConfigs.length - 1 && (
-                      <div
-                        className={`mx-2 h-0.5 w-8 sm:w-12 ${i < currentStepIndex ? 'bg-[#FF6B35]' : 'bg-[#E2E8F0]'}`}
-                      />
-                    )}
-                  </div>
-                ))}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={() => setShowWarningDialog(false)}
+                  className="rounded-lg border border-[#E2E8F0] px-4 py-2 font-medium text-[#64748B] hover:bg-[#F8FAFC]"
+                >
+                  Go Back & Fix
+                </button>
+                <button
+                  onClick={() => handleCreate(pendingStartImmediately)}
+                  className="rounded-lg bg-amber-500 px-4 py-2 font-medium text-white hover:bg-amber-600"
+                >
+                  Continue Anyway
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Main Modal */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+        onClick={onClose}
+      >
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95, y: 20 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.95, y: 20 }}
+          onClick={(e) => e.stopPropagation()}
+          className={`flex max-h-[95vh] w-full flex-col overflow-hidden rounded-2xl bg-white shadow-xl ${
+            step === 'sequence' ? 'max-w-[95vw]' : 'max-w-3xl'
+          }`}
+        >
+          {/* Header */}
+          <div className="flex items-center justify-between border-b border-[#E2E8F0] px-6 py-4">
+            <h2 className="text-lg font-bold text-[#1E293B]">
+              {isEditMode ? 'Edit Campaign' : 'Create Campaign'}
+            </h2>
+            <button
+              onClick={onClose}
+              disabled={isSaving}
+              className="rounded-lg p-2 hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <CloseIcon />
+            </button>
+          </div>
+
+          {/* Loading state when fetching campaign details in edit mode */}
+          {isEditMode && detailsLoading ? (
+            <div className="flex min-h-[400px] items-center justify-center p-6">
+              <div className="flex flex-col items-center gap-3">
+                <LoadingSpinner />
+                <p className="text-[#64748B]">Loading campaign details...</p>
               </div>
             </div>
-
-            {/* Content */}
-            <div className={`flex-1 overflow-y-auto ${step === 'sequence' ? 'p-6' : 'p-6'}`}>
-              <AnimatePresence mode="wait">
-                {step === 'name' && (
-                  <motion.div
-                    key="name"
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
-                    className="space-y-4"
-                  >
-                    <div>
-                      <h3 className="mb-1 text-lg font-semibold text-[#1E293B]">
-                        Name your campaign
-                      </h3>
-                      <p className="text-sm text-[#64748B]">
-                        Give your campaign a memorable name and description.
-                      </p>
-                    </div>
-                    <div>
-                      <label className="mb-2 block text-sm font-medium text-[#1E293B]">
-                        Campaign Name *
-                      </label>
-                      <input
-                        type="text"
-                        value={campaignName}
-                        onChange={(e) => setCampaignName(e.target.value)}
-                        placeholder="e.g., Q1 Tech Leaders Outreach"
-                        className="w-full rounded-xl border border-[#E2E8F0] px-4 py-3 focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
-                      />
-                    </div>
-                    <div>
-                      <label className="mb-2 block text-sm font-medium text-[#1E293B]">
-                        Description (optional)
-                      </label>
-                      <textarea
-                        value={campaignDescription}
-                        onChange={(e) => setCampaignDescription(e.target.value)}
-                        placeholder="Describe the goal of this campaign..."
-                        rows={3}
-                        className="w-full resize-none rounded-xl border border-[#E2E8F0] px-4 py-3 focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
-                      />
-                    </div>
-                  </motion.div>
-                )}
-
-                {step === 'leads' && (
-                  <motion.div
-                    key="leads"
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
-                    className="space-y-4"
-                  >
-                    <div>
-                      <h3 className="mb-1 text-lg font-semibold text-[#1E293B]">
-                        {isEditMode ? 'Add leads to campaign' : 'Select your leads'}
-                      </h3>
-                      <p className="text-sm text-[#64748B]">
-                        {isEditMode
-                          ? `This campaign currently has ${campaignDetails?.lead_count || 0} leads. Select a list to add more.`
-                          : 'Choose a lead list to target with this campaign.'}
-                      </p>
-                    </div>
-                    {leadListsLoading ? (
-                      <div className="flex items-center justify-center py-8">
-                        <LoadingSpinner />
-                      </div>
-                    ) : leadLists.length === 0 ? (
-                      <div className="py-8 text-center">
-                        <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-[#F8FAFC]">
-                          <ListIcon className="h-6 w-6 text-[#94A3B8]" />
+          ) : (
+            <>
+              {/* Progress */}
+              <div className="border-b border-[#E2E8F0] px-6 py-4">
+                <div className="flex items-center justify-between">
+                  {stepConfigs.map((s, i) => (
+                    <div key={s.id} className="flex items-center">
+                      <div
+                        className={`flex items-center gap-2 ${i <= currentStepIndex ? 'text-[#FF6B35]' : 'text-[#94A3B8]'}`}
+                      >
+                        <div
+                          className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-medium ${
+                            i < currentStepIndex
+                              ? 'bg-[#FF6B35] text-white'
+                              : i === currentStepIndex
+                                ? 'border-2 border-[#FF6B35] bg-[#FFF7ED] text-[#FF6B35]'
+                                : 'bg-[#F8FAFC] text-[#94A3B8]'
+                          }`}
+                        >
+                          {i < currentStepIndex ? '✓' : s.number}
                         </div>
-                        <p className="mb-2 text-[#64748B]">No lead lists yet</p>
-                        <p className="text-sm text-[#94A3B8]">
-                          Import leads first to create a campaign.
+                        <span className="hidden text-sm font-medium sm:block">{s.label}</span>
+                      </div>
+                      {i < stepConfigs.length - 1 && (
+                        <div
+                          className={`mx-2 h-0.5 w-8 sm:w-12 ${i < currentStepIndex ? 'bg-[#FF6B35]' : 'bg-[#E2E8F0]'}`}
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Content */}
+              <div className={`flex-1 overflow-y-auto ${step === 'sequence' ? 'p-6' : 'p-6'}`}>
+                <AnimatePresence mode="wait">
+                  {step === 'name' && (
+                    <motion.div
+                      key="name"
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -20 }}
+                      className="space-y-4"
+                    >
+                      <div>
+                        <h3 className="mb-1 text-lg font-semibold text-[#1E293B]">
+                          Name your campaign
+                        </h3>
+                        <p className="text-sm text-[#64748B]">
+                          Give your campaign a memorable name and description.
                         </p>
                       </div>
-                    ) : (
-                      <div className="space-y-3">
-                        {isEditMode && (
-                          <div className="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
-                            <div className="flex items-center gap-3">
-                              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#FF6B35]">
-                                <ListIcon className="h-5 w-5 text-white" />
-                              </div>
-                              <div className="flex-1">
-                                <p className="font-medium text-[#1E293B]">Current Campaign Leads</p>
-                                <p className="text-sm text-[#64748B]">
-                                  {campaignDetails?.lead_count || 0} leads already assigned
-                                </p>
+                      <div>
+                        <label className="mb-2 block text-sm font-medium text-[#1E293B]">
+                          Campaign Name *
+                        </label>
+                        <input
+                          type="text"
+                          value={campaignName}
+                          onChange={(e) => setCampaignName(e.target.value)}
+                          placeholder="e.g., Q1 Tech Leaders Outreach"
+                          className="w-full rounded-xl border border-[#E2E8F0] px-4 py-3 focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+                        />
+                      </div>
+                      <div>
+                        <label className="mb-2 block text-sm font-medium text-[#1E293B]">
+                          Description (optional)
+                        </label>
+                        <textarea
+                          value={campaignDescription}
+                          onChange={(e) => setCampaignDescription(e.target.value)}
+                          placeholder="Describe the goal of this campaign..."
+                          rows={3}
+                          className="w-full resize-none rounded-xl border border-[#E2E8F0] px-4 py-3 focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+                        />
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {step === 'leads' && (
+                    <motion.div
+                      key="leads"
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -20 }}
+                      className="space-y-4"
+                    >
+                      <div>
+                        <h3 className="mb-1 text-lg font-semibold text-[#1E293B]">
+                          {isEditMode ? 'Add leads to campaign' : 'Select your leads'}
+                        </h3>
+                        <p className="text-sm text-[#64748B]">
+                          {isEditMode
+                            ? `This campaign currently has ${campaignDetails?.lead_count || 0} leads. Select a list to add more.`
+                            : 'Choose a lead list to target with this campaign.'}
+                        </p>
+                      </div>
+                      {leadListsLoading ? (
+                        <div className="flex items-center justify-center py-8">
+                          <LoadingSpinner />
+                        </div>
+                      ) : leadLists.length === 0 ? (
+                        <div className="py-8 text-center">
+                          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-[#F8FAFC]">
+                            <ListIcon className="h-6 w-6 text-[#94A3B8]" />
+                          </div>
+                          <p className="mb-2 text-[#64748B]">No lead lists yet</p>
+                          <p className="text-sm text-[#94A3B8]">
+                            Import leads first to create a campaign.
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          {isEditMode && (
+                            <div className="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
+                              <div className="flex items-center gap-3">
+                                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#FF6B35]">
+                                  <ListIcon className="h-5 w-5 text-white" />
+                                </div>
+                                <div className="flex-1">
+                                  <p className="font-medium text-[#1E293B]">
+                                    Current Campaign Leads
+                                  </p>
+                                  <p className="text-sm text-[#64748B]">
+                                    {campaignDetails?.lead_count || 0} leads already assigned
+                                  </p>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        )}
-                        <div className="grid gap-3">
-                          {leadLists.map((list) => (
-                            <button
-                              key={list.id}
-                              onClick={() => setSelectedLeadListId(list.id)}
-                              className={`flex items-center gap-4 rounded-xl border p-4 transition-all ${
-                                selectedLeadListId === list.id
-                                  ? 'border-[#FF6B35] bg-[#FFF7ED]'
-                                  : 'border-[#E2E8F0] hover:border-[#FF6B35]/30'
-                              }`}
-                            >
-                              <div
-                                className={`flex h-10 w-10 items-center justify-center rounded-lg ${
-                                  selectedLeadListId === list.id ? 'bg-[#FF6B35]' : 'bg-[#F8FAFC]'
+                          )}
+                          <div className="grid gap-3">
+                            {leadLists.map((list) => (
+                              <button
+                                key={list.id}
+                                onClick={() => setSelectedLeadListId(list.id)}
+                                className={`flex items-center gap-4 rounded-xl border p-4 transition-all ${
+                                  selectedLeadListId === list.id
+                                    ? 'border-[#FF6B35] bg-[#FFF7ED]'
+                                    : 'border-[#E2E8F0] hover:border-[#FF6B35]/30'
                                 }`}
                               >
-                                <ListIcon
-                                  className={`h-5 w-5 ${selectedLeadListId === list.id ? 'text-white' : 'text-[#64748B]'}`}
-                                />
-                              </div>
-                              <div className="flex-1 text-left">
-                                <p className="font-medium text-[#1E293B]">{list.name}</p>
-                                <p className="text-sm text-[#64748B]">
-                                  {list.lead_count} leads • {list.enriched_count} enriched
-                                </p>
-                              </div>
-                              {selectedLeadListId === list.id && (
-                                <CheckCircleIcon className="h-5 w-5 text-[#FF6B35]" />
-                              )}
-                            </button>
-                          ))}
-                        </div>
-                        <button className="w-full rounded-xl border-2 border-dashed border-[#E2E8F0] p-4 text-center transition-colors hover:border-[#FF6B35]/50 hover:bg-[#FFF7ED]/50">
-                          <PlusIcon className="mx-auto mb-1 h-5 w-5 text-[#94A3B8]" />
-                          <span className="text-sm text-[#64748B]">Import new leads</span>
-                        </button>
-
-                        {/* Lead Availability Info */}
-                        {selectedLeadListId && leadAvailability && !availabilityLoading && (
-                          <div className="mt-4 space-y-2">
-                            {leadAvailability.available === 0 ? (
-                              // Critical: No leads available
-                              <div className="flex items-start gap-3 rounded-xl border border-[#EF4444]/20 bg-[#FEF2F2] p-4">
-                                <WarningIcon className="mt-0.5 h-5 w-5 flex-shrink-0 text-[#EF4444]" />
-                                <div className="flex-1">
-                                  <p className="text-sm font-bold text-[#991B1B]">
-                                    Cannot Create Campaign: No Available Leads
-                                  </p>
-                                  <p className="mt-1 text-xs text-[#DC2626]">
-                                    All {leadAvailability.total} leads from this list are currently
-                                    assigned to active or paused campaigns. You must pause or
-                                    complete other campaigns to free up leads before creating a new
-                                    campaign with this list.
-                                  </p>
-                                  <p className="mt-2 text-xs font-medium text-[#991B1B]">
-                                    Available: {leadAvailability.available} /{' '}
-                                    {leadAvailability.total} leads
+                                <div
+                                  className={`flex h-10 w-10 items-center justify-center rounded-lg ${
+                                    selectedLeadListId === list.id ? 'bg-[#FF6B35]' : 'bg-[#F8FAFC]'
+                                  }`}
+                                >
+                                  <ListIcon
+                                    className={`h-5 w-5 ${selectedLeadListId === list.id ? 'text-white' : 'text-[#64748B]'}`}
+                                  />
+                                </div>
+                                <div className="flex-1 text-left">
+                                  <p className="font-medium text-[#1E293B]">{list.name}</p>
+                                  <p className="text-sm text-[#64748B]">
+                                    {list.lead_count} leads • {list.enriched_count} enriched
                                   </p>
                                 </div>
-                              </div>
-                            ) : leadAvailability.in_active_campaigns > 0 ? (
-                              // Warning: Some leads unavailable
-                              <div className="flex items-start gap-3 rounded-xl border border-[#F59E0B]/20 bg-[#FFFBEB] p-4">
-                                <WarningIcon className="mt-0.5 h-5 w-5 flex-shrink-0 text-[#F59E0B]" />
-                                <div className="flex-1">
-                                  <p className="text-sm font-medium text-[#92400E]">
-                                    Lead Availability Warning
-                                  </p>
-                                  <p className="mt-1 text-xs text-[#B45309]">
-                                    {leadAvailability.in_active_campaigns} of{' '}
-                                    {leadAvailability.total} leads are already in active or paused
-                                    campaigns and cannot be reassigned.
-                                  </p>
-                                  <p className="mt-2 text-xs font-medium text-[#92400E]">
-                                    Available: {leadAvailability.available} /{' '}
-                                    {leadAvailability.total} leads
-                                  </p>
-                                </div>
-                              </div>
-                            ) : (
-                              // Success: All leads available
-                              <div className="flex items-start gap-3 rounded-xl border border-[#22C55E]/20 bg-[#DCFCE7] p-4">
-                                <CheckIcon className="mt-0.5 h-5 w-5 flex-shrink-0 text-[#22C55E]" />
-                                <div className="flex-1">
-                                  <p className="text-sm font-medium text-[#166534]">
-                                    All leads available
-                                  </p>
-                                  <p className="mt-1 text-xs text-[#15803D]">
-                                    All {leadAvailability.total} leads from this list are available
-                                    to be assigned to this campaign.
-                                  </p>
-                                </div>
-                              </div>
-                            )}
+                                {selectedLeadListId === list.id && (
+                                  <CheckCircleIcon className="h-5 w-5 text-[#FF6B35]" />
+                                )}
+                              </button>
+                            ))}
                           </div>
-                        )}
-                      </div>
-                    )}
-                  </motion.div>
-                )}
+                          <button className="w-full rounded-xl border-2 border-dashed border-[#E2E8F0] p-4 text-center transition-colors hover:border-[#FF6B35]/50 hover:bg-[#FFF7ED]/50">
+                            <PlusIcon className="mx-auto mb-1 h-5 w-5 text-[#94A3B8]" />
+                            <span className="text-sm text-[#64748B]">Import new leads</span>
+                          </button>
 
-                {step === 'sequence' && (
-                  <motion.div
-                    key="sequence"
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
-                    className="-m-6 h-full"
-                  >
-                    {/* Mobile Layout - Stacked */}
-                    <div className="relative flex h-[calc(100vh-200px)] min-h-[500px] flex-col bg-[#FAFBFC] lg:hidden">
-                      {/* Mobile Step Palette - Horizontal scroll */}
-                      <div className="border-b border-[#E2E8F0] bg-white p-3">
-                        <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-[#94A3B8]">
-                          Add Steps
-                        </p>
-                        <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-2">
-                          {[
-                            {
-                              type: 'linkedin_connect' as const,
-                              label: 'Connect',
-                              color: '#0A66C2',
-                            },
-                            {
-                              type: 'linkedin_message' as const,
-                              label: 'Message',
-                              color: '#0A66C2',
-                            },
-                            { type: 'email' as const, label: 'Email', color: '#14B8A6' },
-                            { type: 'delay' as const, label: 'Wait', color: '#F59E0B' },
-                            { type: 'condition' as const, label: 'If/Then', color: '#8B5CF6' },
-                          ].map((item) => (
-                            <button
-                              key={item.type}
-                              onClick={() => handleAddStep(item.type)}
-                              className="flex-shrink-0 rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 transition-all hover:border-[#FF6B35]/30"
-                            >
-                              <span className="text-xs font-medium" style={{ color: item.color }}>
-                                {item.label}
-                              </span>
-                            </button>
-                          ))}
+                          {/* Lead Availability Info */}
+                          {selectedLeadListId && leadAvailability && !availabilityLoading && (
+                            <div className="mt-4 space-y-2">
+                              {leadAvailability.available === 0 ? (
+                                // Critical: No leads available
+                                <div className="flex items-start gap-3 rounded-xl border border-[#EF4444]/20 bg-[#FEF2F2] p-4">
+                                  <WarningIcon className="mt-0.5 h-5 w-5 flex-shrink-0 text-[#EF4444]" />
+                                  <div className="flex-1">
+                                    <p className="text-sm font-bold text-[#991B1B]">
+                                      Cannot Create Campaign: No Available Leads
+                                    </p>
+                                    <p className="mt-1 text-xs text-[#DC2626]">
+                                      All {leadAvailability.total} leads from this list are
+                                      currently assigned to active or paused campaigns. You must
+                                      pause or complete other campaigns to free up leads before
+                                      creating a new campaign with this list.
+                                    </p>
+                                    <p className="mt-2 text-xs font-medium text-[#991B1B]">
+                                      Available: {leadAvailability.available} /{' '}
+                                      {leadAvailability.total} leads
+                                    </p>
+                                  </div>
+                                </div>
+                              ) : leadAvailability.in_active_campaigns > 0 ? (
+                                // Warning: Some leads unavailable
+                                <div className="flex items-start gap-3 rounded-xl border border-[#F59E0B]/20 bg-[#FFFBEB] p-4">
+                                  <WarningIcon className="mt-0.5 h-5 w-5 flex-shrink-0 text-[#F59E0B]" />
+                                  <div className="flex-1">
+                                    <p className="text-sm font-medium text-[#92400E]">
+                                      Lead Availability Warning
+                                    </p>
+                                    <p className="mt-1 text-xs text-[#B45309]">
+                                      {leadAvailability.in_active_campaigns} of{' '}
+                                      {leadAvailability.total} leads are already in active or paused
+                                      campaigns and cannot be reassigned.
+                                    </p>
+                                    <p className="mt-2 text-xs font-medium text-[#92400E]">
+                                      Available: {leadAvailability.available} /{' '}
+                                      {leadAvailability.total} leads
+                                    </p>
+                                  </div>
+                                </div>
+                              ) : (
+                                // Success: All leads available
+                                <div className="flex items-start gap-3 rounded-xl border border-[#22C55E]/20 bg-[#DCFCE7] p-4">
+                                  <CheckIcon className="mt-0.5 h-5 w-5 flex-shrink-0 text-[#22C55E]" />
+                                  <div className="flex-1">
+                                    <p className="text-sm font-medium text-[#166534]">
+                                      All leads available
+                                    </p>
+                                    <p className="mt-1 text-xs text-[#15803D]">
+                                      All {leadAvailability.total} leads from this list are
+                                      available to be assigned to this campaign.
+                                    </p>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
+                      )}
+                    </motion.div>
+                  )}
+
+                  {step === 'sequence' && (
+                    <motion.div
+                      key="sequence"
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -20 }}
+                      className="-m-6 h-full"
+                    >
+                      {/* Sequence Validation Warnings */}
+                      {!isSequenceValid && sequenceValidation.errors.length > 0 && (
+                        <div className="mx-6 mb-4 mt-6 rounded-lg border border-[#FCD34D] bg-[#FFFBEB] p-3">
+                          <div className="flex items-start gap-2">
+                            <svg
+                              className="mt-0.5 h-4 w-4 flex-shrink-0 text-[#F59E0B]"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                              strokeWidth={2}
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                              />
+                            </svg>
+                            <div className="flex-1">
+                              <p className="text-sm font-medium text-[#92400E]">
+                                Please fix the following before continuing:
+                              </p>
+                              <ul className="mt-1 space-y-0.5">
+                                {sequenceValidation.errors.map((err, i) => (
+                                  <li key={i} className="text-sm text-[#B45309]">
+                                    • {err}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Mobile Layout - Stacked */}
+                      <div className="relative flex h-[calc(100vh-200px)] min-h-[500px] flex-col bg-[#FAFBFC] lg:hidden">
+                        {/* Mobile Step Palette - Horizontal scroll */}
+                        <div className="border-b border-[#E2E8F0] bg-white p-3">
+                          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-[#94A3B8]">
+                            Add Steps
+                          </p>
+                          <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-2">
+                            {[
+                              {
+                                type: 'linkedin_connect' as const,
+                                label: 'Connect',
+                                color: '#0A66C2',
+                              },
+                              {
+                                type: 'linkedin_message' as const,
+                                label: 'Message',
+                                color: '#0A66C2',
+                              },
+                              { type: 'email' as const, label: 'Email', color: '#14B8A6' },
+                              { type: 'delay' as const, label: 'Wait', color: '#F59E0B' },
+                              { type: 'condition' as const, label: 'If/Then', color: '#8B5CF6' },
+                            ].map((item) => (
+                              <button
+                                key={item.type}
+                                onClick={() => handleAddStep(item.type)}
+                                className="flex-shrink-0 rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 transition-all hover:border-[#FF6B35]/30"
+                              >
+                                <span className="text-xs font-medium" style={{ color: item.color }}>
+                                  {item.label}
+                                </span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Mobile Canvas */}
+                        <div className="flex-1 overflow-y-auto">
+                          <SequenceCanvas
+                            nodes={sequenceNodes}
+                            onNodesChange={setSequenceNodes}
+                            onNodeSelect={(node) => setSelectedNodeId(node?.id || null)}
+                            selectedNodeId={selectedNodeId}
+                            hasInmailCapability={hasInmailCapability}
+                          />
+                        </div>
+
+                        {/* Mobile Config Panel - Bottom Sheet */}
+                        <AnimatePresence>
+                          {selectedNode &&
+                            selectedNode.type !== 'start' &&
+                            selectedNode.type !== 'end' && (
+                              <motion.div
+                                initial={{ y: '100%' }}
+                                animate={{ y: 0 }}
+                                exit={{ y: '100%' }}
+                                className="absolute bottom-0 left-0 right-0 max-h-[60vh] overflow-y-auto rounded-t-2xl border-t border-[#E2E8F0] bg-white shadow-lg"
+                              >
+                                <div className="mx-auto my-3 h-1 w-12 rounded-full bg-[#E2E8F0]" />
+                                <NodeConfigPanel
+                                  node={selectedNode}
+                                  onUpdate={handleUpdateNode}
+                                  onClose={() => setSelectedNodeId(null)}
+                                />
+                              </motion.div>
+                            )}
+                        </AnimatePresence>
                       </div>
 
-                      {/* Mobile Canvas */}
-                      <div className="flex-1 overflow-y-auto">
+                      {/* Desktop Layout - Side by side */}
+                      <div className="hidden h-[80vh] max-h-[900px] min-h-[600px] overflow-hidden rounded-lg border border-[#E2E8F0] bg-[#FAFBFC] lg:flex">
+                        {/* Step Palette */}
+                        <StepPalette
+                          onAddStep={handleAddStep}
+                          onApplyTemplate={(nodes) => setSequenceNodes(nodes)}
+                          hasInmailCapability={hasInmailCapability}
+                        />
+
+                        {/* Main Canvas */}
                         <SequenceCanvas
                           nodes={sequenceNodes}
                           onNodesChange={setSequenceNodes}
                           onNodeSelect={(node) => setSelectedNodeId(node?.id || null)}
                           selectedNodeId={selectedNodeId}
+                          hasInmailCapability={hasInmailCapability}
                         />
-                      </div>
 
-                      {/* Mobile Config Panel - Bottom Sheet */}
-                      <AnimatePresence>
-                        {selectedNode &&
-                          selectedNode.type !== 'start' &&
-                          selectedNode.type !== 'end' && (
-                            <motion.div
-                              initial={{ y: '100%' }}
-                              animate={{ y: 0 }}
-                              exit={{ y: '100%' }}
-                              className="absolute bottom-0 left-0 right-0 max-h-[60vh] overflow-y-auto rounded-t-2xl border-t border-[#E2E8F0] bg-white shadow-lg"
-                            >
-                              <div className="mx-auto my-3 h-1 w-12 rounded-full bg-[#E2E8F0]" />
+                        {/* Node Config Panel */}
+                        <AnimatePresence>
+                          {selectedNode &&
+                            selectedNode.type !== 'start' &&
+                            selectedNode.type !== 'end' && (
                               <NodeConfigPanel
                                 node={selectedNode}
                                 onUpdate={handleUpdateNode}
                                 onClose={() => setSelectedNodeId(null)}
                               />
-                            </motion.div>
-                          )}
-                      </AnimatePresence>
-                    </div>
-
-                    {/* Desktop Layout - Side by side */}
-                    <div className="hidden h-[70vh] max-h-[800px] min-h-[500px] overflow-hidden rounded-lg border border-[#E2E8F0] bg-[#FAFBFC] lg:flex">
-                      {/* Step Palette */}
-                      <StepPalette
-                        onAddStep={handleAddStep}
-                        onApplyTemplate={(nodes) => setSequenceNodes(nodes)}
-                      />
-
-                      {/* Main Canvas */}
-                      <SequenceCanvas
-                        nodes={sequenceNodes}
-                        onNodesChange={setSequenceNodes}
-                        onNodeSelect={(node) => setSelectedNodeId(node?.id || null)}
-                        selectedNodeId={selectedNodeId}
-                      />
-
-                      {/* Node Config Panel */}
-                      <AnimatePresence>
-                        {selectedNode &&
-                          selectedNode.type !== 'start' &&
-                          selectedNode.type !== 'end' && (
-                            <NodeConfigPanel
-                              node={selectedNode}
-                              onUpdate={handleUpdateNode}
-                              onClose={() => setSelectedNodeId(null)}
-                            />
-                          )}
-                      </AnimatePresence>
-                    </div>
-                  </motion.div>
-                )}
-
-                {step === 'senders' && (
-                  <motion.div
-                    key="senders"
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
-                    className="space-y-4"
-                  >
-                    <div>
-                      <h3 className="mb-1 text-lg font-semibold text-[#1E293B]">Assign senders</h3>
-                      <p className="text-sm text-[#64748B]">
-                        Select LinkedIn accounts to send from. We'll auto-rotate between them.
-                      </p>
-                    </div>
-
-                    {accountsLoading ? (
-                      <div className="flex items-center justify-center py-8">
-                        <LoadingSpinner />
+                            )}
+                        </AnimatePresence>
                       </div>
-                    ) : linkedInAccounts.length === 0 ? (
-                      <div className="rounded-xl bg-[#F8FAFC] p-4 text-center">
-                        <LinkedInIcon className="mx-auto mb-2 h-8 w-8 text-[#94A3B8]" />
-                        <p className="mb-3 text-sm text-[#64748B]">
-                          No LinkedIn accounts connected yet
+                    </motion.div>
+                  )}
+
+                  {step === 'senders' && (
+                    <motion.div
+                      key="senders"
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -20 }}
+                      className="space-y-4"
+                    >
+                      <div>
+                        <h3 className="mb-1 text-lg font-semibold text-[#1E293B]">
+                          Assign senders
+                        </h3>
+                        <p className="text-sm text-[#64748B]">
+                          Select LinkedIn accounts to send from. We'll auto-rotate between them.
                         </p>
-                        <button className="rounded-lg bg-[#0A66C2] px-4 py-2 text-sm font-medium text-white hover:bg-[#004182]">
-                          Connect LinkedIn Account
-                        </button>
                       </div>
-                    ) : (
-                      <div className="space-y-3">
-                        {/* Select All */}
-                        <div className="flex items-center justify-between border-b border-[#E2E8F0] pb-2">
-                          <span className="text-sm text-[#64748B]">
-                            {selectedSenderIds.length} of {linkedInAccounts.length} selected
-                          </span>
-                          <button
-                            onClick={() => {
-                              if (selectedSenderIds.length === linkedInAccounts.length) {
-                                setSelectedSenderIds([]);
-                              } else {
-                                setSelectedSenderIds(linkedInAccounts.map((a) => a.id));
-                              }
-                            }}
-                            className="text-sm font-medium text-[#0A66C2] hover:underline"
-                          >
-                            {selectedSenderIds.length === linkedInAccounts.length
-                              ? 'Deselect all'
-                              : 'Select all'}
+
+                      {accountsLoading ? (
+                        <div className="flex items-center justify-center py-8">
+                          <LoadingSpinner />
+                        </div>
+                      ) : linkedInAccounts.length === 0 ? (
+                        <div className="rounded-xl bg-[#F8FAFC] p-4 text-center">
+                          <LinkedInIcon className="mx-auto mb-2 h-8 w-8 text-[#94A3B8]" />
+                          <p className="mb-3 text-sm text-[#64748B]">
+                            No LinkedIn accounts connected yet
+                          </p>
+                          <button className="rounded-lg bg-[#0A66C2] px-4 py-2 text-sm font-medium text-white hover:bg-[#004182]">
+                            Connect LinkedIn Account
                           </button>
                         </div>
-
-                        {/* Account List */}
-                        <div className="max-h-[300px] space-y-2 overflow-y-auto">
-                          {linkedInAccounts.map((account) => {
-                            const isSelected = selectedSenderIds.includes(account.id);
-                            return (
-                              <motion.div
-                                key={account.id}
-                                onClick={() => {
-                                  if (isSelected) {
-                                    setSelectedSenderIds((ids) =>
-                                      ids.filter((id) => id !== account.id)
-                                    );
-                                  } else {
-                                    setSelectedSenderIds((ids) => [...ids, account.id]);
-                                  }
-                                }}
-                                className={`flex cursor-pointer items-center gap-3 rounded-xl border p-3 transition-all ${
-                                  isSelected
-                                    ? 'border-[#0A66C2] bg-[#EFF6FF]'
-                                    : 'border-[#E2E8F0] hover:border-[#0A66C2]/30 hover:bg-[#F8FAFC]'
-                                }`}
-                                whileHover={{ scale: 1.01 }}
-                                whileTap={{ scale: 0.99 }}
-                              >
-                                {/* Checkbox */}
-                                <div
-                                  className={`flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border-2 transition-colors ${
-                                    isSelected
-                                      ? 'border-[#0A66C2] bg-[#0A66C2]'
-                                      : 'border-[#D1D5DB]'
-                                  }`}
-                                >
-                                  {isSelected && (
-                                    <svg
-                                      className="h-3 w-3 text-white"
-                                      fill="none"
-                                      viewBox="0 0 24 24"
-                                      stroke="currentColor"
-                                      strokeWidth={3}
-                                    >
-                                      <path
-                                        strokeLinecap="round"
-                                        strokeLinejoin="round"
-                                        d="M5 13l4 4L19 7"
-                                      />
-                                    </svg>
-                                  )}
-                                </div>
-
-                                {/* Avatar */}
-                                <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#0A66C2] to-[#004182]">
-                                  {account.avatar_url ? (
-                                    <img
-                                      src={account.avatar_url}
-                                      alt={account.name || 'Account'}
-                                      className="h-10 w-10 rounded-full object-cover"
-                                    />
-                                  ) : (
-                                    <span className="text-sm font-semibold text-white">
-                                      {account.name?.charAt(0) || 'U'}
-                                    </span>
-                                  )}
-                                </div>
-
-                                {/* Info */}
-                                <div className="min-w-0 flex-1">
-                                  <p className="truncate font-medium text-[#1E293B]">
-                                    {account.name || 'Unknown'}
-                                  </p>
-                                  <p className="truncate text-sm text-[#64748B]">
-                                    {account.profile_url || 'LinkedIn Account'}
-                                  </p>
-                                </div>
-
-                                {/* Status */}
-                                <div
-                                  className={`flex-shrink-0 rounded-full px-2 py-1 text-xs font-medium ${
-                                    account.status === 'connected'
-                                      ? 'bg-[#DCFCE7] text-[#166534]'
-                                      : account.status === 'warning'
-                                        ? 'bg-[#FEF3C7] text-[#92400E]'
-                                        : 'bg-[#FEE2E2] text-[#DC2626]'
-                                  }`}
-                                >
-                                  {account.status === 'connected'
-                                    ? 'Connected'
-                                    : account.status === 'warning'
-                                      ? 'Warning'
-                                      : account.status === 'disconnected'
-                                        ? 'Disconnected'
-                                        : 'Banned'}
-                                </div>
-                              </motion.div>
-                            );
-                          })}
-                        </div>
-
-                        {/* Info tip */}
-                        <div className="flex items-start gap-2 rounded-lg border border-[#3B82F6]/20 bg-[#F0F9FF] p-3">
-                          <InfoIcon className="mt-0.5 h-4 w-4 flex-shrink-0 text-[#3B82F6]" />
-                          <p className="text-xs text-[#1E293B]">
-                            Selected accounts will auto-rotate to send messages, keeping each within
-                            safe daily limits.
-                          </p>
-                        </div>
-                      </div>
-                    )}
-                  </motion.div>
-                )}
-
-                {step === 'review' && (
-                  <motion.div
-                    key="review"
-                    initial={{ opacity: 0, x: 20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -20 }}
-                    className="space-y-4"
-                  >
-                    <div>
-                      <h3 className="mb-1 text-lg font-semibold text-[#1E293B]">
-                        Review your campaign
-                      </h3>
-                      <p className="text-sm text-[#64748B]">
-                        Make sure everything looks good before launching.
-                      </p>
-                    </div>
-
-                    <div className="space-y-4">
-                      <div className="rounded-xl bg-[#F8FAFC] p-4">
-                        <div className="mb-2 flex items-center justify-between">
-                          <span className="text-sm text-[#64748B]">Campaign Name</span>
-                          <span className="font-medium text-[#1E293B]">
-                            {campaignName || 'Untitled'}
-                          </span>
-                        </div>
-                        <div className="mb-2 flex items-center justify-between">
-                          <span className="text-sm text-[#64748B]">
-                            {isEditMode ? 'Leads' : 'Lead List'}
-                          </span>
-                          <span className="font-medium text-[#1E293B]">
-                            {isEditMode ? (
-                              <>
-                                {campaignDetails?.lead_count || 0} current
-                                {selectedLeadListId &&
-                                  ` + ${leadLists.find((l) => l.id === selectedLeadListId)?.lead_count || 0} new`}
-                              </>
-                            ) : (
-                              leadLists.find((l) => l.id === selectedLeadListId)?.name ||
-                              'None selected'
-                            )}
-                          </span>
-                        </div>
-                        {!isEditMode && selectedLeadListId && leadAvailability && (
-                          <div className="mb-2 flex items-center justify-between">
-                            <span className="text-sm text-[#64748B]">Available Leads</span>
-                            <span
-                              className={`font-medium ${
-                                leadAvailability.available === 0
-                                  ? 'text-[#EF4444]'
-                                  : 'text-[#22C55E]'
-                              }`}
+                      ) : (
+                        <div className="space-y-3">
+                          {/* Select All */}
+                          <div className="flex items-center justify-between border-b border-[#E2E8F0] pb-2">
+                            <span className="text-sm text-[#64748B]">
+                              {selectedSenderIds.length} of {linkedInAccounts.length} selected
+                            </span>
+                            <button
+                              onClick={() => {
+                                if (selectedSenderIds.length === linkedInAccounts.length) {
+                                  setSelectedSenderIds([]);
+                                } else {
+                                  setSelectedSenderIds(linkedInAccounts.map((a) => a.id));
+                                }
+                              }}
+                              className="text-sm font-medium text-[#0A66C2] hover:underline"
                             >
-                              {leadAvailability.available} / {leadAvailability.total}
+                              {selectedSenderIds.length === linkedInAccounts.length
+                                ? 'Deselect all'
+                                : 'Select all'}
+                            </button>
+                          </div>
+
+                          {/* Account List */}
+                          <div className="max-h-[300px] space-y-2 overflow-y-auto">
+                            {linkedInAccounts.map((account) => {
+                              const isSelected = selectedSenderIds.includes(account.id);
+                              return (
+                                <motion.div
+                                  key={account.id}
+                                  onClick={() => {
+                                    if (isSelected) {
+                                      setSelectedSenderIds((ids) =>
+                                        ids.filter((id) => id !== account.id)
+                                      );
+                                    } else {
+                                      setSelectedSenderIds((ids) => [...ids, account.id]);
+                                    }
+                                  }}
+                                  className={`flex cursor-pointer items-center gap-3 rounded-xl border p-3 transition-all ${
+                                    isSelected
+                                      ? 'border-[#0A66C2] bg-[#EFF6FF]'
+                                      : 'border-[#E2E8F0] hover:border-[#0A66C2]/30 hover:bg-[#F8FAFC]'
+                                  }`}
+                                  whileHover={{ scale: 1.01 }}
+                                  whileTap={{ scale: 0.99 }}
+                                >
+                                  {/* Checkbox */}
+                                  <div
+                                    className={`flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border-2 transition-colors ${
+                                      isSelected
+                                        ? 'border-[#0A66C2] bg-[#0A66C2]'
+                                        : 'border-[#D1D5DB]'
+                                    }`}
+                                  >
+                                    {isSelected && (
+                                      <svg
+                                        className="h-3 w-3 text-white"
+                                        fill="none"
+                                        viewBox="0 0 24 24"
+                                        stroke="currentColor"
+                                        strokeWidth={3}
+                                      >
+                                        <path
+                                          strokeLinecap="round"
+                                          strokeLinejoin="round"
+                                          d="M5 13l4 4L19 7"
+                                        />
+                                      </svg>
+                                    )}
+                                  </div>
+
+                                  {/* Avatar */}
+                                  <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#0A66C2] to-[#004182]">
+                                    {account.avatar_url ? (
+                                      <img
+                                        src={account.avatar_url}
+                                        alt={account.name || 'Account'}
+                                        className="h-10 w-10 rounded-full object-cover"
+                                      />
+                                    ) : (
+                                      <span className="text-sm font-semibold text-white">
+                                        {account.name?.charAt(0) || 'U'}
+                                      </span>
+                                    )}
+                                  </div>
+
+                                  {/* Info */}
+                                  <div className="min-w-0 flex-1">
+                                    <p className="truncate font-medium text-[#1E293B]">
+                                      {account.name || 'Unknown'}
+                                    </p>
+                                    <p className="truncate text-sm text-[#64748B]">
+                                      {account.profile_url || 'LinkedIn Account'}
+                                    </p>
+                                  </div>
+
+                                  {/* Status */}
+                                  <div
+                                    className={`flex-shrink-0 rounded-full px-2 py-1 text-xs font-medium ${
+                                      account.status === 'connected'
+                                        ? 'bg-[#DCFCE7] text-[#166534]'
+                                        : account.status === 'warning'
+                                          ? 'bg-[#FEF3C7] text-[#92400E]'
+                                          : 'bg-[#FEE2E2] text-[#DC2626]'
+                                    }`}
+                                  >
+                                    {account.status === 'connected'
+                                      ? 'Connected'
+                                      : account.status === 'warning'
+                                        ? 'Warning'
+                                        : account.status === 'disconnected'
+                                          ? 'Disconnected'
+                                          : 'Banned'}
+                                  </div>
+                                </motion.div>
+                              );
+                            })}
+                          </div>
+
+                          {/* Info tip */}
+                          <div className="flex items-start gap-2 rounded-lg border border-[#3B82F6]/20 bg-[#F0F9FF] p-3">
+                            <InfoIcon className="mt-0.5 h-4 w-4 flex-shrink-0 text-[#3B82F6]" />
+                            <p className="text-xs text-[#1E293B]">
+                              Selected accounts will auto-rotate to send messages, keeping each
+                              within safe daily limits.
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </motion.div>
+                  )}
+
+                  {step === 'review' && (
+                    <motion.div
+                      key="review"
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      exit={{ opacity: 0, x: -20 }}
+                      className="space-y-4"
+                    >
+                      <div>
+                        <h3 className="mb-1 text-lg font-semibold text-[#1E293B]">
+                          Review your campaign
+                        </h3>
+                        <p className="text-sm text-[#64748B]">
+                          Make sure everything looks good before launching.
+                        </p>
+                      </div>
+
+                      <div className="space-y-4">
+                        <div className="rounded-xl bg-[#F8FAFC] p-4">
+                          <div className="mb-2 flex items-center justify-between">
+                            <span className="text-sm text-[#64748B]">Campaign Name</span>
+                            <span className="font-medium text-[#1E293B]">
+                              {campaignName || 'Untitled'}
                             </span>
                           </div>
+                          <div className="mb-2 flex items-center justify-between">
+                            <span className="text-sm text-[#64748B]">
+                              {isEditMode ? 'Leads' : 'Lead List'}
+                            </span>
+                            <span className="font-medium text-[#1E293B]">
+                              {isEditMode ? (
+                                <>
+                                  {campaignDetails?.lead_count || 0} current
+                                  {selectedLeadListId &&
+                                    ` + ${leadLists.find((l) => l.id === selectedLeadListId)?.lead_count || 0} new`}
+                                </>
+                              ) : (
+                                leadLists.find((l) => l.id === selectedLeadListId)?.name ||
+                                'None selected'
+                              )}
+                            </span>
+                          </div>
+                          {!isEditMode && selectedLeadListId && leadAvailability && (
+                            <div className="mb-2 flex items-center justify-between">
+                              <span className="text-sm text-[#64748B]">Available Leads</span>
+                              <span
+                                className={`font-medium ${
+                                  leadAvailability.available === 0
+                                    ? 'text-[#EF4444]'
+                                    : 'text-[#22C55E]'
+                                }`}
+                              >
+                                {leadAvailability.available} / {leadAvailability.total}
+                              </span>
+                            </div>
+                          )}
+                          <div className="mb-2 flex items-center justify-between">
+                            <span className="text-sm text-[#64748B]">Sequence Steps</span>
+                            <span className="font-medium text-[#1E293B]">
+                              {
+                                sequenceNodes.filter((n) => n.type !== 'start' && n.type !== 'end')
+                                  .length
+                              }{' '}
+                              steps
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-[#64748B]">Senders</span>
+                            <span className="font-medium text-[#1E293B]">
+                              {selectedSenderIds.length} selected
+                            </span>
+                          </div>
+                        </div>
+
+                        {!isEditMode &&
+                        selectedLeadListId &&
+                        leadAvailability &&
+                        leadAvailability.available === 0 ? (
+                          <div className="flex items-start gap-3 rounded-xl border border-[#EF4444]/20 bg-[#FEF2F2] p-4">
+                            <WarningIcon className="mt-0.5 h-5 w-5 flex-shrink-0 text-[#EF4444]" />
+                            <div>
+                              <p className="text-sm font-bold text-[#991B1B]">
+                                Cannot Start Campaign
+                              </p>
+                              <p className="text-xs text-[#DC2626]">
+                                No leads are available from the selected list. All leads are
+                                assigned to other active campaigns. You can save as draft, but
+                                cannot start until leads become available.
+                              </p>
+                            </div>
+                          </div>
+                        ) : selectedSenderIds.length === 0 ? (
+                          <div className="flex items-start gap-3 rounded-xl border border-[#F59E0B]/20 bg-[#FFFBEB] p-4">
+                            <WarningIcon className="mt-0.5 h-5 w-5 flex-shrink-0 text-[#F59E0B]" />
+                            <div>
+                              <p className="text-sm font-medium text-[#92400E]">
+                                Campaign saved as draft
+                              </p>
+                              <p className="text-xs text-[#B45309]">
+                                Select at least one sender to start this campaign.
+                              </p>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-start gap-3 rounded-xl border border-[#22C55E]/20 bg-[#DCFCE7] p-4">
+                            <CheckIcon className="mt-0.5 h-5 w-5 flex-shrink-0 text-[#22C55E]" />
+                            <div>
+                              <p className="text-sm font-medium text-[#166534]">Ready to launch</p>
+                              <p className="text-xs text-[#15803D]">
+                                {selectedSenderIds.length} sender
+                                {selectedSenderIds.length > 1 ? 's' : ''} will auto-rotate to send
+                                messages.
+                              </p>
+                            </div>
+                          </div>
                         )}
-                        <div className="mb-2 flex items-center justify-between">
-                          <span className="text-sm text-[#64748B]">Sequence Steps</span>
-                          <span className="font-medium text-[#1E293B]">
-                            {
-                              sequenceNodes.filter((n) => n.type !== 'start' && n.type !== 'end')
-                                .length
-                            }{' '}
-                            steps
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-[#64748B]">Senders</span>
-                          <span className="font-medium text-[#1E293B]">
-                            {selectedSenderIds.length} selected
-                          </span>
-                        </div>
+
+                        {error && (
+                          <div className="flex items-start gap-3 rounded-xl border border-[#EF4444]/20 bg-[#FEF2F2] p-4">
+                            <AlertIcon className="mt-0.5 h-5 w-5 flex-shrink-0 text-[#EF4444]" />
+                            <div>
+                              <p className="text-sm font-medium text-[#DC2626]">
+                                Error creating campaign
+                              </p>
+                              <p className="text-xs text-[#EF4444]">{error}</p>
+                            </div>
+                          </div>
+                        )}
                       </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
 
-                      {!isEditMode &&
-                      selectedLeadListId &&
-                      leadAvailability &&
-                      leadAvailability.available === 0 ? (
-                        <div className="flex items-start gap-3 rounded-xl border border-[#EF4444]/20 bg-[#FEF2F2] p-4">
-                          <WarningIcon className="mt-0.5 h-5 w-5 flex-shrink-0 text-[#EF4444]" />
-                          <div>
-                            <p className="text-sm font-bold text-[#991B1B]">
-                              Cannot Start Campaign
-                            </p>
-                            <p className="text-xs text-[#DC2626]">
-                              No leads are available from the selected list. All leads are assigned
-                              to other active campaigns. You can save as draft, but cannot start
-                              until leads become available.
-                            </p>
-                          </div>
-                        </div>
-                      ) : selectedSenderIds.length === 0 ? (
-                        <div className="flex items-start gap-3 rounded-xl border border-[#F59E0B]/20 bg-[#FFFBEB] p-4">
-                          <WarningIcon className="mt-0.5 h-5 w-5 flex-shrink-0 text-[#F59E0B]" />
-                          <div>
-                            <p className="text-sm font-medium text-[#92400E]">
-                              Campaign saved as draft
-                            </p>
-                            <p className="text-xs text-[#B45309]">
-                              Select at least one sender to start this campaign.
-                            </p>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="flex items-start gap-3 rounded-xl border border-[#22C55E]/20 bg-[#DCFCE7] p-4">
-                          <CheckIcon className="mt-0.5 h-5 w-5 flex-shrink-0 text-[#22C55E]" />
-                          <div>
-                            <p className="text-sm font-medium text-[#166534]">Ready to launch</p>
-                            <p className="text-xs text-[#15803D]">
-                              {selectedSenderIds.length} sender
-                              {selectedSenderIds.length > 1 ? 's' : ''} will auto-rotate to send
-                              messages.
-                            </p>
-                          </div>
-                        </div>
-                      )}
-
-                      {error && (
-                        <div className="flex items-start gap-3 rounded-xl border border-[#EF4444]/20 bg-[#FEF2F2] p-4">
-                          <AlertIcon className="mt-0.5 h-5 w-5 flex-shrink-0 text-[#EF4444]" />
-                          <div>
-                            <p className="text-sm font-medium text-[#DC2626]">
-                              Error creating campaign
-                            </p>
-                            <p className="text-xs text-[#EF4444]">{error}</p>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-
-            {/* Footer */}
-            <div className="flex items-center justify-between border-t border-[#E2E8F0] px-6 py-4">
-              <button
-                onClick={() => {
-                  const steps: Array<'name' | 'leads' | 'sequence' | 'senders' | 'review'> = [
-                    'name',
-                    'leads',
-                    'sequence',
-                    'senders',
-                    'review',
-                  ];
-                  const currentIndex = steps.indexOf(step);
-                  if (currentIndex > 0) setStep(steps[currentIndex - 1]);
-                }}
-                disabled={step === 'name' || isSaving}
-                className="px-4 py-2 font-medium text-[#64748B] disabled:opacity-50"
-              >
-                Back
-              </button>
-              <div className="flex gap-2">
-                {step === 'review' && (
-                  <>
-                    <button
-                      onClick={() => handleCreate(false)}
-                      disabled={!campaignName || isSaving}
-                      className="rounded-lg border border-[#E2E8F0] px-6 py-2 font-medium text-[#64748B] hover:bg-[#F8FAFC] disabled:opacity-50"
-                    >
-                      {isSaving ? 'Saving...' : isEditMode ? 'Save Changes' : 'Save as Draft'}
-                    </button>
-                    {selectedSenderIds.length > 0 && (
+              {/* Footer */}
+              <div className="flex items-center justify-between border-t border-[#E2E8F0] px-6 py-4">
+                <button
+                  onClick={() => {
+                    const steps: Array<'name' | 'leads' | 'sequence' | 'senders' | 'review'> = [
+                      'name',
+                      'leads',
+                      'sequence',
+                      'senders',
+                      'review',
+                    ];
+                    const currentIndex = steps.indexOf(step);
+                    if (currentIndex > 0) setStep(steps[currentIndex - 1]);
+                  }}
+                  disabled={step === 'name' || isSaving}
+                  className="px-4 py-2 font-medium text-[#64748B] disabled:opacity-50"
+                >
+                  Back
+                </button>
+                <div className="flex gap-2">
+                  {step === 'review' && (
+                    <>
                       <button
-                        onClick={() => handleCreate(true)}
-                        disabled={
-                          !campaignName ||
-                          isSaving ||
-                          (!isEditMode &&
+                        onClick={() => handleSaveWithValidation(false)}
+                        disabled={!campaignName || isSaving}
+                        className="rounded-lg border border-[#E2E8F0] px-6 py-2 font-medium text-[#64748B] hover:bg-[#F8FAFC] disabled:opacity-50"
+                      >
+                        {isSaving ? 'Saving...' : isEditMode ? 'Save Changes' : 'Save as Draft'}
+                      </button>
+                      {selectedSenderIds.length > 0 && (
+                        <button
+                          onClick={() => handleSaveWithValidation(true)}
+                          disabled={
+                            !campaignName ||
+                            isSaving ||
+                            (!isEditMode &&
+                              !!selectedLeadListId &&
+                              !!leadAvailability &&
+                              leadAvailability.available === 0)
+                          }
+                          className="rounded-lg bg-[#22C55E] px-6 py-2 font-medium text-white hover:bg-[#16A34A] disabled:opacity-50"
+                          title={
+                            !isEditMode &&
                             selectedLeadListId &&
                             leadAvailability &&
-                            leadAvailability.available === 0)
-                        }
-                        className="rounded-lg bg-[#22C55E] px-6 py-2 font-medium text-white hover:bg-[#16A34A] disabled:opacity-50"
-                        title={
-                          !isEditMode &&
+                            leadAvailability.available === 0
+                              ? 'Cannot start: No available leads'
+                              : ''
+                          }
+                        >
+                          {isSaving
+                            ? 'Starting...'
+                            : isEditMode
+                              ? 'Save and Start'
+                              : 'Create and Start'}
+                        </button>
+                      )}
+                    </>
+                  )}
+                  {step !== 'review' && (
+                    <button
+                      onClick={() => {
+                        // Validate lead availability before moving forward from leads step
+                        if (
+                          step === 'leads' &&
                           selectedLeadListId &&
                           leadAvailability &&
                           leadAvailability.available === 0
-                            ? 'Cannot start: No available leads'
-                            : ''
+                        ) {
+                          setError(
+                            `Cannot continue: All ${leadAvailability.total} leads from this list are already assigned to active campaigns. Please select a different list or pause the active campaign to free up leads.`
+                          );
+                          return;
                         }
-                      >
-                        {isSaving
-                          ? 'Starting...'
-                          : isEditMode
-                            ? 'Save and Start'
-                            : 'Create and Start'}
-                      </button>
-                    )}
-                  </>
-                )}
-                {step !== 'review' && (
-                  <button
-                    onClick={() => {
-                      // Validate lead availability before moving forward from leads step
-                      if (
-                        step === 'leads' &&
-                        selectedLeadListId &&
-                        leadAvailability &&
-                        leadAvailability.available === 0
-                      ) {
-                        setError(
-                          `Cannot continue: All ${leadAvailability.total} leads from this list are already assigned to active or paused campaigns. Please select a different list or free up leads by completing or pausing other campaigns.`
-                        );
-                        return;
-                      }
 
-                      const steps: Array<'name' | 'leads' | 'sequence' | 'senders' | 'review'> = [
-                        'name',
-                        'leads',
-                        'sequence',
-                        'senders',
-                        'review',
-                      ];
-                      const currentIndex = steps.indexOf(step);
-                      setStep(steps[currentIndex + 1]);
-                    }}
-                    disabled={
-                      !campaignName || // Campaign name is required at all steps
-                      (step === 'name' && !campaignName) ||
-                      (step === 'leads' &&
-                        selectedLeadListId &&
-                        leadAvailability &&
-                        leadAvailability.available === 0) || // Block if no available leads
-                      isSaving
-                    }
-                    className="rounded-lg bg-[#FF6B35] px-6 py-2 font-medium text-white hover:bg-[#E85A2A] disabled:opacity-50"
-                  >
-                    Continue
-                  </button>
-                )}
+                        // Validate sequence before moving forward from sequence step
+                        if (step === 'sequence') {
+                          const validation = validateSequence();
+                          if (!validation.valid) {
+                            setError(validation.errors.join('\n'));
+                            return;
+                          }
+                        }
+
+                        const steps: Array<'name' | 'leads' | 'sequence' | 'senders' | 'review'> = [
+                          'name',
+                          'leads',
+                          'sequence',
+                          'senders',
+                          'review',
+                        ];
+                        const currentIndex = steps.indexOf(step);
+                        setStep(steps[currentIndex + 1]);
+                      }}
+                      disabled={
+                        !campaignName || // Campaign name is required at all steps
+                        (step === 'name' &&
+                          (!campaignName || (!isEditMode && !currentWorkspaceId))) || // Workspace required for new campaigns
+                        (step === 'leads' &&
+                          selectedLeadListId &&
+                          leadAvailability &&
+                          leadAvailability.available === 0) || // Block if no available leads
+                        (step === 'sequence' && !isSequenceValid) || // Block if sequence has validation errors
+                        isSaving
+                      }
+                      className="rounded-lg bg-[#FF6B35] px-6 py-2 font-medium text-white hover:bg-[#E85A2A] disabled:opacity-50"
+                    >
+                      Continue
+                    </button>
+                  )}
+                </div>
               </div>
-            </div>
-          </>
-        )}
+            </>
+          )}
+        </motion.div>
       </motion.div>
-    </motion.div>
+    </>
   );
 }
 
@@ -1884,37 +2177,68 @@ function CampaignDetailDrawer({
           {/* Content */}
           <div className="flex-1 overflow-y-auto p-6">
             <div className="space-y-6">
-              {/* Steps Section */}
+              {/* Steps Section - Visual Tree */}
               <div>
                 <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-[#64748B]">
-                  Sequence Steps ({steps.length})
+                  Sequence ({steps.length} steps)
                 </h3>
                 {steps.length === 0 ? (
                   <div className="rounded-lg border border-[#E2E8F0] p-4 text-center text-sm text-[#64748B]">
                     No steps configured yet
                   </div>
                 ) : (
-                  <div className="space-y-2">
-                    {steps.map((step, index) => (
-                      <div
-                        key={step.id}
-                        className="flex items-center gap-3 rounded-lg border border-[#E2E8F0] bg-white p-3"
-                      >
-                        <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[#F8FAFC] text-sm font-medium text-[#64748B]">
-                          {index + 1}
-                        </div>
-                        <div className="flex-1">
-                          <p className="font-medium text-[#1E293B]">
-                            {step.type.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase())}
-                          </p>
-                          {step.config.message && (
-                            <p className="mt-1 line-clamp-1 text-sm text-[#64748B]">
-                              {String(step.config.message)}
-                            </p>
-                          )}
-                        </div>
+                  <div className="rounded-lg border border-[#E2E8F0] bg-[#FAFBFC] p-6">
+                    <div className="flex flex-col items-center">
+                      {/* Campaign Start */}
+                      <div className="flex items-center gap-2 text-[#1E293B]">
+                        <svg
+                          className="h-5 w-5 text-[#22C55E]"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          strokeWidth={2}
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5"
+                          />
+                        </svg>
+                        <span className="font-medium">Campaign Start</span>
                       </div>
-                    ))}
+
+                      {/* Steps */}
+                      {steps.map((step) => (
+                        <div key={step.id} className="flex flex-col items-center">
+                          {/* Connector Line */}
+                          <div className="h-6 w-0.5 bg-[#CBD5E1]" />
+
+                          {/* Step Node */}
+                          <SequenceStepNode step={step} />
+                        </div>
+                      ))}
+
+                      {/* End connector */}
+                      <div className="h-6 w-0.5 bg-[#CBD5E1]" />
+
+                      {/* Campaign End */}
+                      <div className="flex items-center gap-2 rounded-full border-2 border-[#E2E8F0] bg-white px-4 py-2">
+                        <svg
+                          className="h-4 w-4 text-[#64748B]"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          strokeWidth={2}
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+                          />
+                        </svg>
+                        <span className="text-sm font-medium text-[#64748B]">End</span>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
@@ -1966,6 +2290,198 @@ function CampaignDetailDrawer({
         </div>
       </motion.div>
     </motion.div>
+  );
+}
+
+// Step node component for visual sequence display
+function SequenceStepNode({ step }: { step: { type: string; config: Record<string, unknown> } }) {
+  const stepConfigs: Record<
+    string,
+    { label: string; color: string; icon: React.ReactNode; getDetail?: () => string | null }
+  > = {
+    profile_view: {
+      label: 'View Profile',
+      color: '#0A66C2',
+      icon: (
+        <svg
+          className="h-4 w-4"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2}
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+          />
+        </svg>
+      ),
+    },
+    follow: {
+      label: 'Follow',
+      color: '#0A66C2',
+      icon: (
+        <svg
+          className="h-4 w-4"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2}
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"
+          />
+        </svg>
+      ),
+    },
+    connection_request: {
+      label: 'Connect',
+      color: '#0A66C2',
+      icon: <LinkedInIcon className="h-4 w-4" />,
+      getDetail: () =>
+        step.config.message ? String(step.config.message).slice(0, 50) + '...' : null,
+    },
+    message: {
+      label: 'Message',
+      color: '#0A66C2',
+      icon: (
+        <svg
+          className="h-4 w-4"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2}
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+          />
+        </svg>
+      ),
+      getDetail: () =>
+        step.config.message ? String(step.config.message).slice(0, 50) + '...' : null,
+    },
+    wait: {
+      label: 'Wait',
+      color: '#F59E0B',
+      icon: (
+        <svg
+          className="h-4 w-4"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2}
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+          />
+        </svg>
+      ),
+      getDetail: () => {
+        const days = Number(step.config.delay_days) || 0;
+        const hours = Number(step.config.delay_hours) || 0;
+        if (days === 0 && hours === 0) return null;
+        const parts = [];
+        if (days > 0) parts.push(`${days} day${days > 1 ? 's' : ''}`);
+        if (hours > 0) parts.push(`${hours} hour${hours > 1 ? 's' : ''}`);
+        return parts.join(' ');
+      },
+    },
+    condition: {
+      label: 'Condition',
+      color: '#8B5CF6',
+      icon: (
+        <svg
+          className="h-4 w-4"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2}
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+        </svg>
+      ),
+      getDetail: () => {
+        const condType = step.config.condition_type;
+        if (condType === 'connected') return 'If Connected';
+        if (condType === 'replied') return 'If Replied';
+        if (condType === 'opened') return 'If Opened';
+        return null;
+      },
+    },
+    email: {
+      label: 'Email',
+      color: '#14B8A6',
+      icon: <EmailIcon className="h-4 w-4" />,
+      getDetail: () =>
+        step.config.subject ? String(step.config.subject).slice(0, 50) + '...' : null,
+    },
+    inmail: {
+      label: 'InMail',
+      color: '#0A66C2',
+      icon: <EmailIcon className="h-4 w-4" />,
+      getDetail: () =>
+        step.config.subject ? String(step.config.subject).slice(0, 50) + '...' : null,
+    },
+    like_post: {
+      label: 'Like Post',
+      color: '#0A66C2',
+      icon: (
+        <svg
+          className="h-4 w-4"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2}
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5"
+          />
+        </svg>
+      ),
+    },
+  };
+
+  const config = stepConfigs[step.type] || {
+    label: step.type.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase()),
+    color: '#64748B',
+    icon: (
+      <svg
+        className="h-4 w-4"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        strokeWidth={2}
+      >
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+      </svg>
+    ),
+  };
+
+  const detail = config.getDetail?.();
+
+  return (
+    <div className="inline-flex flex-col items-center gap-1">
+      <div className="inline-flex items-center gap-2 rounded-full border-2 border-[#E2E8F0] bg-white px-4 py-2.5">
+        <div
+          className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full"
+          style={{ backgroundColor: `${config.color}15`, color: config.color }}
+        >
+          {config.icon}
+        </div>
+        <span className="whitespace-nowrap text-sm font-medium text-[#1E293B]">{config.label}</span>
+      </div>
+      {detail && <p className="max-w-[200px] truncate text-xs text-[#64748B]">{detail}</p>}
+    </div>
   );
 }
 

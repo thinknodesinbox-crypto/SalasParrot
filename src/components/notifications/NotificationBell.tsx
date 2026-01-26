@@ -285,7 +285,7 @@ export function NotificationBell() {
           {notifications.length > 0 && (
             <div className="border-t border-gray-200 bg-gray-50 px-4 py-3">
               <Link
-                to="/dashboard/settings"
+                to="/dashboard/notifications"
                 onClick={() => setIsOpen(false)}
                 className="text-xs font-medium text-orange-600 hover:text-orange-700"
               >

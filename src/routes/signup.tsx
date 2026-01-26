@@ -1,9 +1,10 @@
-import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
-import { useState } from 'react';
+import { createFileRoute, Link } from '@tanstack/react-router';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { GoogleLogin } from '@react-oauth/google';
 import logoImage from '@/assets/images/logo.png';
 import { useAuthStore } from '@/lib/auth';
+import { useCreateTrialCheckout } from '@/lib/hooks/queries/useBilling';
 
 export const Route = createFileRoute('/signup')({
   component: SignupPage,
@@ -22,7 +23,18 @@ function SignupPage() {
 
   const signup = useAuthStore((state) => state.signup);
   const googleLogin = useAuthStore((state) => state.googleLogin);
-  const navigate = useNavigate();
+  const createTrialCheckout = useCreateTrialCheckout();
+
+  // Handle checkout cancelled - show message
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const checkout = params.get('checkout');
+    if (checkout === 'cancelled') {
+      setError('Checkout was cancelled. Please try again to start your trial.');
+      // Clean up URL
+      window.history.replaceState({}, '', '/signup');
+    }
+  }, []);
 
   const handleGoogleSuccess = async (credentialResponse: { credential?: string }) => {
     if (!credentialResponse.credential) {
@@ -35,7 +47,13 @@ function SignupPage() {
 
     try {
       await googleLogin(credentialResponse.credential);
-      navigate({ to: '/dashboard' });
+      // Redirect to Stripe checkout for trial
+      const { checkout_url } = await createTrialCheckout.mutateAsync({
+        sender_count: 1,
+        success_url: `${window.location.origin}/dashboard?trial=started`,
+        cancel_url: `${window.location.origin}/signup?checkout=cancelled`,
+      });
+      window.location.href = checkout_url;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Google sign-up failed. Please try again.');
     } finally {
@@ -59,7 +77,13 @@ function SignupPage() {
         email: formData.email,
         password: formData.password,
       });
-      navigate({ to: '/dashboard' });
+      // Redirect to Stripe checkout for trial
+      const { checkout_url } = await createTrialCheckout.mutateAsync({
+        sender_count: 1,
+        success_url: `${window.location.origin}/dashboard?trial=started`,
+        cancel_url: `${window.location.origin}/signup?checkout=cancelled`,
+      });
+      window.location.href = checkout_url;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Signup failed. Please try again.');
     } finally {

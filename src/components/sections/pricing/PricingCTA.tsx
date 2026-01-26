@@ -1,8 +1,11 @@
 import { motion } from 'framer-motion';
 import { Container } from '@/components/ui';
 import { Link } from '@tanstack/react-router';
+import { useAuthStore } from '@/lib/auth';
 
 export function PricingCTA() {
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+
   return (
     <section className="bg-white py-20 md:py-24">
       <Container>
@@ -56,13 +59,13 @@ export function PricingCTA() {
                 transition={{ duration: 0.6, delay: 0.3 }}
                 className="flex flex-col items-center justify-center gap-4 sm:flex-row"
               >
-                <Link to="/signup">
+                <Link to={isAuthenticated ? '/dashboard' : '/signup'}>
                   <motion.button
                     whileHover={{ scale: 1.02, y: -2 }}
                     whileTap={{ scale: 0.98 }}
                     className="rounded-xl bg-[#FF6B35] px-8 py-4 font-semibold text-white shadow-[0_4px_14px_rgba(255,107,53,0.3)] transition-all duration-200 hover:bg-[#E85A2A] hover:shadow-[0_6px_20px_rgba(255,107,53,0.4)]"
                   >
-                    Start $1 Trial
+                    {isAuthenticated ? 'Go to Dashboard' : 'Start $1 Trial'}
                   </motion.button>
                 </Link>
                 <motion.button

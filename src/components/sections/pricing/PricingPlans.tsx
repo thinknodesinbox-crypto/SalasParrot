@@ -2,6 +2,7 @@ import { motion } from 'framer-motion';
 import { useState } from 'react';
 import { Container } from '@/components/ui';
 import { Link } from '@tanstack/react-router';
+import { useAuthStore } from '@/lib/auth';
 
 // Volume pricing tiers
 const volumePricing = [
@@ -28,6 +29,7 @@ export function PricingPlans() {
   const pricePerSender = getPricePerSender(senderCount);
   const totalPrice = pricePerSender * senderCount;
   const discount = getDiscount(senderCount);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
   return (
     <section className="bg-[#FFFBEB] py-12 sm:py-16">
@@ -135,18 +137,20 @@ export function PricingPlans() {
               </div>
 
               {/* CTA */}
-              <Link to="/signup">
+              <Link to={isAuthenticated ? '/dashboard' : '/signup'}>
                 <motion.button
                   whileHover={{ scale: 1.01, y: -1 }}
                   whileTap={{ scale: 0.99 }}
                   className="w-full rounded-xl bg-[#14B8A6] px-6 py-4 font-semibold text-white shadow-[0_4px_14px_rgba(20,184,166,0.25)] transition-all duration-200 hover:bg-[#0D9488] hover:shadow-[0_6px_20px_rgba(20,184,166,0.35)]"
                 >
-                  Start $1 Trial
+                  {isAuthenticated ? 'Go to Dashboard' : 'Start $1 Trial'}
                 </motion.button>
               </Link>
-              <p className="mt-3 text-center text-xs text-[#94A3B8]">
-                7-day full access. Cancel anytime.
-              </p>
+              {!isAuthenticated && (
+                <p className="mt-3 text-center text-xs text-[#94A3B8]">
+                  7-day full access. Cancel anytime.
+                </p>
+              )}
 
               {/* Features */}
               <div className="mt-8 space-y-5">

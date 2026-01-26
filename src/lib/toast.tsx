@@ -67,5 +67,18 @@ export function showInfoToast(title: string, message?: string) {
   );
 }
 
+/**
+ * Show a warning toast
+ */
+export function showWarningToast(title: string, message?: string) {
+  return toast(
+    <div>
+      <p className="font-medium">{title}</p>
+      {message && <p className="text-sm opacity-90">{message}</p>}
+    </div>,
+    { icon: '⚠️', duration: 6000 }
+  );
+}
+
 // Re-export toast for direct usage
 export { toast };

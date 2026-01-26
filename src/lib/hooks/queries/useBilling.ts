@@ -1,27 +1,32 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, getErrorMessage } from '../../api';
 import { queryKeys } from '../../queryClient';
 import type {
-  PlanInfo,
   BillingOverview,
   Invoice,
-  PlanType,
-  SenderBillingOverview,
+  PricingInfo,
+  TrialCheckoutRequest,
+  GrowthCheckoutRequest,
+  AgencyCheckoutRequest,
+  UpdateGrowthSendersRequest,
+  UpdateAgencyExtraSendersRequest,
 } from '../../types';
 
-// Get billing plans
-export const usePlans = () => {
+// =============================================================================
+// Queries
+// =============================================================================
+
+export const usePricingInfo = () => {
   return useQuery({
-    queryKey: queryKeys.billing.plans,
+    queryKey: queryKeys.billing.pricing,
     queryFn: async () => {
-      const response = await api.get<PlanInfo[]>('/billing/plans');
+      const response = await api.get<PricingInfo>('/billing/pricing');
       return response.data;
     },
-    staleTime: 1000 * 60 * 60, // 1 hour
+    staleTime: 1000 * 60 * 60, // 1 hour - pricing rarely changes
   });
 };
 
-// Get billing overview
 export const useBillingOverview = () => {
   return useQuery({
     queryKey: queryKeys.billing.overview,
@@ -32,25 +37,24 @@ export const useBillingOverview = () => {
   });
 };
 
-// Get invoices
-export const useInvoices = (limit?: number) => {
+export const useInvoices = (limit: number = 10) => {
   return useQuery({
     queryKey: queryKeys.billing.invoices,
     queryFn: async () => {
-      const params = new URLSearchParams();
-      if (limit) params.append('limit', limit.toString());
-
-      const response = await api.get<Invoice[]>(`/billing/invoices?${params}`);
+      const response = await api.get<Invoice[]>(`/billing/invoices?limit=${limit}`);
       return response.data;
     },
   });
 };
 
-// Create checkout session
-export const useCreateCheckout = () => {
+// =============================================================================
+// Trial Checkout
+// =============================================================================
+
+export const useCreateTrialCheckout = () => {
   return useMutation({
-    mutationFn: async (plan: PlanType) => {
-      const response = await api.post<{ checkout_url: string }>('/billing/checkout', { plan });
+    mutationFn: async (data: TrialCheckoutRequest = {}) => {
+      const response = await api.post<{ checkout_url: string }>('/billing/trial/checkout', data);
       return response.data;
     },
     onError: (error) => {
@@ -59,7 +63,76 @@ export const useCreateCheckout = () => {
   });
 };
 
-// Create billing portal session
+// =============================================================================
+// Growth Plan Mutations
+// =============================================================================
+
+export const useCreateGrowthCheckout = () => {
+  return useMutation({
+    mutationFn: async (data: GrowthCheckoutRequest) => {
+      const response = await api.post<{ checkout_url: string }>('/billing/growth/checkout', data);
+      return response.data;
+    },
+    onError: (error) => {
+      throw new Error(getErrorMessage(error));
+    },
+  });
+};
+
+export const useUpdateGrowthSenders = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: UpdateGrowthSendersRequest) => {
+      const response = await api.post<BillingOverview>('/billing/growth/update-senders', data);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.billing.overview });
+    },
+    onError: (error) => {
+      throw new Error(getErrorMessage(error));
+    },
+  });
+};
+
+// =============================================================================
+// Agency Plan Mutations
+// =============================================================================
+
+export const useCreateAgencyCheckout = () => {
+  return useMutation({
+    mutationFn: async (data: AgencyCheckoutRequest = {}) => {
+      const response = await api.post<{ checkout_url: string }>('/billing/agency/checkout', data);
+      return response.data;
+    },
+    onError: (error) => {
+      throw new Error(getErrorMessage(error));
+    },
+  });
+};
+
+export const useUpdateAgencyExtraSenders = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: UpdateAgencyExtraSendersRequest) => {
+      const response = await api.post<BillingOverview>('/billing/agency/extra-senders', data);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.billing.overview });
+    },
+    onError: (error) => {
+      throw new Error(getErrorMessage(error));
+    },
+  });
+};
+
+// =============================================================================
+// Common Billing Mutations
+// =============================================================================
+
 export const useCreatePortalSession = () => {
   return useMutation({
     mutationFn: async () => {
@@ -72,88 +145,33 @@ export const useCreatePortalSession = () => {
   });
 };
 
-// Change plan
-export const useChangePlan = () => {
-  return useMutation({
-    mutationFn: async (newPlan: PlanType) => {
-      const response = await api.post<BillingOverview>('/billing/change-plan', {
-        new_plan: newPlan,
-      });
-      return response.data;
-    },
-    onError: (error) => {
-      throw new Error(getErrorMessage(error));
-    },
-  });
-};
-
-// Cancel subscription
 export const useCancelSubscription = () => {
+  const queryClient = useQueryClient();
+
   return useMutation({
     mutationFn: async () => {
       const response = await api.post<BillingOverview>('/billing/cancel');
       return response.data;
     },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.billing.overview });
+    },
     onError: (error) => {
       throw new Error(getErrorMessage(error));
     },
   });
 };
 
-// Reactivate subscription
 export const useReactivateSubscription = () => {
+  const queryClient = useQueryClient();
+
   return useMutation({
     mutationFn: async () => {
       const response = await api.post<BillingOverview>('/billing/reactivate');
       return response.data;
     },
-    onError: (error) => {
-      throw new Error(getErrorMessage(error));
-    },
-  });
-};
-
-// ===== Sender-based billing hooks =====
-
-// Get sender billing overview
-export const useSenderBillingOverview = () => {
-  return useQuery({
-    queryKey: ['billing', 'senders', 'overview'],
-    queryFn: async () => {
-      const response = await api.get<SenderBillingOverview>('/billing/senders/overview');
-      return response.data;
-    },
-  });
-};
-
-// Create sender checkout session
-export const useCreateSenderCheckout = () => {
-  return useMutation({
-    mutationFn: async (senderCount: number) => {
-      const response = await api.post<{ checkout_url: string }>('/billing/senders/checkout', {
-        sender_count: senderCount,
-      });
-      return response.data;
-    },
-    onError: (error) => {
-      throw new Error(getErrorMessage(error));
-    },
-  });
-};
-
-// Update sender count
-export const useUpdateSenderCount = () => {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (senderCount: number) => {
-      const response = await api.post<SenderBillingOverview>('/billing/senders/update', {
-        sender_count: senderCount,
-      });
-      return response.data;
-    },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['billing', 'senders', 'overview'] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.billing.overview });
     },
     onError: (error) => {
       throw new Error(getErrorMessage(error));

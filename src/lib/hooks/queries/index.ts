@@ -103,12 +103,14 @@ export {
 
 // Billing
 export {
-  usePlans,
+  usePricingInfo,
   useBillingOverview,
   useInvoices,
-  useCreateCheckout,
+  useCreateGrowthCheckout,
+  useUpdateGrowthSenders,
+  useCreateAgencyCheckout,
+  useUpdateAgencyExtraSenders,
   useCreatePortalSession,
-  useChangePlan,
   useCancelSubscription,
   useReactivateSubscription,
 } from './useBilling';

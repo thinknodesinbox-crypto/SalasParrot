@@ -36,6 +36,48 @@ Husky and lint-staged are configured to run linting and formatting on staged fil
 npm run prepare
 ```
 
+## Testing
+
+Uses Vitest with React Testing Library and jsdom environment.
+
+### Run Tests
+
+```bash
+npm test              # Run all tests
+npm run test:watch    # Watch mode
+npm run test:coverage # With coverage report
+npm run test:ui       # Interactive UI
+```
+
+### Test Structure
+
+```
+src/
+├── components/
+│   └── ui/
+│       └── __tests__/
+│           └── Button.test.tsx
+└── lib/
+    └── __tests__/
+        ├── linkedinValidation.test.ts
+        └── utils.test.ts
+```
+
+### Writing Tests
+
+```tsx
+import { describe, it, expect } from 'vitest';
+import { render, screen } from '@testing-library/react';
+import { MyComponent } from '../MyComponent';
+
+describe('MyComponent', () => {
+  it('renders correctly', () => {
+    render(<MyComponent />);
+    expect(screen.getByText('Hello')).toBeInTheDocument();
+  });
+});
+```
+
 ## Development
 
 ### Lint code

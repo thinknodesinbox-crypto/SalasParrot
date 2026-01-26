@@ -2,6 +2,7 @@ import { motion } from 'framer-motion';
 import { Link } from '@tanstack/react-router';
 import { Container, Button } from '@/components/ui';
 import { HeroDemo } from './HeroDemo';
+import { useAuthStore } from '@/lib/auth';
 
 const fadeInUp = {
   hidden: { opacity: 0, y: 20 },
@@ -20,6 +21,8 @@ const stagger = {
 };
 
 export function Hero() {
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+
   return (
     <section className="bg-gradient-to-b from-white to-[#FFFBEB] py-16 md:py-20 lg:py-24">
       <Container>
@@ -61,20 +64,23 @@ export function Hero() {
 
           {/* CTA */}
           <motion.div variants={fadeInUp} className="mb-4 flex justify-center">
-            <Link to="/signup">
+            <Link to={isAuthenticated ? '/dashboard' : '/signup'}>
               <Button variant="primary" size="lg">
-                Get Started
+                {isAuthenticated ? 'Go to Dashboard' : 'Get Started'}
               </Button>
             </Link>
           </motion.div>
 
           {/* Supporting text */}
-          <motion.p
-            variants={fadeInUp}
-            className="mb-10 text-xs font-medium text-[#64748B] sm:mb-16 sm:text-[14px]"
-          >
-            7-day free trial. Cancel anytime.
-          </motion.p>
+          {!isAuthenticated && (
+            <motion.p
+              variants={fadeInUp}
+              className="mb-10 text-xs font-medium text-[#64748B] sm:mb-16 sm:text-[14px]"
+            >
+              7-day free trial. Cancel anytime.
+            </motion.p>
+          )}
+          {isAuthenticated && <div className="mb-10 sm:mb-16" />}
 
           {/* Hero Demo - Interactive panels */}
           <motion.div

@@ -1370,27 +1370,34 @@ function BillingSettings() {
               </span>
               <span
                 className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-                  billing?.status === 'active'
+                  billing?.subscription?.status === 'active'
                     ? 'bg-[#FF6B35] text-white'
-                    : billing?.status === 'trialing'
+                    : billing?.subscription?.status === 'trialing'
                       ? 'bg-[#3B82F6] text-white'
                       : 'bg-[#64748B] text-white'
                 }`}
               >
-                {billing?.status === 'active'
+                {billing?.subscription?.status === 'active'
                   ? 'Active'
-                  : billing?.status === 'trialing'
+                  : billing?.subscription?.status === 'trialing'
                     ? 'Trial'
-                    : billing?.status || 'Inactive'}
+                    : billing?.subscription?.status || 'Inactive'}
               </span>
+              {billing?.volume_discount && billing.volume_discount > 0 && (
+                <span className="rounded-full bg-[#14B8A6]/10 px-2.5 py-1 text-xs font-medium text-[#14B8A6]">
+                  {billing.volume_discount}% discount
+                </span>
+              )}
             </div>
             <p className="mt-2 text-sm text-[#64748B]">
-              {billing?.linkedin_accounts_used || 0} LinkedIn senders connected
+              {billing?.linkedin_accounts_connected || 0} of {billing?.sender_count || 0} senders
+              connected
+              {billing?.monthly_cost ? ` - $${billing.monthly_cost}/month` : ''}
             </p>
           </div>
           <div className="md:text-right">
             <p className="text-sm text-[#64748B]">
-              Next billing: {formatDate(billing?.current_period_end)}
+              Next billing: {formatDate(billing?.subscription?.current_period_end)}
             </p>
           </div>
         </div>
@@ -1433,18 +1440,24 @@ function BillingSettings() {
         <h3 className="mb-4 font-semibold text-[#1E293B]">Usage</h3>
         <div className="space-y-5">
           <UsageBar
-            label="LinkedIn Accounts"
-            used={billing?.linkedin_accounts_used || 0}
-            total={billing?.linkedin_accounts_limit || 10}
-            unit="accounts"
+            label="LinkedIn Senders"
+            used={billing?.linkedin_accounts_connected || 0}
+            total={billing?.sender_count || 0}
+            unit="senders"
           />
-          <UsageBar
-            label="Leads"
-            used={billing?.leads_used || 0}
-            total={billing?.leads_limit || 0}
-            unit="leads"
-          />
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-medium text-[#1E293B]">Workspaces</span>
+            <span className="text-sm text-[#64748B]">{billing?.workspaces || 0} created</span>
+          </div>
         </div>
+        {billing?.recommend_agency && billing?.plan === 'growth' && (
+          <div className="mt-4 rounded-lg border border-[#FF6B35]/20 bg-[#FF6B35]/5 p-3">
+            <p className="text-sm text-[#FF6B35]">
+              Tip: With {billing.sender_count}+ senders, the Agency plan ($999/mo for 50 senders)
+              may save you money.
+            </p>
+          </div>
+        )}
       </div>
     </motion.div>
   );
@@ -1461,7 +1474,7 @@ function UsageBar({
   total: number;
   unit: string;
 }) {
-  const isUnlimited = unit === 'unlimited' || total === 0;
+  const isUnlimited = unit === 'unlimited' || total === 0 || total === -1;
   const percent = isUnlimited ? 100 : (used / total) * 100;
   const isWarning = !isUnlimited && percent > 75;
   const isDanger = !isUnlimited && percent > 90;

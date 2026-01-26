@@ -19,7 +19,7 @@ interface CampaignFilters {
 
 interface CreateCampaignData {
   name: string;
-  workspace_id?: string;
+  workspace_id: string; // Required - campaigns must belong to a workspace
 }
 
 interface UpdateCampaignData {

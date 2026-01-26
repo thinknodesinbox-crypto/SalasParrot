@@ -2,9 +2,11 @@ import { useState } from 'react';
 import { Link } from '@tanstack/react-router';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Container, Button, Logo } from '@/components/ui';
+import { useAuthStore } from '@/lib/auth';
 
 export function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
   return (
     <header className="sticky top-0 z-50 border-b border-[#E2E8F0]/50 bg-white/95 backdrop-blur-sm">
@@ -23,15 +25,17 @@ export function Header() {
             >
               Pricing
             </Link>
-            <Link
-              to="/login"
-              className="px-3 py-2 text-sm font-medium text-[#64748B] transition-colors duration-200 hover:text-[#1E293B]"
-            >
-              Login
-            </Link>
-            <Link to="/signup">
+            {!isAuthenticated && (
+              <Link
+                to="/login"
+                className="px-3 py-2 text-sm font-medium text-[#64748B] transition-colors duration-200 hover:text-[#1E293B]"
+              >
+                Login
+              </Link>
+            )}
+            <Link to={isAuthenticated ? '/dashboard' : '/signup'}>
               <Button variant="primary" size="default">
-                Get Started
+                {isAuthenticated ? 'Dashboard' : 'Get Started'}
               </Button>
             </Link>
           </div>
@@ -89,17 +93,22 @@ export function Header() {
                 >
                   Pricing
                 </Link>
-                <Link
-                  to="/login"
-                  className="rounded-lg px-4 py-3 text-[15px] font-medium text-[#64748B] transition-colors hover:bg-slate-50"
-                  onClick={() => setIsMenuOpen(false)}
-                >
-                  Login
-                </Link>
+                {!isAuthenticated && (
+                  <Link
+                    to="/login"
+                    className="rounded-lg px-4 py-3 text-[15px] font-medium text-[#64748B] transition-colors hover:bg-slate-50"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    Login
+                  </Link>
+                )}
                 <div className="px-4 pt-2">
-                  <Link to="/signup" onClick={() => setIsMenuOpen(false)}>
+                  <Link
+                    to={isAuthenticated ? '/dashboard' : '/signup'}
+                    onClick={() => setIsMenuOpen(false)}
+                  >
                     <Button variant="primary" size="lg" className="w-full justify-center">
-                      Get Started
+                      {isAuthenticated ? 'Dashboard' : 'Get Started'}
                     </Button>
                   </Link>
                 </div>

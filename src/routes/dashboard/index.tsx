@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { motion } from 'framer-motion';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
 import {
   useDashboardStats,
   useDashboardChart,
@@ -14,6 +15,20 @@ export const Route = createFileRoute('/dashboard/')({
 
 function DashboardHome() {
   const [dateRange, setDateRange] = useState('7d');
+
+  // Show toast when trial is started (check URL params)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const trial = params.get('trial');
+    if (trial === 'started') {
+      toast.success('Welcome! Your 7-day trial has started. Enjoy full access to all features.', {
+        duration: 5000,
+        icon: '🎉',
+      });
+      // Clean up URL
+      window.history.replaceState({}, '', '/dashboard');
+    }
+  }, []);
 
   // Fetch real data
   const { data: statsData, isLoading: statsLoading } = useDashboardStats(dateRange);

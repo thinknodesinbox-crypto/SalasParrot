@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { motion } from 'framer-motion';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import {
   useAnalyticsOverviewStats,
   useChannelPerformance,
@@ -25,6 +25,87 @@ function AnalyticsPage() {
   const { data: campaignsData, isLoading: campaignsLoading } = useTopCampaigns(dateRange, 10);
   const { data: sendersData, isLoading: sendersLoading } = useSenderPerformance(dateRange);
   const { data: replyTrendData, isLoading: replyTrendLoading } = useReplyRateTrend(dateRange);
+
+  // Export analytics to CSV
+  const handleExport = useCallback(() => {
+    const rows: string[][] = [];
+    const dateLabel =
+      dateRange === '7d' ? 'Last 7 days' : dateRange === '30d' ? 'Last 30 days' : 'Last 90 days';
+
+    // Header
+    rows.push(['Analytics Report', dateLabel, new Date().toLocaleDateString()]);
+    rows.push([]);
+
+    // Overview Stats
+    if (overviewData) {
+      rows.push(['OVERVIEW']);
+      rows.push(['Metric', 'Value', 'Change']);
+      rows.push([
+        'Total Outreach',
+        overviewData.total_outreach.toString(),
+        overviewData.total_outreach_change,
+      ]);
+      rows.push([
+        'Connections Made',
+        overviewData.connections_made.toString(),
+        overviewData.connections_made_change,
+      ]);
+      rows.push(['Reply Rate', overviewData.reply_rate, overviewData.reply_rate_change]);
+      rows.push([]);
+    }
+
+    // Channel Performance
+    if (channelData) {
+      rows.push(['CHANNEL PERFORMANCE']);
+      rows.push(['Channel', 'Sent', 'Reply Rate', 'Connection/Open Rate']);
+      rows.push([
+        'LinkedIn',
+        channelData.linkedin_messages_sent.toString(),
+        channelData.linkedin_reply_rate,
+        channelData.linkedin_connection_rate,
+      ]);
+      rows.push([
+        'Email',
+        channelData.email_sent.toString(),
+        channelData.email_reply_rate,
+        channelData.email_open_rate || 'N/A',
+      ]);
+      rows.push([]);
+    }
+
+    // Top Campaigns
+    if (campaignsData?.length) {
+      rows.push(['TOP CAMPAIGNS']);
+      rows.push(['Campaign', 'Sent', 'Connection Rate', 'Reply Rate']);
+      campaignsData.forEach((c) => {
+        rows.push([c.name, c.sent.toString(), `${c.connection_rate}%`, `${c.reply_rate}%`]);
+      });
+      rows.push([]);
+    }
+
+    // Sender Performance
+    if (sendersData?.length) {
+      rows.push(['SENDER PERFORMANCE']);
+      rows.push(['Sender', 'Sent', 'Connection Rate', 'Reply Rate']);
+      sendersData.forEach((s) => {
+        rows.push([s.name, s.sent.toString(), `${s.connection_rate}%`, `${s.reply_rate}%`]);
+      });
+    }
+
+    // Convert to CSV
+    const csvContent = rows.map((row) => row.map((cell) => `"${cell}"`).join(',')).join('\n');
+
+    // Download
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `analytics-${dateRange}-${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }, [dateRange, overviewData, channelData, campaignsData, sendersData]);
 
   // Transform overview stats for display
   const overviewStats = overviewData
@@ -77,9 +158,12 @@ function AnalyticsPage() {
             <option value="7d">Last 7 days</option>
             <option value="30d">Last 30 days</option>
             <option value="90d">Last 90 days</option>
-            <option value="365d">Last year</option>
           </select>
-          <button className="flex items-center gap-2 rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-sm font-medium text-[#64748B] hover:bg-[#F8FAFC] sm:px-4">
+          <button
+            onClick={handleExport}
+            disabled={overviewLoading || channelLoading || campaignsLoading || sendersLoading}
+            className="flex items-center gap-2 rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-sm font-medium text-[#64748B] hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-50 sm:px-4"
+          >
             <DownloadIcon />
             <span className="hidden sm:inline">Export</span>
           </button>
