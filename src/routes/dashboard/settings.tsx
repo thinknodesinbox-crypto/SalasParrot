@@ -7,7 +7,6 @@ import {
   useCreateWorkspace,
   useUpdateWorkspace,
   useWorkspaceMembers,
-  useInviteWorkspaceMember,
   useBillingOverview,
   useCreatePortalSession,
   useEmailAccounts,
@@ -20,6 +19,12 @@ import {
   usePollLinkedInStatus,
   useConnectEmailIMAP,
 } from '@/lib/hooks/queries';
+import {
+  useWorkspaceInvitations,
+  useCreateInvitation,
+  useRevokeInvitation,
+  useResendInvitation,
+} from '@/lib/hooks/queries/useInvitations';
 import type { CheckpointType, Workspace, LinkedInAccount } from '@/lib/types';
 
 export const Route = createFileRoute('/dashboard/settings')({
@@ -843,6 +848,13 @@ function MembersSettings() {
     refetch,
   } = useWorkspaceMembers(selectedWorkspaceId);
 
+  // Fetch pending invitations for selected workspace
+  const { data: invitations = [], refetch: refetchInvitations } =
+    useWorkspaceInvitations(selectedWorkspaceId);
+
+  const revokeInvitation = useRevokeInvitation(selectedWorkspaceId);
+  const resendInvitation = useResendInvitation(selectedWorkspaceId);
+
   // Filter members by search query
   const members = membersData.filter((m) => {
     const searchLower = searchQuery.toLowerCase();
@@ -1048,6 +1060,68 @@ function MembersSettings() {
         </div>
       </div>
 
+      {/* Pending Invitations */}
+      {invitations.length > 0 && (
+        <div className="overflow-hidden rounded-xl border border-[#E2E8F0] bg-white">
+          <div className="border-b border-[#E2E8F0] bg-[#FFFBEB] px-4 py-3 md:px-6">
+            <h3 className="flex items-center gap-2 font-semibold text-[#1E293B]">
+              <ClockIcon className="h-4 w-4 text-[#F59E0B]" />
+              Pending Invitations ({invitations.length})
+            </h3>
+          </div>
+          <div className="divide-y divide-[#E2E8F0]">
+            {invitations.map((invitation) => (
+              <div
+                key={invitation.id}
+                className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between md:px-6"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#F8FAFC] text-sm font-medium text-[#64748B]">
+                    <MailIcon className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <p className="font-medium text-[#1E293B]">{invitation.email}</p>
+                    <p className="text-sm text-[#64748B]">
+                      Invited as <span className="capitalize">{invitation.role}</span>
+                      {' · '}
+                      Expires {new Date(invitation.expires_at).toLocaleDateString()}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-2 sm:flex-shrink-0">
+                  <button
+                    onClick={async () => {
+                      try {
+                        await resendInvitation.mutateAsync(invitation.id);
+                      } catch {
+                        // Error handled by mutation
+                      }
+                    }}
+                    disabled={resendInvitation.isPending}
+                    className="rounded-lg border border-[#E2E8F0] px-3 py-1.5 text-sm font-medium text-[#64748B] hover:bg-[#F8FAFC] disabled:opacity-50"
+                  >
+                    {resendInvitation.isPending ? 'Sending...' : 'Resend'}
+                  </button>
+                  <button
+                    onClick={async () => {
+                      try {
+                        await revokeInvitation.mutateAsync(invitation.id);
+                      } catch {
+                        // Error handled by mutation
+                      }
+                    }}
+                    disabled={revokeInvitation.isPending}
+                    className="rounded-lg border border-[#FEE2E2] bg-[#FEF2F2] px-3 py-1.5 text-sm font-medium text-[#EF4444] hover:bg-[#FEE2E2] disabled:opacity-50"
+                  >
+                    {revokeInvitation.isPending ? 'Revoking...' : 'Revoke'}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Invite Modal */}
       <AnimatePresence>
         {showInviteModal && selectedWorkspaceId && (
@@ -1057,6 +1131,7 @@ function MembersSettings() {
               workspaces.find((w) => w.id === selectedWorkspaceId)?.name || 'Workspace'
             }
             onClose={() => setShowInviteModal(false)}
+            onSuccess={() => refetchInvitations()}
           />
         )}
       </AnimatePresence>
@@ -1068,25 +1143,34 @@ function InviteMemberModal({
   workspaceId,
   workspaceName,
   onClose,
+  onSuccess,
 }: {
   workspaceId: string;
   workspaceName: string;
   onClose: () => void;
+  onSuccess?: () => void;
 }) {
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<'member' | 'admin'>('member');
   const [error, setError] = useState<string | null>(null);
-  const inviteMember = useInviteWorkspaceMember(workspaceId);
+  const [success, setSuccess] = useState(false);
+  const createInvitation = useCreateInvitation(workspaceId);
 
   const handleInvite = async () => {
     if (!email.trim()) return;
     setError(null);
+    setSuccess(false);
     try {
-      await inviteMember.mutateAsync({
+      await createInvitation.mutateAsync({
         email: email.trim(),
         role,
       });
-      onClose();
+      setSuccess(true);
+      onSuccess?.();
+      // Close after a brief delay to show success message
+      setTimeout(() => {
+        onClose();
+      }, 1500);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to send invitation');
     }
@@ -1109,51 +1193,77 @@ function InviteMemberModal({
       >
         <h2 className="mb-4 text-lg font-bold text-[#1E293B]">Invite team member</h2>
 
-        <div className="space-y-4">
-          <div>
-            <label className="mb-2 block text-sm font-medium text-[#1E293B]">Email address</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="colleague@company.com"
-              className="w-full rounded-lg border border-[#E2E8F0] px-4 py-3 focus:border-[#3B82F6] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/20"
-            />
+        {success ? (
+          <div className="py-8 text-center">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
+              <svg
+                className="h-8 w-8 text-green-500"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M5 13l4 4L19 7"
+                />
+              </svg>
+            </div>
+            <p className="mt-4 text-lg font-medium text-[#1E293B]">Invitation sent!</p>
+            <p className="mt-1 text-sm text-[#64748B]">An email has been sent to {email}</p>
           </div>
-          <div>
-            <label className="mb-2 block text-sm font-medium text-[#1E293B]">Role</label>
-            <select
-              value={role}
-              onChange={(e) => setRole(e.target.value as 'member' | 'admin')}
-              className="w-full rounded-lg border border-[#E2E8F0] px-4 py-3 focus:border-[#3B82F6] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/20"
-            >
-              <option value="member">Member - Can run campaigns</option>
-              <option value="admin">Admin - Full access</option>
-            </select>
-          </div>
-          <div>
-            <label className="mb-2 block text-sm font-medium text-[#64748B]">Workspace</label>
-            <p className="font-medium text-[#1E293B]">{workspaceName}</p>
-          </div>
-          {error && <p className="text-sm text-[#EF4444]">{error}</p>}
-        </div>
+        ) : (
+          <>
+            <div className="space-y-4">
+              <div>
+                <label className="mb-2 block text-sm font-medium text-[#1E293B]">
+                  Email address
+                </label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="colleague@company.com"
+                  className="w-full rounded-lg border border-[#E2E8F0] px-4 py-3 focus:border-[#3B82F6] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/20"
+                />
+              </div>
+              <div>
+                <label className="mb-2 block text-sm font-medium text-[#1E293B]">Role</label>
+                <select
+                  value={role}
+                  onChange={(e) => setRole(e.target.value as 'member' | 'admin')}
+                  className="w-full rounded-lg border border-[#E2E8F0] px-4 py-3 focus:border-[#3B82F6] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/20"
+                >
+                  <option value="member">Member - Can run campaigns</option>
+                  <option value="admin">Admin - Full access</option>
+                </select>
+              </div>
+              <div>
+                <label className="mb-2 block text-sm font-medium text-[#64748B]">Workspace</label>
+                <p className="font-medium text-[#1E293B]">{workspaceName}</p>
+              </div>
+              {error && <p className="text-sm text-[#EF4444]">{error}</p>}
+            </div>
 
-        <div className="mt-6 flex gap-3">
-          <button
-            onClick={onClose}
-            disabled={inviteMember.isPending}
-            className="flex-1 rounded-lg border border-[#E2E8F0] px-4 py-2.5 font-medium text-[#64748B] hover:bg-[#F8FAFC] disabled:opacity-50"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleInvite}
-            disabled={!email.trim() || inviteMember.isPending}
-            className="flex-1 rounded-lg bg-[#3B82F6] px-4 py-2.5 font-medium text-white hover:bg-[#2563EB] disabled:opacity-50"
-          >
-            {inviteMember.isPending ? 'Sending...' : 'Send invitation'}
-          </button>
-        </div>
+            <div className="mt-6 flex gap-3">
+              <button
+                onClick={onClose}
+                disabled={createInvitation.isPending}
+                className="flex-1 rounded-lg border border-[#E2E8F0] px-4 py-2.5 font-medium text-[#64748B] hover:bg-[#F8FAFC] disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleInvite}
+                disabled={!email.trim() || createInvitation.isPending}
+                className="flex-1 rounded-lg bg-[#3B82F6] px-4 py-2.5 font-medium text-white hover:bg-[#2563EB] disabled:opacity-50"
+              >
+                {createInvitation.isPending ? 'Sending...' : 'Send invitation'}
+              </button>
+            </div>
+          </>
+        )}
       </motion.div>
     </motion.div>
   );
@@ -1298,6 +1408,7 @@ function NotificationItem({
 function BillingSettings() {
   const { data: billing, isLoading, error, refetch } = useBillingOverview();
   const createPortal = useCreatePortalSession();
+  const { user } = useAuth();
 
   const handleManageBilling = async () => {
     try {
@@ -1411,6 +1522,140 @@ function BillingSettings() {
           </button>
         </div>
       </div>
+
+      {/* Partner Access (if applicable) */}
+      {user?.partner_access && (
+        <div className="rounded-xl border border-[#E2E8F0] bg-white p-6">
+          <h3 className="mb-4 font-semibold text-[#1E293B]">Partner Access</h3>
+          <div
+            className={`rounded-xl border p-5 ${
+              user.partner_access.is_expired
+                ? 'border-red-200 bg-red-50'
+                : user.partner_access.days_until_expiry !== null &&
+                    user.partner_access.days_until_expiry <= 7
+                  ? 'border-amber-200 bg-amber-50'
+                  : 'border-teal-200 bg-teal-50'
+            }`}
+          >
+            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+              <div>
+                <div className="flex items-center gap-3">
+                  <span className="font-mono text-lg font-bold text-[#1E293B]">
+                    {user.partner_access.code}
+                  </span>
+                  <span
+                    className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                      user.partner_access.is_expired
+                        ? 'bg-red-100 text-red-700'
+                        : user.partner_access.access_type === 'full'
+                          ? 'bg-teal-100 text-teal-700'
+                          : 'bg-amber-100 text-amber-700'
+                    }`}
+                  >
+                    {user.partner_access.is_expired
+                      ? 'Expired'
+                      : user.partner_access.access_type === 'full'
+                        ? 'Full Access'
+                        : 'Limited Access'}
+                  </span>
+                </div>
+                <p className="mt-1 text-sm text-[#64748B]">
+                  From {user.partner_access.partner_name}
+                </p>
+              </div>
+              <div className="text-left md:text-right">
+                <p className="text-sm font-medium text-[#1E293B]">
+                  {user.partner_access.days_until_expiry === null
+                    ? 'Lifetime Access'
+                    : user.partner_access.is_expired
+                      ? 'Access Expired'
+                      : `${user.partner_access.days_until_expiry} days remaining`}
+                </p>
+                {user.partner_access.access_expires_at && (
+                  <p className="text-xs text-[#64748B]">
+                    {user.partner_access.is_expired ? 'Expired' : 'Expires'}{' '}
+                    {new Date(user.partner_access.access_expires_at).toLocaleDateString()}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Feature restrictions for limited access */}
+            {user.partner_access.access_type === 'limited' && (
+              <div className="mt-4 border-t border-[#E2E8F0] pt-4">
+                <p className="mb-2 text-sm font-medium text-[#64748B]">Access Limits</p>
+                <div className="flex flex-wrap gap-2">
+                  {user.partner_access.max_senders && (
+                    <span className="rounded bg-white px-2 py-1 text-xs text-[#64748B]">
+                      Max {user.partner_access.max_senders} sender
+                      {user.partner_access.max_senders > 1 ? 's' : ''}
+                    </span>
+                  )}
+                  {user.partner_access.max_sequences && (
+                    <span className="rounded bg-white px-2 py-1 text-xs text-[#64748B]">
+                      Max {user.partner_access.max_sequences} sequence
+                      {user.partner_access.max_sequences > 1 ? 's' : ''}
+                    </span>
+                  )}
+                  {user.partner_access.max_emails_per_day && (
+                    <span className="rounded bg-white px-2 py-1 text-xs text-[#64748B]">
+                      {user.partner_access.max_emails_per_day} emails/day
+                    </span>
+                  )}
+                  {user.partner_access.max_linkedin_actions_per_day && (
+                    <span className="rounded bg-white px-2 py-1 text-xs text-[#64748B]">
+                      {user.partner_access.max_linkedin_actions_per_day} LinkedIn actions/day
+                    </span>
+                  )}
+                  {user.partner_access.enrichment_credits && (
+                    <span className="rounded bg-white px-2 py-1 text-xs text-[#64748B]">
+                      {user.partner_access.enrichment_credits} enrichment credits
+                    </span>
+                  )}
+                  {user.partner_access.api_access === false && (
+                    <span className="rounded bg-white px-2 py-1 text-xs text-[#64748B]">
+                      No API access
+                    </span>
+                  )}
+                  {user.partner_access.export_data === false && (
+                    <span className="rounded bg-white px-2 py-1 text-xs text-[#64748B]">
+                      No data export
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Upgrade CTA if expired or expiring soon */}
+            {(user.partner_access.is_expired ||
+              (user.partner_access.days_until_expiry !== null &&
+                user.partner_access.days_until_expiry <= 7)) && (
+              <div className="mt-4 border-t border-[#E2E8F0] pt-4">
+                <a
+                  href="/pricing"
+                  className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors ${
+                    user.partner_access.is_expired
+                      ? 'bg-red-600 hover:bg-red-700'
+                      : 'bg-amber-600 hover:bg-amber-700'
+                  }`}
+                >
+                  {user.partner_access.is_expired
+                    ? 'Upgrade to Continue Access'
+                    : 'Upgrade Before It Expires'}
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M13 7l5 5m0 0l-5 5m5-5H6"
+                    />
+                  </svg>
+                </a>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Payment Method */}
       <div className="rounded-xl border border-[#E2E8F0] bg-white p-6">
@@ -1714,7 +1959,8 @@ function IntegrationSettings() {
             description="Sync leads, deals, and activities"
             icon={<HubSpotIcon />}
             color="#FF7A59"
-            connected={true}
+            connected={false}
+            comingSoon
           />
           <IntegrationCard
             name="Salesforce"
@@ -1722,6 +1968,7 @@ function IntegrationSettings() {
             icon={<SalesforceIcon />}
             color="#00A1E0"
             connected={false}
+            comingSoon
           />
           <IntegrationCard
             name="Pipedrive"
@@ -1729,6 +1976,7 @@ function IntegrationSettings() {
             icon={<PipedriveIcon />}
             color="#1D1D1D"
             connected={false}
+            comingSoon
           />
           <IntegrationCard
             name="Close CRM"
@@ -1736,6 +1984,7 @@ function IntegrationSettings() {
             icon={<CloseIcon />}
             color="#5C6BC0"
             connected={false}
+            comingSoon
           />
         </div>
       </div>
@@ -1755,7 +2004,8 @@ function IntegrationSettings() {
             description="Connect to 5000+ apps"
             icon={<ZapierIcon />}
             color="#FF4A00"
-            connected={true}
+            connected={false}
+            comingSoon
           />
           <IntegrationCard
             name="Make (Integromat)"
@@ -1763,6 +2013,7 @@ function IntegrationSettings() {
             icon={<MakeIcon />}
             color="#6E56FF"
             connected={false}
+            comingSoon
           />
           <IntegrationCard
             name="Slack"
@@ -1770,6 +2021,7 @@ function IntegrationSettings() {
             icon={<SlackIcon />}
             color="#4A154B"
             connected={false}
+            comingSoon
           />
           <IntegrationCard
             name="Webhooks"
@@ -1777,7 +2029,7 @@ function IntegrationSettings() {
             icon={<WebhookIcon />}
             color="#64748B"
             connected={false}
-            isWebhook
+            comingSoon
           />
         </div>
       </div>
@@ -1812,6 +2064,7 @@ function IntegrationCard({
   color,
   connected,
   isWebhook = false,
+  comingSoon = false,
 }: {
   name: string;
   description: string;
@@ -1819,9 +2072,12 @@ function IntegrationCard({
   color: string;
   connected: boolean;
   isWebhook?: boolean;
+  comingSoon?: boolean;
 }) {
   return (
-    <div className="flex items-center justify-between rounded-xl border border-[#E2E8F0] p-4 transition-all hover:border-[#3B82F6]/30 hover:shadow-sm">
+    <div
+      className={`flex items-center justify-between rounded-xl border border-[#E2E8F0] p-4 transition-all ${comingSoon ? 'opacity-75' : 'hover:border-[#3B82F6]/30 hover:shadow-sm'}`}
+    >
       <div className="flex items-center gap-3">
         <div
           className="flex h-10 w-10 items-center justify-center rounded-lg"
@@ -1830,19 +2086,35 @@ function IntegrationCard({
           <div style={{ color }}>{icon}</div>
         </div>
         <div>
-          <p className="font-medium text-[#1E293B]">{name}</p>
+          <div className="flex items-center gap-2">
+            <p className="font-medium text-[#1E293B]">{name}</p>
+            {comingSoon && (
+              <span className="rounded-full bg-[#FEF3C7] px-2 py-0.5 text-[10px] font-medium text-[#D97706]">
+                Coming Soon
+              </span>
+            )}
+          </div>
           <p className="text-xs text-[#64748B]">{description}</p>
         </div>
       </div>
-      <button
-        className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
-          connected
-            ? 'bg-[#F0FDF4] text-[#22C55E] hover:bg-[#DCFCE7]'
-            : 'bg-[#F8FAFC] text-[#64748B] hover:bg-[#E2E8F0]'
-        }`}
-      >
-        {connected ? 'Connected' : isWebhook ? 'Configure' : 'Connect'}
-      </button>
+      {comingSoon ? (
+        <button
+          disabled
+          className="cursor-not-allowed rounded-lg bg-[#F1F5F9] px-4 py-2 text-sm font-medium text-[#94A3B8]"
+        >
+          Coming Soon
+        </button>
+      ) : (
+        <button
+          className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+            connected
+              ? 'bg-[#F0FDF4] text-[#22C55E] hover:bg-[#DCFCE7]'
+              : 'bg-[#F8FAFC] text-[#64748B] hover:bg-[#E2E8F0]'
+          }`}
+        >
+          {connected ? 'Connected' : isWebhook ? 'Configure' : 'Connect'}
+        </button>
+      )}
     </div>
   );
 }
@@ -3430,6 +3702,42 @@ function CrownIcon({ className = '' }: { className?: string }) {
   return (
     <svg className={className} fill="currentColor" viewBox="0 0 20 20">
       <path d="M10 2l2.5 5 5.5.75-4 3.75 1 5.5L10 14.25 4.5 17l1-5.5-4-3.75L7 7z" />
+    </svg>
+  );
+}
+
+function ClockIcon({ className = '' }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={2}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"
+      />
+    </svg>
+  );
+}
+
+function MailIcon({ className = '' }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={2}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75"
+      />
     </svg>
   );
 }

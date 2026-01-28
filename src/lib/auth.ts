@@ -3,6 +3,10 @@ import { persist } from 'zustand/middleware';
 import { api, setAccessToken, setRefreshToken, clearTokens, getAccessToken } from './api';
 import type { User, LoginRequest, SignupRequest, AuthResponse } from './types';
 
+interface SignupResult {
+  skip_payment: boolean;
+}
+
 interface AuthState {
   user: User | null;
   isLoading: boolean;
@@ -10,8 +14,8 @@ interface AuthState {
 
   // Actions
   login: (data: LoginRequest) => Promise<void>;
-  signup: (data: SignupRequest) => Promise<void>;
-  googleLogin: (credential: string) => Promise<void>;
+  signup: (data: SignupRequest) => Promise<SignupResult>;
+  googleLogin: (credential: string) => Promise<SignupResult>;
   logout: () => void;
   fetchUser: () => Promise<void>;
   updateUser: (updates: Partial<User>) => void;
@@ -54,7 +58,7 @@ export const useAuthStore = create<AuthState>()(
       signup: async (data: SignupRequest) => {
         try {
           const response = await api.post<AuthResponse>('/auth/register', data);
-          const { user, tokens } = response.data;
+          const { user, tokens, skip_payment } = response.data;
 
           setAccessToken(tokens.access_token);
           setRefreshToken(tokens.refresh_token);
@@ -64,6 +68,8 @@ export const useAuthStore = create<AuthState>()(
             isAuthenticated: true,
             isLoading: false,
           });
+
+          return { skip_payment: skip_payment ?? false };
         } catch (error) {
           // Extract error message from API response
           if (error && typeof error === 'object' && 'response' in error) {
@@ -80,7 +86,7 @@ export const useAuthStore = create<AuthState>()(
       googleLogin: async (credential: string) => {
         try {
           const response = await api.post<AuthResponse>('/auth/google', { credential });
-          const { user, tokens } = response.data;
+          const { user, tokens, skip_payment } = response.data;
 
           setAccessToken(tokens.access_token);
           setRefreshToken(tokens.refresh_token);
@@ -90,6 +96,8 @@ export const useAuthStore = create<AuthState>()(
             isAuthenticated: true,
             isLoading: false,
           });
+
+          return { skip_payment: skip_payment ?? false };
         } catch (error) {
           // Extract error message from API response
           if (error && typeof error === 'object' && 'response' in error) {

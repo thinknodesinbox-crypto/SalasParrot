@@ -25,8 +25,8 @@ export function validateCampaignSequence(
 ): SequenceWarning[] {
   const warnings: SequenceWarning[] = [];
 
-  // Filter out start/end nodes for analysis
-  const actionNodes = nodes.filter((n) => n.type !== 'start' && n.type !== 'end');
+  // Filter out start nodes for analysis (keep end nodes for branch detection)
+  const actionNodes = nodes.filter((n) => n.type !== 'start');
 
   if (actionNodes.length === 0) {
     warnings.push({

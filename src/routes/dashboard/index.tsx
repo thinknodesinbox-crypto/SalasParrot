@@ -8,6 +8,8 @@ import {
   useDashboardActivity,
   useDashboardCampaigns,
 } from '../../lib/hooks/queries';
+import { useAuthStore } from '../../lib/auth';
+import type { PartnerAccessInfo } from '../../lib/types';
 
 export const Route = createFileRoute('/dashboard/')({
   component: DashboardHome,
@@ -15,13 +17,24 @@ export const Route = createFileRoute('/dashboard/')({
 
 function DashboardHome() {
   const [dateRange, setDateRange] = useState('7d');
+  const [dismissedPartnerBanner, setDismissedPartnerBanner] = useState(false);
+  const { user } = useAuthStore();
 
   // Show toast when trial is started (check URL params)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const trial = params.get('trial');
+    const partnerCode = params.get('partner');
     if (trial === 'started') {
       toast.success('Welcome! Your 7-day trial has started. Enjoy full access to all features.', {
+        duration: 5000,
+        icon: '🎉',
+      });
+      // Clean up URL
+      window.history.replaceState({}, '', '/dashboard');
+    }
+    if (partnerCode === 'activated') {
+      toast.success('Partner access activated! Enjoy your benefits.', {
         duration: 5000,
         icon: '🎉',
       });
@@ -83,6 +96,14 @@ function DashboardHome() {
 
   return (
     <div className="space-y-6">
+      {/* Partner Access Banner */}
+      {user?.partner_access && !dismissedPartnerBanner && (
+        <PartnerAccessBanner
+          partnerAccess={user.partner_access}
+          onDismiss={() => setDismissedPartnerBanner(true)}
+        />
+      )}
+
       {/* Page Header */}
       <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center sm:gap-4">
         <div>
@@ -505,6 +526,204 @@ function DashboardHome() {
         />
       </motion.div>
     </div>
+  );
+}
+
+function PartnerAccessBanner({
+  partnerAccess,
+  onDismiss,
+}: {
+  partnerAccess: PartnerAccessInfo;
+  onDismiss: () => void;
+}) {
+  const isExpiringSoon =
+    partnerAccess.days_until_expiry !== null && partnerAccess.days_until_expiry <= 7;
+  const isLifetime = partnerAccess.days_until_expiry === null;
+  const isLimited = partnerAccess.access_type === 'limited';
+
+  // Determine banner style based on status
+  const bannerStyles = partnerAccess.is_expired
+    ? 'bg-red-50 border-red-200'
+    : isExpiringSoon
+      ? 'bg-amber-50 border-amber-200'
+      : 'bg-teal-50 border-teal-200';
+
+  const iconColor = partnerAccess.is_expired
+    ? 'text-red-500'
+    : isExpiringSoon
+      ? 'text-amber-500'
+      : 'text-teal-500';
+
+  if (partnerAccess.is_expired) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className={`relative rounded-xl border p-4 ${bannerStyles}`}
+      >
+        <button
+          onClick={onDismiss}
+          className="absolute right-3 top-3 text-gray-400 hover:text-gray-600"
+        >
+          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M6 18L18 6M6 6l12 12"
+            />
+          </svg>
+        </button>
+        <div className="flex items-start gap-3">
+          <div className={`mt-0.5 ${iconColor}`}>
+            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+              />
+            </svg>
+          </div>
+          <div className="flex-1">
+            <h3 className="text-sm font-semibold text-red-800">Partner Access Expired</h3>
+            <p className="mt-1 text-sm text-red-700">
+              Your partner access via code{' '}
+              <span className="font-mono font-semibold">{partnerAccess.code}</span> has expired.
+            </p>
+            <div className="mt-3">
+              <Link
+                to="/pricing"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700"
+              >
+                Upgrade to Continue
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M13 7l5 5m0 0l-5 5m5-5H6"
+                  />
+                </svg>
+              </Link>
+            </div>
+          </div>
+        </div>
+      </motion.div>
+    );
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -10 }}
+      animate={{ opacity: 1, y: 0 }}
+      className={`relative rounded-xl border p-4 ${bannerStyles}`}
+    >
+      <button
+        onClick={onDismiss}
+        className="absolute right-3 top-3 text-gray-400 hover:text-gray-600"
+      >
+        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M6 18L18 6M6 6l12 12"
+          />
+        </svg>
+      </button>
+      <div className="flex items-start gap-3">
+        <div className={`mt-0.5 ${iconColor}`}>
+          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
+            />
+          </svg>
+        </div>
+        <div className="flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3
+              className={`text-sm font-semibold ${isExpiringSoon ? 'text-amber-800' : 'text-teal-800'}`}
+            >
+              Partner Access Active
+            </h3>
+            <span
+              className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                partnerAccess.access_type === 'full'
+                  ? 'bg-teal-100 text-teal-700'
+                  : 'bg-amber-100 text-amber-700'
+              }`}
+            >
+              {partnerAccess.access_type === 'full' ? 'Full Access' : 'Limited Access'}
+            </span>
+          </div>
+          <p className={`mt-1 text-sm ${isExpiringSoon ? 'text-amber-700' : 'text-teal-700'}`}>
+            Using code <span className="font-mono font-semibold">{partnerAccess.code}</span> &mdash;{' '}
+            {isLifetime ? (
+              <span className="font-medium">Lifetime access</span>
+            ) : isExpiringSoon ? (
+              <span className="font-medium">
+                {partnerAccess.days_until_expiry === 0
+                  ? 'Expires today!'
+                  : partnerAccess.days_until_expiry === 1
+                    ? 'Expires tomorrow!'
+                    : `${partnerAccess.days_until_expiry} days remaining`}
+              </span>
+            ) : (
+              <span>{partnerAccess.days_until_expiry} days remaining</span>
+            )}
+          </p>
+
+          {/* Show restrictions for limited access */}
+          {isLimited && (
+            <div className="mt-2 flex flex-wrap gap-2 text-xs">
+              {partnerAccess.max_senders && (
+                <span className="rounded bg-white/60 px-2 py-1 text-amber-700">
+                  Max {partnerAccess.max_senders} sender{partnerAccess.max_senders > 1 ? 's' : ''}
+                </span>
+              )}
+              {partnerAccess.max_sequences && (
+                <span className="rounded bg-white/60 px-2 py-1 text-amber-700">
+                  Max {partnerAccess.max_sequences} sequence
+                  {partnerAccess.max_sequences > 1 ? 's' : ''}
+                </span>
+              )}
+              {partnerAccess.max_emails_per_day && (
+                <span className="rounded bg-white/60 px-2 py-1 text-amber-700">
+                  {partnerAccess.max_emails_per_day} emails/day
+                </span>
+              )}
+              {partnerAccess.api_access === false && (
+                <span className="rounded bg-white/60 px-2 py-1 text-amber-700">No API access</span>
+              )}
+            </div>
+          )}
+
+          {/* Upgrade CTA for expiring soon */}
+          {isExpiringSoon && (
+            <div className="mt-3">
+              <Link
+                to="/pricing"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-amber-700"
+              >
+                Upgrade Before It Expires
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M13 7l5 5m0 0l-5 5m5-5H6"
+                  />
+                </svg>
+              </Link>
+            </div>
+          )}
+        </div>
+      </div>
+    </motion.div>
   );
 }
 

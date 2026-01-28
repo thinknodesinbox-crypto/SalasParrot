@@ -26,6 +26,13 @@ export const queryKeys = {
     list: (filters?: unknown) => ['workspaces', 'list', filters] as const,
     detail: (id: string) => ['workspaces', 'detail', id] as const,
     members: (workspaceId: string) => ['workspaces', workspaceId, 'members'] as const,
+    invitations: (workspaceId: string) => ['workspaces', workspaceId, 'invitations'] as const,
+  },
+
+  // Invitations (public)
+  invitations: {
+    validate: (token: string) => ['invitations', 'validate', token] as const,
+    pending: ['invitations', 'pending'] as const,
   },
 
   // Campaigns

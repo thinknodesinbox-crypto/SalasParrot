@@ -1,6 +1,25 @@
 // User types
 export type PlanType = 'starter' | 'growth' | 'agency' | 'unlimited';
 
+export interface PartnerAccessInfo {
+  code: string;
+  partner_name: string;
+  access_type: 'full' | 'limited';
+  access_starts_at: string;
+  access_expires_at: string | null; // null = lifetime
+  days_until_expiry: number | null; // null = lifetime
+  is_active: boolean;
+  is_expired: boolean;
+  // Feature restrictions (only for limited access)
+  max_senders?: number | null;
+  max_sequences?: number | null;
+  max_emails_per_day?: number | null;
+  max_linkedin_actions_per_day?: number | null;
+  enrichment_credits?: number | null;
+  api_access?: boolean;
+  export_data?: boolean;
+}
+
 export interface User {
   id: string;
   email: string;
@@ -8,7 +27,10 @@ export interface User {
   avatar_url: string | null;
   is_active: boolean;
   is_verified: boolean;
+  is_admin: boolean;
   plan: PlanType;
+  subscription_status?: string;
+  partner_access?: PartnerAccessInfo | null;
   created_at: string;
   updated_at: string;
 }
@@ -23,6 +45,26 @@ export interface SignupRequest {
   email: string;
   password: string;
   name?: string;
+  partner_code?: string;
+}
+
+export interface ValidatePartnerCodeRequest {
+  code: string;
+  email?: string;
+}
+
+export interface PartnerCodeValidation {
+  valid: boolean;
+  code: string | null;
+  message: string;
+  benefits: {
+    access_type: 'full' | 'limited';
+    duration: string;
+    duration_days: number | null;
+    max_senders?: number;
+    max_sequences?: number;
+    enrichment_credits?: number;
+  } | null;
 }
 
 export interface TokenResponse {
@@ -34,6 +76,7 @@ export interface TokenResponse {
 export interface AuthResponse {
   user: User;
   tokens: TokenResponse;
+  skip_payment?: boolean; // True for admins and partner code users
 }
 
 export interface RefreshTokenRequest {
@@ -71,6 +114,56 @@ export interface WorkspaceMember {
   created_at: string;
   user_email?: string;
   user_name?: string;
+}
+
+// Workspace Invitation types
+export type InvitationStatus = 'pending' | 'accepted' | 'declined' | 'expired';
+
+export interface WorkspaceInvitation {
+  id: string;
+  workspace_id: string;
+  workspace_name: string;
+  email: string;
+  role: WorkspaceRole;
+  permissions: Record<string, boolean> | null;
+  status: InvitationStatus;
+  invited_by: string | null;
+  inviter_name: string | null;
+  inviter_email: string | null;
+  invited_at: string;
+  expires_at: string;
+  accepted_at: string | null;
+}
+
+export interface InvitationValidation {
+  valid: boolean;
+  workspace_name: string | null;
+  inviter_name: string | null;
+  role: WorkspaceRole | null;
+  email: string | null;
+  expires_at: string | null;
+  error: 'expired' | 'already_accepted' | 'already_declined' | 'not_found' | null;
+}
+
+export interface AcceptInvitationRequest {
+  name?: string;
+  password?: string;
+}
+
+export interface AcceptInvitationResponse {
+  success: boolean;
+  message: string;
+  workspace_id: string | null;
+  workspace_name: string | null;
+  access_token: string | null;
+  refresh_token: string | null;
+  user_id: string | null;
+}
+
+export interface CreateInvitationRequest {
+  email: string;
+  role?: WorkspaceRole;
+  permissions?: Record<string, boolean>;
 }
 
 // Campaign types
@@ -726,4 +819,226 @@ export interface EnrichLeadsResponse {
   status: string;
   lead_count: number;
   message: string;
+}
+
+// Admin types
+
+export interface AdminUserStats {
+  linkedin_accounts: number;
+  email_accounts: number;
+  campaigns_total: number;
+  campaigns_active: number;
+  leads_total: number;
+  messages_sent: number;
+}
+
+export interface AdminUser {
+  id: string;
+  email: string;
+  name: string | null;
+  is_active: boolean;
+  is_verified: boolean;
+  is_admin: boolean;
+  subscription_status: string | null;
+  plan: string | null;
+  sender_count: number;
+  stripe_customer_id: string | null;
+  created_at: string;
+  updated_at: string | null;
+  stats: AdminUserStats | null;
+}
+
+export interface AdminUserListResponse {
+  items: AdminUser[];
+  total: number;
+  page: number;
+  per_page: number;
+}
+
+export interface AdminUserUpdate {
+  name?: string;
+  email?: string;
+  is_active?: boolean;
+  is_admin?: boolean;
+  subscription_status?: string;
+  plan?: PlanType;
+  sender_count?: number;
+}
+
+// Partner Code types
+export interface PartnerCode {
+  id: string;
+  code: string;
+  partner_name: string;
+  partner_email: string;
+  notes: string | null;
+  access_type: 'full' | 'limited';
+  duration_days: number | null;
+  start_type: 'signup' | 'custom';
+  custom_start_date: string | null;
+  code_expiry: string | null;
+  max_uses: number | null;
+  current_uses: number;
+  new_users_only: boolean;
+  single_use_per_user: boolean;
+  max_senders: number | null;
+  max_sequences: number | null;
+  max_emails_per_day: number | null;
+  max_linkedin_actions_per_day: number | null;
+  enrichment_credits: number | null;
+  api_access: boolean;
+  export_data: boolean;
+  integrations: 'all' | 'limited' | 'none';
+  revenue_share_enabled: boolean;
+  revenue_share_percent: number | null;
+  revenue_share_duration: 'first_payment' | '3_months' | '1_year' | 'lifetime' | null;
+  is_active: boolean;
+  is_expired: boolean;
+  is_maxed_out: boolean;
+  can_be_redeemed: boolean;
+  created_at: string;
+  updated_at: string | null;
+}
+
+export interface PartnerCodeUse {
+  id: string;
+  user_id: string;
+  user_email: string;
+  user_name: string | null;
+  redeemed_at: string;
+  access_starts_at: string;
+  access_expires_at: string | null;
+  is_active: boolean;
+  days_until_expiry: number | null;
+  converted_to_paid: boolean;
+  converted_at: string | null;
+  revenue_generated: number;
+  revenue_share_paid: number;
+}
+
+export interface PartnerCodeDetail extends PartnerCode {
+  active_users: number;
+  expired_users: number;
+  converted_users: number;
+  conversion_rate: number;
+  total_revenue: number;
+  total_earnings: number;
+  amount_owed: number;
+  amount_paid: number;
+  recent_uses: PartnerCodeUse[];
+}
+
+export interface PartnerCodeListResponse {
+  items: PartnerCode[];
+  total: number;
+  page: number;
+  per_page: number;
+}
+
+export interface PartnerCodeCreate {
+  code?: string;
+  partner_name: string;
+  partner_email: string;
+  notes?: string;
+  access_type?: 'full' | 'limited';
+  duration_days?: number | null;
+  start_type?: 'signup' | 'custom';
+  custom_start_date?: string;
+  code_expiry?: string;
+  max_uses?: number | null;
+  new_users_only?: boolean;
+  single_use_per_user?: boolean;
+  max_senders?: number | null;
+  max_sequences?: number | null;
+  max_emails_per_day?: number | null;
+  max_linkedin_actions_per_day?: number | null;
+  enrichment_credits?: number | null;
+  api_access?: boolean;
+  export_data?: boolean;
+  integrations?: 'all' | 'limited' | 'none';
+  revenue_share_enabled?: boolean;
+  revenue_share_percent?: number | null;
+  revenue_share_duration?: 'first_payment' | '3_months' | '1_year' | 'lifetime' | null;
+}
+
+export interface PartnerCodeUpdate {
+  partner_name?: string;
+  partner_email?: string;
+  notes?: string;
+  access_type?: 'full' | 'limited';
+  duration_days?: number | null;
+  start_type?: 'signup' | 'custom';
+  custom_start_date?: string;
+  code_expiry?: string;
+  max_uses?: number | null;
+  new_users_only?: boolean;
+  single_use_per_user?: boolean;
+  max_senders?: number | null;
+  max_sequences?: number | null;
+  max_emails_per_day?: number | null;
+  max_linkedin_actions_per_day?: number | null;
+  enrichment_credits?: number | null;
+  api_access?: boolean;
+  export_data?: boolean;
+  integrations?: 'all' | 'limited' | 'none';
+  revenue_share_enabled?: boolean;
+  revenue_share_percent?: number | null;
+  revenue_share_duration?: 'first_payment' | '3_months' | '1_year' | 'lifetime' | null;
+  is_active?: boolean;
+}
+
+export interface PartnerCodeTemplate {
+  name: string;
+  description: string;
+  access_type: 'full' | 'limited';
+  duration_days: number | null;
+  revenue_share_enabled: boolean;
+  revenue_share_percent: number | null;
+  revenue_share_duration: 'first_payment' | '3_months' | '1_year' | 'lifetime' | null;
+  max_senders?: number | null;
+  api_access?: boolean;
+}
+
+export interface PartnerCodeAnalytics {
+  total_uses: number;
+  active_users: number;
+  expired_users: number;
+  converted_to_paid: number;
+  conversion_rate: number;
+  total_revenue: number;
+  partner_earnings: number;
+  amount_owed: number;
+  amount_paid: number;
+}
+
+export interface ImpersonateResponse {
+  access_token: string;
+  token_type: string;
+  user_id: string;
+  user_email: string;
+  expires_in: number;
+}
+
+export interface AdminOverviewStats {
+  total_users: number;
+  active_users: number;
+  total_partners: number;
+  active_partners: number;
+  total_campaigns: number;
+  active_campaigns: number;
+  total_leads: number;
+  total_messages_sent: number;
+  new_users_today: number;
+  new_users_this_week: number;
+  new_users_this_month: number;
+}
+
+export interface SignupTrend {
+  date: string;
+  count: number;
+}
+
+export interface AdminSignupTrends {
+  daily: SignupTrend[];
+  period_days: number;
 }

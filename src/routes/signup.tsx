@@ -1,16 +1,16 @@
-import { createFileRoute, Link } from '@tanstack/react-router';
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { GoogleLogin } from '@react-oauth/google';
 import logoImage from '@/assets/images/logo.png';
 import { useAuthStore } from '@/lib/auth';
-import { useCreateTrialCheckout } from '@/lib/hooks/queries/useBilling';
 
 export const Route = createFileRoute('/signup')({
   component: SignupPage,
 });
 
 function SignupPage() {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
@@ -23,14 +23,13 @@ function SignupPage() {
 
   const signup = useAuthStore((state) => state.signup);
   const googleLogin = useAuthStore((state) => state.googleLogin);
-  const createTrialCheckout = useCreateTrialCheckout();
 
-  // Handle checkout cancelled - show message
+  // Handle error message from URL
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const checkout = params.get('checkout');
-    if (checkout === 'cancelled') {
-      setError('Checkout was cancelled. Please try again to start your trial.');
+    const errorMsg = params.get('error');
+    if (errorMsg) {
+      setError(decodeURIComponent(errorMsg));
       // Clean up URL
       window.history.replaceState({}, '', '/signup');
     }
@@ -46,14 +45,16 @@ function SignupPage() {
     setError(null);
 
     try {
-      await googleLogin(credentialResponse.credential);
-      // Redirect to Stripe checkout for trial
-      const { checkout_url } = await createTrialCheckout.mutateAsync({
-        sender_count: 1,
-        success_url: `${window.location.origin}/dashboard?trial=started`,
-        cancel_url: `${window.location.origin}/signup?checkout=cancelled`,
-      });
-      window.location.href = checkout_url;
+      const result = await googleLogin(credentialResponse.credential);
+
+      // Admins skip onboarding and go directly to dashboard
+      if (result.skip_payment) {
+        navigate({ to: '/dashboard' });
+        return;
+      }
+
+      // Regular users go to onboarding to choose plan or enter partner code
+      navigate({ to: '/onboarding' });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Google sign-up failed. Please try again.');
     } finally {
@@ -72,18 +73,20 @@ function SignupPage() {
     setError(null);
 
     try {
-      await signup({
+      const result = await signup({
         name: formData.fullName,
         email: formData.email,
         password: formData.password,
       });
-      // Redirect to Stripe checkout for trial
-      const { checkout_url } = await createTrialCheckout.mutateAsync({
-        sender_count: 1,
-        success_url: `${window.location.origin}/dashboard?trial=started`,
-        cancel_url: `${window.location.origin}/signup?checkout=cancelled`,
-      });
-      window.location.href = checkout_url;
+
+      // Admins skip onboarding and go directly to dashboard
+      if (result.skip_payment) {
+        navigate({ to: '/dashboard' });
+        return;
+      }
+
+      // Regular users go to onboarding to choose plan or enter partner code
+      navigate({ to: '/onboarding' });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Signup failed. Please try again.');
     } finally {
@@ -370,11 +373,11 @@ function SignupPage() {
                 className="cursor-pointer text-sm leading-relaxed text-[#64748B]"
               >
                 I agree to the{' '}
-                <Link to="/" className="font-medium text-[#FF6B35] hover:underline">
+                <Link to="/terms" className="font-medium text-[#FF6B35] hover:underline">
                   Terms
                 </Link>{' '}
                 and{' '}
-                <Link to="/" className="font-medium text-[#FF6B35] hover:underline">
+                <Link to="/privacy" className="font-medium text-[#FF6B35] hover:underline">
                   Privacy Policy
                 </Link>
               </label>
@@ -405,7 +408,7 @@ function SignupPage() {
                   Creating account...
                 </>
               ) : (
-                'Start $1 trial'
+                'Create account'
               )}
             </motion.button>
 
@@ -433,7 +436,9 @@ function SignupPage() {
             </div>
 
             {/* Trial info */}
-            <p className="text-center text-xs text-[#94A3B8]">7-day full access. Cancel anytime.</p>
+            <p className="text-center text-xs text-[#94A3B8]">
+              7-day trial for $1. Cancel anytime.
+            </p>
           </motion.form>
         </div>
       </div>

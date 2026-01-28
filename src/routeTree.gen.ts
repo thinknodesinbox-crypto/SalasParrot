@@ -9,12 +9,17 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root';
+import { Route as TermsRouteImport } from './routes/terms';
 import { Route as SignupRouteImport } from './routes/signup';
+import { Route as PrivacyRouteImport } from './routes/privacy';
 import { Route as PricingRouteImport } from './routes/pricing';
+import { Route as OnboardingRouteImport } from './routes/onboarding';
 import { Route as LoginRouteImport } from './routes/login';
 import { Route as DashboardRouteImport } from './routes/dashboard';
+import { Route as AdminRouteImport } from './routes/admin';
 import { Route as IndexRouteImport } from './routes/index';
 import { Route as DashboardIndexRouteImport } from './routes/dashboard/index';
+import { Route as AdminIndexRouteImport } from './routes/admin/index';
 import { Route as DashboardSettingsRouteImport } from './routes/dashboard/settings';
 import { Route as DashboardNotificationsRouteImport } from './routes/dashboard/notifications';
 import { Route as DashboardLeadsRouteImport } from './routes/dashboard/leads';
@@ -23,15 +28,33 @@ import { Route as DashboardHelpRouteImport } from './routes/dashboard/help';
 import { Route as DashboardCampaignsRouteImport } from './routes/dashboard/campaigns';
 import { Route as DashboardAnalyticsRouteImport } from './routes/dashboard/analytics';
 import { Route as DashboardAccountsRouteImport } from './routes/dashboard/accounts';
+import { Route as AdminUsersRouteImport } from './routes/admin/users';
+import { Route as AdminPartnersRouteImport } from './routes/admin/partners';
+import { Route as AcceptInviteTokenRouteImport } from './routes/accept-invite.$token';
 
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
+  getParentRoute: () => rootRouteImport,
+} as any);
 const SignupRoute = SignupRouteImport.update({
   id: '/signup',
   path: '/signup',
   getParentRoute: () => rootRouteImport,
 } as any);
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
+  getParentRoute: () => rootRouteImport,
+} as any);
 const PricingRoute = PricingRouteImport.update({
   id: '/pricing',
   path: '/pricing',
+  getParentRoute: () => rootRouteImport,
+} as any);
+const OnboardingRoute = OnboardingRouteImport.update({
+  id: '/onboarding',
+  path: '/onboarding',
   getParentRoute: () => rootRouteImport,
 } as any);
 const LoginRoute = LoginRouteImport.update({
@@ -44,6 +67,11 @@ const DashboardRoute = DashboardRouteImport.update({
   path: '/dashboard',
   getParentRoute: () => rootRouteImport,
 } as any);
+const AdminRoute = AdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
+  getParentRoute: () => rootRouteImport,
+} as any);
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -53,6 +81,11 @@ const DashboardIndexRoute = DashboardIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => DashboardRoute,
+} as any);
+const AdminIndexRoute = AdminIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AdminRoute,
 } as any);
 const DashboardSettingsRoute = DashboardSettingsRouteImport.update({
   id: '/settings',
@@ -94,13 +127,35 @@ const DashboardAccountsRoute = DashboardAccountsRouteImport.update({
   path: '/accounts',
   getParentRoute: () => DashboardRoute,
 } as any);
+const AdminUsersRoute = AdminUsersRouteImport.update({
+  id: '/users',
+  path: '/users',
+  getParentRoute: () => AdminRoute,
+} as any);
+const AdminPartnersRoute = AdminPartnersRouteImport.update({
+  id: '/partners',
+  path: '/partners',
+  getParentRoute: () => AdminRoute,
+} as any);
+const AcceptInviteTokenRoute = AcceptInviteTokenRouteImport.update({
+  id: '/accept-invite/$token',
+  path: '/accept-invite/$token',
+  getParentRoute: () => rootRouteImport,
+} as any);
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute;
+  '/admin': typeof AdminRouteWithChildren;
   '/dashboard': typeof DashboardRouteWithChildren;
   '/login': typeof LoginRoute;
+  '/onboarding': typeof OnboardingRoute;
   '/pricing': typeof PricingRoute;
+  '/privacy': typeof PrivacyRoute;
   '/signup': typeof SignupRoute;
+  '/terms': typeof TermsRoute;
+  '/accept-invite/$token': typeof AcceptInviteTokenRoute;
+  '/admin/partners': typeof AdminPartnersRoute;
+  '/admin/users': typeof AdminUsersRoute;
   '/dashboard/accounts': typeof DashboardAccountsRoute;
   '/dashboard/analytics': typeof DashboardAnalyticsRoute;
   '/dashboard/campaigns': typeof DashboardCampaignsRoute;
@@ -109,13 +164,20 @@ export interface FileRoutesByFullPath {
   '/dashboard/leads': typeof DashboardLeadsRoute;
   '/dashboard/notifications': typeof DashboardNotificationsRoute;
   '/dashboard/settings': typeof DashboardSettingsRoute;
+  '/admin/': typeof AdminIndexRoute;
   '/dashboard/': typeof DashboardIndexRoute;
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute;
   '/login': typeof LoginRoute;
+  '/onboarding': typeof OnboardingRoute;
   '/pricing': typeof PricingRoute;
+  '/privacy': typeof PrivacyRoute;
   '/signup': typeof SignupRoute;
+  '/terms': typeof TermsRoute;
+  '/accept-invite/$token': typeof AcceptInviteTokenRoute;
+  '/admin/partners': typeof AdminPartnersRoute;
+  '/admin/users': typeof AdminUsersRoute;
   '/dashboard/accounts': typeof DashboardAccountsRoute;
   '/dashboard/analytics': typeof DashboardAnalyticsRoute;
   '/dashboard/campaigns': typeof DashboardCampaignsRoute;
@@ -124,15 +186,23 @@ export interface FileRoutesByTo {
   '/dashboard/leads': typeof DashboardLeadsRoute;
   '/dashboard/notifications': typeof DashboardNotificationsRoute;
   '/dashboard/settings': typeof DashboardSettingsRoute;
+  '/admin': typeof AdminIndexRoute;
   '/dashboard': typeof DashboardIndexRoute;
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport;
   '/': typeof IndexRoute;
+  '/admin': typeof AdminRouteWithChildren;
   '/dashboard': typeof DashboardRouteWithChildren;
   '/login': typeof LoginRoute;
+  '/onboarding': typeof OnboardingRoute;
   '/pricing': typeof PricingRoute;
+  '/privacy': typeof PrivacyRoute;
   '/signup': typeof SignupRoute;
+  '/terms': typeof TermsRoute;
+  '/accept-invite/$token': typeof AcceptInviteTokenRoute;
+  '/admin/partners': typeof AdminPartnersRoute;
+  '/admin/users': typeof AdminUsersRoute;
   '/dashboard/accounts': typeof DashboardAccountsRoute;
   '/dashboard/analytics': typeof DashboardAnalyticsRoute;
   '/dashboard/campaigns': typeof DashboardCampaignsRoute;
@@ -141,16 +211,24 @@ export interface FileRoutesById {
   '/dashboard/leads': typeof DashboardLeadsRoute;
   '/dashboard/notifications': typeof DashboardNotificationsRoute;
   '/dashboard/settings': typeof DashboardSettingsRoute;
+  '/admin/': typeof AdminIndexRoute;
   '/dashboard/': typeof DashboardIndexRoute;
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath;
   fullPaths:
     | '/'
+    | '/admin'
     | '/dashboard'
     | '/login'
+    | '/onboarding'
     | '/pricing'
+    | '/privacy'
     | '/signup'
+    | '/terms'
+    | '/accept-invite/$token'
+    | '/admin/partners'
+    | '/admin/users'
     | '/dashboard/accounts'
     | '/dashboard/analytics'
     | '/dashboard/campaigns'
@@ -159,13 +237,20 @@ export interface FileRouteTypes {
     | '/dashboard/leads'
     | '/dashboard/notifications'
     | '/dashboard/settings'
+    | '/admin/'
     | '/dashboard/';
   fileRoutesByTo: FileRoutesByTo;
   to:
     | '/'
     | '/login'
+    | '/onboarding'
     | '/pricing'
+    | '/privacy'
     | '/signup'
+    | '/terms'
+    | '/accept-invite/$token'
+    | '/admin/partners'
+    | '/admin/users'
     | '/dashboard/accounts'
     | '/dashboard/analytics'
     | '/dashboard/campaigns'
@@ -174,14 +259,22 @@ export interface FileRouteTypes {
     | '/dashboard/leads'
     | '/dashboard/notifications'
     | '/dashboard/settings'
+    | '/admin'
     | '/dashboard';
   id:
     | '__root__'
     | '/'
+    | '/admin'
     | '/dashboard'
     | '/login'
+    | '/onboarding'
     | '/pricing'
+    | '/privacy'
     | '/signup'
+    | '/terms'
+    | '/accept-invite/$token'
+    | '/admin/partners'
+    | '/admin/users'
     | '/dashboard/accounts'
     | '/dashboard/analytics'
     | '/dashboard/campaigns'
@@ -190,19 +283,32 @@ export interface FileRouteTypes {
     | '/dashboard/leads'
     | '/dashboard/notifications'
     | '/dashboard/settings'
+    | '/admin/'
     | '/dashboard/';
   fileRoutesById: FileRoutesById;
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute;
+  AdminRoute: typeof AdminRouteWithChildren;
   DashboardRoute: typeof DashboardRouteWithChildren;
   LoginRoute: typeof LoginRoute;
+  OnboardingRoute: typeof OnboardingRoute;
   PricingRoute: typeof PricingRoute;
+  PrivacyRoute: typeof PrivacyRoute;
   SignupRoute: typeof SignupRoute;
+  TermsRoute: typeof TermsRoute;
+  AcceptInviteTokenRoute: typeof AcceptInviteTokenRoute;
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/terms': {
+      id: '/terms';
+      path: '/terms';
+      fullPath: '/terms';
+      preLoaderRoute: typeof TermsRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     '/signup': {
       id: '/signup';
       path: '/signup';
@@ -210,11 +316,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SignupRouteImport;
       parentRoute: typeof rootRouteImport;
     };
+    '/privacy': {
+      id: '/privacy';
+      path: '/privacy';
+      fullPath: '/privacy';
+      preLoaderRoute: typeof PrivacyRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     '/pricing': {
       id: '/pricing';
       path: '/pricing';
       fullPath: '/pricing';
       preLoaderRoute: typeof PricingRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    '/onboarding': {
+      id: '/onboarding';
+      path: '/onboarding';
+      fullPath: '/onboarding';
+      preLoaderRoute: typeof OnboardingRouteImport;
       parentRoute: typeof rootRouteImport;
     };
     '/login': {
@@ -231,6 +351,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardRouteImport;
       parentRoute: typeof rootRouteImport;
     };
+    '/admin': {
+      id: '/admin';
+      path: '/admin';
+      fullPath: '/admin';
+      preLoaderRoute: typeof AdminRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     '/': {
       id: '/';
       path: '/';
@@ -244,6 +371,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/dashboard/';
       preLoaderRoute: typeof DashboardIndexRouteImport;
       parentRoute: typeof DashboardRoute;
+    };
+    '/admin/': {
+      id: '/admin/';
+      path: '/';
+      fullPath: '/admin/';
+      preLoaderRoute: typeof AdminIndexRouteImport;
+      parentRoute: typeof AdminRoute;
     };
     '/dashboard/settings': {
       id: '/dashboard/settings';
@@ -301,8 +435,43 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardAccountsRouteImport;
       parentRoute: typeof DashboardRoute;
     };
+    '/admin/users': {
+      id: '/admin/users';
+      path: '/users';
+      fullPath: '/admin/users';
+      preLoaderRoute: typeof AdminUsersRouteImport;
+      parentRoute: typeof AdminRoute;
+    };
+    '/admin/partners': {
+      id: '/admin/partners';
+      path: '/partners';
+      fullPath: '/admin/partners';
+      preLoaderRoute: typeof AdminPartnersRouteImport;
+      parentRoute: typeof AdminRoute;
+    };
+    '/accept-invite/$token': {
+      id: '/accept-invite/$token';
+      path: '/accept-invite/$token';
+      fullPath: '/accept-invite/$token';
+      preLoaderRoute: typeof AcceptInviteTokenRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
   }
 }
+
+interface AdminRouteChildren {
+  AdminPartnersRoute: typeof AdminPartnersRoute;
+  AdminUsersRoute: typeof AdminUsersRoute;
+  AdminIndexRoute: typeof AdminIndexRoute;
+}
+
+const AdminRouteChildren: AdminRouteChildren = {
+  AdminPartnersRoute: AdminPartnersRoute,
+  AdminUsersRoute: AdminUsersRoute,
+  AdminIndexRoute: AdminIndexRoute,
+};
+
+const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren);
 
 interface DashboardRouteChildren {
   DashboardAccountsRoute: typeof DashboardAccountsRoute;
@@ -332,10 +501,15 @@ const DashboardRouteWithChildren = DashboardRoute._addFileChildren(DashboardRout
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AdminRoute: AdminRouteWithChildren,
   DashboardRoute: DashboardRouteWithChildren,
   LoginRoute: LoginRoute,
+  OnboardingRoute: OnboardingRoute,
   PricingRoute: PricingRoute,
+  PrivacyRoute: PrivacyRoute,
   SignupRoute: SignupRoute,
+  TermsRoute: TermsRoute,
+  AcceptInviteTokenRoute: AcceptInviteTokenRoute,
 };
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
