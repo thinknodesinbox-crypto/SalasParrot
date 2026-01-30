@@ -1,5 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router';
 import { useAdminStats, useAdminSignupTrends } from '@/lib/hooks/queries/useAdmin';
+import { useAdminTheme } from '@/lib/adminTheme';
 import { Users, UserPlus, Rocket, MessageSquare, TrendingUp, Calendar } from 'lucide-react';
 
 export const Route = createFileRoute('/admin/')({
@@ -9,12 +10,17 @@ export const Route = createFileRoute('/admin/')({
 function AdminDashboard() {
   const { data: stats, isLoading: statsLoading } = useAdminStats();
   const { data: trends } = useAdminSignupTrends(30);
+  const { theme } = useAdminTheme();
+
+  const isDark = theme === 'dark';
 
   return (
     <div className="p-8">
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-white">Admin Dashboard</h1>
-        <p className="text-gray-400">Overview of platform activity</p>
+        <h1 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+          Admin Dashboard
+        </h1>
+        <p className={isDark ? 'text-gray-400' : 'text-gray-600'}>Overview of platform activity</p>
       </div>
 
       {/* Stats Grid */}
@@ -25,6 +31,7 @@ function AdminDashboard() {
           icon={Users}
           loading={statsLoading}
           subtitle={`${stats?.active_users ?? 0} active (30d)`}
+          isDark={isDark}
         />
         <StatCard
           title="Partners"
@@ -32,6 +39,7 @@ function AdminDashboard() {
           icon={UserPlus}
           loading={statsLoading}
           subtitle={`${stats?.active_partners ?? 0} active`}
+          isDark={isDark}
         />
         <StatCard
           title="Campaigns"
@@ -39,6 +47,7 @@ function AdminDashboard() {
           icon={Rocket}
           loading={statsLoading}
           subtitle={`${stats?.active_campaigns ?? 0} running`}
+          isDark={isDark}
         />
         <StatCard
           title="Messages Sent"
@@ -46,43 +55,58 @@ function AdminDashboard() {
           icon={MessageSquare}
           loading={statsLoading}
           subtitle={`${stats?.total_leads ?? 0} leads`}
+          isDark={isDark}
         />
       </div>
 
       {/* Growth Stats */}
       <div className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-3">
-        <div className="rounded-xl border border-white/10 bg-[#111113] p-6">
+        <div
+          className={`rounded-xl border p-6 ${isDark ? 'border-white/10 bg-[#111113]' : 'border-gray-200 bg-white'}`}
+        >
           <div className="mb-4 flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-500/10">
               <TrendingUp className="h-5 w-5 text-green-500" />
             </div>
             <div>
-              <p className="text-sm text-gray-400">New Users Today</p>
-              <p className="text-2xl font-bold text-white">{stats?.new_users_today ?? 0}</p>
+              <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+                New Users Today
+              </p>
+              <p className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                {stats?.new_users_today ?? 0}
+              </p>
             </div>
           </div>
         </div>
 
-        <div className="rounded-xl border border-white/10 bg-[#111113] p-6">
+        <div
+          className={`rounded-xl border p-6 ${isDark ? 'border-white/10 bg-[#111113]' : 'border-gray-200 bg-white'}`}
+        >
           <div className="mb-4 flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-500/10">
               <Calendar className="h-5 w-5 text-blue-500" />
             </div>
             <div>
-              <p className="text-sm text-gray-400">This Week</p>
-              <p className="text-2xl font-bold text-white">{stats?.new_users_this_week ?? 0}</p>
+              <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>This Week</p>
+              <p className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                {stats?.new_users_this_week ?? 0}
+              </p>
             </div>
           </div>
         </div>
 
-        <div className="rounded-xl border border-white/10 bg-[#111113] p-6">
+        <div
+          className={`rounded-xl border p-6 ${isDark ? 'border-white/10 bg-[#111113]' : 'border-gray-200 bg-white'}`}
+        >
           <div className="mb-4 flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-purple-500/10">
               <Calendar className="h-5 w-5 text-purple-500" />
             </div>
             <div>
-              <p className="text-sm text-gray-400">This Month</p>
-              <p className="text-2xl font-bold text-white">{stats?.new_users_this_month ?? 0}</p>
+              <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>This Month</p>
+              <p className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                {stats?.new_users_this_month ?? 0}
+              </p>
             </div>
           </div>
         </div>
@@ -90,8 +114,12 @@ function AdminDashboard() {
 
       {/* Signup Trends */}
       {trends && trends.daily.length > 0 && (
-        <div className="rounded-xl border border-white/10 bg-[#111113] p-6">
-          <h2 className="mb-4 text-lg font-semibold text-white">Signup Trends (Last 30 Days)</h2>
+        <div
+          className={`rounded-xl border p-6 ${isDark ? 'border-white/10 bg-[#111113]' : 'border-gray-200 bg-white'}`}
+        >
+          <h2 className={`mb-4 text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+            Signup Trends (Last 30 Days)
+          </h2>
           <div className="h-48">
             <div className="flex h-full items-end gap-1">
               {trends.daily.map((day, index) => {
@@ -107,7 +135,9 @@ function AdminDashboard() {
                       className="w-full rounded-t bg-[#14B8A6] transition-colors hover:bg-[#14B8A6]/80"
                       style={{ height: `${Math.max(height, 2)}%` }}
                     />
-                    <div className="absolute bottom-full left-1/2 mb-2 hidden -translate-x-1/2 rounded bg-gray-800 px-2 py-1 text-xs text-white group-hover:block">
+                    <div
+                      className={`absolute bottom-full left-1/2 mb-2 hidden -translate-x-1/2 rounded px-2 py-1 text-xs text-white group-hover:block ${isDark ? 'bg-gray-800' : 'bg-gray-700'}`}
+                    >
                       {day.date}: {day.count}
                     </div>
                   </div>
@@ -127,28 +157,38 @@ function StatCard({
   icon: Icon,
   loading,
   subtitle,
+  isDark,
 }: {
   title: string;
   value: number;
   icon: React.ComponentType<{ className?: string }>;
   loading?: boolean;
   subtitle?: string;
+  isDark: boolean;
 }) {
   return (
-    <div className="rounded-xl border border-white/10 bg-[#111113] p-6">
+    <div
+      className={`rounded-xl border p-6 ${isDark ? 'border-white/10 bg-[#111113]' : 'border-gray-200 bg-white'}`}
+    >
       <div className="mb-4 flex items-center justify-between">
         <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#14B8A6]/10">
           <Icon className="h-5 w-5 text-[#14B8A6]" />
         </div>
       </div>
       <div>
-        <p className="text-sm text-gray-400">{title}</p>
+        <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>{title}</p>
         {loading ? (
-          <div className="mt-1 h-8 w-20 animate-pulse rounded bg-white/10" />
+          <div
+            className={`mt-1 h-8 w-20 animate-pulse rounded ${isDark ? 'bg-white/10' : 'bg-gray-200'}`}
+          />
         ) : (
-          <p className="text-2xl font-bold text-white">{value.toLocaleString()}</p>
+          <p className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+            {value.toLocaleString()}
+          </p>
         )}
-        {subtitle && <p className="mt-1 text-xs text-gray-500">{subtitle}</p>}
+        {subtitle && (
+          <p className={`mt-1 text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>{subtitle}</p>
+        )}
       </div>
     </div>
   );

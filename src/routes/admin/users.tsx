@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   useAdminUsers,
@@ -7,6 +7,7 @@ import {
   useDeleteAdminUser,
   useImpersonateUser,
 } from '@/lib/hooks/queries/useAdmin';
+import { useAdminTheme } from '@/lib/adminTheme';
 import { setAccessToken } from '@/lib/api';
 import type { AdminUser, AdminUserUpdate } from '@/lib/types';
 import {
@@ -31,6 +32,9 @@ function AdminUsersPage() {
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
   const [deletingUser, setDeletingUser] = useState<AdminUser | null>(null);
+  const { theme } = useAdminTheme();
+
+  const isDark = theme === 'dark';
 
   const { data, isLoading } = useAdminUsers({
     page,
@@ -84,8 +88,8 @@ function AdminUsersPage() {
   return (
     <div className="p-8">
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-white">Users</h1>
-        <p className="text-gray-400">Manage all platform users</p>
+        <h1 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>Users</h1>
+        <p className={isDark ? 'text-gray-400' : 'text-gray-600'}>Manage all platform users</p>
       </div>
 
       {/* Filters */}
@@ -97,7 +101,11 @@ function AdminUsersPage() {
             placeholder="Search by name or email..."
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            className="h-10 w-full max-w-md rounded-lg border border-white/10 bg-white/5 pl-10 pr-4 text-sm text-white placeholder-gray-400 focus:border-[#14B8A6] focus:outline-none"
+            className={`h-10 w-full max-w-md rounded-lg border pl-10 pr-4 text-sm placeholder-gray-400 focus:border-[#14B8A6] focus:outline-none ${
+              isDark
+                ? 'border-white/10 bg-white/5 text-white'
+                : 'border-gray-200 bg-white text-gray-900'
+            }`}
           />
         </form>
 
@@ -107,39 +115,100 @@ function AdminUsersPage() {
             setStatusFilter(e.target.value);
             setPage(1);
           }}
-          className="h-10 rounded-lg border border-white/10 bg-white/5 px-3 text-sm text-white focus:border-[#14B8A6] focus:outline-none"
+          className={`h-10 rounded-lg border px-3 text-sm focus:border-[#14B8A6] focus:outline-none ${
+            isDark
+              ? 'border-white/10 bg-[#1A1A1C] text-white'
+              : 'border-gray-200 bg-white text-gray-900'
+          }`}
         >
-          <option value="">All Statuses</option>
-          <option value="active">Active</option>
-          <option value="trialing">Trialing</option>
-          <option value="partner">Partner</option>
-          <option value="inactive">Inactive</option>
+          <option
+            value=""
+            className={isDark ? 'bg-[#1A1A1C] text-white' : 'bg-white text-gray-900'}
+          >
+            All Statuses
+          </option>
+          <option
+            value="active"
+            className={isDark ? 'bg-[#1A1A1C] text-white' : 'bg-white text-gray-900'}
+          >
+            Active
+          </option>
+          <option
+            value="trialing"
+            className={isDark ? 'bg-[#1A1A1C] text-white' : 'bg-white text-gray-900'}
+          >
+            Trialing
+          </option>
+          <option
+            value="partner"
+            className={isDark ? 'bg-[#1A1A1C] text-white' : 'bg-white text-gray-900'}
+          >
+            Partner
+          </option>
+          <option
+            value="inactive"
+            className={isDark ? 'bg-[#1A1A1C] text-white' : 'bg-white text-gray-900'}
+          >
+            Inactive
+          </option>
         </select>
       </div>
 
       {/* Table */}
-      <div className="overflow-hidden rounded-xl border border-white/10 bg-[#111113]">
+      <div
+        className={`overflow-x-auto rounded-xl border ${isDark ? 'border-white/10 bg-[#111113]' : 'border-gray-200 bg-white'}`}
+      >
         <table className="w-full">
           <thead>
-            <tr className="border-b border-white/10 text-left">
-              <th className="px-6 py-4 text-xs font-medium uppercase text-gray-400">User</th>
-              <th className="px-6 py-4 text-xs font-medium uppercase text-gray-400">Status</th>
-              <th className="px-6 py-4 text-xs font-medium uppercase text-gray-400">Plan</th>
-              <th className="px-6 py-4 text-xs font-medium uppercase text-gray-400">Senders</th>
-              <th className="px-6 py-4 text-xs font-medium uppercase text-gray-400">Created</th>
-              <th className="px-6 py-4 text-xs font-medium uppercase text-gray-400">Actions</th>
+            <tr className={`border-b text-left ${isDark ? 'border-white/10' : 'border-gray-200'}`}>
+              <th
+                className={`px-6 py-4 text-xs font-medium uppercase ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
+              >
+                User
+              </th>
+              <th
+                className={`px-6 py-4 text-xs font-medium uppercase ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
+              >
+                Status
+              </th>
+              <th
+                className={`px-6 py-4 text-xs font-medium uppercase ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
+              >
+                Plan
+              </th>
+              <th
+                className={`px-6 py-4 text-xs font-medium uppercase ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
+              >
+                Senders
+              </th>
+              <th
+                className={`px-6 py-4 text-xs font-medium uppercase ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
+              >
+                Created
+              </th>
+              <th
+                className={`px-6 py-4 text-xs font-medium uppercase ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
+              >
+                Actions
+              </th>
             </tr>
           </thead>
           <tbody>
             {isLoading ? (
               <tr>
-                <td colSpan={6} className="px-6 py-12 text-center text-gray-400">
+                <td
+                  colSpan={6}
+                  className={`px-6 py-12 text-center ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
+                >
                   Loading...
                 </td>
               </tr>
             ) : data?.items.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-6 py-12 text-center text-gray-400">
+                <td
+                  colSpan={6}
+                  className={`px-6 py-12 text-center ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
+                >
                   No users found
                 </td>
               </tr>
@@ -151,6 +220,7 @@ function AdminUsersPage() {
                   onEdit={() => setEditingUser(user)}
                   onDelete={() => setDeletingUser(user)}
                   onImpersonate={() => handleImpersonate(user)}
+                  isDark={isDark}
                 />
               ))
             )}
@@ -161,7 +231,7 @@ function AdminUsersPage() {
       {/* Pagination */}
       {data && data.total > data.per_page && (
         <div className="mt-4 flex items-center justify-between">
-          <p className="text-sm text-gray-400">
+          <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
             Showing {(page - 1) * data.per_page + 1} to {Math.min(page * data.per_page, data.total)}{' '}
             of {data.total} users
           </p>
@@ -169,17 +239,25 @@ function AdminUsersPage() {
             <button
               onClick={() => setPage(page - 1)}
               disabled={page === 1}
-              className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 text-gray-400 hover:bg-white/5 disabled:opacity-50"
+              className={`flex h-9 w-9 items-center justify-center rounded-lg border disabled:opacity-50 ${
+                isDark
+                  ? 'border-white/10 text-gray-400 hover:bg-white/5'
+                  : 'border-gray-200 text-gray-500 hover:bg-gray-100'
+              }`}
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
-            <span className="px-3 text-sm text-gray-400">
+            <span className={`px-3 text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
               Page {page} of {totalPages}
             </span>
             <button
               onClick={() => setPage(page + 1)}
               disabled={page === totalPages}
-              className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 text-gray-400 hover:bg-white/5 disabled:opacity-50"
+              className={`flex h-9 w-9 items-center justify-center rounded-lg border disabled:opacity-50 ${
+                isDark
+                  ? 'border-white/10 text-gray-400 hover:bg-white/5'
+                  : 'border-gray-200 text-gray-500 hover:bg-gray-100'
+              }`}
             >
               <ChevronRight className="h-4 w-4" />
             </button>
@@ -198,6 +276,7 @@ function AdminUsersPage() {
               setEditingUser(null);
             }}
             isLoading={updateUser.isPending}
+            isDark={isDark}
           />
         )}
       </AnimatePresence>
@@ -210,6 +289,7 @@ function AdminUsersPage() {
             onClose={() => setDeletingUser(null)}
             onConfirm={handleDelete}
             isLoading={deleteUser.isPending}
+            isDark={isDark}
           />
         )}
       </AnimatePresence>
@@ -222,13 +302,17 @@ function UserRow({
   onEdit,
   onDelete,
   onImpersonate,
+  isDark,
 }: {
   user: AdminUser;
   onEdit: () => void;
   onDelete: () => void;
   onImpersonate: () => void;
+  isDark: boolean;
 }) {
   const [showMenu, setShowMenu] = useState(false);
+  const [menuStyle, setMenuStyle] = useState<React.CSSProperties>({});
+  const buttonRef = useRef<HTMLButtonElement>(null);
 
   const getStatusBadge = (status: string | null) => {
     const statusColors: Record<string, string> = {
@@ -241,8 +325,36 @@ function UserRow({
     return statusColors[status || 'inactive'] || statusColors.inactive;
   };
 
+  const handleToggleMenu = () => {
+    if (!showMenu && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const menuHeight = 140; // Approximate menu height
+
+      // Position menu using fixed coordinates
+      if (spaceBelow < menuHeight) {
+        // Open upward
+        setMenuStyle({
+          position: 'fixed',
+          top: rect.top - menuHeight,
+          right: window.innerWidth - rect.right,
+        });
+      } else {
+        // Open downward
+        setMenuStyle({
+          position: 'fixed',
+          top: rect.bottom + 4,
+          right: window.innerWidth - rect.right,
+        });
+      }
+    }
+    setShowMenu(!showMenu);
+  };
+
   return (
-    <tr className="border-b border-white/5 hover:bg-white/5">
+    <tr
+      className={`border-b ${isDark ? 'border-white/5 hover:bg-white/5' : 'border-gray-100 hover:bg-gray-50'}`}
+    >
       <td className="px-6 py-4">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#14B8A6]/10 text-[#14B8A6]">
@@ -250,14 +362,16 @@ function UserRow({
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <p className="font-medium text-white">{user.name || 'No name'}</p>
+              <p className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                {user.name || 'No name'}
+              </p>
               {user.is_admin && (
                 <span className="rounded bg-yellow-500/10 px-1.5 py-0.5 text-xs text-yellow-500">
                   Admin
                 </span>
               )}
             </div>
-            <p className="text-sm text-gray-400">{user.email}</p>
+            <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{user.email}</p>
           </div>
         </div>
       </td>
@@ -269,35 +383,47 @@ function UserRow({
         </span>
       </td>
       <td className="px-6 py-4">
-        <span className="text-sm text-white">{user.plan || 'starter'}</span>
+        <span className={`text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>
+          {user.plan || 'starter'}
+        </span>
       </td>
       <td className="px-6 py-4">
-        <span className="text-sm text-white">{user.sender_count}</span>
+        <span className={`text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>
+          {user.sender_count}
+        </span>
       </td>
       <td className="px-6 py-4">
-        <span className="text-sm text-gray-400">
+        <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
           {new Date(user.created_at).toLocaleDateString()}
         </span>
       </td>
       <td className="px-6 py-4">
         <div className="relative">
           <button
-            onClick={() => setShowMenu(!showMenu)}
-            className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-white/10"
+            ref={buttonRef}
+            onClick={handleToggleMenu}
+            className={`flex h-8 w-8 items-center justify-center rounded-lg ${isDark ? 'hover:bg-white/10' : 'hover:bg-gray-100'}`}
           >
             <MoreHorizontal className="h-4 w-4 text-gray-400" />
           </button>
 
           {showMenu && (
             <>
-              <div className="fixed inset-0 z-10" onClick={() => setShowMenu(false)} />
-              <div className="absolute right-0 top-full z-20 mt-1 w-48 rounded-lg border border-white/10 bg-[#1A1A1C] py-1 shadow-xl">
+              <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
+              <div
+                style={menuStyle}
+                className={`z-50 w-48 rounded-lg border py-1 shadow-xl ${
+                  isDark ? 'border-white/10 bg-[#1A1A1C]' : 'border-gray-200 bg-white'
+                }`}
+              >
                 <button
                   onClick={() => {
                     onImpersonate();
                     setShowMenu(false);
                   }}
-                  className="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-300 hover:bg-white/5"
+                  className={`flex w-full items-center gap-2 px-4 py-2 text-sm ${
+                    isDark ? 'text-gray-300 hover:bg-white/5' : 'text-gray-700 hover:bg-gray-100'
+                  }`}
                 >
                   <Eye className="h-4 w-4" />
                   Impersonate
@@ -307,7 +433,9 @@ function UserRow({
                     onEdit();
                     setShowMenu(false);
                   }}
-                  className="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-300 hover:bg-white/5"
+                  className={`flex w-full items-center gap-2 px-4 py-2 text-sm ${
+                    isDark ? 'text-gray-300 hover:bg-white/5' : 'text-gray-700 hover:bg-gray-100'
+                  }`}
                 >
                   <Edit className="h-4 w-4" />
                   Edit
@@ -317,7 +445,9 @@ function UserRow({
                     onDelete();
                     setShowMenu(false);
                   }}
-                  className="flex w-full items-center gap-2 px-4 py-2 text-sm text-red-400 hover:bg-white/5"
+                  className={`flex w-full items-center gap-2 px-4 py-2 text-sm text-red-400 ${
+                    isDark ? 'hover:bg-white/5' : 'hover:bg-gray-100'
+                  }`}
                 >
                   <Trash2 className="h-4 w-4" />
                   Deactivate
@@ -336,11 +466,13 @@ function EditUserModal({
   onClose,
   onSave,
   isLoading,
+  isDark,
 }: {
   user: AdminUser;
   onClose: () => void;
   onSave: (data: AdminUserUpdate) => Promise<void>;
   isLoading: boolean;
+  isDark: boolean;
 }) {
   const [formData, setFormData] = useState<AdminUserUpdate>({
     name: user.name || '',
@@ -369,53 +501,105 @@ function EditUserModal({
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.95, opacity: 0 }}
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md rounded-xl border border-white/10 bg-[#111113] p-6"
+        className={`w-full max-w-md rounded-xl border p-6 ${isDark ? 'border-white/10 bg-[#111113]' : 'border-gray-200 bg-white'}`}
       >
         <div className="mb-6 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-white">Edit User</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-white">
+          <h2 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+            Edit User
+          </h2>
+          <button
+            onClick={onClose}
+            className={
+              isDark ? 'text-gray-400 hover:text-white' : 'text-gray-400 hover:text-gray-600'
+            }
+          >
             <X className="h-5 w-5" />
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="mb-1.5 block text-sm text-gray-400">Name</label>
+            <label className={`mb-1.5 block text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+              Name
+            </label>
             <input
               type="text"
               value={formData.name || ''}
               onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-white focus:border-[#14B8A6] focus:outline-none"
+              className={`h-10 w-full rounded-lg border px-3 focus:border-[#14B8A6] focus:outline-none ${
+                isDark
+                  ? 'border-white/10 bg-white/5 text-white'
+                  : 'border-gray-200 bg-gray-50 text-gray-900'
+              }`}
             />
           </div>
 
           <div>
-            <label className="mb-1.5 block text-sm text-gray-400">Email</label>
+            <label className={`mb-1.5 block text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+              Email
+            </label>
             <input
               type="email"
               value={formData.email || ''}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-white focus:border-[#14B8A6] focus:outline-none"
+              className={`h-10 w-full rounded-lg border px-3 focus:border-[#14B8A6] focus:outline-none ${
+                isDark
+                  ? 'border-white/10 bg-white/5 text-white'
+                  : 'border-gray-200 bg-gray-50 text-gray-900'
+              }`}
             />
           </div>
 
           <div>
-            <label className="mb-1.5 block text-sm text-gray-400">Subscription Status</label>
+            <label className={`mb-1.5 block text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+              Subscription Status
+            </label>
             <select
               value={formData.subscription_status || 'inactive'}
               onChange={(e) => setFormData({ ...formData, subscription_status: e.target.value })}
-              className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-white focus:border-[#14B8A6] focus:outline-none"
+              className={`h-10 w-full rounded-lg border px-3 focus:border-[#14B8A6] focus:outline-none ${
+                isDark
+                  ? 'border-white/10 bg-[#1A1A1C] text-white'
+                  : 'border-gray-200 bg-white text-gray-900'
+              }`}
             >
-              <option value="active">Active</option>
-              <option value="trialing">Trialing</option>
-              <option value="partner">Partner</option>
-              <option value="inactive">Inactive</option>
-              <option value="past_due">Past Due</option>
+              <option
+                value="active"
+                className={isDark ? 'bg-[#1A1A1C] text-white' : 'bg-white text-gray-900'}
+              >
+                Active
+              </option>
+              <option
+                value="trialing"
+                className={isDark ? 'bg-[#1A1A1C] text-white' : 'bg-white text-gray-900'}
+              >
+                Trialing
+              </option>
+              <option
+                value="partner"
+                className={isDark ? 'bg-[#1A1A1C] text-white' : 'bg-white text-gray-900'}
+              >
+                Partner
+              </option>
+              <option
+                value="inactive"
+                className={isDark ? 'bg-[#1A1A1C] text-white' : 'bg-white text-gray-900'}
+              >
+                Inactive
+              </option>
+              <option
+                value="past_due"
+                className={isDark ? 'bg-[#1A1A1C] text-white' : 'bg-white text-gray-900'}
+              >
+                Past Due
+              </option>
             </select>
           </div>
 
           <div>
-            <label className="mb-1.5 block text-sm text-gray-400">Sender Count</label>
+            <label className={`mb-1.5 block text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+              Sender Count
+            </label>
             <input
               type="number"
               min="0"
@@ -423,7 +607,11 @@ function EditUserModal({
               onChange={(e) =>
                 setFormData({ ...formData, sender_count: parseInt(e.target.value) || 0 })
               }
-              className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-white focus:border-[#14B8A6] focus:outline-none"
+              className={`h-10 w-full rounded-lg border px-3 focus:border-[#14B8A6] focus:outline-none ${
+                isDark
+                  ? 'border-white/10 bg-white/5 text-white'
+                  : 'border-gray-200 bg-gray-50 text-gray-900'
+              }`}
             />
           </div>
 
@@ -435,7 +623,7 @@ function EditUserModal({
                 onChange={(e) => setFormData({ ...formData, is_admin: e.target.checked })}
                 className="h-4 w-4 rounded border-white/10 bg-white/5 text-[#14B8A6] focus:ring-[#14B8A6]"
               />
-              <span className="text-sm text-gray-300">Admin</span>
+              <span className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>Admin</span>
             </label>
 
             <label className="flex items-center gap-2">
@@ -445,7 +633,9 @@ function EditUserModal({
                 onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
                 className="h-4 w-4 rounded border-white/10 bg-white/5 text-[#14B8A6] focus:ring-[#14B8A6]"
               />
-              <span className="text-sm text-gray-300">Active</span>
+              <span className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-600'}`}>
+                Active
+              </span>
             </label>
           </div>
 
@@ -453,7 +643,11 @@ function EditUserModal({
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg border border-white/10 px-4 py-2 text-sm text-gray-300 hover:bg-white/5"
+              className={`rounded-lg border px-4 py-2 text-sm ${
+                isDark
+                  ? 'border-white/10 text-gray-300 hover:bg-white/5'
+                  : 'border-gray-200 text-gray-600 hover:bg-gray-100'
+              }`}
             >
               Cancel
             </button>
@@ -476,11 +670,13 @@ function DeleteConfirmModal({
   onClose,
   onConfirm,
   isLoading,
+  isDark,
 }: {
   user: AdminUser;
   onClose: () => void;
   onConfirm: () => void;
   isLoading: boolean;
+  isDark: boolean;
 }) {
   return (
     <motion.div
@@ -495,18 +691,25 @@ function DeleteConfirmModal({
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.95, opacity: 0 }}
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-sm rounded-xl border border-white/10 bg-[#111113] p-6"
+        className={`w-full max-w-sm rounded-xl border p-6 ${isDark ? 'border-white/10 bg-[#111113]' : 'border-gray-200 bg-white'}`}
       >
-        <h2 className="mb-2 text-lg font-semibold text-white">Deactivate User</h2>
-        <p className="mb-6 text-sm text-gray-400">
-          Are you sure you want to deactivate <strong className="text-white">{user.email}</strong>?
-          They will no longer be able to access the platform.
+        <h2 className={`mb-2 text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+          Deactivate User
+        </h2>
+        <p className={`mb-6 text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+          Are you sure you want to deactivate{' '}
+          <strong className={isDark ? 'text-white' : 'text-gray-900'}>{user.email}</strong>? They
+          will no longer be able to access the platform.
         </p>
 
         <div className="flex justify-end gap-3">
           <button
             onClick={onClose}
-            className="rounded-lg border border-white/10 px-4 py-2 text-sm text-gray-300 hover:bg-white/5"
+            className={`rounded-lg border px-4 py-2 text-sm ${
+              isDark
+                ? 'border-white/10 text-gray-300 hover:bg-white/5'
+                : 'border-gray-200 text-gray-600 hover:bg-gray-100'
+            }`}
           >
             Cancel
           </button>

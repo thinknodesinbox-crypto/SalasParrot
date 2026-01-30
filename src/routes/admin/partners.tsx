@@ -11,6 +11,7 @@ import {
   useDeletePartnerCode,
   usePartnerCodeTemplates,
 } from '@/lib/hooks/queries/useAdmin';
+import { useAdminTheme } from '@/lib/adminTheme';
 import type {
   PartnerCode,
   PartnerCodeCreate,
@@ -52,6 +53,9 @@ function AdminPartnerCodesPage() {
   const [viewingCode, setViewingCode] = useState<PartnerCode | null>(null);
   const [duplicatingCode, setDuplicatingCode] = useState<PartnerCode | null>(null);
   const [deletingCode, setDeletingCode] = useState<PartnerCode | null>(null);
+  const { theme } = useAdminTheme();
+
+  const isDark = theme === 'dark';
 
   const { data, isLoading } = usePartnerCodes({
     page,
@@ -111,8 +115,12 @@ function AdminPartnerCodesPage() {
     <div className="p-8">
       <div className="mb-8 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-white">Partner Codes</h1>
-          <p className="text-gray-400">Create and manage partner codes for free access</p>
+          <h1 className={`text-2xl font-bold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+            Partner Codes
+          </h1>
+          <p className={isDark ? 'text-gray-400' : 'text-gray-600'}>
+            Create and manage partner codes for free access
+          </p>
         </div>
         <button
           onClick={() => setShowCreateModal(true)}
@@ -132,7 +140,11 @@ function AdminPartnerCodesPage() {
             placeholder="Search by code, partner name, or email..."
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
-            className="h-10 w-full max-w-md rounded-lg border border-white/10 bg-white/5 pl-10 pr-4 text-sm text-white placeholder-gray-400 focus:border-[#14B8A6] focus:outline-none"
+            className={`h-10 w-full max-w-md rounded-lg border pl-10 pr-4 text-sm placeholder-gray-400 focus:border-[#14B8A6] focus:outline-none ${
+              isDark
+                ? 'border-white/10 bg-white/5 text-white'
+                : 'border-gray-200 bg-white text-gray-900'
+            }`}
           />
         </form>
 
@@ -142,39 +154,99 @@ function AdminPartnerCodesPage() {
             setStatusFilter(e.target.value);
             setPage(1);
           }}
-          className="h-10 rounded-lg border border-white/10 bg-white/5 px-3 text-sm text-white focus:border-[#14B8A6] focus:outline-none"
+          className={`h-10 rounded-lg border px-3 text-sm focus:border-[#14B8A6] focus:outline-none ${
+            isDark
+              ? 'border-white/10 bg-[#1A1A1C] text-white'
+              : 'border-gray-200 bg-white text-gray-900'
+          }`}
         >
-          <option value="">All Codes</option>
-          <option value="active">Active</option>
-          <option value="inactive">Disabled</option>
-          <option value="expired">Expired</option>
+          <option
+            value=""
+            className={isDark ? 'bg-[#1A1A1C] text-white' : 'bg-white text-gray-900'}
+          >
+            All Codes
+          </option>
+          <option
+            value="active"
+            className={isDark ? 'bg-[#1A1A1C] text-white' : 'bg-white text-gray-900'}
+          >
+            Active
+          </option>
+          <option
+            value="inactive"
+            className={isDark ? 'bg-[#1A1A1C] text-white' : 'bg-white text-gray-900'}
+          >
+            Disabled
+          </option>
+          <option
+            value="expired"
+            className={isDark ? 'bg-[#1A1A1C] text-white' : 'bg-white text-gray-900'}
+          >
+            Expired
+          </option>
         </select>
       </div>
 
       {/* Table */}
-      <div className="overflow-hidden rounded-xl border border-white/10 bg-[#111113]">
+      <div
+        className={`overflow-hidden rounded-xl border ${isDark ? 'border-white/10 bg-[#111113]' : 'border-gray-200 bg-white'}`}
+      >
         <table className="w-full">
           <thead>
-            <tr className="border-b border-white/10 text-left">
-              <th className="px-6 py-4 text-xs font-medium uppercase text-gray-400">Code</th>
-              <th className="px-6 py-4 text-xs font-medium uppercase text-gray-400">Partner</th>
-              <th className="px-6 py-4 text-xs font-medium uppercase text-gray-400">Access</th>
-              <th className="px-6 py-4 text-xs font-medium uppercase text-gray-400">Uses</th>
-              <th className="px-6 py-4 text-xs font-medium uppercase text-gray-400">Status</th>
-              <th className="px-6 py-4 text-xs font-medium uppercase text-gray-400">Expires</th>
-              <th className="px-6 py-4 text-xs font-medium uppercase text-gray-400">Actions</th>
+            <tr className={`border-b text-left ${isDark ? 'border-white/10' : 'border-gray-200'}`}>
+              <th
+                className={`px-6 py-4 text-xs font-medium uppercase ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
+              >
+                Code
+              </th>
+              <th
+                className={`px-6 py-4 text-xs font-medium uppercase ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
+              >
+                Partner
+              </th>
+              <th
+                className={`px-6 py-4 text-xs font-medium uppercase ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
+              >
+                Access
+              </th>
+              <th
+                className={`px-6 py-4 text-xs font-medium uppercase ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
+              >
+                Uses
+              </th>
+              <th
+                className={`px-6 py-4 text-xs font-medium uppercase ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
+              >
+                Status
+              </th>
+              <th
+                className={`px-6 py-4 text-xs font-medium uppercase ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
+              >
+                Expires
+              </th>
+              <th
+                className={`px-6 py-4 text-xs font-medium uppercase ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
+              >
+                Actions
+              </th>
             </tr>
           </thead>
           <tbody>
             {isLoading ? (
               <tr>
-                <td colSpan={7} className="px-6 py-12 text-center text-gray-400">
+                <td
+                  colSpan={7}
+                  className={`px-6 py-12 text-center ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
+                >
                   Loading...
                 </td>
               </tr>
             ) : data?.items.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-6 py-12 text-center text-gray-400">
+                <td
+                  colSpan={7}
+                  className={`px-6 py-12 text-center ${isDark ? 'text-gray-400' : 'text-gray-500'}`}
+                >
                   No partner codes found
                 </td>
               </tr>
@@ -188,6 +260,7 @@ function AdminPartnerCodesPage() {
                   onDuplicate={() => setDuplicatingCode(code)}
                   onToggleStatus={() => handleToggleStatus(code)}
                   onDelete={() => setDeletingCode(code)}
+                  isDark={isDark}
                 />
               ))
             )}
@@ -198,7 +271,7 @@ function AdminPartnerCodesPage() {
       {/* Pagination */}
       {data && data.total > data.per_page && (
         <div className="mt-4 flex items-center justify-between">
-          <p className="text-sm text-gray-400">
+          <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
             Showing {(page - 1) * data.per_page + 1} to {Math.min(page * data.per_page, data.total)}{' '}
             of {data.total} codes
           </p>
@@ -206,17 +279,25 @@ function AdminPartnerCodesPage() {
             <button
               onClick={() => setPage(page - 1)}
               disabled={page === 1}
-              className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 text-gray-400 hover:bg-white/5 disabled:opacity-50"
+              className={`flex h-9 w-9 items-center justify-center rounded-lg border disabled:opacity-50 ${
+                isDark
+                  ? 'border-white/10 text-gray-400 hover:bg-white/5'
+                  : 'border-gray-200 text-gray-500 hover:bg-gray-100'
+              }`}
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
-            <span className="px-3 text-sm text-gray-400">
+            <span className={`px-3 text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
               Page {page} of {totalPages}
             </span>
             <button
               onClick={() => setPage(page + 1)}
               disabled={page === totalPages}
-              className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 text-gray-400 hover:bg-white/5 disabled:opacity-50"
+              className={`flex h-9 w-9 items-center justify-center rounded-lg border disabled:opacity-50 ${
+                isDark
+                  ? 'border-white/10 text-gray-400 hover:bg-white/5'
+                  : 'border-gray-200 text-gray-500 hover:bg-gray-100'
+              }`}
             >
               <ChevronRight className="h-4 w-4" />
             </button>
@@ -286,6 +367,7 @@ function PartnerCodeRow({
   onDuplicate,
   onToggleStatus,
   onDelete,
+  isDark,
 }: {
   code: PartnerCode;
   onView: () => void;
@@ -293,6 +375,7 @@ function PartnerCodeRow({
   onDuplicate: () => void;
   onToggleStatus: () => void;
   onDelete: () => void;
+  isDark: boolean;
 }) {
   const [showMenu, setShowMenu] = useState(false);
 
@@ -330,7 +413,9 @@ function PartnerCodeRow({
   };
 
   return (
-    <tr className="border-b border-white/5 hover:bg-white/5">
+    <tr
+      className={`border-b ${isDark ? 'border-white/5 hover:bg-white/5' : 'border-gray-100 hover:bg-gray-50'}`}
+    >
       <td className="px-6 py-4">
         <button
           onClick={onView}
@@ -341,8 +426,12 @@ function PartnerCodeRow({
       </td>
       <td className="px-6 py-4">
         <div>
-          <p className="font-medium text-white">{code.partner_name}</p>
-          <p className="text-sm text-gray-400">{code.partner_email}</p>
+          <p className={`font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}>
+            {code.partner_name}
+          </p>
+          <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+            {code.partner_email}
+          </p>
         </div>
       </td>
       <td className="px-6 py-4">
@@ -356,20 +445,22 @@ function PartnerCodeRow({
           >
             {code.access_type === 'full' ? 'Full Access' : 'Limited'}
           </span>
-          <span className="text-xs text-gray-400">
+          <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
             {code.duration_days ? `${code.duration_days} days` : 'Lifetime'}
           </span>
         </div>
       </td>
       <td className="px-6 py-4">
-        <span className="text-sm text-white">
+        <span className={`text-sm ${isDark ? 'text-white' : 'text-gray-900'}`}>
           {code.current_uses}
-          {code.max_uses && <span className="text-gray-400"> / {code.max_uses}</span>}
+          {code.max_uses && (
+            <span className={isDark ? 'text-gray-400' : 'text-gray-500'}> / {code.max_uses}</span>
+          )}
         </span>
       </td>
       <td className="px-6 py-4">{getStatusDisplay()}</td>
       <td className="px-6 py-4">
-        <span className="text-sm text-gray-400">
+        <span className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
           {code.code_expiry ? new Date(code.code_expiry).toLocaleDateString() : 'Never'}
         </span>
       </td>
@@ -377,7 +468,7 @@ function PartnerCodeRow({
         <div className="relative">
           <button
             onClick={() => setShowMenu(!showMenu)}
-            className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-white/10"
+            className={`flex h-8 w-8 items-center justify-center rounded-lg ${isDark ? 'hover:bg-white/10' : 'hover:bg-gray-100'}`}
           >
             <MoreHorizontal className="h-4 w-4 text-gray-400" />
           </button>
@@ -385,7 +476,11 @@ function PartnerCodeRow({
           {showMenu && (
             <>
               <div className="fixed inset-0 z-10" onClick={() => setShowMenu(false)} />
-              <div className="absolute right-0 top-full z-20 mt-1 w-48 rounded-lg border border-white/10 bg-[#1A1A1C] py-1 shadow-xl">
+              <div
+                className={`absolute right-0 top-full z-20 mt-1 w-48 rounded-lg border py-1 shadow-xl ${
+                  isDark ? 'border-white/10 bg-[#1A1A1C]' : 'border-gray-200 bg-white'
+                }`}
+              >
                 <button
                   onClick={() => {
                     onView();
@@ -495,7 +590,12 @@ function CreateCodeModal({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onCreate(formData);
+    // Convert empty code to undefined so backend will auto-generate
+    const data = {
+      ...formData,
+      code: formData.code?.trim() || undefined,
+    };
+    onCreate(data);
   };
 
   return (
@@ -593,10 +693,14 @@ function CreateCodeModal({
                 onChange={(e) =>
                   setFormData({ ...formData, access_type: e.target.value as 'full' | 'limited' })
                 }
-                className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-white focus:border-[#14B8A6] focus:outline-none"
+                className="h-10 w-full rounded-lg border border-white/10 bg-[#1A1A1C] px-3 text-white focus:border-[#14B8A6] focus:outline-none"
               >
-                <option value="full">Full Access</option>
-                <option value="limited">Limited Access</option>
+                <option value="full" className="bg-[#1A1A1C] text-white">
+                  Full Access
+                </option>
+                <option value="limited" className="bg-[#1A1A1C] text-white">
+                  Limited Access
+                </option>
               </select>
             </div>
             <div>
@@ -658,6 +762,22 @@ function CreateCodeModal({
             </div>
           </div>
 
+          {/* Code Restrictions */}
+          <div className="flex items-center gap-6">
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={formData.new_users_only ?? true}
+                onChange={(e) => setFormData({ ...formData, new_users_only: e.target.checked })}
+                className="h-4 w-4 rounded border-white/10 bg-white/5 text-[#14B8A6] focus:ring-[#14B8A6]"
+              />
+              <span className="text-sm text-gray-300">New users only</span>
+            </label>
+            <span className="text-xs text-gray-500">
+              (Uncheck to allow existing users to redeem)
+            </span>
+          </div>
+
           {/* Revenue Share */}
           <div className="rounded-lg border border-white/10 bg-white/5 p-4">
             <div className="mb-3 flex items-center gap-3">
@@ -705,13 +825,23 @@ function CreateCodeModal({
                           .value as PartnerCodeCreate['revenue_share_duration'],
                       })
                     }
-                    className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-white focus:border-[#14B8A6] focus:outline-none"
+                    className="h-10 w-full rounded-lg border border-white/10 bg-[#1A1A1C] px-3 text-white focus:border-[#14B8A6] focus:outline-none"
                   >
-                    <option value="">Select duration</option>
-                    <option value="first_payment">First Payment Only</option>
-                    <option value="3_months">3 Months</option>
-                    <option value="1_year">1 Year</option>
-                    <option value="lifetime">Lifetime</option>
+                    <option value="" className="bg-[#1A1A1C] text-white">
+                      Select duration
+                    </option>
+                    <option value="first_payment" className="bg-[#1A1A1C] text-white">
+                      First Payment Only
+                    </option>
+                    <option value="3_months" className="bg-[#1A1A1C] text-white">
+                      3 Months
+                    </option>
+                    <option value="1_year" className="bg-[#1A1A1C] text-white">
+                      1 Year
+                    </option>
+                    <option value="lifetime" className="bg-[#1A1A1C] text-white">
+                      Lifetime
+                    </option>
                   </select>
                 </div>
               </div>
@@ -769,6 +899,7 @@ function EditCodeModal({
     access_type: code.access_type,
     duration_days: code.duration_days,
     max_uses: code.max_uses,
+    new_users_only: code.new_users_only,
     revenue_share_enabled: code.revenue_share_enabled,
     revenue_share_percent: code.revenue_share_percent,
     revenue_share_duration: code.revenue_share_duration,
@@ -833,6 +964,19 @@ function EditCodeModal({
               rows={2}
               className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-white focus:border-[#14B8A6] focus:outline-none"
             />
+          </div>
+
+          {/* Code Restrictions */}
+          <div className="flex items-center gap-3">
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={formData.new_users_only ?? true}
+                onChange={(e) => setFormData({ ...formData, new_users_only: e.target.checked })}
+                className="h-4 w-4 rounded border-white/10 bg-white/5 text-[#14B8A6] focus:ring-[#14B8A6]"
+              />
+              <span className="text-sm text-gray-300">New users only</span>
+            </label>
           </div>
 
           <div className="flex justify-end gap-3 pt-4">
