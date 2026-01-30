@@ -25,6 +25,22 @@ import {
   useRevokeInvitation,
   useResendInvitation,
 } from '@/lib/hooks/queries/useInvitations';
+import {
+  useWebhooks,
+  useCreateWebhook,
+  useUpdateWebhook,
+  useDeleteWebhook,
+  useTestWebhook,
+  useWebhookEventTypes,
+} from '@/lib/hooks/queries/useWebhooks';
+import type { Webhook, WebhookCreate } from '@/lib/hooks/queries/useWebhooks';
+import {
+  useAPIKeys,
+  useAPIKeyScopes,
+  useCreateAPIKey,
+  useRevokeAPIKey,
+  useDeleteAPIKey,
+} from '@/lib/hooks/queries/useAPIKeys';
 import type { CheckpointType, Workspace, LinkedInAccount } from '@/lib/types';
 
 export const Route = createFileRoute('/dashboard/settings')({
@@ -1765,11 +1781,15 @@ function UsageBar({
 function IntegrationSettings() {
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [showLinkedInModal, setShowLinkedInModal] = useState(false);
+  const [showWebhooksModal, setShowWebhooksModal] = useState(false);
+  const [showAPIKeysModal, setShowAPIKeysModal] = useState(false);
   const [editingLinkedInAccount, setEditingLinkedInAccount] = useState<LinkedInAccount | null>(
     null
   );
   const { data: emailAccounts = [], isLoading: emailsLoading } = useEmailAccounts();
   const { data: linkedInAccounts = [], isLoading: linkedInLoading } = useLinkedInAccounts();
+  const { data: webhooksData } = useWebhooks();
+  const { data: apiKeysData } = useAPIKeys();
 
   return (
     <motion.div
@@ -2028,8 +2048,20 @@ function IntegrationSettings() {
             description="Custom API integrations"
             icon={<WebhookIcon />}
             color="#64748B"
-            connected={false}
-            comingSoon
+            connected={(webhooksData?.webhooks?.length ?? 0) > 0}
+            isWebhook
+            count={webhooksData?.webhooks?.filter((w) => w.is_active).length}
+            onClick={() => setShowWebhooksModal(true)}
+          />
+          <IntegrationCard
+            name="API Keys"
+            description="Access the public REST API"
+            icon={<KeyIcon />}
+            color="#8B5CF6"
+            connected={(apiKeysData?.api_keys?.length ?? 0) > 0}
+            isWebhook
+            count={apiKeysData?.api_keys?.filter((k) => k.is_active).length}
+            onClick={() => setShowAPIKeysModal(true)}
           />
         </div>
       </div>
@@ -2053,6 +2085,18 @@ function IntegrationSettings() {
       <AnimatePresence>
         {showEmailModal && <ConnectEmailModal onClose={() => setShowEmailModal(false)} />}
       </AnimatePresence>
+
+      {/* Webhooks Management Modal */}
+      <AnimatePresence>
+        {showWebhooksModal && (
+          <WebhooksManagementModal onClose={() => setShowWebhooksModal(false)} />
+        )}
+      </AnimatePresence>
+
+      {/* API Keys Management Modal */}
+      <AnimatePresence>
+        {showAPIKeysModal && <APIKeysManagementModal onClose={() => setShowAPIKeysModal(false)} />}
+      </AnimatePresence>
     </motion.div>
   );
 }
@@ -2065,6 +2109,8 @@ function IntegrationCard({
   connected,
   isWebhook = false,
   comingSoon = false,
+  onClick,
+  count,
 }: {
   name: string;
   description: string;
@@ -2073,6 +2119,8 @@ function IntegrationCard({
   connected: boolean;
   isWebhook?: boolean;
   comingSoon?: boolean;
+  onClick?: () => void;
+  count?: number;
 }) {
   return (
     <div
@@ -2093,6 +2141,11 @@ function IntegrationCard({
                 Coming Soon
               </span>
             )}
+            {count !== undefined && count > 0 && (
+              <span className="rounded-full bg-[#DBEAFE] px-2 py-0.5 text-[10px] font-medium text-[#3B82F6]">
+                {count} active
+              </span>
+            )}
           </div>
           <p className="text-xs text-[#64748B]">{description}</p>
         </div>
@@ -2106,6 +2159,7 @@ function IntegrationCard({
         </button>
       ) : (
         <button
+          onClick={onClick}
           className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
             connected
               ? 'bg-[#F0FDF4] text-[#22C55E] hover:bg-[#DCFCE7]'
@@ -3415,6 +3469,694 @@ function CookieIcon({ className = 'w-6 h-6' }: { className?: string }) {
       <circle cx="8" cy="10" r="1" fill="currentColor" />
       <circle cx="12" cy="14" r="1" fill="currentColor" />
       <circle cx="16" cy="11" r="1" fill="currentColor" />
+    </svg>
+  );
+}
+
+// ==================== WEBHOOKS MANAGEMENT MODAL ====================
+function WebhooksManagementModal({ onClose }: { onClose: () => void }) {
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [newWebhook, setNewWebhook] = useState<Partial<WebhookCreate>>({
+    name: '',
+    url: '',
+    events: [],
+    is_active: true,
+  });
+  const [testResult, setTestResult] = useState<{ success: boolean; error?: string } | null>(null);
+
+  const { data: webhooksData, isLoading } = useWebhooks();
+  const { data: eventTypesData } = useWebhookEventTypes();
+  const createWebhook = useCreateWebhook();
+  const updateWebhook = useUpdateWebhook();
+  const deleteWebhook = useDeleteWebhook();
+  const testWebhook = useTestWebhook();
+
+  const webhooks = webhooksData?.webhooks || [];
+  const eventTypes = eventTypesData?.event_types || [];
+
+  const handleCreate = async () => {
+    if (!newWebhook.name || !newWebhook.url || !newWebhook.events?.length) return;
+
+    try {
+      await createWebhook.mutateAsync(newWebhook as WebhookCreate);
+      setShowCreateForm(false);
+      setNewWebhook({ name: '', url: '', events: [], is_active: true });
+    } catch {
+      // Error handled by mutation
+    }
+  };
+
+  const handleToggleActive = async (webhook: Webhook) => {
+    await updateWebhook.mutateAsync({
+      webhookId: webhook.id,
+      data: { is_active: !webhook.is_active },
+    });
+  };
+
+  const handleDelete = async (webhookId: string) => {
+    if (confirm('Are you sure you want to delete this webhook?')) {
+      await deleteWebhook.mutateAsync(webhookId);
+    }
+  };
+
+  const handleTest = async (webhookId: string) => {
+    setTestResult(null);
+    try {
+      const result = await testWebhook.mutateAsync({ webhookId });
+      setTestResult({ success: result.success, error: result.error || undefined });
+    } catch {
+      setTestResult({ success: false, error: 'Failed to send test' });
+    }
+  };
+
+  const toggleEvent = (event: string) => {
+    const events = newWebhook.events || [];
+    if (events.includes(event)) {
+      setNewWebhook({ ...newWebhook, events: events.filter((e) => e !== event) });
+    } else {
+      setNewWebhook({ ...newWebhook, events: [...events, event] });
+    }
+  };
+
+  // Group events by category
+  const eventsByCategory = eventTypes.reduce(
+    (acc, et) => {
+      if (!acc[et.category]) acc[et.category] = [];
+      acc[et.category].push(et);
+      return acc;
+    },
+    {} as Record<string, typeof eventTypes>
+  );
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ scale: 0.95, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.95, opacity: 0 }}
+        className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-6 flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-bold text-[#1E293B]">Webhooks</h2>
+            <p className="text-sm text-[#64748B]">
+              Send events to external services like Zapier, Make, or your own API
+            </p>
+          </div>
+          <button onClick={onClose} className="text-[#64748B] hover:text-[#1E293B]">
+            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
+          </button>
+        </div>
+
+        {/* Create Button or Form */}
+        {!showCreateForm ? (
+          <button
+            onClick={() => setShowCreateForm(true)}
+            className="mb-6 flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-[#E2E8F0] p-4 text-[#64748B] transition-colors hover:border-[#FF6B35] hover:text-[#FF6B35]"
+          >
+            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 4v16m8-8H4"
+              />
+            </svg>
+            Add Webhook
+          </button>
+        ) : (
+          <div className="mb-6 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
+            <h3 className="mb-4 font-semibold text-[#1E293B]">New Webhook</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="mb-1 block text-sm font-medium text-[#1E293B]">Name</label>
+                <input
+                  type="text"
+                  value={newWebhook.name}
+                  onChange={(e) => setNewWebhook({ ...newWebhook, name: e.target.value })}
+                  placeholder="My Zapier Webhook"
+                  className="w-full rounded-lg border border-[#E2E8F0] px-4 py-2 text-[#1E293B] focus:border-[#FF6B35] focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-[#1E293B]">URL</label>
+                <input
+                  type="url"
+                  value={newWebhook.url}
+                  onChange={(e) => setNewWebhook({ ...newWebhook, url: e.target.value })}
+                  placeholder="https://hooks.zapier.com/..."
+                  className="w-full rounded-lg border border-[#E2E8F0] px-4 py-2 text-[#1E293B] focus:border-[#FF6B35] focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-[#1E293B]">
+                  Secret (optional, for signature verification)
+                </label>
+                <input
+                  type="text"
+                  value={newWebhook.secret || ''}
+                  onChange={(e) => setNewWebhook({ ...newWebhook, secret: e.target.value })}
+                  placeholder="your-secret-key"
+                  className="w-full rounded-lg border border-[#E2E8F0] px-4 py-2 text-[#1E293B] focus:border-[#FF6B35] focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="mb-2 block text-sm font-medium text-[#1E293B]">Events</label>
+                <div className="max-h-48 space-y-3 overflow-y-auto rounded-lg border border-[#E2E8F0] bg-white p-3">
+                  {Object.entries(eventsByCategory).map(([category, events]) => (
+                    <div key={category}>
+                      <p className="mb-1 text-xs font-semibold uppercase text-[#64748B]">
+                        {category}
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {events.map((et) => (
+                          <button
+                            key={et.event}
+                            onClick={() => toggleEvent(et.event)}
+                            className={`rounded-full px-3 py-1 text-xs font-medium transition-colors ${
+                              newWebhook.events?.includes(et.event)
+                                ? 'bg-[#FF6B35] text-white'
+                                : 'bg-[#F1F5F9] text-[#64748B] hover:bg-[#E2E8F0]'
+                            }`}
+                            title={et.description}
+                          >
+                            {et.event.split('.')[1]}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {newWebhook.events && newWebhook.events.length > 0 && (
+                  <p className="mt-1 text-xs text-[#64748B]">
+                    {newWebhook.events.length} event(s) selected
+                  </p>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleCreate}
+                  disabled={
+                    createWebhook.isPending ||
+                    !newWebhook.name ||
+                    !newWebhook.url ||
+                    !newWebhook.events?.length
+                  }
+                  className="rounded-lg bg-[#FF6B35] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#E85A2A] disabled:opacity-50"
+                >
+                  {createWebhook.isPending ? 'Creating...' : 'Create Webhook'}
+                </button>
+                <button
+                  onClick={() => {
+                    setShowCreateForm(false);
+                    setNewWebhook({ name: '', url: '', events: [], is_active: true });
+                  }}
+                  className="rounded-lg bg-[#F1F5F9] px-4 py-2 text-sm font-semibold text-[#64748B] transition-colors hover:bg-[#E2E8F0]"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Test Result Toast */}
+        {testResult && (
+          <div
+            className={`mb-4 rounded-lg p-3 text-sm ${
+              testResult.success ? 'bg-[#F0FDF4] text-[#22C55E]' : 'bg-[#FEF2F2] text-[#EF4444]'
+            }`}
+          >
+            {testResult.success
+              ? 'Test webhook sent successfully!'
+              : `Test failed: ${testResult.error}`}
+          </div>
+        )}
+
+        {/* Webhooks List */}
+        {isLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <div className="h-6 w-6 animate-spin rounded-full border-2 border-[#FF6B35] border-t-transparent" />
+          </div>
+        ) : webhooks.length === 0 && !showCreateForm ? (
+          <div className="rounded-xl border border-dashed border-[#E2E8F0] p-8 text-center">
+            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-[#F1F5F9]">
+              <WebhookIcon />
+            </div>
+            <p className="font-medium text-[#1E293B]">No webhooks configured</p>
+            <p className="mt-1 text-sm text-[#64748B]">
+              Create a webhook to send events to Zapier, Make, or your own API
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {webhooks.map((webhook) => (
+              <div
+                key={webhook.id}
+                className="rounded-xl border border-[#E2E8F0] p-4 transition-all hover:border-[#3B82F6]/30"
+              >
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="font-semibold text-[#1E293B]">{webhook.name}</p>
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                          webhook.is_active
+                            ? 'bg-[#F0FDF4] text-[#22C55E]'
+                            : 'bg-[#F1F5F9] text-[#64748B]'
+                        }`}
+                      >
+                        {webhook.is_active ? 'Active' : 'Paused'}
+                      </span>
+                    </div>
+                    <p className="mt-1 break-all text-xs text-[#64748B]">{webhook.url}</p>
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {webhook.events.slice(0, 5).map((event) => (
+                        <span
+                          key={event}
+                          className="rounded bg-[#F1F5F9] px-2 py-0.5 text-xs text-[#64748B]"
+                        >
+                          {event}
+                        </span>
+                      ))}
+                      {webhook.events.length > 5 && (
+                        <span className="rounded bg-[#F1F5F9] px-2 py-0.5 text-xs text-[#64748B]">
+                          +{webhook.events.length - 5} more
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-2 flex gap-4 text-xs text-[#64748B]">
+                      <span>Sent: {webhook.total_sent}</span>
+                      <span>Failed: {webhook.total_failed}</span>
+                      {webhook.last_triggered_at && (
+                        <span>
+                          Last triggered: {new Date(webhook.last_triggered_at).toLocaleDateString()}
+                        </span>
+                      )}
+                    </div>
+                    {webhook.last_error && (
+                      <p className="mt-1 text-xs text-[#EF4444]">
+                        Last error: {webhook.last_error}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => handleTest(webhook.id)}
+                      disabled={testWebhook.isPending}
+                      className="rounded-lg bg-[#F1F5F9] px-3 py-1.5 text-xs font-medium text-[#64748B] hover:bg-[#E2E8F0]"
+                      title="Send test webhook"
+                    >
+                      Test
+                    </button>
+                    <button
+                      onClick={() => handleToggleActive(webhook)}
+                      className={`rounded-lg px-3 py-1.5 text-xs font-medium ${
+                        webhook.is_active
+                          ? 'bg-[#FEF3C7] text-[#D97706] hover:bg-[#FDE68A]'
+                          : 'bg-[#F0FDF4] text-[#22C55E] hover:bg-[#DCFCE7]'
+                      }`}
+                    >
+                      {webhook.is_active ? 'Pause' : 'Enable'}
+                    </button>
+                    <button
+                      onClick={() => handleDelete(webhook.id)}
+                      className="rounded-lg bg-[#FEF2F2] px-3 py-1.5 text-xs font-medium text-[#EF4444] hover:bg-[#FEE2E2]"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </motion.div>
+    </motion.div>
+  );
+}
+
+function APIKeysManagementModal({ onClose }: { onClose: () => void }) {
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [newKeyName, setNewKeyName] = useState('');
+  const [selectedScopes, setSelectedScopes] = useState<string[]>(['read']);
+  const [createdKey, setCreatedKey] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  const { data: apiKeysData, isLoading } = useAPIKeys();
+  const { data: scopesData } = useAPIKeyScopes();
+  const createAPIKey = useCreateAPIKey();
+  const revokeAPIKey = useRevokeAPIKey();
+  const deleteAPIKey = useDeleteAPIKey();
+
+  const apiKeys = apiKeysData?.api_keys || [];
+  // scopesData.scopes is an array of { scope: string, description: string }
+  const availableScopes = scopesData?.scopes?.map((s) => s.scope) || ['read', 'write', 'delete'];
+
+  const handleCreate = async () => {
+    if (!newKeyName || selectedScopes.length === 0) return;
+
+    try {
+      const result = await createAPIKey.mutateAsync({
+        name: newKeyName,
+        scopes: selectedScopes,
+      });
+      setCreatedKey(result.key);
+      setShowCreateForm(false);
+      setNewKeyName('');
+      setSelectedScopes(['read']);
+    } catch {
+      // Error handled by mutation
+    }
+  };
+
+  const handleCopy = () => {
+    if (createdKey) {
+      navigator.clipboard.writeText(createdKey);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  const handleRevoke = async (keyId: string) => {
+    if (
+      confirm(
+        'Are you sure you want to revoke this API key? It will no longer work for authentication.'
+      )
+    ) {
+      await revokeAPIKey.mutateAsync(keyId);
+    }
+  };
+
+  const handleDelete = async (keyId: string) => {
+    if (confirm('Are you sure you want to permanently delete this API key?')) {
+      await deleteAPIKey.mutateAsync(keyId);
+    }
+  };
+
+  const toggleScope = (scope: string) => {
+    if (selectedScopes.includes(scope)) {
+      setSelectedScopes(selectedScopes.filter((s) => s !== scope));
+    } else {
+      setSelectedScopes([...selectedScopes, scope]);
+    }
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ scale: 0.95, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.95, opacity: 0 }}
+        className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-6 flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-bold text-[#1E293B]">API Keys</h2>
+            <p className="text-sm text-[#64748B]">
+              Manage API keys for external integrations and the public REST API
+            </p>
+          </div>
+          <button onClick={onClose} className="text-[#64748B] hover:text-[#1E293B]">
+            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
+          </button>
+        </div>
+
+        {/* Newly Created Key Alert */}
+        {createdKey && (
+          <div className="mb-6 rounded-xl border border-[#FEF3C7] bg-[#FFFBEB] p-4">
+            <div className="flex items-start gap-3">
+              <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-[#FEF3C7]">
+                <svg
+                  className="h-5 w-5 text-[#D97706]"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                  />
+                </svg>
+              </div>
+              <div className="flex-1">
+                <p className="font-semibold text-[#92400E]">Save your API key now!</p>
+                <p className="mt-1 text-sm text-[#B45309]">
+                  This is the only time you'll see this key. Copy it now and store it securely.
+                </p>
+                <div className="mt-3 flex items-center gap-2">
+                  <code className="flex-1 break-all rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 font-mono text-sm text-[#1E293B]">
+                    {createdKey}
+                  </code>
+                  <button
+                    onClick={handleCopy}
+                    className="rounded-lg bg-[#FF6B35] px-4 py-2 text-sm font-medium text-white hover:bg-[#E85A2A]"
+                  >
+                    {copied ? 'Copied!' : 'Copy'}
+                  </button>
+                </div>
+                <button
+                  onClick={() => setCreatedKey(null)}
+                  className="mt-3 text-sm text-[#D97706] underline hover:text-[#92400E]"
+                >
+                  I've saved my key
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Create Button or Form */}
+        {!showCreateForm ? (
+          <button
+            onClick={() => setShowCreateForm(true)}
+            className="mb-6 flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-[#E2E8F0] p-4 text-[#64748B] transition-colors hover:border-[#FF6B35] hover:text-[#FF6B35]"
+          >
+            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 4v16m8-8H4"
+              />
+            </svg>
+            Create API Key
+          </button>
+        ) : (
+          <div className="mb-6 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
+            <h3 className="mb-4 font-semibold text-[#1E293B]">New API Key</h3>
+            <div className="space-y-4">
+              <div>
+                <label className="mb-1 block text-sm font-medium text-[#1E293B]">Name</label>
+                <input
+                  type="text"
+                  value={newKeyName}
+                  onChange={(e) => setNewKeyName(e.target.value)}
+                  placeholder="My Integration Key"
+                  className="w-full rounded-lg border border-[#E2E8F0] px-4 py-2 text-[#1E293B] focus:border-[#FF6B35] focus:outline-none"
+                />
+              </div>
+              <div>
+                <label className="mb-2 block text-sm font-medium text-[#1E293B]">Permissions</label>
+                <div className="flex flex-wrap gap-2">
+                  {availableScopes.map((scope) => (
+                    <button
+                      key={scope}
+                      onClick={() => toggleScope(scope)}
+                      className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+                        selectedScopes.includes(scope)
+                          ? 'bg-[#8B5CF6] text-white'
+                          : 'bg-[#F1F5F9] text-[#64748B] hover:bg-[#E2E8F0]'
+                      }`}
+                    >
+                      {scope.charAt(0).toUpperCase() + scope.slice(1)}
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-2 text-xs text-[#64748B]">
+                  {selectedScopes.length === 0
+                    ? 'Select at least one permission'
+                    : `Selected: ${selectedScopes.join(', ')}`}
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleCreate}
+                  disabled={createAPIKey.isPending || !newKeyName || selectedScopes.length === 0}
+                  className="rounded-lg bg-[#FF6B35] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#E85A2A] disabled:opacity-50"
+                >
+                  {createAPIKey.isPending ? 'Creating...' : 'Create API Key'}
+                </button>
+                <button
+                  onClick={() => {
+                    setShowCreateForm(false);
+                    setNewKeyName('');
+                    setSelectedScopes(['read']);
+                  }}
+                  className="rounded-lg bg-[#F1F5F9] px-4 py-2 text-sm font-semibold text-[#64748B] transition-colors hover:bg-[#E2E8F0]"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* API Keys List */}
+        {isLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <div className="h-6 w-6 animate-spin rounded-full border-2 border-[#FF6B35] border-t-transparent" />
+          </div>
+        ) : apiKeys.length === 0 && !showCreateForm && !createdKey ? (
+          <div className="rounded-xl border border-dashed border-[#E2E8F0] p-8 text-center">
+            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-[#F1F5F9]">
+              <KeyIcon />
+            </div>
+            <p className="font-medium text-[#1E293B]">No API keys created</p>
+            <p className="mt-1 text-sm text-[#64748B]">
+              Create an API key to access the public REST API
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {apiKeys.map((apiKey) => (
+              <div
+                key={apiKey.id}
+                className="rounded-xl border border-[#E2E8F0] p-4 transition-all hover:border-[#3B82F6]/30"
+              >
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <p className="font-semibold text-[#1E293B]">{apiKey.name}</p>
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                          apiKey.is_active
+                            ? 'bg-[#F0FDF4] text-[#22C55E]'
+                            : 'bg-[#FEF2F2] text-[#EF4444]'
+                        }`}
+                      >
+                        {apiKey.is_active ? 'Active' : 'Revoked'}
+                      </span>
+                    </div>
+                    <p className="mt-1 font-mono text-xs text-[#64748B]">
+                      sp_live_{apiKey.key_prefix}...
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {apiKey.scopes.map((scope) => (
+                        <span
+                          key={scope}
+                          className="rounded bg-[#F1F5F9] px-2 py-0.5 text-xs text-[#64748B]"
+                        >
+                          {scope}
+                        </span>
+                      ))}
+                    </div>
+                    <div className="mt-2 flex gap-4 text-xs text-[#64748B]">
+                      <span>Requests: {apiKey.total_requests}</span>
+                      {apiKey.last_used_at && (
+                        <span>Last used: {new Date(apiKey.last_used_at).toLocaleDateString()}</span>
+                      )}
+                      <span>Created: {new Date(apiKey.created_at).toLocaleDateString()}</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {apiKey.is_active && (
+                      <button
+                        onClick={() => handleRevoke(apiKey.id)}
+                        className="rounded-lg bg-[#FEF3C7] px-3 py-1.5 text-xs font-medium text-[#D97706] hover:bg-[#FDE68A]"
+                      >
+                        Revoke
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleDelete(apiKey.id)}
+                      className="rounded-lg bg-[#FEF2F2] px-3 py-1.5 text-xs font-medium text-[#EF4444] hover:bg-[#FEE2E2]"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* API Documentation Link */}
+        <div className="mt-6 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#EDE9FE]">
+              <svg
+                className="h-5 w-5 text-[#8B5CF6]"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                />
+              </svg>
+            </div>
+            <div>
+              <p className="font-medium text-[#1E293B]">API Documentation</p>
+              <p className="text-sm text-[#64748B]">
+                View the public API endpoints at{' '}
+                <code className="rounded bg-[#E2E8F0] px-1">/api/v1/public/</code>
+              </p>
+            </div>
+          </div>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+function KeyIcon() {
+  return (
+    <svg
+      className="h-5 w-5"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={1.5}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z"
+      />
     </svg>
   );
 }

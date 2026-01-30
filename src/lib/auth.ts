@@ -20,6 +20,7 @@ interface AuthState {
   fetchUser: () => Promise<void>;
   updateUser: (updates: Partial<User>) => void;
   initialize: () => Promise<void>;
+  setTokens: (accessToken: string, refreshToken: string) => void;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -152,6 +153,11 @@ export const useAuthStore = create<AuthState>()(
         } else {
           set({ isLoading: false, isAuthenticated: false });
         }
+      },
+
+      setTokens: (accessToken: string, refreshToken: string) => {
+        setAccessToken(accessToken);
+        setRefreshToken(refreshToken);
       },
     }),
     {
