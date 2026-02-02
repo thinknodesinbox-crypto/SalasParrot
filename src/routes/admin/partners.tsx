@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   usePartnerCodes,
@@ -378,6 +378,33 @@ function PartnerCodeRow({
   isDark: boolean;
 }) {
   const [showMenu, setShowMenu] = useState(false);
+  const [menuStyle, setMenuStyle] = useState<React.CSSProperties>({});
+  const buttonRef = useRef<HTMLButtonElement>(null);
+
+  const handleToggleMenu = () => {
+    if (!showMenu && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const menuHeight = 220; // Approximate menu height
+
+      if (spaceBelow < menuHeight) {
+        // Position above the button
+        setMenuStyle({
+          position: 'fixed',
+          bottom: window.innerHeight - rect.top,
+          right: window.innerWidth - rect.right,
+        });
+      } else {
+        // Position below the button
+        setMenuStyle({
+          position: 'fixed',
+          top: rect.bottom,
+          right: window.innerWidth - rect.right,
+        });
+      }
+    }
+    setShowMenu(!showMenu);
+  };
 
   const getStatusDisplay = () => {
     if (!code.is_active) {
@@ -467,7 +494,8 @@ function PartnerCodeRow({
       <td className="px-6 py-4">
         <div className="relative">
           <button
-            onClick={() => setShowMenu(!showMenu)}
+            ref={buttonRef}
+            onClick={handleToggleMenu}
             className={`flex h-8 w-8 items-center justify-center rounded-lg ${isDark ? 'hover:bg-white/10' : 'hover:bg-gray-100'}`}
           >
             <MoreHorizontal className="h-4 w-4 text-gray-400" />
@@ -475,9 +503,10 @@ function PartnerCodeRow({
 
           {showMenu && (
             <>
-              <div className="fixed inset-0 z-10" onClick={() => setShowMenu(false)} />
+              <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
               <div
-                className={`absolute right-0 top-full z-20 mt-1 w-48 rounded-lg border py-1 shadow-xl ${
+                style={menuStyle}
+                className={`z-50 w-48 rounded-lg border py-1 shadow-xl ${
                   isDark ? 'border-white/10 bg-[#1A1A1C]' : 'border-gray-200 bg-white'
                 }`}
               >
@@ -486,7 +515,9 @@ function PartnerCodeRow({
                     onView();
                     setShowMenu(false);
                   }}
-                  className="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-300 hover:bg-white/5"
+                  className={`flex w-full items-center gap-2 px-4 py-2 text-sm ${
+                    isDark ? 'text-gray-300 hover:bg-white/5' : 'text-gray-700 hover:bg-gray-100'
+                  }`}
                 >
                   <Users className="h-4 w-4" />
                   View Details
@@ -496,7 +527,9 @@ function PartnerCodeRow({
                     onEdit();
                     setShowMenu(false);
                   }}
-                  className="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-300 hover:bg-white/5"
+                  className={`flex w-full items-center gap-2 px-4 py-2 text-sm ${
+                    isDark ? 'text-gray-300 hover:bg-white/5' : 'text-gray-700 hover:bg-gray-100'
+                  }`}
                 >
                   <Edit className="h-4 w-4" />
                   Edit
@@ -506,7 +539,9 @@ function PartnerCodeRow({
                     onDuplicate();
                     setShowMenu(false);
                   }}
-                  className="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-300 hover:bg-white/5"
+                  className={`flex w-full items-center gap-2 px-4 py-2 text-sm ${
+                    isDark ? 'text-gray-300 hover:bg-white/5' : 'text-gray-700 hover:bg-gray-100'
+                  }`}
                 >
                   <Copy className="h-4 w-4" />
                   Duplicate
@@ -516,9 +551,9 @@ function PartnerCodeRow({
                     onToggleStatus();
                     setShowMenu(false);
                   }}
-                  className={`flex w-full items-center gap-2 px-4 py-2 text-sm hover:bg-white/5 ${
-                    code.is_active ? 'text-yellow-400' : 'text-green-400'
-                  }`}
+                  className={`flex w-full items-center gap-2 px-4 py-2 text-sm ${
+                    isDark ? 'hover:bg-white/5' : 'hover:bg-gray-100'
+                  } ${code.is_active ? 'text-yellow-400' : 'text-green-400'}`}
                 >
                   {code.is_active ? (
                     <>
@@ -538,7 +573,9 @@ function PartnerCodeRow({
                       onDelete();
                       setShowMenu(false);
                     }}
-                    className="flex w-full items-center gap-2 px-4 py-2 text-sm text-red-400 hover:bg-white/5"
+                    className={`flex w-full items-center gap-2 px-4 py-2 text-sm text-red-400 ${
+                      isDark ? 'hover:bg-white/5' : 'hover:bg-gray-100'
+                    }`}
                   >
                     <Trash2 className="h-4 w-4" />
                     Delete
