@@ -165,3 +165,132 @@ export {
   useEnrichmentJobStatus,
   useEnrichmentJobWithPolling,
 } from './useEnrichment';
+
+// Webhooks
+export {
+  useWebhooks,
+  useWebhook,
+  useWebhookDeliveries,
+  useWebhookEventTypes,
+  useCreateWebhook,
+  useUpdateWebhook,
+  useDeleteWebhook,
+  useTestWebhook,
+  webhookKeys,
+} from './useWebhooks';
+export type {
+  Webhook,
+  WebhookCreate,
+  WebhookUpdate,
+  WebhookDelivery,
+  WebhookEventType,
+  WebhookTestResult,
+} from './useWebhooks';
+
+// API Keys
+export {
+  useAPIKeys,
+  useAPIKey,
+  useAPIKeyScopes,
+  useCreateAPIKey,
+  useUpdateAPIKey,
+  useRevokeAPIKey,
+  useDeleteAPIKey,
+  apiKeyKeys,
+} from './useAPIKeys';
+export type { APIKey, APIKeyCreate, APIKeyUpdate, APIKeyScope } from './useAPIKeys';
+
+// HubSpot
+export {
+  useHubSpotStatus,
+  useHubSpotSyncLogs,
+  useConnectHubSpot,
+  useDisconnectHubSpot,
+  useUpdateHubSpotSettings,
+  useSyncLeadToHubSpot,
+  useTestHubSpotConnection,
+  hubspotKeys,
+} from './useHubSpot';
+export type {
+  HubSpotConnectionStatus,
+  HubSpotOAuthInit,
+  HubSpotSyncSettings,
+  HubSpotSyncLog,
+  HubSpotManualSyncResponse,
+} from './useHubSpot';
+
+// Salesforce
+export {
+  useSalesforceStatus,
+  useSalesforceSyncLogs,
+  useConnectSalesforce,
+  useDisconnectSalesforce,
+  useUpdateSalesforceSettings,
+  useSyncLeadToSalesforce,
+  useTestSalesforceConnection,
+  salesforceKeys,
+} from './useSalesforce';
+export type {
+  SalesforceConnectionStatus,
+  SalesforceOAuthInit,
+  SalesforceSyncSettings,
+  SalesforceSyncLog,
+  SalesforceManualSyncResponse,
+} from './useSalesforce';
+
+// Pipedrive
+export {
+  usePipedriveStatus,
+  usePipedriveSyncLogs,
+  useConnectPipedrive,
+  useDisconnectPipedrive,
+  useUpdatePipedriveSettings,
+  useSyncLeadToPipedrive,
+  useTestPipedriveConnection,
+  pipedriveKeys,
+} from './usePipedrive';
+export type {
+  PipedriveConnectionStatus,
+  PipedriveOAuthInit,
+  PipedriveSyncSettings,
+  PipedriveSyncLog,
+  PipedriveManualSyncResponse,
+} from './usePipedrive';
+
+// Close CRM
+export {
+  useCloseStatus,
+  useCloseSyncLogs,
+  useConnectClose,
+  useDisconnectClose,
+  useUpdateCloseSettings,
+  useSyncLeadToClose,
+  useTestCloseConnection,
+  closeKeys,
+} from './useClose';
+export type {
+  CloseConnectionStatus,
+  CloseSyncSettings,
+  CloseSyncLog,
+  CloseManualSyncResponse,
+} from './useClose';
+
+// Slack
+export {
+  useSlackStatus,
+  useSlackChannels,
+  useSlackNotificationLogs,
+  useConnectSlack,
+  useDisconnectSlack,
+  useUpdateSlackSettings,
+  useTestSlackConnection,
+  useSendTestSlackNotification,
+  slackKeys,
+} from './useSlack';
+export type {
+  SlackConnectionStatus,
+  SlackOAuthInit,
+  SlackNotificationSettings,
+  SlackChannel,
+  SlackNotificationLog,
+} from './useSlack';

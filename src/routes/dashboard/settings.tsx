@@ -1,4 +1,5 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/lib/auth';
@@ -9,6 +10,10 @@ import {
   useWorkspaceMembers,
   useBillingOverview,
   useCreatePortalSession,
+  useUpdateGrowthSenders,
+  useUpdateAgencyExtraSenders,
+  useCreateGrowthCheckout,
+  useCreateAgencyCheckout,
   useEmailAccounts,
   useLinkedInAccounts,
   useUpdateLinkedInAccount,
@@ -41,7 +46,49 @@ import {
   useRevokeAPIKey,
   useDeleteAPIKey,
 } from '@/lib/hooks/queries/useAPIKeys';
-import type { CheckpointType, Workspace, LinkedInAccount } from '@/lib/types';
+import {
+  useHubSpotStatus,
+  useConnectHubSpot,
+  useDisconnectHubSpot,
+  useUpdateHubSpotSettings,
+  useHubSpotSyncLogs,
+  useTestHubSpotConnection,
+} from '@/lib/hooks/queries/useHubSpot';
+import {
+  useSalesforceStatus,
+  useConnectSalesforce,
+  useDisconnectSalesforce,
+  useUpdateSalesforceSettings,
+  useSalesforceSyncLogs,
+  useTestSalesforceConnection,
+} from '@/lib/hooks/queries/useSalesforce';
+import {
+  usePipedriveStatus,
+  useConnectPipedrive,
+  useDisconnectPipedrive,
+  useUpdatePipedriveSettings,
+  usePipedriveSyncLogs,
+  useTestPipedriveConnection,
+} from '@/lib/hooks/queries/usePipedrive';
+import {
+  useCloseStatus,
+  useConnectClose,
+  useDisconnectClose,
+  useUpdateCloseSettings,
+  useCloseSyncLogs,
+  useTestCloseConnection,
+} from '@/lib/hooks/queries/useClose';
+import {
+  useSlackStatus,
+  useSlackChannels,
+  useConnectSlack,
+  useDisconnectSlack,
+  useUpdateSlackSettings,
+  useSlackNotificationLogs,
+  useTestSlackConnection,
+  useSendTestSlackNotification,
+} from '@/lib/hooks/queries/useSlack';
+import type { CheckpointType, Workspace, LinkedInAccount, BillingOverview } from '@/lib/types';
 
 export const Route = createFileRoute('/dashboard/settings')({
   component: SettingsPage,
@@ -324,20 +371,28 @@ function ProfileSettings() {
 // ==================== WORKSPACE SETTINGS ====================
 function WorkspaceSettings() {
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showBuySeatsModal, setShowBuySeatsModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [editingWorkspace, setEditingWorkspace] = useState<Workspace | null>(null);
 
   // Fetch workspaces from API
   const { data: workspacesData = [], isLoading, error, refetch } = useWorkspaces();
 
+  // Fetch billing data
+  const {
+    data: billingData,
+    isLoading: isBillingLoading,
+    error: billingError,
+  } = useBillingOverview();
+
   // Filter workspaces by search query
   const workspaces = workspacesData.filter((w) =>
     w.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // TODO: Get from billing/plan data when available
-  const totalSeats = 10;
-  const usedSeats = workspacesData.length;
+  // Get seat counts from billing data
+  const totalSeats = billingData?.sender_count ?? 0;
+  const usedSeats = billingData?.linkedin_accounts_connected ?? 0;
   const availableSeats = Math.max(0, totalSeats - usedSeats);
 
   if (isLoading) {
@@ -397,13 +452,23 @@ function WorkspaceSettings() {
                   {usedSeats} / {totalSeats}
                 </span>
               </div>
-              <span className="mt-2 inline-block rounded-full bg-[#F0FDF4] px-3 py-1 text-sm font-medium text-[#22C55E]">
-                {availableSeats} available seats
-              </span>
+              {billingError ? (
+                <span className="mt-2 inline-block rounded-full bg-[#FEF2F2] px-3 py-1 text-sm font-medium text-[#EF4444]">
+                  Failed to load billing
+                </span>
+              ) : (
+                <span className="mt-2 inline-block rounded-full bg-[#F0FDF4] px-3 py-1 text-sm font-medium text-[#22C55E]">
+                  {availableSeats} available seats
+                </span>
+              )}
             </div>
-            <button className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#3B82F6] px-4 py-2.5 font-medium text-white transition-colors hover:bg-[#2563EB] sm:w-auto">
+            <button
+              onClick={() => setShowBuySeatsModal(true)}
+              disabled={!billingData || isBillingLoading}
+              className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#3B82F6] px-4 py-2.5 font-medium text-white transition-colors hover:bg-[#2563EB] disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+            >
               <PlusIcon />
-              Buy more seats
+              {isBillingLoading ? 'Loading...' : 'Buy more seats'}
             </button>
           </div>
         </div>
@@ -528,6 +593,13 @@ function WorkspaceSettings() {
           />
         )}
       </AnimatePresence>
+
+      {/* Buy More Seats Modal */}
+      <AnimatePresence>
+        {showBuySeatsModal && billingData && (
+          <BuySeatsModal billingData={billingData} onClose={() => setShowBuySeatsModal(false)} />
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }
@@ -555,12 +627,12 @@ function CreateWorkspaceModal({ onClose }: { onClose: () => void }) {
     }
   };
 
-  return (
+  return createPortal(
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
       onClick={onClose}
     >
       <motion.div
@@ -603,7 +675,216 @@ function CreateWorkspaceModal({ onClose }: { onClose: () => void }) {
           </button>
         </div>
       </motion.div>
-    </motion.div>
+    </motion.div>,
+    document.body
+  );
+}
+
+// Volume pricing tiers (same as pricing page)
+const volumePricing = [
+  { min: 1, max: 1, price: 79 },
+  { min: 2, max: 4, price: 69 },
+  { min: 5, max: 9, price: 62 },
+  { min: 10, max: 50, price: 59 },
+];
+
+function getPricePerSender(senders: number): number {
+  const tier = volumePricing.find((t) => senders >= t.min && senders <= t.max);
+  return tier?.price ?? 59;
+}
+
+function BuySeatsModal({
+  billingData,
+  onClose,
+}: {
+  billingData: BillingOverview;
+  onClose: () => void;
+}) {
+  const [additionalSeats, setAdditionalSeats] = useState(1);
+  const [error, setError] = useState<string | null>(null);
+
+  const updateGrowthSenders = useUpdateGrowthSenders();
+  const updateAgencyExtraSenders = useUpdateAgencyExtraSenders();
+  const createGrowthCheckout = useCreateGrowthCheckout();
+  const createAgencyCheckout = useCreateAgencyCheckout();
+
+  const isAgency = billingData.plan === 'agency';
+  const currentSeats = billingData.sender_count;
+  const newTotalSeats = currentSeats + additionalSeats;
+
+  // Check if user has an active subscription
+  const hasActiveSubscription = billingData.subscription?.status === 'active';
+
+  // Calculate price impact
+  const currentMonthlyCost = billingData.monthly_cost;
+  let newMonthlyCost: number;
+  let additionalCost: number;
+
+  if (isAgency) {
+    // Agency: $20/month per extra sender
+    const currentExtraSenders = billingData.extra_senders;
+    const newExtraSenders = currentExtraSenders + additionalSeats;
+    newMonthlyCost = 999 + newExtraSenders * 20;
+    additionalCost = additionalSeats * 20;
+  } else {
+    // Growth: Volume pricing applies to total senders
+    const newPricePerSender = getPricePerSender(newTotalSeats);
+    newMonthlyCost = newTotalSeats * newPricePerSender;
+    additionalCost = newMonthlyCost - currentMonthlyCost;
+  }
+
+  const handlePurchase = async () => {
+    setError(null);
+    try {
+      if (hasActiveSubscription) {
+        // User has active subscription - update it
+        if (isAgency) {
+          await updateAgencyExtraSenders.mutateAsync({
+            extra_sender_count: billingData.extra_senders + additionalSeats,
+          });
+        } else {
+          await updateGrowthSenders.mutateAsync({
+            sender_count: newTotalSeats,
+          });
+        }
+        onClose();
+      } else {
+        // User doesn't have subscription (e.g., partner) - redirect to checkout
+        let checkoutUrl: string;
+        if (isAgency) {
+          const result = await createAgencyCheckout.mutateAsync({});
+          checkoutUrl = result.checkout_url;
+        } else {
+          const result = await createGrowthCheckout.mutateAsync({
+            sender_count: newTotalSeats,
+          });
+          checkoutUrl = result.checkout_url;
+        }
+        // Redirect to Stripe checkout
+        window.location.href = checkoutUrl;
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update subscription');
+    }
+  };
+
+  const isPending =
+    updateGrowthSenders.isPending ||
+    updateAgencyExtraSenders.isPending ||
+    createGrowthCheckout.isPending ||
+    createAgencyCheckout.isPending;
+
+  return createPortal(
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl"
+      >
+        <h2 className="mb-2 text-lg font-bold text-[#1E293B]">Buy more seats</h2>
+        <p className="mb-6 text-sm text-[#64748B]">
+          Add more seats to connect additional LinkedIn accounts.
+        </p>
+
+        {!hasActiveSubscription && (
+          <div className="mb-6 rounded-lg bg-[#FEF3C7] p-3">
+            <p className="text-sm text-[#92400E]">
+              You'll be redirected to checkout to set up your subscription.
+            </p>
+          </div>
+        )}
+
+        {/* Current plan info */}
+        <div className="mb-6 rounded-lg bg-[#F8FAFC] p-4">
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-[#64748B]">Current plan</span>
+            <span className="font-medium capitalize text-[#1E293B]">{billingData.plan}</span>
+          </div>
+          <div className="mt-2 flex items-center justify-between text-sm">
+            <span className="text-[#64748B]">Current seats</span>
+            <span className="font-medium text-[#1E293B]">{currentSeats}</span>
+          </div>
+        </div>
+
+        {/* Seat selector */}
+        <div className="mb-6">
+          <label className="mb-2 block text-sm font-medium text-[#1E293B]">
+            Additional seats to add
+          </label>
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => setAdditionalSeats(Math.max(1, additionalSeats - 1))}
+              className="flex h-10 w-10 items-center justify-center rounded-lg border border-[#E2E8F0] text-lg font-medium text-[#64748B] transition-all hover:border-[#3B82F6] hover:text-[#3B82F6]"
+            >
+              −
+            </button>
+            <span className="w-12 text-center text-2xl font-bold text-[#1E293B]">
+              {additionalSeats}
+            </span>
+            <button
+              onClick={() => setAdditionalSeats(Math.min(50, additionalSeats + 1))}
+              className="flex h-10 w-10 items-center justify-center rounded-lg border border-[#E2E8F0] text-lg font-medium text-[#64748B] transition-all hover:border-[#3B82F6] hover:text-[#3B82F6]"
+            >
+              +
+            </button>
+          </div>
+        </div>
+
+        {/* Price summary */}
+        <div className="mb-6 rounded-lg border border-[#E2E8F0] p-4">
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-[#64748B]">New total seats</span>
+            <span className="font-medium text-[#1E293B]">{newTotalSeats}</span>
+          </div>
+          <div className="mt-2 flex items-center justify-between text-sm">
+            <span className="text-[#64748B]">Additional cost</span>
+            <span className="font-medium text-[#22C55E]">+${additionalCost}/mo</span>
+          </div>
+          <div className="mt-3 border-t border-[#E2E8F0] pt-3">
+            <div className="flex items-center justify-between">
+              <span className="font-medium text-[#1E293B]">New monthly total</span>
+              <span className="text-xl font-bold text-[#1E293B]">${newMonthlyCost}/mo</span>
+            </div>
+          </div>
+        </div>
+
+        {error && (
+          <div className="mb-4 rounded-lg bg-[#FEF2F2] p-3">
+            <p className="text-sm text-[#EF4444]">{error}</p>
+          </div>
+        )}
+
+        <div className="flex gap-3">
+          <button
+            onClick={onClose}
+            disabled={isPending}
+            className="flex-1 rounded-lg border border-[#E2E8F0] px-4 py-2.5 font-medium text-[#64748B] hover:bg-[#F8FAFC] disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handlePurchase}
+            disabled={isPending}
+            className="flex-1 rounded-lg bg-[#3B82F6] px-4 py-2.5 font-medium text-white hover:bg-[#2563EB] disabled:opacity-50"
+          >
+            {isPending
+              ? 'Processing...'
+              : hasActiveSubscription
+                ? `Add ${additionalSeats} seat${additionalSeats > 1 ? 's' : ''}`
+                : `Subscribe with ${newTotalSeats} seat${newTotalSeats > 1 ? 's' : ''}`}
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>,
+    document.body
   );
 }
 
@@ -680,12 +961,12 @@ function WorkspaceWorkingHoursModal({
     }
   };
 
-  return (
+  return createPortal(
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
       onClick={onClose}
     >
       <motion.div
@@ -836,7 +1117,8 @@ function WorkspaceWorkingHoursModal({
           </button>
         </div>
       </motion.div>
-    </motion.div>
+    </motion.div>,
+    document.body
   );
 }
 
@@ -1192,12 +1474,12 @@ function InviteMemberModal({
     }
   };
 
-  return (
+  return createPortal(
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
       onClick={onClose}
     >
       <motion.div
@@ -1281,7 +1563,8 @@ function InviteMemberModal({
           </>
         )}
       </motion.div>
-    </motion.div>
+    </motion.div>,
+    document.body
   );
 }
 
@@ -1783,6 +2066,11 @@ function IntegrationSettings() {
   const [showLinkedInModal, setShowLinkedInModal] = useState(false);
   const [showWebhooksModal, setShowWebhooksModal] = useState(false);
   const [showAPIKeysModal, setShowAPIKeysModal] = useState(false);
+  const [showHubSpotModal, setShowHubSpotModal] = useState(false);
+  const [showSalesforceModal, setShowSalesforceModal] = useState(false);
+  const [showPipedriveModal, setShowPipedriveModal] = useState(false);
+  const [showCloseModal, setShowCloseModal] = useState(false);
+  const [showSlackModal, setShowSlackModal] = useState(false);
   const [editingLinkedInAccount, setEditingLinkedInAccount] = useState<LinkedInAccount | null>(
     null
   );
@@ -1790,6 +2078,11 @@ function IntegrationSettings() {
   const { data: linkedInAccounts = [], isLoading: linkedInLoading } = useLinkedInAccounts();
   const { data: webhooksData } = useWebhooks();
   const { data: apiKeysData } = useAPIKeys();
+  const { data: hubspotStatus } = useHubSpotStatus();
+  const { data: salesforceStatus } = useSalesforceStatus();
+  const { data: pipedriveStatus } = usePipedriveStatus();
+  const { data: closeStatus } = useCloseStatus();
+  const { data: slackStatus } = useSlackStatus();
 
   return (
     <motion.div
@@ -1979,32 +2272,32 @@ function IntegrationSettings() {
             description="Sync leads, deals, and activities"
             icon={<HubSpotIcon />}
             color="#FF7A59"
-            connected={false}
-            comingSoon
+            connected={hubspotStatus?.connected ?? false}
+            onClick={() => setShowHubSpotModal(true)}
           />
           <IntegrationCard
             name="Salesforce"
             description="Enterprise CRM integration"
             icon={<SalesforceIcon />}
             color="#00A1E0"
-            connected={false}
-            comingSoon
+            connected={salesforceStatus?.connected ?? false}
+            onClick={() => setShowSalesforceModal(true)}
           />
           <IntegrationCard
             name="Pipedrive"
             description="Deal and pipeline management"
             icon={<PipedriveIcon />}
             color="#1D1D1D"
-            connected={false}
-            comingSoon
+            connected={pipedriveStatus?.connected ?? false}
+            onClick={() => setShowPipedriveModal(true)}
           />
           <IntegrationCard
             name="Close CRM"
             description="Sales productivity platform"
             icon={<CloseIcon />}
             color="#5C6BC0"
-            connected={false}
-            comingSoon
+            connected={closeStatus?.connected ?? false}
+            onClick={() => setShowCloseModal(true)}
           />
         </div>
       </div>
@@ -2021,27 +2314,27 @@ function IntegrationSettings() {
         <div className="grid gap-4 sm:grid-cols-2">
           <IntegrationCard
             name="Zapier"
-            description="Connect to 5000+ apps"
+            description="Use Webhooks to connect"
             icon={<ZapierIcon />}
             color="#FF4A00"
             connected={false}
-            comingSoon
+            onClick={() => setShowWebhooksModal(true)}
           />
           <IntegrationCard
             name="Make (Integromat)"
-            description="Visual automation platform"
+            description="Use Webhooks to connect"
             icon={<MakeIcon />}
             color="#6E56FF"
             connected={false}
-            comingSoon
+            onClick={() => setShowWebhooksModal(true)}
           />
           <IntegrationCard
             name="Slack"
             description="Get notifications in Slack"
             icon={<SlackIcon />}
             color="#4A154B"
-            connected={false}
-            comingSoon
+            connected={slackStatus?.connected ?? false}
+            onClick={() => setShowSlackModal(true)}
           />
           <IntegrationCard
             name="Webhooks"
@@ -2096,6 +2389,35 @@ function IntegrationSettings() {
       {/* API Keys Management Modal */}
       <AnimatePresence>
         {showAPIKeysModal && <APIKeysManagementModal onClose={() => setShowAPIKeysModal(false)} />}
+      </AnimatePresence>
+
+      {/* HubSpot Management Modal */}
+      <AnimatePresence>
+        {showHubSpotModal && <HubSpotManagementModal onClose={() => setShowHubSpotModal(false)} />}
+      </AnimatePresence>
+
+      {/* Salesforce Management Modal */}
+      <AnimatePresence>
+        {showSalesforceModal && (
+          <SalesforceManagementModal onClose={() => setShowSalesforceModal(false)} />
+        )}
+      </AnimatePresence>
+
+      {/* Pipedrive Management Modal */}
+      <AnimatePresence>
+        {showPipedriveModal && (
+          <PipedriveManagementModal onClose={() => setShowPipedriveModal(false)} />
+        )}
+      </AnimatePresence>
+
+      {/* Close Management Modal */}
+      <AnimatePresence>
+        {showCloseModal && <CloseManagementModal onClose={() => setShowCloseModal(false)} />}
+      </AnimatePresence>
+
+      {/* Slack Management Modal */}
+      <AnimatePresence>
+        {showSlackModal && <SlackManagementModal onClose={() => setShowSlackModal(false)} />}
       </AnimatePresence>
     </motion.div>
   );
@@ -2375,12 +2697,12 @@ function ConnectLinkedInModal({ onClose }: { onClose: () => void }) {
     pollOnce();
   };
 
-  return (
+  return createPortal(
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
       onClick={onClose}
     >
       <motion.div
@@ -2745,7 +3067,8 @@ function ConnectLinkedInModal({ onClose }: { onClose: () => void }) {
           )}
         </AnimatePresence>
       </motion.div>
-    </motion.div>
+    </motion.div>,
+    document.body
   );
 }
 
@@ -2808,12 +3131,12 @@ function ConnectEmailModal({ onClose }: { onClose: () => void }) {
     }
   };
 
-  return (
+  return createPortal(
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
       onClick={onClose}
     >
       <motion.div
@@ -3161,7 +3484,8 @@ function ConnectEmailModal({ onClose }: { onClose: () => void }) {
           )}
         </AnimatePresence>
       </motion.div>
-    </motion.div>
+    </motion.div>,
+    document.body
   );
 }
 
@@ -3265,12 +3589,12 @@ function LinkedInWorkingHoursModal({
     }
   };
 
-  return (
+  return createPortal(
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
       onClick={onClose}
     >
       <motion.div
@@ -3420,7 +3744,8 @@ function LinkedInWorkingHoursModal({
           </button>
         </div>
       </motion.div>
-    </motion.div>
+    </motion.div>,
+    document.body
   );
 }
 
@@ -3548,12 +3873,12 @@ function WebhooksManagementModal({ onClose }: { onClose: () => void }) {
     {} as Record<string, typeof eventTypes>
   );
 
-  return (
+  return createPortal(
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
       onClick={onClose}
     >
       <motion.div
@@ -3806,7 +4131,8 @@ function WebhooksManagementModal({ onClose }: { onClose: () => void }) {
           </div>
         )}
       </motion.div>
-    </motion.div>
+    </motion.div>,
+    document.body
   );
 }
 
@@ -3876,12 +4202,12 @@ function APIKeysManagementModal({ onClose }: { onClose: () => void }) {
     }
   };
 
-  return (
+  return createPortal(
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
       onClick={onClose}
     >
       <motion.div
@@ -4139,7 +4465,8 @@ function APIKeysManagementModal({ onClose }: { onClose: () => void }) {
           </div>
         </div>
       </motion.div>
-    </motion.div>
+    </motion.div>,
+    document.body
   );
 }
 
@@ -4643,6 +4970,1438 @@ function OutlookIcon({ className = 'w-6 h-6' }: { className?: string }) {
         d="M24 7.387v10.478c0 .23-.08.424-.238.576a.806.806 0 01-.59.234h-8.86v-6.521l1.83 1.184a.404.404 0 00.424.012l6.998-4.295v-.017l.198-.104a.236.236 0 00.238-.107zm0-1.58v.788l-7.455 4.578-2.233-1.449V5.75h8.86c.228 0 .42.076.578.228a.79.79 0 01.25.578v-.001zM14.312 5.75v16.5H1.03a.985.985 0 01-.72-.303A1.007 1.007 0 010 21.22V4.03c0-.283.103-.527.31-.732a.992.992 0 01.72-.297h13.282zm-7.24 12.75c1.143 0 2.072-.39 2.787-1.172.716-.781 1.074-1.797 1.074-3.047 0-1.266-.355-2.293-1.066-3.082-.711-.789-1.636-1.183-2.775-1.183-1.154 0-2.089.392-2.803 1.175-.715.783-1.072 1.803-1.072 3.059 0 1.25.354 2.266 1.063 3.047.709.781 1.64 1.172 2.793 1.172zm.04-6.531c.59 0 1.06.236 1.412.707.352.471.528 1.09.528 1.855 0 .782-.174 1.41-.52 1.887-.347.477-.82.715-1.42.715-.608 0-1.083-.234-1.426-.703-.342-.469-.513-1.092-.513-1.87 0-.797.172-1.425.516-1.884.343-.459.816-.688 1.42-.688z"
       />
     </svg>
+  );
+}
+
+// ==================== HUBSPOT MANAGEMENT MODAL ====================
+function HubSpotManagementModal({ onClose }: { onClose: () => void }) {
+  const { data: status, isLoading } = useHubSpotStatus();
+  const { data: syncLogs } = useHubSpotSyncLogs({ limit: 10 });
+  const connectHubSpot = useConnectHubSpot();
+  const disconnectHubSpot = useDisconnectHubSpot();
+  const updateSettings = useUpdateHubSpotSettings();
+  const testConnection = useTestHubSpotConnection();
+
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  const handleConnect = async () => {
+    try {
+      const result = await connectHubSpot.mutateAsync();
+      // Redirect to HubSpot OAuth
+      window.location.href = result.authorization_url;
+    } catch {
+      // Error handled by mutation
+    }
+  };
+
+  const handleDisconnect = async () => {
+    if (confirm('Are you sure you want to disconnect HubSpot? This will stop syncing data.')) {
+      await disconnectHubSpot.mutateAsync();
+    }
+  };
+
+  const handleTest = async () => {
+    try {
+      const result = await testConnection.mutateAsync();
+      setTestResult(result);
+    } catch {
+      setTestResult({ success: false, message: 'Connection test failed' });
+    }
+  };
+
+  const handleToggleSync = async (enabled: boolean) => {
+    await updateSettings.mutateAsync({ sync_enabled: enabled });
+  };
+
+  return createPortal(
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ scale: 0.95, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.95, opacity: 0 }}
+        className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-6 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div
+              className="flex h-12 w-12 items-center justify-center rounded-xl"
+              style={{ backgroundColor: '#FF7A5915' }}
+            >
+              <HubSpotIcon />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-[#1E293B]">HubSpot Integration</h2>
+              <p className="text-sm text-[#64748B]">
+                Sync your leads and activities with HubSpot CRM
+              </p>
+            </div>
+          </div>
+          <button onClick={onClose} className="text-[#64748B] hover:text-[#1E293B]">
+            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
+          </button>
+        </div>
+
+        {isLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#FF7A59] border-t-transparent" />
+          </div>
+        ) : !status?.connected ? (
+          /* Not Connected State */
+          <div className="py-8 text-center">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#FF7A59]/10">
+              <HubSpotIcon />
+            </div>
+            <h3 className="text-lg font-semibold text-[#1E293B]">Connect to HubSpot</h3>
+            <p className="mx-auto mt-2 max-w-md text-sm text-[#64748B]">
+              Connect your HubSpot account to automatically sync leads, contacts, and activities
+              between SalesParrot and HubSpot CRM.
+            </p>
+            <div className="mt-6 space-y-3">
+              <button
+                onClick={handleConnect}
+                disabled={connectHubSpot.isPending}
+                className="inline-flex items-center gap-2 rounded-lg bg-[#FF7A59] px-6 py-3 font-medium text-white transition-colors hover:bg-[#E85A2A] disabled:opacity-50"
+              >
+                {connectHubSpot.isPending ? (
+                  <>
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    Connecting...
+                  </>
+                ) : (
+                  <>
+                    <HubSpotIcon />
+                    Connect HubSpot
+                  </>
+                )}
+              </button>
+            </div>
+            <div className="mt-8 rounded-xl bg-[#F8FAFC] p-4 text-left">
+              <p className="mb-2 text-sm font-medium text-[#1E293B]">What gets synced:</p>
+              <ul className="space-y-2 text-sm text-[#64748B]">
+                <li className="flex items-center gap-2">
+                  <svg className="h-4 w-4 text-[#22C55E]" fill="currentColor" viewBox="0 0 20 20">
+                    <path
+                      fillRule="evenodd"
+                      d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                  Lead contact information
+                </li>
+                <li className="flex items-center gap-2">
+                  <svg className="h-4 w-4 text-[#22C55E]" fill="currentColor" viewBox="0 0 20 20">
+                    <path
+                      fillRule="evenodd"
+                      d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                  Lead status changes
+                </li>
+                <li className="flex items-center gap-2">
+                  <svg className="h-4 w-4 text-[#22C55E]" fill="currentColor" viewBox="0 0 20 20">
+                    <path
+                      fillRule="evenodd"
+                      d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                  Message and email activities
+                </li>
+              </ul>
+            </div>
+          </div>
+        ) : (
+          /* Connected State */
+          <div className="space-y-6">
+            {/* Connection Status */}
+            <div className="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#22C55E]/10">
+                    <svg className="h-5 w-5 text-[#22C55E]" fill="currentColor" viewBox="0 0 20 20">
+                      <path
+                        fillRule="evenodd"
+                        d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="font-medium text-[#1E293B]">Connected</p>
+                    <p className="text-sm text-[#64748B]">
+                      {status.hub_domain || 'HubSpot Account'}
+                      {status.portal_id && ` (Portal: ${status.portal_id})`}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleTest}
+                    disabled={testConnection.isPending}
+                    className="rounded-lg border border-[#E2E8F0] px-3 py-1.5 text-sm font-medium text-[#64748B] hover:bg-white"
+                  >
+                    {testConnection.isPending ? 'Testing...' : 'Test Connection'}
+                  </button>
+                  <button
+                    onClick={handleDisconnect}
+                    disabled={disconnectHubSpot.isPending}
+                    className="rounded-lg border border-[#EF4444] px-3 py-1.5 text-sm font-medium text-[#EF4444] hover:bg-[#FEF2F2]"
+                  >
+                    Disconnect
+                  </button>
+                </div>
+              </div>
+              {testResult && (
+                <div
+                  className={`mt-3 rounded-lg p-3 text-sm ${testResult.success ? 'bg-[#F0FDF4] text-[#22C55E]' : 'bg-[#FEF2F2] text-[#EF4444]'}`}
+                >
+                  {testResult.message}
+                </div>
+              )}
+            </div>
+
+            {/* Sync Settings */}
+            <div className="rounded-xl border border-[#E2E8F0] p-4">
+              <h3 className="mb-4 font-semibold text-[#1E293B]">Sync Settings</h3>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium text-[#1E293B]">Enable Sync</p>
+                    <p className="text-sm text-[#64748B]">Automatically sync data with HubSpot</p>
+                  </div>
+                  <button
+                    onClick={() => handleToggleSync(!status.sync_enabled)}
+                    disabled={updateSettings.isPending}
+                    className={`relative h-6 w-11 rounded-full transition-colors ${
+                      status.sync_enabled ? 'bg-[#22C55E]' : 'bg-[#E2E8F0]'
+                    }`}
+                  >
+                    <span
+                      className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
+                        status.sync_enabled ? 'left-[22px]' : 'left-0.5'
+                      }`}
+                    />
+                  </button>
+                </div>
+                {status.last_synced_at && (
+                  <p className="text-sm text-[#64748B]">
+                    Last synced: {new Date(status.last_synced_at).toLocaleString()}
+                  </p>
+                )}
+                {status.last_error && (
+                  <div className="rounded-lg bg-[#FEF2F2] p-3 text-sm text-[#EF4444]">
+                    Last error: {status.last_error}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Recent Sync Activity */}
+            {syncLogs && syncLogs.length > 0 && (
+              <div className="rounded-xl border border-[#E2E8F0] p-4">
+                <h3 className="mb-4 font-semibold text-[#1E293B]">Recent Sync Activity</h3>
+                <div className="max-h-48 space-y-2 overflow-y-auto">
+                  {syncLogs.map((log) => (
+                    <div
+                      key={log.id}
+                      className="flex items-center justify-between rounded-lg bg-[#F8FAFC] p-3 text-sm"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`h-2 w-2 rounded-full ${
+                            log.success ? 'bg-[#22C55E]' : 'bg-[#EF4444]'
+                          }`}
+                        />
+                        <span className="text-[#1E293B]">{log.operation}</span>
+                        <span className="text-[#64748B]">({log.direction})</span>
+                      </div>
+                      <span className="text-[#94A3B8]">
+                        {new Date(log.created_at).toLocaleTimeString()}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </motion.div>
+    </motion.div>,
+    document.body
+  );
+}
+
+// ==================== SALESFORCE MANAGEMENT MODAL ====================
+function SalesforceManagementModal({ onClose }: { onClose: () => void }) {
+  const { data: status, isLoading } = useSalesforceStatus();
+  const { data: syncLogs } = useSalesforceSyncLogs({ limit: 10 });
+  const connectSalesforce = useConnectSalesforce();
+  const disconnectSalesforce = useDisconnectSalesforce();
+  const updateSettings = useUpdateSalesforceSettings();
+  const testConnection = useTestSalesforceConnection();
+
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  const handleConnect = async () => {
+    try {
+      const result = await connectSalesforce.mutateAsync();
+      window.location.href = result.authorization_url;
+    } catch {
+      // Error handled by mutation
+    }
+  };
+
+  const handleDisconnect = async () => {
+    if (confirm('Are you sure you want to disconnect Salesforce? This will stop syncing data.')) {
+      await disconnectSalesforce.mutateAsync();
+    }
+  };
+
+  const handleTest = async () => {
+    try {
+      const result = await testConnection.mutateAsync();
+      setTestResult(result);
+    } catch {
+      setTestResult({ success: false, message: 'Connection test failed' });
+    }
+  };
+
+  const handleToggleSync = async (enabled: boolean) => {
+    await updateSettings.mutateAsync({ sync_enabled: enabled });
+  };
+
+  return createPortal(
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ scale: 0.95, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.95, opacity: 0 }}
+        className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-6 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div
+              className="flex h-12 w-12 items-center justify-center rounded-xl"
+              style={{ backgroundColor: '#00A1E015' }}
+            >
+              <SalesforceIcon />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-[#1E293B]">Salesforce Integration</h2>
+              <p className="text-sm text-[#64748B]">
+                Sync your leads and activities with Salesforce CRM
+              </p>
+            </div>
+          </div>
+          <button onClick={onClose} className="text-[#64748B] hover:text-[#1E293B]">
+            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
+          </button>
+        </div>
+
+        {isLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#00A1E0] border-t-transparent" />
+          </div>
+        ) : !status?.connected ? (
+          <div className="py-8 text-center">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#00A1E0]/10">
+              <SalesforceIcon />
+            </div>
+            <h3 className="text-lg font-semibold text-[#1E293B]">Connect to Salesforce</h3>
+            <p className="mx-auto mt-2 max-w-md text-sm text-[#64748B]">
+              Connect your Salesforce account to automatically sync leads, contacts, and activities
+              between SalesParrot and Salesforce CRM.
+            </p>
+            <div className="mt-6 space-y-3">
+              <button
+                onClick={handleConnect}
+                disabled={connectSalesforce.isPending}
+                className="inline-flex items-center gap-2 rounded-lg bg-[#00A1E0] px-6 py-3 font-medium text-white transition-colors hover:bg-[#0088C7] disabled:opacity-50"
+              >
+                {connectSalesforce.isPending ? (
+                  <>
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    Connecting...
+                  </>
+                ) : (
+                  <>
+                    <SalesforceIcon />
+                    Connect Salesforce
+                  </>
+                )}
+              </button>
+            </div>
+            <div className="mt-8 rounded-xl bg-[#F8FAFC] p-4 text-left">
+              <p className="mb-2 text-sm font-medium text-[#1E293B]">What gets synced:</p>
+              <ul className="space-y-2 text-sm text-[#64748B]">
+                <li className="flex items-center gap-2">
+                  <svg className="h-4 w-4 text-[#22C55E]" fill="currentColor" viewBox="0 0 20 20">
+                    <path
+                      fillRule="evenodd"
+                      d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                  Lead contact information
+                </li>
+                <li className="flex items-center gap-2">
+                  <svg className="h-4 w-4 text-[#22C55E]" fill="currentColor" viewBox="0 0 20 20">
+                    <path
+                      fillRule="evenodd"
+                      d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                  Lead status changes
+                </li>
+                <li className="flex items-center gap-2">
+                  <svg className="h-4 w-4 text-[#22C55E]" fill="currentColor" viewBox="0 0 20 20">
+                    <path
+                      fillRule="evenodd"
+                      d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                  Message and email activities
+                </li>
+              </ul>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            <div className="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#22C55E]/10">
+                    <svg className="h-5 w-5 text-[#22C55E]" fill="currentColor" viewBox="0 0 20 20">
+                      <path
+                        fillRule="evenodd"
+                        d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="font-medium text-[#1E293B]">Connected</p>
+                    <p className="text-sm text-[#64748B]">
+                      {status.instance_url || 'Salesforce Account'}
+                      {status.organization_id && ` (Org: ${status.organization_id})`}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleTest}
+                    disabled={testConnection.isPending}
+                    className="rounded-lg border border-[#E2E8F0] px-3 py-1.5 text-sm font-medium text-[#64748B] hover:bg-white"
+                  >
+                    {testConnection.isPending ? 'Testing...' : 'Test Connection'}
+                  </button>
+                  <button
+                    onClick={handleDisconnect}
+                    disabled={disconnectSalesforce.isPending}
+                    className="rounded-lg border border-[#EF4444] px-3 py-1.5 text-sm font-medium text-[#EF4444] hover:bg-[#FEF2F2]"
+                  >
+                    Disconnect
+                  </button>
+                </div>
+              </div>
+              {testResult && (
+                <div
+                  className={`mt-3 rounded-lg p-3 text-sm ${testResult.success ? 'bg-[#F0FDF4] text-[#22C55E]' : 'bg-[#FEF2F2] text-[#EF4444]'}`}
+                >
+                  {testResult.message}
+                </div>
+              )}
+            </div>
+
+            <div className="rounded-xl border border-[#E2E8F0] p-4">
+              <h3 className="mb-4 font-semibold text-[#1E293B]">Sync Settings</h3>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium text-[#1E293B]">Enable Sync</p>
+                    <p className="text-sm text-[#64748B]">
+                      Automatically sync data with Salesforce
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => handleToggleSync(!status.sync_enabled)}
+                    disabled={updateSettings.isPending}
+                    className={`relative h-6 w-11 rounded-full transition-colors ${
+                      status.sync_enabled ? 'bg-[#22C55E]' : 'bg-[#E2E8F0]'
+                    }`}
+                  >
+                    <span
+                      className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
+                        status.sync_enabled ? 'left-[22px]' : 'left-0.5'
+                      }`}
+                    />
+                  </button>
+                </div>
+                {status.last_synced_at && (
+                  <p className="text-sm text-[#64748B]">
+                    Last synced: {new Date(status.last_synced_at).toLocaleString()}
+                  </p>
+                )}
+                {status.last_error && (
+                  <div className="rounded-lg bg-[#FEF2F2] p-3 text-sm text-[#EF4444]">
+                    Last error: {status.last_error}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {syncLogs && syncLogs.length > 0 && (
+              <div className="rounded-xl border border-[#E2E8F0] p-4">
+                <h3 className="mb-4 font-semibold text-[#1E293B]">Recent Sync Activity</h3>
+                <div className="max-h-48 space-y-2 overflow-y-auto">
+                  {syncLogs.map((log) => (
+                    <div
+                      key={log.id}
+                      className="flex items-center justify-between rounded-lg bg-[#F8FAFC] p-3 text-sm"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`h-2 w-2 rounded-full ${
+                            log.success ? 'bg-[#22C55E]' : 'bg-[#EF4444]'
+                          }`}
+                        />
+                        <span className="text-[#1E293B]">{log.operation}</span>
+                        <span className="text-[#64748B]">({log.direction})</span>
+                      </div>
+                      <span className="text-[#94A3B8]">
+                        {new Date(log.created_at).toLocaleTimeString()}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </motion.div>
+    </motion.div>,
+    document.body
+  );
+}
+
+// ==================== PIPEDRIVE MANAGEMENT MODAL ====================
+function PipedriveManagementModal({ onClose }: { onClose: () => void }) {
+  const { data: status, isLoading } = usePipedriveStatus();
+  const { data: syncLogs } = usePipedriveSyncLogs({ limit: 10 });
+  const connectPipedrive = useConnectPipedrive();
+  const disconnectPipedrive = useDisconnectPipedrive();
+  const updateSettings = useUpdatePipedriveSettings();
+  const testConnection = useTestPipedriveConnection();
+
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  const handleConnect = async () => {
+    try {
+      const result = await connectPipedrive.mutateAsync();
+      window.location.href = result.authorization_url;
+    } catch {
+      // Error handled by mutation
+    }
+  };
+
+  const handleDisconnect = async () => {
+    if (confirm('Are you sure you want to disconnect Pipedrive? This will stop syncing data.')) {
+      await disconnectPipedrive.mutateAsync();
+    }
+  };
+
+  const handleTest = async () => {
+    try {
+      const result = await testConnection.mutateAsync();
+      setTestResult(result);
+    } catch {
+      setTestResult({ success: false, message: 'Connection test failed' });
+    }
+  };
+
+  const handleToggleSync = async (enabled: boolean) => {
+    await updateSettings.mutateAsync({ sync_enabled: enabled });
+  };
+
+  return createPortal(
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ scale: 0.95, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.95, opacity: 0 }}
+        className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-6 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div
+              className="flex h-12 w-12 items-center justify-center rounded-xl"
+              style={{ backgroundColor: '#01745915' }}
+            >
+              <PipedriveIcon />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-[#1E293B]">Pipedrive Integration</h2>
+              <p className="text-sm text-[#64748B]">
+                Sync your leads and activities with Pipedrive CRM
+              </p>
+            </div>
+          </div>
+          <button onClick={onClose} className="text-[#64748B] hover:text-[#1E293B]">
+            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
+          </button>
+        </div>
+
+        {isLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#017459] border-t-transparent" />
+          </div>
+        ) : !status?.connected ? (
+          <div className="py-8 text-center">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#017459]/10">
+              <PipedriveIcon />
+            </div>
+            <h3 className="text-lg font-semibold text-[#1E293B]">Connect to Pipedrive</h3>
+            <p className="mx-auto mt-2 max-w-md text-sm text-[#64748B]">
+              Connect your Pipedrive account to automatically sync leads, persons, and activities
+              between SalesParrot and Pipedrive CRM.
+            </p>
+            <div className="mt-6 space-y-3">
+              <button
+                onClick={handleConnect}
+                disabled={connectPipedrive.isPending}
+                className="inline-flex items-center gap-2 rounded-lg bg-[#017459] px-6 py-3 font-medium text-white transition-colors hover:bg-[#015B47] disabled:opacity-50"
+              >
+                {connectPipedrive.isPending ? (
+                  <>
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    Connecting...
+                  </>
+                ) : (
+                  <>
+                    <PipedriveIcon />
+                    Connect Pipedrive
+                  </>
+                )}
+              </button>
+            </div>
+            <div className="mt-8 rounded-xl bg-[#F8FAFC] p-4 text-left">
+              <p className="mb-2 text-sm font-medium text-[#1E293B]">What gets synced:</p>
+              <ul className="space-y-2 text-sm text-[#64748B]">
+                <li className="flex items-center gap-2">
+                  <svg className="h-4 w-4 text-[#22C55E]" fill="currentColor" viewBox="0 0 20 20">
+                    <path
+                      fillRule="evenodd"
+                      d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                  Lead/Person contact information
+                </li>
+                <li className="flex items-center gap-2">
+                  <svg className="h-4 w-4 text-[#22C55E]" fill="currentColor" viewBox="0 0 20 20">
+                    <path
+                      fillRule="evenodd"
+                      d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                  Deal status and stages
+                </li>
+                <li className="flex items-center gap-2">
+                  <svg className="h-4 w-4 text-[#22C55E]" fill="currentColor" viewBox="0 0 20 20">
+                    <path
+                      fillRule="evenodd"
+                      d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                  Message and email activities
+                </li>
+              </ul>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            <div className="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#22C55E]/10">
+                    <svg className="h-5 w-5 text-[#22C55E]" fill="currentColor" viewBox="0 0 20 20">
+                      <path
+                        fillRule="evenodd"
+                        d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="font-medium text-[#1E293B]">Connected</p>
+                    <p className="text-sm text-[#64748B]">
+                      {status.company_domain || 'Pipedrive Account'}
+                      {status.company_id && ` (ID: ${status.company_id})`}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleTest}
+                    disabled={testConnection.isPending}
+                    className="rounded-lg border border-[#E2E8F0] px-3 py-1.5 text-sm font-medium text-[#64748B] hover:bg-white"
+                  >
+                    {testConnection.isPending ? 'Testing...' : 'Test Connection'}
+                  </button>
+                  <button
+                    onClick={handleDisconnect}
+                    disabled={disconnectPipedrive.isPending}
+                    className="rounded-lg border border-[#EF4444] px-3 py-1.5 text-sm font-medium text-[#EF4444] hover:bg-[#FEF2F2]"
+                  >
+                    Disconnect
+                  </button>
+                </div>
+              </div>
+              {testResult && (
+                <div
+                  className={`mt-3 rounded-lg p-3 text-sm ${testResult.success ? 'bg-[#F0FDF4] text-[#22C55E]' : 'bg-[#FEF2F2] text-[#EF4444]'}`}
+                >
+                  {testResult.message}
+                </div>
+              )}
+            </div>
+
+            <div className="rounded-xl border border-[#E2E8F0] p-4">
+              <h3 className="mb-4 font-semibold text-[#1E293B]">Sync Settings</h3>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium text-[#1E293B]">Enable Sync</p>
+                    <p className="text-sm text-[#64748B]">Automatically sync data with Pipedrive</p>
+                  </div>
+                  <button
+                    onClick={() => handleToggleSync(!status.sync_enabled)}
+                    disabled={updateSettings.isPending}
+                    className={`relative h-6 w-11 rounded-full transition-colors ${
+                      status.sync_enabled ? 'bg-[#22C55E]' : 'bg-[#E2E8F0]'
+                    }`}
+                  >
+                    <span
+                      className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
+                        status.sync_enabled ? 'left-[22px]' : 'left-0.5'
+                      }`}
+                    />
+                  </button>
+                </div>
+                {status.last_synced_at && (
+                  <p className="text-sm text-[#64748B]">
+                    Last synced: {new Date(status.last_synced_at).toLocaleString()}
+                  </p>
+                )}
+                {status.last_error && (
+                  <div className="rounded-lg bg-[#FEF2F2] p-3 text-sm text-[#EF4444]">
+                    Last error: {status.last_error}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {syncLogs && syncLogs.length > 0 && (
+              <div className="rounded-xl border border-[#E2E8F0] p-4">
+                <h3 className="mb-4 font-semibold text-[#1E293B]">Recent Sync Activity</h3>
+                <div className="max-h-48 space-y-2 overflow-y-auto">
+                  {syncLogs.map((log) => (
+                    <div
+                      key={log.id}
+                      className="flex items-center justify-between rounded-lg bg-[#F8FAFC] p-3 text-sm"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`h-2 w-2 rounded-full ${
+                            log.success ? 'bg-[#22C55E]' : 'bg-[#EF4444]'
+                          }`}
+                        />
+                        <span className="text-[#1E293B]">{log.operation}</span>
+                        <span className="text-[#64748B]">({log.direction})</span>
+                      </div>
+                      <span className="text-[#94A3B8]">
+                        {new Date(log.created_at).toLocaleTimeString()}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </motion.div>
+    </motion.div>,
+    document.body
+  );
+}
+
+// ==================== CLOSE MANAGEMENT MODAL ====================
+function CloseManagementModal({ onClose }: { onClose: () => void }) {
+  const { data: status, isLoading } = useCloseStatus();
+  const { data: syncLogs } = useCloseSyncLogs({ limit: 10 });
+  const connectClose = useConnectClose();
+  const disconnectClose = useDisconnectClose();
+  const updateSettings = useUpdateCloseSettings();
+  const testConnection = useTestCloseConnection();
+
+  const [apiKey, setApiKey] = useState('');
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  const handleConnect = async () => {
+    if (!apiKey.trim()) return;
+    try {
+      await connectClose.mutateAsync({ apiKey: apiKey.trim() });
+      setApiKey('');
+    } catch {
+      // Error handled by mutation
+    }
+  };
+
+  const handleDisconnect = async () => {
+    if (confirm('Are you sure you want to disconnect Close CRM? This will stop syncing data.')) {
+      await disconnectClose.mutateAsync();
+    }
+  };
+
+  const handleTest = async () => {
+    try {
+      const result = await testConnection.mutateAsync();
+      setTestResult(result);
+    } catch {
+      setTestResult({ success: false, message: 'Connection test failed' });
+    }
+  };
+
+  const handleToggleSync = async (enabled: boolean) => {
+    await updateSettings.mutateAsync({ sync_enabled: enabled });
+  };
+
+  return createPortal(
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ scale: 0.95, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.95, opacity: 0 }}
+        className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-6 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div
+              className="flex h-12 w-12 items-center justify-center rounded-xl"
+              style={{ backgroundColor: '#39393915' }}
+            >
+              <CloseIcon />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-[#1E293B]">Close CRM Integration</h2>
+              <p className="text-sm text-[#64748B]">
+                Sync your leads and activities with Close CRM
+              </p>
+            </div>
+          </div>
+          <button onClick={onClose} className="text-[#64748B] hover:text-[#1E293B]">
+            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
+          </button>
+        </div>
+
+        {isLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#393939] border-t-transparent" />
+          </div>
+        ) : !status?.connected ? (
+          <div className="py-8 text-center">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#393939]/10">
+              <CloseIcon />
+            </div>
+            <h3 className="text-lg font-semibold text-[#1E293B]">Connect to Close CRM</h3>
+            <p className="mx-auto mt-2 max-w-md text-sm text-[#64748B]">
+              Connect your Close CRM account using an API key to automatically sync leads and
+              activities.
+            </p>
+            <div className="mx-auto mt-6 max-w-sm space-y-4">
+              <div className="text-left">
+                <label className="mb-1 block text-sm font-medium text-[#1E293B]">
+                  Close API Key
+                </label>
+                <input
+                  type="password"
+                  value={apiKey}
+                  onChange={(e) => setApiKey(e.target.value)}
+                  placeholder="api_xxxxxxxxxxxxxxxx"
+                  className="w-full rounded-lg border border-[#E2E8F0] px-4 py-2.5 text-sm focus:border-[#393939] focus:outline-none focus:ring-1 focus:ring-[#393939]"
+                />
+                <p className="mt-1 text-xs text-[#64748B]">
+                  Find your API key in Close → Settings → API Keys
+                </p>
+              </div>
+              <button
+                onClick={handleConnect}
+                disabled={connectClose.isPending || !apiKey.trim()}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#393939] px-6 py-3 font-medium text-white transition-colors hover:bg-[#2A2A2A] disabled:opacity-50"
+              >
+                {connectClose.isPending ? (
+                  <>
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    Connecting...
+                  </>
+                ) : (
+                  <>
+                    <CloseIcon />
+                    Connect Close CRM
+                  </>
+                )}
+              </button>
+            </div>
+            <div className="mt-8 rounded-xl bg-[#F8FAFC] p-4 text-left">
+              <p className="mb-2 text-sm font-medium text-[#1E293B]">What gets synced:</p>
+              <ul className="space-y-2 text-sm text-[#64748B]">
+                <li className="flex items-center gap-2">
+                  <svg className="h-4 w-4 text-[#22C55E]" fill="currentColor" viewBox="0 0 20 20">
+                    <path
+                      fillRule="evenodd"
+                      d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                  Lead contact information
+                </li>
+                <li className="flex items-center gap-2">
+                  <svg className="h-4 w-4 text-[#22C55E]" fill="currentColor" viewBox="0 0 20 20">
+                    <path
+                      fillRule="evenodd"
+                      d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                  Lead status and pipeline stages
+                </li>
+                <li className="flex items-center gap-2">
+                  <svg className="h-4 w-4 text-[#22C55E]" fill="currentColor" viewBox="0 0 20 20">
+                    <path
+                      fillRule="evenodd"
+                      d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                  Email and call activities
+                </li>
+              </ul>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            <div className="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#22C55E]/10">
+                    <svg className="h-5 w-5 text-[#22C55E]" fill="currentColor" viewBox="0 0 20 20">
+                      <path
+                        fillRule="evenodd"
+                        d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="font-medium text-[#1E293B]">Connected</p>
+                    <p className="text-sm text-[#64748B]">
+                      {status.organization_name || 'Close CRM Account'}
+                      {status.organization_id && ` (ID: ${status.organization_id})`}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleTest}
+                    disabled={testConnection.isPending}
+                    className="rounded-lg border border-[#E2E8F0] px-3 py-1.5 text-sm font-medium text-[#64748B] hover:bg-white"
+                  >
+                    {testConnection.isPending ? 'Testing...' : 'Test Connection'}
+                  </button>
+                  <button
+                    onClick={handleDisconnect}
+                    disabled={disconnectClose.isPending}
+                    className="rounded-lg border border-[#EF4444] px-3 py-1.5 text-sm font-medium text-[#EF4444] hover:bg-[#FEF2F2]"
+                  >
+                    Disconnect
+                  </button>
+                </div>
+              </div>
+              {testResult && (
+                <div
+                  className={`mt-3 rounded-lg p-3 text-sm ${testResult.success ? 'bg-[#F0FDF4] text-[#22C55E]' : 'bg-[#FEF2F2] text-[#EF4444]'}`}
+                >
+                  {testResult.message}
+                </div>
+              )}
+            </div>
+
+            <div className="rounded-xl border border-[#E2E8F0] p-4">
+              <h3 className="mb-4 font-semibold text-[#1E293B]">Sync Settings</h3>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium text-[#1E293B]">Enable Sync</p>
+                    <p className="text-sm text-[#64748B]">Automatically sync data with Close CRM</p>
+                  </div>
+                  <button
+                    onClick={() => handleToggleSync(!status.sync_enabled)}
+                    disabled={updateSettings.isPending}
+                    className={`relative h-6 w-11 rounded-full transition-colors ${
+                      status.sync_enabled ? 'bg-[#22C55E]' : 'bg-[#E2E8F0]'
+                    }`}
+                  >
+                    <span
+                      className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
+                        status.sync_enabled ? 'left-[22px]' : 'left-0.5'
+                      }`}
+                    />
+                  </button>
+                </div>
+                {status.last_synced_at && (
+                  <p className="text-sm text-[#64748B]">
+                    Last synced: {new Date(status.last_synced_at).toLocaleString()}
+                  </p>
+                )}
+                {status.last_error && (
+                  <div className="rounded-lg bg-[#FEF2F2] p-3 text-sm text-[#EF4444]">
+                    Last error: {status.last_error}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {syncLogs && syncLogs.length > 0 && (
+              <div className="rounded-xl border border-[#E2E8F0] p-4">
+                <h3 className="mb-4 font-semibold text-[#1E293B]">Recent Sync Activity</h3>
+                <div className="max-h-48 space-y-2 overflow-y-auto">
+                  {syncLogs.map((log) => (
+                    <div
+                      key={log.id}
+                      className="flex items-center justify-between rounded-lg bg-[#F8FAFC] p-3 text-sm"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`h-2 w-2 rounded-full ${
+                            log.success ? 'bg-[#22C55E]' : 'bg-[#EF4444]'
+                          }`}
+                        />
+                        <span className="text-[#1E293B]">{log.operation}</span>
+                        <span className="text-[#64748B]">({log.direction})</span>
+                      </div>
+                      <span className="text-[#94A3B8]">
+                        {new Date(log.created_at).toLocaleTimeString()}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </motion.div>
+    </motion.div>,
+    document.body
+  );
+}
+
+// ==================== SLACK MANAGEMENT MODAL ====================
+function SlackManagementModal({ onClose }: { onClose: () => void }) {
+  const { data: status, isLoading } = useSlackStatus();
+  const { refetch: refetchChannels } = useSlackChannels();
+  const { data: notificationLogs } = useSlackNotificationLogs({ limit: 10 });
+  const connectSlack = useConnectSlack();
+  const disconnectSlack = useDisconnectSlack();
+  const updateSettings = useUpdateSlackSettings();
+  const testConnection = useTestSlackConnection();
+  const sendTestNotification = useSendTestSlackNotification();
+
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  const handleConnect = async () => {
+    try {
+      const result = await connectSlack.mutateAsync();
+      window.location.href = result.authorization_url;
+    } catch {
+      // Error handled by mutation
+    }
+  };
+
+  const handleDisconnect = async () => {
+    if (
+      confirm('Are you sure you want to disconnect Slack? You will stop receiving notifications.')
+    ) {
+      await disconnectSlack.mutateAsync();
+    }
+  };
+
+  const handleTest = async () => {
+    try {
+      const result = await testConnection.mutateAsync();
+      setTestResult(result);
+    } catch {
+      setTestResult({ success: false, message: 'Connection test failed' });
+    }
+  };
+
+  const handleSendTestNotification = async () => {
+    try {
+      const result = await sendTestNotification.mutateAsync();
+      setTestResult(result);
+    } catch {
+      setTestResult({ success: false, message: 'Failed to send test notification' });
+    }
+  };
+
+  const handleToggleSetting = async (
+    setting: 'notify_replies' | 'notify_connections' | 'notify_campaigns',
+    enabled: boolean
+  ) => {
+    await updateSettings.mutateAsync({ [setting]: enabled });
+  };
+
+  useEffect(() => {
+    if (status?.connected) {
+      refetchChannels();
+    }
+  }, [status?.connected, refetchChannels]);
+
+  return createPortal(
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ scale: 0.95, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.95, opacity: 0 }}
+        className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-6 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div
+              className="flex h-12 w-12 items-center justify-center rounded-xl"
+              style={{ backgroundColor: '#4A154B15' }}
+            >
+              <SlackIcon />
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-[#1E293B]">Slack Integration</h2>
+              <p className="text-sm text-[#64748B]">
+                Get notifications about replies, connections, and campaigns
+              </p>
+            </div>
+          </div>
+          <button onClick={onClose} className="text-[#64748B] hover:text-[#1E293B]">
+            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
+            </svg>
+          </button>
+        </div>
+
+        {isLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#4A154B] border-t-transparent" />
+          </div>
+        ) : !status?.connected ? (
+          <div className="py-8 text-center">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#4A154B]/10">
+              <SlackIcon />
+            </div>
+            <h3 className="text-lg font-semibold text-[#1E293B]">Connect to Slack</h3>
+            <p className="mx-auto mt-2 max-w-md text-sm text-[#64748B]">
+              Connect your Slack workspace to receive real-time notifications about new replies,
+              connection accepts, and campaign updates.
+            </p>
+            <div className="mt-6 space-y-3">
+              <button
+                onClick={handleConnect}
+                disabled={connectSlack.isPending}
+                className="inline-flex items-center gap-2 rounded-lg bg-[#4A154B] px-6 py-3 font-medium text-white transition-colors hover:bg-[#3B1039] disabled:opacity-50"
+              >
+                {connectSlack.isPending ? (
+                  <>
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    Connecting...
+                  </>
+                ) : (
+                  <>
+                    <SlackIcon />
+                    Add to Slack
+                  </>
+                )}
+              </button>
+            </div>
+            <div className="mt-8 rounded-xl bg-[#F8FAFC] p-4 text-left">
+              <p className="mb-2 text-sm font-medium text-[#1E293B]">
+                You'll get notifications for:
+              </p>
+              <ul className="space-y-2 text-sm text-[#64748B]">
+                <li className="flex items-center gap-2">
+                  <svg className="h-4 w-4 text-[#22C55E]" fill="currentColor" viewBox="0 0 20 20">
+                    <path
+                      fillRule="evenodd"
+                      d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                  New replies to your messages
+                </li>
+                <li className="flex items-center gap-2">
+                  <svg className="h-4 w-4 text-[#22C55E]" fill="currentColor" viewBox="0 0 20 20">
+                    <path
+                      fillRule="evenodd"
+                      d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                  Connection request accepts
+                </li>
+                <li className="flex items-center gap-2">
+                  <svg className="h-4 w-4 text-[#22C55E]" fill="currentColor" viewBox="0 0 20 20">
+                    <path
+                      fillRule="evenodd"
+                      d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                  Campaign status updates
+                </li>
+              </ul>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            <div className="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#22C55E]/10">
+                    <svg className="h-5 w-5 text-[#22C55E]" fill="currentColor" viewBox="0 0 20 20">
+                      <path
+                        fillRule="evenodd"
+                        d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                  </div>
+                  <div>
+                    <p className="font-medium text-[#1E293B]">Connected</p>
+                    <p className="text-sm text-[#64748B]">
+                      {status.team_name || 'Slack Workspace'}
+                      {status.default_channel_name && ` → #${status.default_channel_name}`}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleTest}
+                    disabled={testConnection.isPending}
+                    className="rounded-lg border border-[#E2E8F0] px-3 py-1.5 text-sm font-medium text-[#64748B] hover:bg-white"
+                  >
+                    {testConnection.isPending ? 'Testing...' : 'Test Connection'}
+                  </button>
+                  <button
+                    onClick={handleDisconnect}
+                    disabled={disconnectSlack.isPending}
+                    className="rounded-lg border border-[#EF4444] px-3 py-1.5 text-sm font-medium text-[#EF4444] hover:bg-[#FEF2F2]"
+                  >
+                    Disconnect
+                  </button>
+                </div>
+              </div>
+              {testResult && (
+                <div
+                  className={`mt-3 rounded-lg p-3 text-sm ${testResult.success ? 'bg-[#F0FDF4] text-[#22C55E]' : 'bg-[#FEF2F2] text-[#EF4444]'}`}
+                >
+                  {testResult.message}
+                </div>
+              )}
+            </div>
+
+            <div className="rounded-xl border border-[#E2E8F0] p-4">
+              <h3 className="mb-4 font-semibold text-[#1E293B]">Notification Settings</h3>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium text-[#1E293B]">New Replies</p>
+                    <p className="text-sm text-[#64748B]">Get notified when leads reply</p>
+                  </div>
+                  <button
+                    onClick={() => handleToggleSetting('notify_replies', !status.notify_replies)}
+                    disabled={updateSettings.isPending}
+                    className={`relative h-6 w-11 rounded-full transition-colors ${
+                      status.notify_replies ? 'bg-[#22C55E]' : 'bg-[#E2E8F0]'
+                    }`}
+                  >
+                    <span
+                      className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
+                        status.notify_replies ? 'left-[22px]' : 'left-0.5'
+                      }`}
+                    />
+                  </button>
+                </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium text-[#1E293B]">Connection Accepts</p>
+                    <p className="text-sm text-[#64748B]">Get notified when connections accept</p>
+                  </div>
+                  <button
+                    onClick={() =>
+                      handleToggleSetting('notify_connections', !status.notify_connections)
+                    }
+                    disabled={updateSettings.isPending}
+                    className={`relative h-6 w-11 rounded-full transition-colors ${
+                      status.notify_connections ? 'bg-[#22C55E]' : 'bg-[#E2E8F0]'
+                    }`}
+                  >
+                    <span
+                      className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
+                        status.notify_connections ? 'left-[22px]' : 'left-0.5'
+                      }`}
+                    />
+                  </button>
+                </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium text-[#1E293B]">Campaign Updates</p>
+                    <p className="text-sm text-[#64748B]">
+                      Get notified about campaign status changes
+                    </p>
+                  </div>
+                  <button
+                    onClick={() =>
+                      handleToggleSetting('notify_campaigns', !status.notify_campaigns)
+                    }
+                    disabled={updateSettings.isPending}
+                    className={`relative h-6 w-11 rounded-full transition-colors ${
+                      status.notify_campaigns ? 'bg-[#22C55E]' : 'bg-[#E2E8F0]'
+                    }`}
+                  >
+                    <span
+                      className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
+                        status.notify_campaigns ? 'left-[22px]' : 'left-0.5'
+                      }`}
+                    />
+                  </button>
+                </div>
+              </div>
+              <div className="mt-4 border-t border-[#E2E8F0] pt-4">
+                <button
+                  onClick={handleSendTestNotification}
+                  disabled={sendTestNotification.isPending}
+                  className="rounded-lg border border-[#E2E8F0] px-4 py-2 text-sm font-medium text-[#64748B] hover:bg-[#F8FAFC]"
+                >
+                  {sendTestNotification.isPending ? 'Sending...' : 'Send Test Notification'}
+                </button>
+              </div>
+            </div>
+
+            {status.last_error && (
+              <div className="rounded-lg bg-[#FEF2F2] p-3 text-sm text-[#EF4444]">
+                Last error: {status.last_error}
+              </div>
+            )}
+
+            {notificationLogs && notificationLogs.length > 0 && (
+              <div className="rounded-xl border border-[#E2E8F0] p-4">
+                <h3 className="mb-4 font-semibold text-[#1E293B]">Recent Notifications</h3>
+                <div className="max-h-48 space-y-2 overflow-y-auto">
+                  {notificationLogs.map((log) => (
+                    <div
+                      key={log.id}
+                      className="flex items-center justify-between rounded-lg bg-[#F8FAFC] p-3 text-sm"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`h-2 w-2 rounded-full ${
+                            log.success ? 'bg-[#22C55E]' : 'bg-[#EF4444]'
+                          }`}
+                        />
+                        <span className="text-[#1E293B]">{log.event_type}</span>
+                      </div>
+                      <span className="text-[#94A3B8]">
+                        {new Date(log.created_at).toLocaleTimeString()}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </motion.div>
+    </motion.div>,
+    document.body
   );
 }
 
