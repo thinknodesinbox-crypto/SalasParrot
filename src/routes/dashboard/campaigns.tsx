@@ -1,4 +1,5 @@
 import { createFileRoute, useSearch, useNavigate } from '@tanstack/react-router';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState, useCallback, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -8,6 +9,7 @@ import {
   NodeConfigPanel,
   type SequenceNode,
 } from '@/components/campaign/SequenceCanvas';
+import { CampaignProgressView } from '@/components/campaign/CampaignProgressView';
 import {
   useCampaigns,
   useCampaign,
@@ -1061,7 +1063,7 @@ function CreateCampaignModal({
     }
   };
 
-  return (
+  return createPortal(
     <>
       {/* Validation Warning Dialog */}
       <AnimatePresence>
@@ -1138,7 +1140,7 @@ function CreateCampaignModal({
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+        className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
         onClick={onClose}
       >
         <motion.div
@@ -1961,7 +1963,8 @@ function CreateCampaignModal({
           )}
         </motion.div>
       </motion.div>
-    </>
+    </>,
+    document.body
   );
 }
 
@@ -2029,12 +2032,12 @@ function CampaignDetailDrawer({
     }
   };
 
-  return (
+  return createPortal(
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 bg-black/50"
+      className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm"
       onClick={onClose}
     >
       <motion.div
@@ -2130,7 +2133,7 @@ function CampaignDetailDrawer({
 
           {/* Clone Dialog */}
           {showCloneDialog && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+            <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm">
               <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
                 <h3 className="mb-4 text-lg font-semibold text-[#1E293B]">Clone Campaign</h3>
                 <p className="mb-4 text-sm text-[#64748B]">
@@ -2285,11 +2288,22 @@ function CampaignDetailDrawer({
                   </p>
                 </div>
               </div>
+
+              {/* Progress Tracking Section - only show for active/paused campaigns */}
+              {(campaign.status === 'active' || campaign.status === 'paused') && (
+                <div>
+                  <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-[#64748B]">
+                    Progress Tracking
+                  </h3>
+                  <CampaignProgressView campaignId={campaign.id} />
+                </div>
+              )}
             </div>
           </div>
         </div>
       </motion.div>
-    </motion.div>
+    </motion.div>,
+    document.body
   );
 }
 

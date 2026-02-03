@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from '@tanstack/react-router';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState, useRef, useEffect } from 'react';
 import {
@@ -532,16 +533,17 @@ function LeadListDetail({
   const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [enrichmentJobId, setEnrichmentJobId] = useState<string | null>(null);
+  const [enrichingLeadIds, setEnrichingLeadIds] = useState<Set<string>>(new Set());
   const deleteLeadsMutation = useDeleteLeads();
   const enrichLeadsMutation = useEnrichLeads();
   const { data: enrichmentJob } = useEnrichmentJobWithPolling(enrichmentJobId);
-  const enrichmentPercent =
-    list.lead_count > 0 ? Math.round((list.enriched_count / list.lead_count) * 100) : 0;
 
-  // Clear enrichment job ID when job completes
+  // Clear enrichment job ID and enriching leads when job completes
   useEffect(() => {
     if (enrichmentJob?.status === 'completed' || enrichmentJob?.status === 'failed') {
-      // Keep showing for a moment then clear
+      // Clear enriching leads immediately
+      setEnrichingLeadIds(new Set());
+      // Keep showing job status for a moment then clear
       const timer = setTimeout(() => setEnrichmentJobId(null), 3000);
       return () => clearTimeout(timer);
     }
@@ -559,12 +561,23 @@ function LeadListDetail({
   };
 
   const handleEnrichSelected = async () => {
+    // Show immediate loading state for all selected leads
+    setEnrichingLeadIds((prev) => {
+      const next = new Set(prev);
+      selectedLeads.forEach((id) => next.add(id));
+      return next;
+    });
     try {
       const result = await enrichLeadsMutation.mutateAsync(selectedLeads);
       setEnrichmentJobId(result.job_id);
       setSelectedLeads([]);
     } catch {
-      // Error is handled by mutation
+      // Error - remove from enriching set
+      setEnrichingLeadIds((prev) => {
+        const next = new Set(prev);
+        selectedLeads.forEach((id) => next.delete(id));
+        return next;
+      });
     }
   };
 
@@ -583,11 +596,23 @@ function LeadListDetail({
       return;
     }
 
+    // Show immediate loading state for all leads being enriched
+    setEnrichingLeadIds((prev) => {
+      const next = new Set(prev);
+      leadsToEnrich.forEach((id) => next.add(id));
+      return next;
+    });
+
     try {
       const result = await enrichLeadsMutation.mutateAsync(leadsToEnrich);
       setEnrichmentJobId(result.job_id);
     } catch {
-      // Error is handled by mutation
+      // Error - remove from enriching set
+      setEnrichingLeadIds((prev) => {
+        const next = new Set(prev);
+        leadsToEnrich.forEach((id) => next.delete(id));
+        return next;
+      });
     }
   };
 
@@ -666,20 +691,6 @@ function LeadListDetail({
                 <CampaignIcon className="h-4 w-4" />
                 Add to Campaign
               </Link>
-            </div>
-          </div>
-
-          {/* Progress bar */}
-          <div className="mt-6 border-t border-[#E2E8F0] pt-6">
-            <div className="mb-2 flex items-center justify-between text-sm">
-              <span className="text-[#64748B]">Email enrichment progress</span>
-              <span className="font-medium text-[#1E293B]">{enrichmentPercent}%</span>
-            </div>
-            <div className="h-2 overflow-hidden rounded-full bg-[#E2E8F0]">
-              <div
-                className="h-full rounded-full bg-gradient-to-r from-[#14B8A6] to-[#0D9488] transition-all"
-                style={{ width: `${enrichmentPercent}%` }}
-              />
             </div>
           </div>
         </div>
@@ -837,13 +848,21 @@ function LeadListDetail({
                         setShowDeleteModal(true);
                       }}
                       onEnrich={async (leadId) => {
+                        // Show immediate loading state
+                        setEnrichingLeadIds((prev) => new Set(prev).add(leadId));
                         try {
                           const result = await enrichLeadsMutation.mutateAsync([leadId]);
                           setEnrichmentJobId(result.job_id);
                         } catch {
-                          // Error is handled by mutation
+                          // Error - remove from enriching set
+                          setEnrichingLeadIds((prev) => {
+                            const next = new Set(prev);
+                            next.delete(leadId);
+                            return next;
+                          });
                         }
                       }}
+                      isEnriching={enrichingLeadIds.has(lead.id)}
                     />
                   ))
                 )}
@@ -935,13 +954,13 @@ function DeleteLeadsModal({
   onConfirm: () => void;
   isDeleting: boolean;
 }) {
-  return (
+  return createPortal(
     <AnimatePresence>
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+        className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
         onClick={onClose}
       >
         <motion.div
@@ -984,7 +1003,8 @@ function DeleteLeadsModal({
           </div>
         </motion.div>
       </motion.div>
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 }
 
@@ -995,6 +1015,7 @@ function LeadRow({
   onSelect,
   onDelete,
   onEnrich,
+  isEnriching,
 }: {
   lead: Lead;
   rowNumber: number;
@@ -1002,6 +1023,7 @@ function LeadRow({
   onSelect: (selected: boolean) => void;
   onDelete: (leadId: string) => void;
   onEnrich: (leadId: string) => void;
+  isEnriching: boolean;
 }) {
   const [showMenu, setShowMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -1069,10 +1091,10 @@ function LeadRow({
       <td className="px-6 py-4 text-[#1E293B]">{lead.company || '-'}</td>
       <td className="px-6 py-4 text-[#64748B]">{lead.location || '-'}</td>
       <td className="px-6 py-4">
-        {lead.enrichment_status === 'pending' ? (
+        {isEnriching || lead.enrichment_status === 'pending' ? (
           <div className="flex items-center gap-2">
             <LoadingSpinner className="h-3.5 w-3.5 text-[#14B8A6]" />
-            <span className="text-sm text-[#64748B]">Enriching...</span>
+            <span className="text-sm text-[#64748B]">Finding email...</span>
           </div>
         ) : lead.enrichment_status === 'enriched' && lead.email ? (
           <span className="text-[#1E293B]">{lead.email}</span>
@@ -1135,7 +1157,7 @@ function LeadRow({
             </button>
             {showMenu && (
               <div className="absolute right-0 top-full z-10 mt-1 w-36 rounded-lg border border-[#E2E8F0] bg-white py-1 shadow-lg">
-                {!lead.email && lead.enrichment_status !== 'pending' && (
+                {!lead.email && lead.enrichment_status !== 'pending' && !isEnriching && (
                   <button
                     onClick={() => {
                       onEnrich(lead.id);
@@ -1324,12 +1346,12 @@ function ImportLeadsModal({ onClose, onSuccess }: { onClose: () => void; onSucce
     onSuccess();
   };
 
-  return (
+  return createPortal(
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
       onClick={onClose}
     >
       <motion.div
@@ -2045,13 +2067,13 @@ function EditListModal({ list, onClose }: { list: LeadList; onClose: () => void 
     }
   };
 
-  return (
+  return createPortal(
     <AnimatePresence>
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+        className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
         onClick={onClose}
       >
         <motion.div
@@ -2096,7 +2118,8 @@ function EditListModal({ list, onClose }: { list: LeadList; onClose: () => void 
           </div>
         </motion.div>
       </motion.div>
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 }
 
@@ -2123,13 +2146,13 @@ function DeleteListModal({
     }
   };
 
-  return (
+  return createPortal(
     <AnimatePresence>
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+        className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
         onClick={onClose}
       >
         <motion.div
@@ -2170,7 +2193,8 @@ function DeleteListModal({
           </div>
         </motion.div>
       </motion.div>
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 }
 

@@ -90,8 +90,8 @@ export const useEnrichmentJobWithPolling = (jobId: string | null) => {
         queryClient.invalidateQueries({ queryKey: queryKeys.leadLists.all });
         return false;
       }
-      // Poll every 30 seconds while processing
-      return 30000;
+      // Poll every 3 seconds while processing
+      return 3000;
     },
   });
 };

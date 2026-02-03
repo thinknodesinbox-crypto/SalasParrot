@@ -1043,3 +1043,63 @@ export interface AdminSignupTrends {
   daily: SignupTrend[];
   period_days: number;
 }
+
+// Campaign Progress Tracking Types
+
+export interface CampaignMetrics {
+  campaign_id: string;
+  total_leads: number;
+  leads_by_status: Record<string, number>;
+  processing_speed: number;
+  processed_today: number;
+  last_activity_at: string | null;
+}
+
+export interface StepProgressItem {
+  step_id: string;
+  step_order: number;
+  step_type: StepType;
+  leads_at_step: number;
+  leads_completed: number;
+  leads_in_progress: number;
+}
+
+export interface CampaignProgress {
+  campaign_id: string;
+  campaign_status: CampaignStatus;
+  overall_progress: number;
+  current_step: string | null;
+  leads_completed: number;
+  leads_in_progress: number;
+  leads_pending: number;
+  estimated_completion: string | null;
+  steps_breakdown: StepProgressItem[];
+}
+
+export interface StatusBreakdownItem {
+  status: string;
+  count: number;
+  percentage: number;
+}
+
+export interface StepBreakdownItem {
+  step_id: string;
+  step_order: number;
+  step_type: string;
+  count: number;
+  percentage: number;
+}
+
+export interface LeadBreakdown {
+  campaign_id: string;
+  by_status: StatusBreakdownItem[];
+  by_step: StepBreakdownItem[];
+  total_leads: number;
+}
+
+export interface CampaignProgressSSEEvent {
+  event_type: 'metrics_update' | 'lead_status_change' | 'step_progress' | 'campaign_state_change';
+  campaign_id: string;
+  timestamp: string;
+  data: Record<string, unknown>;
+}

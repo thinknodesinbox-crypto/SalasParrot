@@ -15,6 +15,7 @@ export interface SequenceNode {
     | 'email'
     | 'delay'
     | 'condition'
+    | 'enrichment'
     | 'end';
   data: NodeData;
   position?: { x: number; y: number };
@@ -348,6 +349,17 @@ function InsertButton({
                   setShowMenu(false);
                 }}
               />
+
+              <div className="my-1 border-t border-[#E2E8F0]" />
+              <p className="px-3 py-1 text-[10px] font-semibold uppercase text-[#94A3B8]">Data</p>
+              <ActionMenuItem
+                icon={<SearchIcon className="h-4 w-4" />}
+                label="Enrich Email"
+                onClick={() => {
+                  onAdd('enrichment');
+                  setShowMenu(false);
+                }}
+              />
             </motion.div>
           </>
         )}
@@ -409,6 +421,8 @@ function TreeNode({
         return 'InMail';
       case 'email':
         return 'Email';
+      case 'enrichment':
+        return 'Enrich';
       default:
         return config.label;
     }
@@ -687,6 +701,17 @@ function BranchEndButtons({
                     setShowMenu(false);
                   }}
                 />
+
+                <div className="my-1 border-t border-[#E2E8F0]" />
+                <p className="px-3 py-1 text-[10px] font-semibold uppercase text-[#94A3B8]">Data</p>
+                <ActionMenuItem
+                  icon={<SearchIcon className="h-4 w-4" />}
+                  label="Enrich Email"
+                  onClick={() => {
+                    onAddAction('enrichment');
+                    setShowMenu(false);
+                  }}
+                />
               </motion.div>
             </>
           )}
@@ -805,6 +830,17 @@ function AddActionButton({
                   setShowMenu(false);
                 }}
               />
+
+              <div className="my-1 border-t border-[#E2E8F0]" />
+              <p className="px-3 py-1 text-[10px] font-semibold uppercase text-[#94A3B8]">Data</p>
+              <ActionMenuItem
+                icon={<SearchIcon className="h-4 w-4" />}
+                label="Enrich Email"
+                onClick={() => {
+                  onAdd('enrichment');
+                  setShowMenu(false);
+                }}
+              />
             </motion.div>
           </>
         )}
@@ -895,6 +931,17 @@ export function StepPalette({
           type: 'condition' as const,
           label: 'If / Then',
           icon: <BranchIcon className="h-4 w-4" />,
+        },
+      ],
+    },
+    {
+      title: 'Data',
+      color: '#A855F7',
+      steps: [
+        {
+          type: 'enrichment' as const,
+          label: 'Enrich Email',
+          icon: <SearchIcon className="h-4 w-4" />,
         },
       ],
     },
@@ -1133,17 +1180,15 @@ export function NodeConfigPanel({
               className="w-full resize-none rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
             />
             <div className="mt-2 flex flex-wrap gap-1.5">
-              {['{{first_name}}', '{{last_name}}', '{{company}}', '{{icebreaker}}'].map(
-                (variable) => (
-                  <button
-                    key={variable}
-                    onClick={() => onUpdate({ message: (node.data.message || '') + variable })}
-                    className="rounded bg-[#FFF7ED] px-2 py-1 text-[10px] font-medium text-[#FF6B35] transition-colors hover:bg-[#FFEDD5]"
-                  >
-                    {variable}
-                  </button>
-                )
-              )}
+              {['{{first_name}}', '{{last_name}}', '{{company}}'].map((variable) => (
+                <button
+                  key={variable}
+                  onClick={() => onUpdate({ message: (node.data.message || '') + variable })}
+                  className="rounded bg-[#FFF7ED] px-2 py-1 text-[10px] font-medium text-[#FF6B35] transition-colors hover:bg-[#FFEDD5]"
+                >
+                  {variable}
+                </button>
+              ))}
             </div>
           </div>
         )}
@@ -1254,6 +1299,16 @@ export function NodeConfigPanel({
             </div>
           </div>
         )}
+
+        {/* Enrichment Configuration */}
+        {node.type === 'enrichment' && (
+          <div className="rounded-lg bg-[#F3E8FF] p-3">
+            <p className="text-xs text-[#7C3AED]">
+              This step will discover the lead's email address using Better Contact. Leads that
+              already have an email will skip this step automatically.
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Footer */}
@@ -1311,6 +1366,11 @@ function getNodeConfig(type: SequenceNode['type']) {
       label: 'Condition',
       color: '#8B5CF6',
       icon: <UserIcon className="h-4 w-4 text-[#8B5CF6]" />,
+    },
+    enrichment: {
+      label: 'Enrich Email',
+      color: '#A855F7',
+      icon: <SearchIcon className="h-4 w-4 text-[#A855F7]" />,
     },
     end: {
       label: 'End',
@@ -1479,6 +1539,24 @@ function BranchIcon({ className = 'w-4 h-4' }: { className?: string }) {
       strokeWidth={2}
     >
       <path strokeLinecap="round" strokeLinejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+    </svg>
+  );
+}
+
+function SearchIcon({ className = 'w-4 h-4' }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={2}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"
+      />
     </svg>
   );
 }

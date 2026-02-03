@@ -9,7 +9,7 @@ export const Route = createFileRoute('/admin/')({
 
 function AdminDashboard() {
   const { data: stats, isLoading: statsLoading } = useAdminStats();
-  const { data: trends } = useAdminSignupTrends(30);
+  const { data: trends, isLoading: trendsLoading, error: trendsError } = useAdminSignupTrends(30);
   const { theme } = useAdminTheme();
 
   const isDark = theme === 'dark';
@@ -113,14 +113,24 @@ function AdminDashboard() {
       </div>
 
       {/* Signup Trends */}
-      {trends && trends.daily.length > 0 && (
-        <div
-          className={`rounded-xl border p-6 ${isDark ? 'border-white/10 bg-[#111113]' : 'border-gray-200 bg-white'}`}
-        >
-          <h2 className={`mb-4 text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-            Signup Trends (Last 30 Days)
-          </h2>
-          <div className="h-48">
+      <div
+        className={`rounded-xl border p-6 ${isDark ? 'border-white/10 bg-[#111113]' : 'border-gray-200 bg-white'}`}
+      >
+        <h2 className={`mb-4 text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+          Signup Trends (Last 30 Days)
+        </h2>
+        <div className="h-48">
+          {trendsLoading ? (
+            <div className="flex h-full items-center justify-center">
+              <div className="h-6 w-6 animate-spin rounded-full border-2 border-[#14B8A6] border-t-transparent" />
+            </div>
+          ) : trendsError ? (
+            <div className="flex h-full items-center justify-center">
+              <p className={`text-sm ${isDark ? 'text-red-400' : 'text-red-500'}`}>
+                Failed to load trends
+              </p>
+            </div>
+          ) : trends && trends.daily.length > 0 ? (
             <div className="flex h-full items-end gap-1">
               {trends.daily.map((day, index) => {
                 const maxCount = Math.max(...trends.daily.map((d) => d.count), 1);
@@ -128,11 +138,11 @@ function AdminDashboard() {
                 return (
                   <div
                     key={index}
-                    className="group relative flex-1"
+                    className="group relative h-full flex-1"
                     title={`${day.date}: ${day.count} signups`}
                   >
                     <div
-                      className="w-full rounded-t bg-[#14B8A6] transition-colors hover:bg-[#14B8A6]/80"
+                      className="absolute bottom-0 w-full rounded-t bg-[#14B8A6] transition-colors hover:bg-[#14B8A6]/80"
                       style={{ height: `${Math.max(height, 2)}%` }}
                     />
                     <div
@@ -144,9 +154,15 @@ function AdminDashboard() {
                 );
               })}
             </div>
-          </div>
+          ) : (
+            <div className="flex h-full items-center justify-center">
+              <p className={`text-sm ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                No signup data available
+              </p>
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }
