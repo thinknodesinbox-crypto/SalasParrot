@@ -31,6 +31,7 @@ export interface User {
   plan: PlanType;
   subscription_status?: string;
   partner_access?: PartnerAccessInfo | null;
+  has_invited_workspace_access?: boolean; // True if user is member of a workspace they were invited to
   created_at: string;
   updated_at: string;
 }

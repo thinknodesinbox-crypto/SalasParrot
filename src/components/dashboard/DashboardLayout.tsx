@@ -13,7 +13,7 @@ interface DashboardLayoutProps {
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: 'dashboard' },
-  { name: 'LinkedIn Accounts', href: '/dashboard/accounts', icon: 'linkedin' },
+  { name: 'Accounts', href: '/dashboard/accounts', icon: 'accounts' },
   { name: 'Leads', href: '/dashboard/leads', icon: 'leads' },
   { name: 'Campaigns', href: '/dashboard/campaigns', icon: 'campaigns' },
   { name: 'Inbox', href: '/dashboard/inbox', icon: 'inbox' },
@@ -455,7 +455,7 @@ function NavItem({
 }) {
   const icons: Record<string, React.ReactNode> = {
     dashboard: <DashboardIcon />,
-    linkedin: <LinkedInIcon />,
+    accounts: <AccountsIcon />,
     leads: <LeadsIcon />,
     campaigns: <CampaignsIcon />,
     inbox: <InboxIcon />,
@@ -519,10 +519,20 @@ function DashboardIcon() {
   );
 }
 
-function LinkedInIcon() {
+function AccountsIcon() {
   return (
-    <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
-      <path d="M16.338 16.338H13.67V12.16c0-.995-.017-2.277-1.387-2.277-1.39 0-1.601 1.086-1.601 2.207v4.248H8.014v-8.59h2.559v1.174h.037c.356-.675 1.227-1.387 2.526-1.387 2.703 0 3.203 1.778 3.203 4.092v4.711zM5.005 6.575a1.548 1.548 0 11-.003-3.096 1.548 1.548 0 01.003 3.096zm-1.337 9.763H6.34v-8.59H3.667v8.59zM17.668 1H2.328C1.595 1 1 1.581 1 2.298v15.403C1 18.418 1.595 19 2.328 19h15.34c.734 0 1.332-.582 1.332-1.299V2.298C19 1.581 18.402 1 17.668 1z" />
+    <svg
+      className="h-5 w-5"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={1.5}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M18 18.72a9.094 9.094 0 003.741-.479 3 3 0 00-4.682-2.72m.94 3.198l.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0112 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 016 18.719m12 0a5.971 5.971 0 00-.941-3.197m0 0A5.995 5.995 0 0012 12.75a5.995 5.995 0 00-5.058 2.772m0 0a3 3 0 00-4.681 2.72 8.986 8.986 0 003.74.477m.94-3.197a5.971 5.971 0 00-.94 3.197M15 6.75a3 3 0 11-6 0 3 3 0 016 0zm6 3a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0zm-13.5 0a2.25 2.25 0 11-4.5 0 2.25 2.25 0 014.5 0z"
+      />
     </svg>
   );
 }

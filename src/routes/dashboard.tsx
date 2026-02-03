@@ -12,12 +12,13 @@ function DashboardPage() {
   const user = useAuthStore((state) => state.user);
   const isLoading = useAuthStore((state) => state.isLoading);
 
-  // Check if user has valid access (admin, active subscription, trial, or partner access)
+  // Check if user has valid access (admin, active subscription, trial, partner access, or invited to a workspace)
   const hasValidAccess =
     user?.is_admin ||
     user?.subscription_status === 'active' ||
     user?.subscription_status === 'trialing' ||
-    user?.partner_access?.is_active;
+    user?.partner_access?.is_active ||
+    user?.has_invited_workspace_access;
 
   // Redirect users without valid access to onboarding
   useEffect(() => {

@@ -46,14 +46,18 @@ function OnboardingPage() {
   const createTrialCheckout = useCreateTrialCheckout();
   const createAgencyCheckout = useCreateAgencyCheckout();
 
-  // Redirect if admin or already has subscription
+  // Redirect if admin, has subscription, or was invited to a workspace
   useEffect(() => {
     if (!isLoading && user) {
       if (user.is_admin) {
         navigate({ to: '/dashboard' });
       }
-      // If user already has a subscription or partner access, go to dashboard
-      if (user.subscription_status === 'active' || user.partner_access?.is_active) {
+      // If user already has a subscription, partner access, or was invited to a workspace, go to dashboard
+      if (
+        user.subscription_status === 'active' ||
+        user.partner_access?.is_active ||
+        user.has_invited_workspace_access
+      ) {
         navigate({ to: '/dashboard' });
       }
     }

@@ -294,9 +294,9 @@ function CampaignsList({
   onEdit: (campaign: Campaign) => void;
 }) {
   return (
-    <div className="overflow-hidden rounded-xl border border-[#E2E8F0] bg-white">
+    <div className="rounded-xl border border-[#E2E8F0] bg-white">
       {/* Desktop Table */}
-      <div className="hidden overflow-x-auto lg:block">
+      <div className="hidden lg:block">
         <table className="w-full">
           <thead>
             <tr className="border-b border-[#E2E8F0] bg-[#F8FAFC]">
@@ -522,7 +522,7 @@ function CampaignRow({
 
   return (
     <tr
-      className="cursor-pointer transition-colors hover:bg-[#F8FAFC]"
+      className={`cursor-pointer transition-colors hover:bg-[#F8FAFC] ${menuOpen ? 'relative z-10' : ''}`}
       onClick={() => onSelect(campaign)}
     >
       <td className="px-6 py-4">

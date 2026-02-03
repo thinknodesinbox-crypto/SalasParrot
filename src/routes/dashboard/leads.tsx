@@ -127,6 +127,8 @@ const IMPORT_METHODS: {
   },
 ];
 
+const LEADS_PER_PAGE = 50;
+
 function LeadsPage() {
   const [showImportModal, setShowImportModal] = useState(false);
   const [selectedListId, setSelectedListId] = useState<string | null>(null);
@@ -134,6 +136,7 @@ function LeadsPage() {
   const [filterType, setFilterType] = useState<'all' | 'enriched' | 'not_enriched'>('all');
   const [editingList, setEditingList] = useState<LeadList | null>(null);
   const [deletingList, setDeletingList] = useState<LeadList | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
 
   // Fetch lead lists from API
   const {
@@ -144,11 +147,24 @@ function LeadsPage() {
   } = useLeadLists();
   const lists = listsResponse?.lists || [];
 
-  // Fetch leads filtered by selected list
+  // Fetch leads filtered by selected list with pagination
   const { data: leadsResponse, isLoading: leadsLoading } = useLeads(
-    selectedListId ? { list_id: selectedListId } : undefined
+    selectedListId
+      ? {
+          list_id: selectedListId,
+          limit: LEADS_PER_PAGE,
+          offset: (currentPage - 1) * LEADS_PER_PAGE,
+        }
+      : undefined
   );
   const leads = leadsResponse?.leads || [];
+  const totalLeads = leadsResponse?.total || 0;
+  const totalPages = Math.ceil(totalLeads / LEADS_PER_PAGE);
+
+  // Reset to page 1 when changing list
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedListId]);
 
   const isLoading = listsLoading;
   const error = listsError;
@@ -247,6 +263,10 @@ function LeadsPage() {
           isLoading={leadsLoading}
           onBack={() => setSelectedListId(null)}
           onLeadsDeleted={() => refetchLists()}
+          totalLeads={totalLeads}
+          totalPages={totalPages}
+          currentPage={currentPage}
+          onPageChange={setCurrentPage}
         />
       ) : (
         <LeadListsGrid
@@ -494,12 +514,20 @@ function LeadListDetail({
   isLoading,
   onBack,
   onLeadsDeleted,
+  totalLeads,
+  totalPages,
+  currentPage,
+  onPageChange,
 }: {
   list: LeadList;
   leads: Lead[];
   isLoading: boolean;
   onBack: () => void;
   onLeadsDeleted?: () => void;
+  totalLeads: number;
+  totalPages: number;
+  currentPage: number;
+  onPageChange: (page: number) => void;
 }) {
   const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -748,6 +776,9 @@ function LeadListDetail({
                       className="rounded border-[#E2E8F0] text-[#FF6B35] focus:ring-[#FF6B35]"
                     />
                   </th>
+                  <th className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[#64748B]">
+                    #
+                  </th>
                   <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[#64748B]">
                     Lead
                   </th>
@@ -761,6 +792,9 @@ function LeadListDetail({
                     Email
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[#64748B]">
+                    Profile
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[#64748B]">
                     Status
                   </th>
                   <th className="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider text-[#64748B]">
@@ -771,7 +805,7 @@ function LeadListDetail({
               <tbody className="divide-y divide-[#E2E8F0]">
                 {isLoading ? (
                   <tr>
-                    <td colSpan={7} className="px-6 py-12 text-center text-[#64748B]">
+                    <td colSpan={9} className="px-6 py-12 text-center text-[#64748B]">
                       <div className="flex items-center justify-center gap-2">
                         <LoadingSpinner />
                         <span>Loading leads...</span>
@@ -780,15 +814,16 @@ function LeadListDetail({
                   </tr>
                 ) : leads.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-6 py-12 text-center text-[#64748B]">
+                    <td colSpan={9} className="px-6 py-12 text-center text-[#64748B]">
                       No leads in this list yet
                     </td>
                   </tr>
                 ) : (
-                  leads.map((lead) => (
+                  leads.map((lead, index) => (
                     <LeadRow
                       key={lead.id}
                       lead={lead}
+                      rowNumber={(currentPage - 1) * LEADS_PER_PAGE + index + 1}
                       selected={selectedLeads.includes(lead.id)}
                       onSelect={(selected) => {
                         if (selected) {
@@ -815,6 +850,73 @@ function LeadListDetail({
               </tbody>
             </table>
           </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between border-t border-[#E2E8F0] px-6 py-4">
+              <div className="text-sm text-[#64748B]">
+                Showing {(currentPage - 1) * LEADS_PER_PAGE + 1} to{' '}
+                {Math.min(currentPage * LEADS_PER_PAGE, totalLeads)} of {totalLeads} leads
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => onPageChange(1)}
+                  disabled={currentPage === 1}
+                  className="rounded-lg border border-[#E2E8F0] px-3 py-1.5 text-sm text-[#64748B] transition-colors hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  First
+                </button>
+                <button
+                  onClick={() => onPageChange(Math.max(1, currentPage - 1))}
+                  disabled={currentPage === 1}
+                  className="rounded-lg border border-[#E2E8F0] px-3 py-1.5 text-sm text-[#64748B] transition-colors hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Previous
+                </button>
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    let pageNum: number;
+                    if (totalPages <= 5) {
+                      pageNum = i + 1;
+                    } else if (currentPage <= 3) {
+                      pageNum = i + 1;
+                    } else if (currentPage >= totalPages - 2) {
+                      pageNum = totalPages - 4 + i;
+                    } else {
+                      pageNum = currentPage - 2 + i;
+                    }
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => onPageChange(pageNum)}
+                        className={`rounded-lg px-3 py-1.5 text-sm transition-colors ${
+                          currentPage === pageNum
+                            ? 'bg-[#FF6B35] text-white'
+                            : 'border border-[#E2E8F0] text-[#64748B] hover:bg-[#F8FAFC]'
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  })}
+                </div>
+                <button
+                  onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
+                  disabled={currentPage === totalPages}
+                  className="rounded-lg border border-[#E2E8F0] px-3 py-1.5 text-sm text-[#64748B] transition-colors hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Next
+                </button>
+                <button
+                  onClick={() => onPageChange(totalPages)}
+                  disabled={currentPage === totalPages}
+                  className="rounded-lg border border-[#E2E8F0] px-3 py-1.5 text-sm text-[#64748B] transition-colors hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  Last
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </>
@@ -888,12 +990,14 @@ function DeleteLeadsModal({
 
 function LeadRow({
   lead,
+  rowNumber,
   selected,
   onSelect,
   onDelete,
   onEnrich,
 }: {
   lead: Lead;
+  rowNumber: number;
   selected: boolean;
   onSelect: (selected: boolean) => void;
   onDelete: (leadId: string) => void;
@@ -936,6 +1040,7 @@ function LeadRow({
           className="rounded border-[#E2E8F0] text-[#FF6B35] focus:ring-[#FF6B35]"
         />
       </td>
+      <td className="px-3 py-4 text-sm text-[#64748B]">{rowNumber}</td>
       <td className="px-6 py-4">
         <div className="flex items-center gap-3">
           {lead.avatar_url ? (
@@ -985,6 +1090,21 @@ function LeadRow({
             <EnrichIcon className="h-3.5 w-3.5" />
             Find email
           </button>
+        )}
+      </td>
+      <td className="px-6 py-4">
+        {lead.linkedin_url ? (
+          <a
+            href={lead.linkedin_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 text-sm text-[#0A66C2] hover:text-[#004182] hover:underline"
+          >
+            <LinkedInSmallIcon className="h-4 w-4" />
+            <span>View</span>
+          </a>
+        ) : (
+          <span className="text-sm text-[#94A3B8]">-</span>
         )}
       </td>
       <td className="px-6 py-4">
@@ -1827,6 +1947,10 @@ function LinkedInAccountSelector({
     );
   }
 
+  // Check if selected account is free
+  const selectedAccount = accounts.find((a) => a.id === selectedId);
+  const isFreeAccount = selectedAccount?.subscription_type === 'free';
+
   return (
     <div>
       <label className="mb-2 block text-sm font-medium text-[#1E293B]">LinkedIn Account</label>
@@ -1866,6 +1990,34 @@ function LinkedInAccountSelector({
           </button>
         ))}
       </div>
+
+      {/* Free account limitations warning */}
+      {isFreeAccount && (
+        <div className="mt-3 rounded-xl border border-[#F59E0B]/20 bg-[#FFFBEB] p-4">
+          <div className="flex items-start gap-3">
+            <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-[#F59E0B]/10">
+              <AlertIcon className="h-3.5 w-3.5 text-[#F59E0B]" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-[#92400E]">Free Account Limitations</p>
+              <ul className="mt-2 space-y-1 text-xs text-[#B45309]">
+                <li className="flex items-start gap-1.5">
+                  <span className="mt-1 block h-1 w-1 flex-shrink-0 rounded-full bg-[#F59E0B]" />
+                  <span>Privacy-restricted profiles will be skipped</span>
+                </li>
+                <li className="flex items-start gap-1.5">
+                  <span className="mt-1 block h-1 w-1 flex-shrink-0 rounded-full bg-[#F59E0B]" />
+                  <span>Company info/Emails may be missing for some profiles</span>
+                </li>
+                <li className="flex items-start gap-1.5">
+                  <span className="mt-1 block h-1 w-1 flex-shrink-0 rounded-full bg-[#F59E0B]" />
+                  <span>Upgrade to Premium or Sales Navigator for full data access</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
