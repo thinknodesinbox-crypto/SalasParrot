@@ -616,6 +616,67 @@ function LeadListDetail({
     }
   };
 
+  const handleExportCSV = () => {
+    if (leads.length === 0) return;
+
+    // Define CSV headers
+    const headers = [
+      'First Name',
+      'Last Name',
+      'Email',
+      'LinkedIn URL',
+      'Company',
+      'Title',
+      'Headline',
+      'Location',
+      'Status',
+      'Tags',
+      'Enrichment Status',
+      'Created At',
+    ];
+
+    // Convert leads to CSV rows
+    const rows = leads.map((lead) => [
+      lead.first_name || '',
+      lead.last_name || '',
+      lead.email || '',
+      lead.linkedin_url || '',
+      lead.company || '',
+      lead.title || '',
+      lead.headline || '',
+      lead.location || '',
+      lead.status || '',
+      (lead.tags || []).join('; '),
+      lead.enrichment_status || '',
+      lead.created_at ? new Date(lead.created_at).toLocaleDateString() : '',
+    ]);
+
+    // Escape CSV values (handle commas, quotes, newlines)
+    const escapeCSV = (value: string) => {
+      if (value.includes(',') || value.includes('"') || value.includes('\n')) {
+        return `"${value.replace(/"/g, '""')}"`;
+      }
+      return value;
+    };
+
+    // Build CSV content
+    const csvContent = [
+      headers.map(escapeCSV).join(','),
+      ...rows.map((row) => row.map(escapeCSV).join(',')),
+    ].join('\n');
+
+    // Create and download file
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${list.name.replace(/[^a-z0-9]/gi, '_')}_leads.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <>
       {/* Delete Confirmation Modal */}
@@ -660,7 +721,12 @@ function LeadListDetail({
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-3">
-              <button className="rounded-lg border border-[#E2E8F0] px-4 py-2 text-sm font-medium text-[#64748B] transition-colors hover:bg-[#F8FAFC]">
+              <button
+                onClick={handleExportCSV}
+                disabled={leads.length === 0}
+                className="flex items-center gap-2 rounded-lg border border-[#E2E8F0] px-4 py-2 text-sm font-medium text-[#64748B] transition-colors hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <ExportIcon className="h-4 w-4" />
                 Export
               </button>
               <button
@@ -2593,6 +2659,24 @@ function CheckIcon({ className = 'w-5 h-5' }: { className?: string }) {
       strokeWidth={2}
     >
       <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+    </svg>
+  );
+}
+
+function ExportIcon({ className = 'w-5 h-5' }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={2}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"
+      />
     </svg>
   );
 }
