@@ -2,7 +2,7 @@ import { motion } from 'framer-motion';
 
 export function FeaturesHeader() {
   return (
-    <section className="bg-white pb-6 pt-12 md:pb-10 md:pt-16">
+    <section id="features" className="bg-white pb-6 pt-12 md:pb-10 md:pt-16">
       <div className="mx-auto max-w-5xl px-6 text-center">
         <motion.span
           className="mb-4 inline-block text-[11px] font-bold uppercase tracking-[0.2em] text-teal-500 md:mb-5 md:text-[13px]"

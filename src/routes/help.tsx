@@ -1,8 +1,9 @@
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, Link } from '@tanstack/react-router';
 import { motion } from 'framer-motion';
 import { useState } from 'react';
+import { Container } from '@/components/ui';
 
-export const Route = createFileRoute('/dashboard/help')({
+export const Route = createFileRoute('/help')({
   component: HelpPage,
 });
 
@@ -80,114 +81,148 @@ function HelpPage() {
   ];
 
   return (
-    <div className="max-w-4xl space-y-6">
-      {/* Page Header */}
-      <div className="pb-4 text-center md:pb-6">
-        <h1 className="text-xl font-bold text-[#1E293B] sm:text-2xl">How can we help?</h1>
-        <p className="mt-2 text-sm text-[#64748B] sm:text-base">
-          Search our knowledge base or browse categories below
-        </p>
+    <div className="min-h-screen bg-[#F8FAFC]">
+      {/* Hero */}
+      <section className="bg-white py-12 md:py-16">
+        <Container>
+          <div className="mx-auto max-w-2xl text-center">
+            <motion.h1
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-4 text-3xl font-bold text-[#1E293B] md:text-4xl"
+            >
+              How can we help?
+            </motion.h1>
+            <motion.p
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+              className="mb-8 text-[#64748B]"
+            >
+              Search our knowledge base or browse categories below
+            </motion.p>
 
-        {/* Search */}
-        <div className="relative mx-auto mt-4 max-w-md md:mt-6">
-          <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8] sm:left-4" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search for help..."
-            className="w-full rounded-xl border border-[#E2E8F0] bg-white py-2.5 pl-10 pr-4 text-sm focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20 sm:py-3 sm:pl-11 sm:text-base"
-          />
-        </div>
-      </div>
+            {/* Search */}
+            <motion.div
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="relative mx-auto max-w-md"
+            >
+              <SearchIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-[#94A3B8]" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search for help..."
+                className="w-full rounded-xl border border-[#E2E8F0] bg-white py-3 pl-11 pr-4 focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+              />
+            </motion.div>
+          </div>
+        </Container>
+      </section>
 
       {/* Categories */}
-      <div className="grid gap-3 sm:grid-cols-2 sm:gap-4">
-        {categories.map((category, index) => (
-          <motion.div
-            key={category.title}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: index * 0.05 }}
-            className="rounded-xl border border-[#E2E8F0] bg-white p-4 transition-all hover:border-[#FF6B35]/30 hover:shadow-md sm:p-5"
-          >
-            <div className="mb-3 flex items-center gap-3 sm:mb-4">
-              <div
-                className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg sm:h-10 sm:w-10"
-                style={{ backgroundColor: `${category.color}15` }}
-              >
-                <div style={{ color: category.color }}>{category.icon}</div>
-              </div>
-              <h2 className="text-sm font-semibold text-[#1E293B] sm:text-base">
-                {category.title}
-              </h2>
-            </div>
-            <ul className="space-y-1 sm:space-y-2">
-              {category.articles.map((article, i) => (
-                <li key={i}>
-                  <a
-                    href="#"
-                    className="group flex items-center justify-between py-1.5 text-xs text-[#64748B] transition-colors hover:text-[#FF6B35] sm:py-2 sm:text-sm"
-                  >
-                    <span className="group-hover:underline">{article.title}</span>
-                    <span className="ml-2 flex-shrink-0 text-xs text-[#94A3B8]">
-                      {article.time}
-                    </span>
-                  </a>
-                </li>
+      <section className="py-12">
+        <Container>
+          <div className="mx-auto max-w-4xl">
+            <div className="grid gap-4 sm:grid-cols-2">
+              {categories.map((category, index) => (
+                <motion.div
+                  key={category.title}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.05 }}
+                  className="rounded-xl border border-[#E2E8F0] bg-white p-5 transition-all hover:border-[#FF6B35]/30 hover:shadow-md"
+                >
+                  <div className="mb-4 flex items-center gap-3">
+                    <div
+                      className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg"
+                      style={{ backgroundColor: `${category.color}15` }}
+                    >
+                      <div style={{ color: category.color }}>{category.icon}</div>
+                    </div>
+                    <h2 className="font-semibold text-[#1E293B]">{category.title}</h2>
+                  </div>
+                  <ul className="space-y-2">
+                    {category.articles.map((article, i) => (
+                      <li key={i}>
+                        <a
+                          href="#"
+                          className="group flex items-center justify-between py-2 text-sm text-[#64748B] transition-colors hover:text-[#FF6B35]"
+                        >
+                          <span className="group-hover:underline">{article.title}</span>
+                          <span className="ml-2 flex-shrink-0 text-xs text-[#94A3B8]">
+                            {article.time}
+                          </span>
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </motion.div>
               ))}
-            </ul>
-          </motion.div>
-        ))}
-      </div>
+            </div>
+          </div>
+        </Container>
+      </section>
 
       {/* FAQs */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.3 }}
-        className="rounded-xl border border-[#E2E8F0] bg-white p-4 sm:p-6"
-      >
-        <h2 className="mb-3 text-base font-semibold text-[#1E293B] sm:mb-4 sm:text-lg">
-          Frequently Asked Questions
-        </h2>
-        <div className="space-y-4">
-          {faqs.map((faq, index) => (
-            <FAQItem key={index} question={faq.question} answer={faq.answer} />
-          ))}
-        </div>
-      </motion.div>
+      <section className="border-t border-[#E2E8F0] bg-white py-12">
+        <Container>
+          <div className="mx-auto max-w-3xl">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+            >
+              <h2 className="mb-6 text-center text-2xl font-bold text-[#1E293B]">
+                Frequently Asked Questions
+              </h2>
+              <div className="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-6">
+                <div className="space-y-4">
+                  {faqs.map((faq, index) => (
+                    <FAQItem key={index} question={faq.question} answer={faq.answer} />
+                  ))}
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        </Container>
+      </section>
 
       {/* Contact Support */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.4 }}
-        className="rounded-xl border border-[#FF6B35]/20 bg-[#FFF7ED] p-4 text-center sm:p-6"
-      >
-        <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-white shadow-sm sm:mb-4 sm:h-12 sm:w-12">
-          <ChatIcon className="h-5 w-5 text-[#FF6B35] sm:h-6 sm:w-6" />
-        </div>
-        <h2 className="mb-1 text-sm font-semibold text-[#1E293B] sm:mb-2 sm:text-base">
-          Still need help?
-        </h2>
-        <p className="mb-3 text-xs text-[#64748B] sm:mb-4 sm:text-sm">
-          Our support team is here to help you succeed
-        </p>
-        <div className="flex flex-col items-center justify-center gap-2 sm:flex-row sm:gap-4">
-          <a
-            href="mailto:team@salesparrot.com"
-            className="flex w-full items-center justify-center gap-2 rounded-lg border border-[#E2E8F0] bg-white px-4 py-2 text-sm font-medium text-[#1E293B] hover:bg-[#F8FAFC] sm:w-auto"
+      <section className="py-12">
+        <Container>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            className="mx-auto max-w-2xl rounded-2xl border border-[#FF6B35]/20 bg-[#FFF7ED] p-8 text-center"
           >
-            <EmailSmallIcon />
-            Email Support
-          </a>
-          <button className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#FF6B35] px-4 py-2 text-sm font-medium text-white hover:bg-[#E85A2A] sm:w-auto">
-            <ChatIcon className="h-4 w-4" />
-            Live Chat
-          </button>
-        </div>
-      </motion.div>
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-white shadow-sm">
+              <ChatIcon className="h-6 w-6 text-[#FF6B35]" />
+            </div>
+            <h2 className="mb-2 text-lg font-semibold text-[#1E293B]">Still need help?</h2>
+            <p className="mb-6 text-[#64748B]">Our support team is here to help you succeed</p>
+            <div className="flex flex-col items-center justify-center gap-3 sm:flex-row sm:gap-4">
+              <a
+                href="mailto:team@salesparrot.com"
+                className="flex w-full items-center justify-center gap-2 rounded-lg border border-[#E2E8F0] bg-white px-6 py-2.5 font-medium text-[#1E293B] hover:bg-[#F8FAFC] sm:w-auto"
+              >
+                <EmailSmallIcon />
+                Email Support
+              </a>
+              <Link
+                to="/contact"
+                className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#FF6B35] px-6 py-2.5 font-medium text-white hover:bg-[#E85A2A] sm:w-auto"
+              >
+                <ChatIcon className="h-4 w-4" />
+                Contact Us
+              </Link>
+            </div>
+          </motion.div>
+        </Container>
+      </section>
     </div>
   );
 }
@@ -196,12 +231,12 @@ function FAQItem({ question, answer }: { question: string; answer: string }) {
   const [isOpen, setIsOpen] = useState(false);
 
   return (
-    <div className="border-b border-[#E2E8F0] pb-3 last:border-0 last:pb-0 sm:pb-4">
+    <div className="border-b border-[#E2E8F0] pb-4 last:border-0 last:pb-0">
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex w-full items-center justify-between gap-2 py-1.5 text-left sm:py-2"
+        className="flex w-full items-center justify-between gap-2 py-2 text-left"
       >
-        <span className="text-sm font-medium text-[#1E293B] sm:text-base">{question}</span>
+        <span className="font-medium text-[#1E293B]">{question}</span>
         <motion.div
           animate={{ rotate: isOpen ? 180 : 0 }}
           transition={{ duration: 0.2 }}
@@ -216,7 +251,7 @@ function FAQItem({ question, answer }: { question: string; answer: string }) {
         transition={{ duration: 0.2 }}
         className="overflow-hidden"
       >
-        <p className="pb-2 text-xs text-[#64748B] sm:text-sm">{answer}</p>
+        <p className="pb-2 text-sm text-[#64748B]">{answer}</p>
       </motion.div>
     </div>
   );

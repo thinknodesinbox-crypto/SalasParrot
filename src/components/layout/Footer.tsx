@@ -5,27 +5,23 @@ const footerLinks = {
   product: {
     title: 'Product',
     links: [
-      { label: 'Features', href: '/' },
-      { label: 'Pricing', href: '/' },
-      { label: 'Integrations', href: '/' },
-      { label: 'Changelog', href: '/' },
+      { label: 'Features', href: '/#features' },
+      { label: 'Pricing', href: '/pricing' },
+      { label: 'Integrations', href: '/integrations' },
     ],
   },
   resources: {
     title: 'Resources',
     links: [
-      { label: 'Blog', href: '/' },
-      { label: 'Help Center', href: '/' },
-      { label: 'Tutorials', href: '/' },
-      { label: 'API Docs', href: '/' },
+      { label: 'Help Center', href: '/help' },
+      { label: 'API Docs', href: '/docs/api' },
     ],
   },
   company: {
     title: 'Company',
     links: [
-      { label: 'About', href: '/' },
-      { label: 'Careers', href: '/' },
-      { label: 'Contact', href: '/' },
+      { label: 'About', href: '/about' },
+      { label: 'Contact', href: '/contact' },
     ],
   },
   legal: {
