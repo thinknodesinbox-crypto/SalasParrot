@@ -1,10 +1,19 @@
 import { motion } from 'framer-motion';
+import { useEffect } from 'react';
 import { Container } from '@/components/ui';
 import { Link } from '@tanstack/react-router';
 import { useAuthStore } from '@/lib/auth';
+import { getCalApi } from '@calcom/embed-react';
 
 export function PricingCTA() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+
+  useEffect(() => {
+    (async function () {
+      const cal = await getCalApi({ namespace: 'sales-parrot' });
+      cal('ui', { hideEventTypeDetails: true, layout: 'month_view' });
+    })();
+  }, []);
 
   return (
     <section className="bg-white py-20 md:py-24">
@@ -71,6 +80,9 @@ export function PricingCTA() {
                 <motion.button
                   whileHover={{ scale: 1.02, y: -2 }}
                   whileTap={{ scale: 0.98 }}
+                  data-cal-namespace="sales-parrot"
+                  data-cal-link="akinthinks/sales-parrot"
+                  data-cal-config='{"layout":"month_view","useSlotsViewOnSmallScreen":"true"}'
                   className="rounded-xl border border-[#E2E8F0] bg-white px-8 py-4 font-semibold text-[#1E293B] shadow-sm transition-all duration-200 hover:border-[#1E293B]"
                 >
                   Book a Demo

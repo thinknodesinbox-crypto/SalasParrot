@@ -1,8 +1,9 @@
 import { motion } from 'framer-motion';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Container } from '@/components/ui';
 import { Link } from '@tanstack/react-router';
 import { useAuthStore } from '@/lib/auth';
+import { getCalApi } from '@calcom/embed-react';
 
 // Volume pricing tiers
 const volumePricing = [
@@ -30,6 +31,13 @@ export function PricingPlans() {
   const totalPrice = pricePerSender * senderCount;
   const discount = getDiscount(senderCount);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+
+  useEffect(() => {
+    (async function () {
+      const cal = await getCalApi({ namespace: 'sales-parrot' });
+      cal('ui', { hideEventTypeDetails: true, layout: 'month_view' });
+    })();
+  }, []);
 
   return (
     <section className="bg-[#FFFBEB] py-12 sm:py-16">
@@ -241,6 +249,9 @@ export function PricingPlans() {
               <motion.button
                 whileHover={{ scale: 1.01, y: -1 }}
                 whileTap={{ scale: 0.99 }}
+                data-cal-namespace="sales-parrot"
+                data-cal-link="akinthinks/sales-parrot"
+                data-cal-config='{"layout":"month_view","useSlotsViewOnSmallScreen":"true"}'
                 className="w-full rounded-xl bg-[#FF6B35] px-6 py-4 font-semibold text-white shadow-[0_4px_14px_rgba(255,107,53,0.25)] transition-all duration-200 hover:bg-[#E85A2A] hover:shadow-[0_6px_20px_rgba(255,107,53,0.35)]"
               >
                 Book a Demo
