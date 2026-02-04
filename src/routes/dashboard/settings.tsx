@@ -4986,7 +4986,7 @@ function HubSpotManagementModal({ onClose }: { onClose: () => void }) {
 
   const handleConnect = async () => {
     try {
-      const result = await connectHubSpot.mutateAsync();
+      const result = await connectHubSpot.mutateAsync(undefined);
       // Redirect to HubSpot OAuth
       window.location.href = result.authorization_url;
     } catch {
@@ -5259,7 +5259,7 @@ function SalesforceManagementModal({ onClose }: { onClose: () => void }) {
 
   const handleConnect = async () => {
     try {
-      const result = await connectSalesforce.mutateAsync();
+      const result = await connectSalesforce.mutateAsync(undefined);
       window.location.href = result.authorization_url;
     } catch {
       // Error handled by mutation
@@ -5528,7 +5528,7 @@ function PipedriveManagementModal({ onClose }: { onClose: () => void }) {
 
   const handleConnect = async () => {
     try {
-      const result = await connectPipedrive.mutateAsync();
+      const result = await connectPipedrive.mutateAsync(undefined);
       window.location.href = result.authorization_url;
     } catch {
       // Error handled by mutation
@@ -6081,7 +6081,7 @@ function SlackManagementModal({ onClose }: { onClose: () => void }) {
 
   const handleConnect = async () => {
     try {
-      const result = await connectSlack.mutateAsync();
+      const result = await connectSlack.mutateAsync(undefined);
       window.location.href = result.authorization_url;
     } catch {
       // Error handled by mutation

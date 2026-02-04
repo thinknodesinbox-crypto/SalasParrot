@@ -1618,7 +1618,8 @@ function ImportLeadsModal({ onClose, onSuccess }: { onClose: () => void; onSucce
           </AnimatePresence>
         </div>
       </motion.div>
-    </motion.div>
+    </motion.div>,
+    document.body
   );
 }
 
