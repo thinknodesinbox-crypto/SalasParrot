@@ -1304,8 +1304,8 @@ export function NodeConfigPanel({
         {node.type === 'enrichment' && (
           <div className="rounded-lg bg-[#F3E8FF] p-3">
             <p className="text-xs text-[#7C3AED]">
-              This step will discover the lead's email address using Better Contact. Leads that
-              already have an email will skip this step automatically.
+              This step will discover the lead's email address. Leads that already have an email
+              will skip this step automatically.
             </p>
           </div>
         )}

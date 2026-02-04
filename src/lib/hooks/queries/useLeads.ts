@@ -23,6 +23,8 @@ interface LeadFilters {
   list_id?: string;
   status?: LeadStatus;
   search?: string;
+  has_email?: boolean;
+  in_campaign?: boolean;
   limit?: number;
   offset?: number;
 }
@@ -187,6 +189,10 @@ export const useLeads = (filters?: LeadFilters) => {
       if (filters?.list_id) params.append('list_id', filters.list_id);
       if (filters?.status) params.append('status', filters.status);
       if (filters?.search) params.append('search', filters.search);
+      if (filters?.has_email !== undefined)
+        params.append('has_email', filters.has_email.toString());
+      if (filters?.in_campaign !== undefined)
+        params.append('in_campaign', filters.in_campaign.toString());
       if (filters?.limit) params.append('limit', filters.limit.toString());
       if (filters?.offset) params.append('offset', filters.offset.toString());
 

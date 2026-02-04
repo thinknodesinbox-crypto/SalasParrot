@@ -172,7 +172,7 @@ function CampaignsPage() {
 
       {/* Content */}
       {campaigns.length === 0 ? (
-        <EmptyState onCreate={() => setShowCreateModal(true)} />
+        <EmptyState onCreate={() => setShowCreateModal(true)} filterStatus={filterStatus} />
       ) : (
         <CampaignsList
           campaigns={filteredCampaigns}
@@ -217,7 +217,72 @@ function CampaignsPage() {
   );
 }
 
-function EmptyState({ onCreate }: { onCreate: () => void }) {
+function EmptyState({
+  onCreate,
+  filterStatus,
+}: {
+  onCreate: () => void;
+  filterStatus: 'all' | CampaignStatus;
+}) {
+  // Show different content based on filter
+  const isFiltered = filterStatus !== 'all';
+
+  const getFilteredEmptyContent = () => {
+    switch (filterStatus) {
+      case 'active':
+        return {
+          title: 'No active campaigns',
+          description:
+            "You don't have any campaigns currently running. Start a draft campaign or create a new one to begin outreach.",
+        };
+      case 'paused':
+        return {
+          title: 'No paused campaigns',
+          description: "You don't have any paused campaigns. Campaigns you pause will appear here.",
+        };
+      case 'draft':
+        return {
+          title: 'No draft campaigns',
+          description: "You don't have any draft campaigns. Create a new campaign to get started.",
+        };
+      default:
+        return {
+          title: 'No campaigns yet',
+          description:
+            'Create your first multi-channel campaign. Combine LinkedIn and email touchpoints to maximize your reply rates.',
+        };
+    }
+  };
+
+  const content = getFilteredEmptyContent();
+
+  // Simplified empty state for filtered views
+  if (isFiltered) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="rounded-xl border border-[#E2E8F0] bg-white p-12 text-center"
+      >
+        <div className="mx-auto max-w-md">
+          <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-[#F1F5F9]">
+            <CampaignIcon className="h-8 w-8 text-[#94A3B8]" />
+          </div>
+          <h2 className="mb-2 text-xl font-bold text-[#1E293B]">{content.title}</h2>
+          <p className="mb-6 text-[#64748B]">{content.description}</p>
+          <button
+            onClick={onCreate}
+            className="inline-flex items-center gap-2 rounded-xl bg-[#FF6B35] px-6 py-3 font-semibold text-white shadow-[0_4px_14px_rgba(255,107,53,0.25)] transition-colors hover:bg-[#E85A2A]"
+          >
+            <PlusIcon className="h-5 w-5" />
+            Create Campaign
+          </button>
+        </div>
+      </motion.div>
+    );
+  }
+
+  // Full empty state for "all" view (no campaigns at all)
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -250,11 +315,8 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
           </motion.div>
         </div>
 
-        <h2 className="mb-2 text-xl font-bold text-[#1E293B]">No campaigns yet</h2>
-        <p className="mb-8 text-[#64748B]">
-          Create your first multi-channel campaign. Combine LinkedIn and email touchpoints to
-          maximize your reply rates.
-        </p>
+        <h2 className="mb-2 text-xl font-bold text-[#1E293B]">{content.title}</h2>
+        <p className="mb-8 text-[#64748B]">{content.description}</p>
 
         <button
           onClick={onCreate}

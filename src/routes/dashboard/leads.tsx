@@ -130,14 +130,50 @@ const IMPORT_METHODS: {
 
 const LEADS_PER_PAGE = 50;
 
+type EmailFilter = 'all' | 'has_email' | 'no_email';
+type CampaignFilter = 'all' | 'in_campaign' | 'not_in_campaign';
+type StatusFilter =
+  | 'all'
+  | 'new'
+  | 'contacted'
+  | 'accepted'
+  | 'replied'
+  | 'qualified'
+  | 'not_interested';
+
 function LeadsPage() {
   const [showImportModal, setShowImportModal] = useState(false);
   const [selectedListId, setSelectedListId] = useState<string | null>(null);
+  // Lead list search (for overview page)
+  const [listSearchQuery, setListSearchQuery] = useState('');
+  // Lead search and filters (for detail page)
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterType, setFilterType] = useState<'all' | 'enriched' | 'not_enriched'>('all');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+  const [emailFilter, setEmailFilter] = useState<EmailFilter>('all');
+  const [campaignFilter, setCampaignFilter] = useState<CampaignFilter>('all');
   const [editingList, setEditingList] = useState<LeadList | null>(null);
   const [deletingList, setDeletingList] = useState<LeadList | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
+
+  // Debounce search query
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+      setCurrentPage(1); // Reset to first page on search
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Reset filters when changing list
+  useEffect(() => {
+    setCurrentPage(1);
+    setDebouncedSearch('');
+    setSearchQuery('');
+    setStatusFilter('all');
+    setEmailFilter('all');
+    setCampaignFilter('all');
+  }, [selectedListId]);
 
   // Fetch lead lists from API
   const {
@@ -146,26 +182,40 @@ function LeadsPage() {
     error: listsError,
     refetch: refetchLists,
   } = useLeadLists();
-  const lists = listsResponse?.lists || [];
+  const allLists = listsResponse?.lists || [];
+
+  // Filter lists by search query (client-side)
+  const lists = listSearchQuery
+    ? allLists.filter((list) => list.name.toLowerCase().includes(listSearchQuery.toLowerCase()))
+    : allLists;
+
+  // Build filters for useLeads
+  const leadFilters = selectedListId
+    ? {
+        list_id: selectedListId,
+        search: debouncedSearch || undefined,
+        status:
+          statusFilter !== 'all'
+            ? (statusFilter as
+                | 'new'
+                | 'contacted'
+                | 'accepted'
+                | 'replied'
+                | 'qualified'
+                | 'not_interested')
+            : undefined,
+        has_email: emailFilter === 'all' ? undefined : emailFilter === 'has_email',
+        in_campaign: campaignFilter === 'all' ? undefined : campaignFilter === 'in_campaign',
+        limit: LEADS_PER_PAGE,
+        offset: (currentPage - 1) * LEADS_PER_PAGE,
+      }
+    : undefined;
 
   // Fetch leads filtered by selected list with pagination
-  const { data: leadsResponse, isLoading: leadsLoading } = useLeads(
-    selectedListId
-      ? {
-          list_id: selectedListId,
-          limit: LEADS_PER_PAGE,
-          offset: (currentPage - 1) * LEADS_PER_PAGE,
-        }
-      : undefined
-  );
+  const { data: leadsResponse, isLoading: leadsLoading } = useLeads(leadFilters);
   const leads = leadsResponse?.leads || [];
   const totalLeads = leadsResponse?.total || 0;
   const totalPages = Math.ceil(totalLeads / LEADS_PER_PAGE);
-
-  // Reset to page 1 when changing list
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [selectedListId]);
 
   const isLoading = listsLoading;
   const error = listsError;
@@ -225,37 +275,86 @@ function LeadsPage() {
       </div>
 
       {/* Search and Filters */}
-      <div className="flex flex-col items-stretch gap-3 md:flex-row md:items-center md:gap-4">
-        <div className="relative flex-1">
-          <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8]" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search lists or leads..."
-            className="w-full rounded-lg border border-[#E2E8F0] bg-white py-2.5 pl-10 pr-4 transition-all focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
-          />
+      {selectedListId ? (
+        // Filters for lead detail view
+        <div className="flex flex-col items-stretch gap-3 md:flex-row md:items-center md:gap-4">
+          <div className="relative flex-1">
+            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8]" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search by name, company, or email..."
+              className="w-full rounded-lg border border-[#E2E8F0] bg-white py-2.5 pl-10 pr-4 transition-all focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+            />
+          </div>
+          <div className="flex gap-2 overflow-x-auto md:gap-3">
+            <select
+              value={statusFilter}
+              onChange={(e) => {
+                setStatusFilter(e.target.value as StatusFilter);
+                setCurrentPage(1);
+              }}
+              className="min-w-[120px] rounded-lg border border-[#E2E8F0] bg-white px-3 py-2.5 text-sm focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+            >
+              <option value="all">All Status</option>
+              <option value="new">New</option>
+              <option value="contacted">Contacted</option>
+              <option value="accepted">Accepted</option>
+              <option value="replied">Replied</option>
+              <option value="qualified">Qualified</option>
+              <option value="not_interested">Not Interested</option>
+            </select>
+            <select
+              value={emailFilter}
+              onChange={(e) => {
+                setEmailFilter(e.target.value as EmailFilter);
+                setCurrentPage(1);
+              }}
+              className="min-w-[110px] rounded-lg border border-[#E2E8F0] bg-white px-3 py-2.5 text-sm focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+            >
+              <option value="all">All Emails</option>
+              <option value="has_email">Has Email</option>
+              <option value="no_email">No Email</option>
+            </select>
+            <select
+              value={campaignFilter}
+              onChange={(e) => {
+                setCampaignFilter(e.target.value as CampaignFilter);
+                setCurrentPage(1);
+              }}
+              className="min-w-[130px] rounded-lg border border-[#E2E8F0] bg-white px-3 py-2.5 text-sm focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+            >
+              <option value="all">All Campaigns</option>
+              <option value="in_campaign">In Campaign</option>
+              <option value="not_in_campaign">Not in Campaign</option>
+            </select>
+          </div>
         </div>
-        <div className="flex gap-2 overflow-x-auto md:gap-4">
-          <select
-            value={filterType}
-            onChange={(e) => setFilterType(e.target.value as 'all' | 'enriched' | 'not_enriched')}
-            className="min-w-[120px] rounded-lg border border-[#E2E8F0] bg-white px-3 py-2.5 text-sm focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20 md:px-4"
-          >
-            <option value="all">All Lists</option>
-            <option value="enriched">Enriched</option>
-            <option value="not_enriched">Not Enriched</option>
-          </select>
-          <select className="min-w-[140px] rounded-lg border border-[#E2E8F0] bg-white px-3 py-2.5 text-sm focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20 md:px-4">
-            <option value="">Campaign Status</option>
-            <option value="in_campaign">In Campaign</option>
-            <option value="not_in_campaign">Not in Campaign</option>
-          </select>
+      ) : allLists.length > 0 ? (
+        // Search for lists overview
+        <div className="flex flex-col items-stretch gap-3 md:flex-row md:items-center md:gap-4">
+          <div className="relative max-w-md flex-1">
+            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8]" />
+            <input
+              type="text"
+              value={listSearchQuery}
+              onChange={(e) => setListSearchQuery(e.target.value)}
+              placeholder="Search lists..."
+              className="w-full rounded-lg border border-[#E2E8F0] bg-white py-2.5 pl-10 pr-4 transition-all focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+            />
+          </div>
+          <div className="text-sm text-[#64748B]">
+            {lists.length} {lists.length === 1 ? 'list' : 'lists'}
+            {listSearchQuery &&
+              lists.length !== allLists.length &&
+              ` (filtered from ${allLists.length})`}
+          </div>
         </div>
-      </div>
+      ) : null}
 
       {/* Content */}
-      {lists.length === 0 && !selectedListId ? (
+      {allLists.length === 0 && !selectedListId ? (
         <EmptyState onImport={() => setShowImportModal(true)} />
       ) : selectedListId && selectedList ? (
         <LeadListDetail
@@ -269,6 +368,25 @@ function LeadsPage() {
           currentPage={currentPage}
           onPageChange={setCurrentPage}
         />
+      ) : lists.length === 0 && listSearchQuery ? (
+        // No lists match search
+        <div className="rounded-xl border border-[#E2E8F0] bg-white p-12 text-center">
+          <div className="mx-auto max-w-md">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#F1F5F9]">
+              <SearchIcon className="h-8 w-8 text-[#94A3B8]" />
+            </div>
+            <h2 className="mb-2 text-xl font-bold text-[#1E293B]">No lists found</h2>
+            <p className="mb-4 text-[#64748B]">
+              No lists match "{listSearchQuery}". Try a different search term.
+            </p>
+            <button
+              onClick={() => setListSearchQuery('')}
+              className="font-medium text-[#FF6B35] hover:underline"
+            >
+              Clear search
+            </button>
+          </div>
+        </div>
       ) : (
         <LeadListsGrid
           lists={lists}
