@@ -8,6 +8,7 @@ import {
   useCreateWorkspace,
   useUpdateWorkspace,
   useWorkspaceMembers,
+  useRemoveWorkspaceMember,
   useBillingOverview,
   useCreatePortalSession,
   useUpdateGrowthSenders,
@@ -23,7 +24,12 @@ import {
   useSolveLinkedInCheckpoint,
   usePollLinkedInStatus,
   useConnectEmailIMAP,
+  useInitGoogleOAuth,
+  useInitMicrosoftOAuth,
+  useInitGmailHostedAuth,
+  useEmailAuthConfig,
 } from '@/lib/hooks/queries';
+import { api, getErrorMessage } from '@/lib/api';
 import {
   useWorkspaceInvitations,
   useCreateInvitation,
@@ -105,8 +111,41 @@ type SettingsTab =
 function SettingsPage() {
   const [activeTab, setActiveTab] = useState<SettingsTab>('profile');
   const [mobileTabsOpen, setMobileTabsOpen] = useState(false);
+  const [notification, setNotification] = useState<{
+    type: 'success' | 'error';
+    message: string;
+  } | null>(null);
   const { logout } = useAuth();
   const navigate = useNavigate();
+
+  // Handle OAuth callback status from URL params
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const status = urlParams.get('status');
+    const message = urlParams.get('message');
+
+    if (status === 'success') {
+      setNotification({ type: 'success', message: 'Email account connected successfully!' });
+      setActiveTab('integrations'); // Switch to integrations tab to show the new account
+    } else if (status === 'error') {
+      setNotification({ type: 'error', message: message || 'Failed to connect email account' });
+      setActiveTab('integrations');
+    }
+
+    // Clear URL params without page reload
+    if (status) {
+      const newUrl = window.location.pathname;
+      window.history.replaceState({}, '', newUrl);
+    }
+  }, []);
+
+  // Auto-dismiss notification
+  useEffect(() => {
+    if (notification) {
+      const timer = setTimeout(() => setNotification(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [notification]);
 
   const handleLogout = () => {
     logout();
@@ -126,6 +165,37 @@ function SettingsPage() {
 
   return (
     <div className="flex min-h-[calc(100vh-7rem)] flex-col gap-0 lg:flex-row">
+      {/* Notification Toast */}
+      <AnimatePresence>
+        {notification && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className={`fixed left-1/2 top-4 z-50 -translate-x-1/2 rounded-lg px-4 py-3 shadow-lg ${
+              notification.type === 'success'
+                ? 'border border-[#86EFAC] bg-[#F0FDF4] text-[#166534]'
+                : 'border border-[#FECACA] bg-[#FEF2F2] text-[#DC2626]'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              {notification.type === 'success' ? (
+                <CheckIcon className="h-5 w-5" />
+              ) : (
+                <WarningIcon className="h-5 w-5" />
+              )}
+              <span className="font-medium">{notification.message}</span>
+              <button
+                onClick={() => setNotification(null)}
+                className="ml-2 rounded p-1 hover:bg-black/5"
+              >
+                <span className="text-lg leading-none">&times;</span>
+              </button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* Mobile Tab Selector */}
       <div className="border-b border-[#E2E8F0] bg-white p-4 lg:hidden">
         <button
@@ -1124,9 +1194,13 @@ function WorkspaceWorkingHoursModal({
 
 // ==================== MEMBERS SETTINGS ====================
 function MembersSettings() {
+  const { user } = useAuth();
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string>('');
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   // Fetch workspaces for the dropdown
   const { data: workspaces = [] } = useWorkspaces();
@@ -1137,6 +1211,33 @@ function MembersSettings() {
       setSelectedWorkspaceId(workspaces[0].id);
     }
   }, [workspaces, selectedWorkspaceId]);
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setOpenMenuId(null);
+        setMenuPosition(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Handle opening the menu with position calculation
+  const handleOpenMenu = (memberId: string, buttonElement: HTMLButtonElement) => {
+    if (openMenuId === memberId) {
+      setOpenMenuId(null);
+      setMenuPosition(null);
+    } else {
+      const rect = buttonElement.getBoundingClientRect();
+      setMenuPosition({
+        top: rect.bottom + window.scrollY + 4,
+        left: rect.right - 192 + window.scrollX, // 192px = w-48
+      });
+      setOpenMenuId(memberId);
+    }
+  };
 
   // Fetch members for selected workspace
   const {
@@ -1152,6 +1253,36 @@ function MembersSettings() {
 
   const revokeInvitation = useRevokeInvitation(selectedWorkspaceId);
   const resendInvitation = useResendInvitation(selectedWorkspaceId);
+  const removeMember = useRemoveWorkspaceMember(selectedWorkspaceId);
+
+  // Check if current user is admin in this workspace
+  const currentUserMember = membersData.find((m) => m.user_id === user?.id);
+  const isCurrentUserAdmin = currentUserMember?.role === 'admin';
+
+  // Handle role change
+  const handleRoleChange = async (memberId: string, newRole: 'admin' | 'member') => {
+    setOpenMenuId(null);
+    try {
+      await api.patch(`/workspaces/${selectedWorkspaceId}/members/${memberId}`, { role: newRole });
+      refetch();
+    } catch {
+      // Error handled silently
+    }
+  };
+
+  // Handle member removal
+  const handleRemoveMember = async (memberId: string, memberName: string) => {
+    setOpenMenuId(null);
+    if (
+      confirm(`Are you sure you want to remove ${memberName || 'this member'} from the workspace?`)
+    ) {
+      try {
+        await removeMember.mutateAsync(memberId);
+      } catch {
+        // Error handled by mutation
+      }
+    }
+  };
 
   // Filter members by search query
   const members = membersData.filter((m) => {
@@ -1310,9 +1441,14 @@ function MembersSettings() {
                     {workspaces.find((w) => w.id === selectedWorkspaceId)?.name || '-'}
                   </td>
                   <td className="px-6 py-4 text-right">
-                    <button className="rounded-lg p-2 text-[#64748B] hover:bg-[#F1F5F9]">
-                      <MoreIcon />
-                    </button>
+                    {isCurrentUserAdmin && member.user_id !== user?.id && (
+                      <button
+                        onClick={(e) => handleOpenMenu(member.id, e.currentTarget)}
+                        className="rounded-lg p-2 text-[#64748B] hover:bg-[#F1F5F9]"
+                      >
+                        <MoreIcon />
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -1334,9 +1470,14 @@ function MembersSettings() {
                     <p className="truncate text-sm text-[#64748B]">{member.user_email || '-'}</p>
                   </div>
                 </div>
-                <button className="flex-shrink-0 rounded-lg p-2 text-[#64748B] hover:bg-[#F1F5F9]">
-                  <MoreIcon />
-                </button>
+                {isCurrentUserAdmin && member.user_id !== user?.id && (
+                  <button
+                    onClick={(e) => handleOpenMenu(member.id, e.currentTarget)}
+                    className="flex-shrink-0 rounded-lg p-2 text-[#64748B] hover:bg-[#F1F5F9]"
+                  >
+                    <MoreIcon />
+                  </button>
+                )}
               </div>
               <div className="ml-13 mt-3 flex flex-wrap items-center gap-2">
                 <span
@@ -1419,6 +1560,54 @@ function MembersSettings() {
           </div>
         </div>
       )}
+
+      {/* Member Actions Dropdown Menu (Portal) */}
+      {openMenuId &&
+        menuPosition &&
+        createPortal(
+          <div
+            ref={menuRef}
+            className="fixed z-50 w-48 overflow-hidden rounded-lg border border-[#E2E8F0] bg-white shadow-lg"
+            style={{ top: menuPosition.top, left: menuPosition.left }}
+          >
+            <div className="py-1">
+              {(() => {
+                const member = members.find((m) => m.id === openMenuId);
+                if (!member) return null;
+                return (
+                  <>
+                    <button
+                      onClick={() =>
+                        handleRoleChange(member.id, member.role === 'admin' ? 'member' : 'admin')
+                      }
+                      className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-[#1E293B] hover:bg-[#F8FAFC]"
+                    >
+                      {member.role === 'admin' ? (
+                        <>
+                          <UserIcon className="h-4 w-4" />
+                          Change to Member
+                        </>
+                      ) : (
+                        <>
+                          <CrownIcon className="h-4 w-4" />
+                          Make Admin
+                        </>
+                      )}
+                    </button>
+                    <button
+                      onClick={() => handleRemoveMember(member.id, member.user_name || '')}
+                      className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-[#EF4444] hover:bg-[#FEF2F2]"
+                    >
+                      <TrashIcon className="h-4 w-4" />
+                      Remove from Workspace
+                    </button>
+                  </>
+                );
+              })()}
+            </div>
+          </div>,
+          document.body
+        )}
 
       {/* Invite Modal */}
       <AnimatePresence>
@@ -3072,7 +3261,7 @@ function ConnectLinkedInModal({ onClose }: { onClose: () => void }) {
   );
 }
 
-type EmailAuthStep = 'method' | 'imap' | 'google_info' | 'microsoft_info' | 'success';
+type EmailAuthStep = 'method' | 'imap' | 'success' | 'loading';
 
 function ConnectEmailModal({ onClose }: { onClose: () => void }) {
   const [step, setStep] = useState<EmailAuthStep>('method');
@@ -3088,6 +3277,46 @@ function ConnectEmailModal({ onClose }: { onClose: () => void }) {
   const [displayName, setDisplayName] = useState('');
 
   const connectIMAP = useConnectEmailIMAP();
+  const initGoogleOAuth = useInitGoogleOAuth();
+  const initGmailHostedAuth = useInitGmailHostedAuth();
+  const initMicrosoftOAuth = useInitMicrosoftOAuth();
+  const { data: authConfig } = useEmailAuthConfig();
+
+  const handleGoogleOAuth = async () => {
+    setError('');
+    setStep('loading');
+    try {
+      // Pass current URL so user returns here after OAuth
+      const returnUrl = window.location.href.split('?')[0];
+
+      // Use appropriate auth method based on config
+      const isHostedAuth = authConfig?.gmail_auth_method === 'unipile';
+      const result = isHostedAuth
+        ? await initGmailHostedAuth.mutateAsync({ returnUrl })
+        : await initGoogleOAuth.mutateAsync({ returnUrl });
+
+      // Redirect to OAuth consent screen
+      window.location.href = result.url;
+    } catch (err) {
+      setError(getErrorMessage(err));
+      setStep('method');
+    }
+  };
+
+  const handleMicrosoftOAuth = async () => {
+    setError('');
+    setStep('loading');
+    try {
+      // Pass current URL so user returns here after OAuth
+      const returnUrl = window.location.href.split('?')[0];
+      const result = await initMicrosoftOAuth.mutateAsync({ returnUrl });
+      // Redirect to Microsoft OAuth consent screen
+      window.location.href = result.url;
+    } catch (err) {
+      setError(getErrorMessage(err));
+      setStep('method');
+    }
+  };
 
   const handleIMAPSubmit = async () => {
     setError('');
@@ -3111,7 +3340,7 @@ function ConnectEmailModal({ onClose }: { onClose: () => void }) {
         setTimeout(() => onClose(), 1500);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to connect');
+      setError(getErrorMessage(err));
     }
   };
 
@@ -3167,22 +3396,28 @@ function ConnectEmailModal({ onClose }: { onClose: () => void }) {
                 Choose your email provider to connect your account.
               </p>
 
+              {error && (
+                <div className="mb-4 rounded-lg border border-[#FECACA] bg-[#FEF2F2] p-3 text-sm text-[#DC2626]">
+                  {error}
+                </div>
+              )}
+
               <div className="space-y-3">
                 <button
-                  onClick={() => setStep('google_info')}
+                  onClick={handleGoogleOAuth}
                   className="flex w-full items-center gap-4 rounded-xl border border-[#E2E8F0] p-4 transition-all hover:border-[#EA4335]/30 hover:bg-[#FEF2F2]"
                 >
                   <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#EA4335]/10">
                     <GmailIcon className="h-7 w-7" />
                   </div>
                   <div className="flex-1 text-left">
-                    <p className="font-semibold text-[#1E293B]">Gmail</p>
-                    <p className="text-sm text-[#64748B]">Connect with Google (App Password)</p>
+                    <p className="font-semibold text-[#1E293B]">Gmail / Google Workspace</p>
+                    <p className="text-sm text-[#64748B]">Connect with your Google account</p>
                   </div>
                 </button>
 
                 <button
-                  onClick={() => setStep('microsoft_info')}
+                  onClick={handleMicrosoftOAuth}
                   className="flex w-full items-center gap-4 rounded-xl border border-[#E2E8F0] p-4 transition-all hover:border-[#0078D4]/30 hover:bg-[#EFF6FF]"
                 >
                   <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#0078D4]/10">
@@ -3190,7 +3425,7 @@ function ConnectEmailModal({ onClose }: { onClose: () => void }) {
                   </div>
                   <div className="flex-1 text-left">
                     <p className="font-semibold text-[#1E293B]">Outlook / Microsoft 365</p>
-                    <p className="text-sm text-[#64748B]">Connect with Microsoft (App Password)</p>
+                    <p className="text-sm text-[#64748B]">Connect with your Microsoft account</p>
                   </div>
                 </button>
 
@@ -3210,117 +3445,17 @@ function ConnectEmailModal({ onClose }: { onClose: () => void }) {
             </motion.div>
           )}
 
-          {/* Google info step */}
-          {step === 'google_info' && (
+          {/* Loading step */}
+          {step === 'loading' && (
             <motion.div
-              key="google_info"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              className="p-6"
+              key="loading"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="flex flex-col items-center justify-center p-12"
             >
-              <div className="mb-6 flex items-center gap-3">
-                <button
-                  onClick={() => setStep('method')}
-                  className="rounded-lg p-2 hover:bg-[#F8FAFC]"
-                >
-                  <BackArrowIcon />
-                </button>
-                <h2 className="text-lg font-bold text-[#1E293B]">Connect Gmail</h2>
-              </div>
-
-              <div className="mb-6 rounded-xl border border-[#EA4335]/20 bg-[#FEF2F2] p-4">
-                <div className="flex items-start gap-3">
-                  <InfoIcon className="mt-0.5 h-5 w-5 flex-shrink-0 text-[#EA4335]" />
-                  <div className="text-sm text-[#92400E]">
-                    <p className="font-medium">Create an App Password:</p>
-                    <ol className="mt-1 list-inside list-decimal space-y-1">
-                      <li>
-                        Go to{' '}
-                        <a
-                          href="https://myaccount.google.com/apppasswords"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-[#EA4335] underline"
-                        >
-                          Google App Passwords
-                        </a>
-                      </li>
-                      <li>Select "Mail" and your device</li>
-                      <li>Copy the generated 16-character password</li>
-                      <li>Use it as your password below</li>
-                    </ol>
-                  </div>
-                </div>
-              </div>
-
-              <button
-                onClick={() => {
-                  setImapHost('imap.gmail.com');
-                  setSmtpHost('smtp.gmail.com');
-                  setStep('imap');
-                }}
-                className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#EA4335] px-4 py-2.5 font-medium text-white hover:bg-[#D33B2E]"
-              >
-                Continue with App Password
-              </button>
-            </motion.div>
-          )}
-
-          {/* Microsoft info step */}
-          {step === 'microsoft_info' && (
-            <motion.div
-              key="microsoft_info"
-              initial={{ opacity: 0, x: 20 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              className="p-6"
-            >
-              <div className="mb-6 flex items-center gap-3">
-                <button
-                  onClick={() => setStep('method')}
-                  className="rounded-lg p-2 hover:bg-[#F8FAFC]"
-                >
-                  <BackArrowIcon />
-                </button>
-                <h2 className="text-lg font-bold text-[#1E293B]">Connect Outlook</h2>
-              </div>
-
-              <div className="mb-6 rounded-xl border border-[#0078D4]/20 bg-[#EFF6FF] p-4">
-                <div className="flex items-start gap-3">
-                  <InfoIcon className="mt-0.5 h-5 w-5 flex-shrink-0 text-[#0078D4]" />
-                  <div className="text-sm text-[#1E40AF]">
-                    <p className="font-medium">Create an App Password:</p>
-                    <ol className="mt-1 list-inside list-decimal space-y-1">
-                      <li>
-                        Go to{' '}
-                        <a
-                          href="https://account.live.com/proofs/AppPassword"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-[#0078D4] underline"
-                        >
-                          Microsoft App Passwords
-                        </a>
-                      </li>
-                      <li>Create a new app password</li>
-                      <li>Copy the generated password</li>
-                      <li>Use it as your password below</li>
-                    </ol>
-                  </div>
-                </div>
-              </div>
-
-              <button
-                onClick={() => {
-                  setImapHost('outlook.office365.com');
-                  setSmtpHost('smtp.office365.com');
-                  setStep('imap');
-                }}
-                className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#0078D4] px-4 py-2.5 font-medium text-white hover:bg-[#0066B4]"
-              >
-                Continue with App Password
-              </button>
+              <div className="mb-4 h-12 w-12 animate-spin rounded-full border-4 border-[#E2E8F0] border-t-[#FF6B35]" />
+              <p className="text-[#64748B]">Connecting to your email provider...</p>
             </motion.div>
           )}
 
@@ -4771,6 +4906,42 @@ function CrownIcon({ className = '' }: { className?: string }) {
   return (
     <svg className={className} fill="currentColor" viewBox="0 0 20 20">
       <path d="M10 2l2.5 5 5.5.75-4 3.75 1 5.5L10 14.25 4.5 17l1-5.5-4-3.75L7 7z" />
+    </svg>
+  );
+}
+
+function UserIcon({ className = '' }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={2}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+      />
+    </svg>
+  );
+}
+
+function TrashIcon({ className = '' }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={2}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+      />
     </svg>
   );
 }
