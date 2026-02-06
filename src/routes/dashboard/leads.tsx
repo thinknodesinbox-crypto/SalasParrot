@@ -13,8 +13,6 @@ import {
   useUpdateLeadList,
   useDeleteLeadList,
   useDeleteLeads,
-  useEnrichLeads,
-  useEnrichmentJobWithPolling,
 } from '../../lib/hooks/queries';
 import type { Lead, LeadList, LinkedInAccount, ImportType } from '../../lib/types';
 import { validateImportURL, validateProfileURLsBatch } from '../../lib/linkedinValidation';
@@ -262,7 +260,7 @@ function LeadsPage() {
         <div>
           <h1 className="text-xl font-bold text-[#1E293B] md:text-2xl">Leads</h1>
           <p className="mt-1 text-sm text-[#64748B] md:text-base">
-            Import, organize, and enrich your prospects
+            Import and organize your prospects
           </p>
         </div>
         <button
@@ -447,16 +445,9 @@ function EmptyState({ onImport }: { onImport: () => void }) {
             </div>
           </div>
           <motion.div
-            animate={{ y: [0, -5, 0] }}
-            transition={{ duration: 2, repeat: Infinity }}
-            className="absolute -right-2 top-4 flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-[#14B8A6] to-[#0D9488] shadow-lg"
-          >
-            <EnrichIcon className="h-5 w-5 text-white" />
-          </motion.div>
-          <motion.div
             animate={{ y: [0, 5, 0] }}
             transition={{ duration: 2.5, repeat: Infinity }}
-            className="absolute -left-2 bottom-6 flex h-8 w-8 items-center justify-center rounded-lg bg-[#0A66C2] shadow-lg"
+            className="absolute -right-2 top-4 flex h-8 w-8 items-center justify-center rounded-lg bg-[#0A66C2] shadow-lg"
           >
             <LinkedInSmallIcon className="h-4 w-4 text-white" />
           </motion.div>
@@ -464,8 +455,7 @@ function EmptyState({ onImport }: { onImport: () => void }) {
 
         <h2 className="mb-3 text-2xl font-bold text-[#1E293B]">No lead lists yet</h2>
         <p className="mb-8 text-lg text-[#64748B]">
-          Import prospects from LinkedIn, Sales Navigator, CSV, or paste URLs. We'll automatically
-          find verified business emails.
+          Import prospects from LinkedIn, Sales Navigator, CSV, or paste URLs directly.
         </p>
 
         <button
@@ -532,7 +522,9 @@ function LeadListsGrid({
   }, []);
 
   const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
+    // Ensure UTC parsing by adding Z suffix if not present
+    const normalizedDateStr = dateStr.endsWith('Z') ? dateStr : dateStr + 'Z';
+    const date = new Date(normalizedDateStr);
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
     const diffMins = Math.floor(diffMs / 60000);
@@ -607,10 +599,6 @@ function LeadListsGrid({
             </h3>
             <div className="flex items-center gap-4 text-sm text-[#64748B]">
               <span>{list.lead_count} leads</span>
-              <span className="flex items-center gap-1">
-                <EnrichIcon className="h-3.5 w-3.5 text-[#14B8A6]" />
-                {list.enriched_count} enriched
-              </span>
             </div>
             <div className="mt-3 flex items-center justify-between">
               {list.source && (
@@ -650,22 +638,7 @@ function LeadListDetail({
 }) {
   const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [enrichmentJobId, setEnrichmentJobId] = useState<string | null>(null);
-  const [enrichingLeadIds, setEnrichingLeadIds] = useState<Set<string>>(new Set());
   const deleteLeadsMutation = useDeleteLeads();
-  const enrichLeadsMutation = useEnrichLeads();
-  const { data: enrichmentJob } = useEnrichmentJobWithPolling(enrichmentJobId);
-
-  // Clear enrichment job ID and enriching leads when job completes
-  useEffect(() => {
-    if (enrichmentJob?.status === 'completed' || enrichmentJob?.status === 'failed') {
-      // Clear enriching leads immediately
-      setEnrichingLeadIds(new Set());
-      // Keep showing job status for a moment then clear
-      const timer = setTimeout(() => setEnrichmentJobId(null), 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [enrichmentJob?.status]);
 
   const handleDeleteSelected = async () => {
     try {
@@ -675,62 +648,6 @@ function LeadListDetail({
       onLeadsDeleted?.();
     } catch {
       // Error is handled by mutation
-    }
-  };
-
-  const handleEnrichSelected = async () => {
-    // Show immediate loading state for all selected leads
-    setEnrichingLeadIds((prev) => {
-      const next = new Set(prev);
-      selectedLeads.forEach((id) => next.add(id));
-      return next;
-    });
-    try {
-      const result = await enrichLeadsMutation.mutateAsync(selectedLeads);
-      setEnrichmentJobId(result.job_id);
-      setSelectedLeads([]);
-    } catch {
-      // Error - remove from enriching set
-      setEnrichingLeadIds((prev) => {
-        const next = new Set(prev);
-        selectedLeads.forEach((id) => next.delete(id));
-        return next;
-      });
-    }
-  };
-
-  const handleEnrichAll = async () => {
-    // Filter leads that are not already enriched or pending
-    const leadsToEnrich = leads
-      .filter(
-        (lead) =>
-          lead.enrichment_status === 'not_enriched' ||
-          lead.enrichment_status === 'failed' ||
-          lead.enrichment_status === 'no_email_found'
-      )
-      .map((lead) => lead.id);
-
-    if (leadsToEnrich.length === 0) {
-      return;
-    }
-
-    // Show immediate loading state for all leads being enriched
-    setEnrichingLeadIds((prev) => {
-      const next = new Set(prev);
-      leadsToEnrich.forEach((id) => next.add(id));
-      return next;
-    });
-
-    try {
-      const result = await enrichLeadsMutation.mutateAsync(leadsToEnrich);
-      setEnrichmentJobId(result.job_id);
-    } catch {
-      // Error - remove from enriching set
-      setEnrichingLeadIds((prev) => {
-        const next = new Set(prev);
-        leadsToEnrich.forEach((id) => next.delete(id));
-        return next;
-      });
     }
   };
 
@@ -749,7 +666,6 @@ function LeadListDetail({
       'Location',
       'Status',
       'Tags',
-      'Enrichment Status',
       'Created At',
     ];
 
@@ -765,7 +681,6 @@ function LeadListDetail({
       lead.location || '',
       lead.status || '',
       (lead.tags || []).join('; '),
-      lead.enrichment_status || '',
       lead.created_at ? new Date(lead.created_at).toLocaleDateString() : '',
     ]);
 
@@ -831,10 +746,6 @@ function LeadListDetail({
                 <h2 className="text-xl font-bold text-[#1E293B]">{list.name}</h2>
                 <div className="mt-1 flex items-center gap-4 text-sm text-[#64748B]">
                   <span>{list.lead_count} leads</span>
-                  <span className="flex items-center gap-1">
-                    <EnrichIcon className="h-3.5 w-3.5 text-[#14B8A6]" />
-                    {list.enriched_count} emails found
-                  </span>
                 </div>
               </div>
             </div>
@@ -846,26 +757,6 @@ function LeadListDetail({
               >
                 <ExportIcon className="h-4 w-4" />
                 Export
-              </button>
-              <button
-                onClick={handleEnrichAll}
-                disabled={enrichLeadsMutation.isPending || !!enrichmentJobId}
-                className="flex items-center gap-2 rounded-lg border border-[#E2E8F0] px-4 py-2 text-sm font-medium text-[#14B8A6] transition-colors hover:bg-[#F0FDFA] disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {enrichLeadsMutation.isPending ||
-                (enrichmentJob &&
-                  enrichmentJob.status !== 'completed' &&
-                  enrichmentJob.status !== 'failed') ? (
-                  <>
-                    <LoadingSpinner className="h-4 w-4" />
-                    Enriching...
-                  </>
-                ) : (
-                  <>
-                    <EnrichIcon className="h-4 w-4" />
-                    Enrich All
-                  </>
-                )}
               </button>
               <Link
                 to="/dashboard/campaigns"
@@ -895,62 +786,12 @@ function LeadListDetail({
             </div>
             <div className="flex items-center gap-2">
               <button
-                onClick={handleEnrichSelected}
-                disabled={enrichLeadsMutation.isPending}
-                className="flex items-center gap-2 rounded-lg border border-[#14B8A6]/20 bg-white px-3 py-1.5 text-sm font-medium text-[#14B8A6] transition-colors hover:bg-[#F0FDFA] disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {enrichLeadsMutation.isPending ? (
-                  <LoadingSpinner className="h-4 w-4" />
-                ) : (
-                  <EnrichIcon className="h-4 w-4" />
-                )}
-                Enrich
-              </button>
-              <button
                 onClick={() => setShowDeleteModal(true)}
                 className="flex items-center gap-2 rounded-lg border border-[#EF4444]/20 bg-white px-3 py-1.5 text-sm font-medium text-[#EF4444] transition-colors hover:bg-[#FEF2F2]"
               >
                 <TrashIcon className="h-4 w-4" />
                 Delete
               </button>
-            </div>
-          </div>
-        )}
-
-        {/* Enrichment Progress */}
-        {enrichmentJob &&
-          enrichmentJob.status !== 'completed' &&
-          enrichmentJob.status !== 'failed' && (
-            <div className="flex items-center justify-between rounded-xl border border-[#14B8A6]/20 bg-[#F0FDFA] px-4 py-3">
-              <div className="flex items-center gap-3">
-                <LoadingSpinner className="h-4 w-4 text-[#14B8A6]" />
-                <span className="text-sm font-medium text-[#1E293B]">
-                  Enriching leads... {enrichmentJob.processed_count}/{enrichmentJob.total_count}
-                </span>
-              </div>
-              <div className="flex items-center gap-4">
-                <div className="h-2 w-32 overflow-hidden rounded-full bg-[#E2E8F0]">
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-[#14B8A6] to-[#0D9488] transition-all"
-                    style={{ width: `${enrichmentJob.progress}%` }}
-                  />
-                </div>
-                <span className="text-sm text-[#64748B]">
-                  {Math.round(enrichmentJob.progress)}%
-                </span>
-              </div>
-            </div>
-          )}
-
-        {/* Enrichment Complete Message */}
-        {enrichmentJob && enrichmentJob.status === 'completed' && (
-          <div className="flex items-center justify-between rounded-xl border border-[#22C55E]/20 bg-[#F0FDF4] px-4 py-3">
-            <div className="flex items-center gap-3">
-              <CheckIcon className="h-4 w-4 text-[#22C55E]" />
-              <span className="text-sm font-medium text-[#1E293B]">
-                Enrichment complete! {enrichmentJob.enriched_count} emails found,{' '}
-                {enrichmentJob.failed_count} not found
-              </span>
             </div>
           </div>
         )}
@@ -1031,22 +872,6 @@ function LeadListDetail({
                         setSelectedLeads([leadId]);
                         setShowDeleteModal(true);
                       }}
-                      onEnrich={async (leadId) => {
-                        // Show immediate loading state
-                        setEnrichingLeadIds((prev) => new Set(prev).add(leadId));
-                        try {
-                          const result = await enrichLeadsMutation.mutateAsync([leadId]);
-                          setEnrichmentJobId(result.job_id);
-                        } catch {
-                          // Error - remove from enriching set
-                          setEnrichingLeadIds((prev) => {
-                            const next = new Set(prev);
-                            next.delete(leadId);
-                            return next;
-                          });
-                        }
-                      }}
-                      isEnriching={enrichingLeadIds.has(lead.id)}
                     />
                   ))
                 )}
@@ -1198,16 +1023,12 @@ function LeadRow({
   selected,
   onSelect,
   onDelete,
-  onEnrich,
-  isEnriching,
 }: {
   lead: Lead;
   rowNumber: number;
   selected: boolean;
   onSelect: (selected: boolean) => void;
   onDelete: (leadId: string) => void;
-  onEnrich: (leadId: string) => void;
-  isEnriching: boolean;
 }) {
   const [showMenu, setShowMenu] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -1275,27 +1096,10 @@ function LeadRow({
       <td className="px-6 py-4 text-[#1E293B]">{lead.company || '-'}</td>
       <td className="px-6 py-4 text-[#64748B]">{lead.location || '-'}</td>
       <td className="px-6 py-4">
-        {isEnriching || lead.enrichment_status === 'pending' ? (
-          <div className="flex items-center gap-2">
-            <LoadingSpinner className="h-3.5 w-3.5 text-[#14B8A6]" />
-            <span className="text-sm text-[#64748B]">Finding email...</span>
-          </div>
-        ) : lead.enrichment_status === 'enriched' && lead.email ? (
-          <span className="text-[#1E293B]">{lead.email}</span>
-        ) : lead.enrichment_status === 'failed' ? (
-          <span className="text-sm text-[#EF4444]">Failed</span>
-        ) : lead.enrichment_status === 'no_email_found' ? (
-          <span className="text-sm italic text-[#94A3B8]">Not found</span>
-        ) : lead.email ? (
+        {lead.email ? (
           <span className="text-[#1E293B]">{lead.email}</span>
         ) : (
-          <button
-            onClick={() => onEnrich(lead.id)}
-            className="flex items-center gap-1 text-sm text-[#14B8A6] hover:text-[#0D9488]"
-          >
-            <EnrichIcon className="h-3.5 w-3.5" />
-            Find email
-          </button>
+          <span className="text-sm text-[#94A3B8]">-</span>
         )}
       </td>
       <td className="px-6 py-4">
@@ -1341,18 +1145,6 @@ function LeadRow({
             </button>
             {showMenu && (
               <div className="absolute right-0 top-full z-10 mt-1 w-36 rounded-lg border border-[#E2E8F0] bg-white py-1 shadow-lg">
-                {!lead.email && lead.enrichment_status !== 'pending' && !isEnriching && (
-                  <button
-                    onClick={() => {
-                      onEnrich(lead.id);
-                      setShowMenu(false);
-                    }}
-                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-[#14B8A6] hover:bg-[#F0FDFA]"
-                  >
-                    <EnrichIcon className="h-4 w-4" />
-                    Find email
-                  </button>
-                )}
                 <button
                   onClick={() => {
                     onDelete(lead.id);
@@ -1658,19 +1450,6 @@ function ImportLeadsModal({ onClose, onSuccess }: { onClose: () => void; onSucce
 
                       {/* Features preview */}
                       <div className="mt-8 w-full max-w-xs">
-                        <div className="mb-2 flex items-center gap-3 rounded-lg border border-[#E2E8F0] bg-white p-3 text-left">
-                          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#F0FDFA]">
-                            <EnrichIcon className="h-4 w-4 text-[#14B8A6]" />
-                          </div>
-                          <div>
-                            <p className="text-sm font-medium text-[#1E293B]">
-                              Auto Email Enrichment
-                            </p>
-                            <p className="text-xs text-[#64748B]">
-                              We find verified emails automatically
-                            </p>
-                          </div>
-                        </div>
                         <div className="flex items-center gap-3 rounded-lg border border-[#E2E8F0] bg-white p-3 text-left">
                           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#EFF6FF]">
                             <SparkleIcon className="h-4 w-4 text-[#3B82F6]" />
@@ -1784,12 +1563,9 @@ function ImportLeadsModal({ onClose, onSuccess }: { onClose: () => void; onSucce
                   <CheckCircleIcon className="h-10 w-10 text-[#22C55E]" />
                 </motion.div>
                 <h3 className="mb-2 text-xl font-bold text-[#1E293B]">Import Complete!</h3>
-                <p className="mb-2 text-[#64748B]">
+                <p className="mb-8 text-[#64748B]">
                   {importResult?.created || 0} leads imported successfully.
                   {importResult?.skipped ? ` ${importResult.skipped} duplicates skipped.` : ''}
-                </p>
-                <p className="mb-8 text-sm text-[#14B8A6]">
-                  Email enrichment is starting in the background.
                 </p>
                 <button
                   onClick={handleFinish}
@@ -2084,9 +1860,7 @@ function ImportMethodConfig({
             <span className="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-[#FF6B35] text-xs text-white">
               3
             </span>
-            <span>
-              We'll extract all profiles and automatically enrich them with verified emails
-            </span>
+            <span>We'll extract all profiles and import them to your list</span>
           </li>
         </ol>
       </div>
@@ -2429,24 +2203,6 @@ function ListIcon({ className = 'w-5 h-5' }: { className?: string }) {
         strokeLinecap="round"
         strokeLinejoin="round"
         d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-      />
-    </svg>
-  );
-}
-
-function EnrichIcon({ className = 'w-4 h-4' }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      fill="none"
-      viewBox="0 0 24 24"
-      stroke="currentColor"
-      strokeWidth={2}
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"
       />
     </svg>
   );
