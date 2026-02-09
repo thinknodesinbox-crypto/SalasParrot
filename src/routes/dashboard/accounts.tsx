@@ -18,8 +18,6 @@ import {
   useInitMicrosoftOAuth,
   useInitGmailHostedAuth,
   useEmailAuthConfig,
-  useAttachEmailToLinkedIn,
-  useDetachEmailFromLinkedIn,
 } from '../../lib/hooks/queries';
 import type { LinkedInAccount, EmailAccount, CheckpointType, SyncMode } from '../../lib/types';
 import { getErrorMessage } from '../../lib/api';
@@ -476,9 +474,6 @@ function SyncModeModal({
 function AccountsList({ accounts }: { accounts: LinkedInAccount[] }) {
   const deleteAccount = useDeleteLinkedInAccount();
   const syncChats = useSyncLinkedInChats();
-  const detachEmail = useDetachEmailFromLinkedIn();
-  const { data: emailAccounts = [] } = useEmailAccounts();
-  const attachEmail = useAttachEmailToLinkedIn();
 
   const [syncingAccountId, setSyncingAccountId] = useState<string | null>(null);
   const [syncModal, setSyncModal] = useState<{
@@ -498,13 +493,6 @@ function AccountsList({ accounts }: { accounts: LinkedInAccount[] }) {
     open: false,
     accountId: '',
     accountName: '',
-  });
-  const [attachEmailModal, setAttachEmailModal] = useState<{
-    open: boolean;
-    linkedinAccountId: string;
-  }>({
-    open: false,
-    linkedinAccountId: '',
   });
 
   const handleDeleteClick = (accountId: string, accountName: string) => {
@@ -540,25 +528,6 @@ function AccountsList({ accounts }: { accounts: LinkedInAccount[] }) {
     await deleteAccount.mutateAsync({ accountId: disconnectModal.accountId });
     closeModal();
   };
-
-  const handleAttachEmail = (linkedinAccountId: string) => {
-    setAttachEmailModal({ open: true, linkedinAccountId });
-  };
-
-  const handleDetachEmail = async (emailAccountId: string) => {
-    await detachEmail.mutateAsync(emailAccountId);
-  };
-
-  const handleConfirmAttachEmail = async (emailAccountId: string) => {
-    await attachEmail.mutateAsync({
-      emailAccountId,
-      linkedinAccountId: attachEmailModal.linkedinAccountId,
-    });
-    setAttachEmailModal({ open: false, linkedinAccountId: '' });
-  };
-
-  // Get unattached email accounts for the attach modal
-  const unattachedEmailAccounts = emailAccounts.filter((email) => !email.linkedin_account_id);
 
   // Calculate total daily capacity from daily_limits
   const totalDailyCapacity = accounts.reduce((sum, a) => {
@@ -607,9 +576,6 @@ function AccountsList({ accounts }: { accounts: LinkedInAccount[] }) {
                   Account
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[#64748B]">
-                  Email Account
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[#64748B]">
                   Status
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[#64748B]">
@@ -631,8 +597,6 @@ function AccountsList({ accounts }: { accounts: LinkedInAccount[] }) {
                   onDelete={handleDeleteClick}
                   onSync={handleSyncClick}
                   isSyncing={syncingAccountId === account.id}
-                  onAttachEmail={handleAttachEmail}
-                  onDetachEmail={handleDetachEmail}
                 />
               ))}
             </tbody>
@@ -648,8 +612,6 @@ function AccountsList({ accounts }: { accounts: LinkedInAccount[] }) {
               onDelete={handleDeleteClick}
               onSync={handleSyncClick}
               isSyncing={syncingAccountId === account.id}
-              onAttachEmail={handleAttachEmail}
-              onDetachEmail={handleDetachEmail}
             />
           ))}
         </div>
@@ -727,76 +689,6 @@ function AccountsList({ accounts }: { accounts: LinkedInAccount[] }) {
           </motion.div>
         )}
       </AnimatePresence>
-
-      {/* Attach Email Modal */}
-      <AnimatePresence>
-        {attachEmailModal.open && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
-            onClick={() => setAttachEmailModal({ open: false, linkedinAccountId: '' })}
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl"
-            >
-              <div className="p-6">
-                <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-[#FF6B35]/10">
-                  <EmailIcon className="h-6 w-6 text-[#FF6B35]" />
-                </div>
-                <h3 className="mb-2 text-center text-lg font-bold text-[#1E293B]">
-                  Attach Email Account
-                </h3>
-                <p className="mb-6 text-center text-[#64748B]">
-                  Select an email account to attach to this LinkedIn sender for email follow-ups.
-                </p>
-
-                {unattachedEmailAccounts.length === 0 ? (
-                  <div className="mb-6 rounded-lg border border-dashed border-[#E2E8F0] p-6 text-center">
-                    <p className="text-sm text-[#64748B]">
-                      No unattached email accounts available.
-                    </p>
-                    <p className="mt-2 text-sm text-[#94A3B8]">
-                      Connect an email account first from the Email tab.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="mb-6 space-y-2">
-                    {unattachedEmailAccounts.map((email) => (
-                      <button
-                        key={email.id}
-                        onClick={() => handleConfirmAttachEmail(email.id)}
-                        disabled={attachEmail.isPending}
-                        className="flex w-full items-center gap-3 rounded-xl border border-[#E2E8F0] p-3 text-left transition-colors hover:border-[#FF6B35] hover:bg-[#FFF7ED] disabled:opacity-50"
-                      >
-                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#FF6B35]/10">
-                          <EmailIcon className="h-5 w-5 text-[#FF6B35]" />
-                        </div>
-                        <div className="flex-1">
-                          <p className="font-medium text-[#1E293B]">{email.email_address}</p>
-                          <p className="text-sm capitalize text-[#64748B]">{email.provider}</p>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                )}
-
-                <button
-                  onClick={() => setAttachEmailModal({ open: false, linkedinAccountId: '' })}
-                  className="w-full rounded-xl border border-[#E2E8F0] px-4 py-2.5 font-medium text-[#1E293B] transition-colors hover:bg-[#F8FAFC]"
-                >
-                  Cancel
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   );
 }
@@ -806,17 +698,12 @@ function AccountCard({
   onDelete,
   onSync,
   isSyncing,
-  onAttachEmail,
-  onDetachEmail,
 }: {
   account: LinkedInAccount;
   onDelete: (id: string, name: string) => void;
   onSync: (id: string) => void;
   isSyncing: boolean;
-  onAttachEmail: (linkedinAccountId: string) => void;
-  onDetachEmail: (emailAccountId: string) => void;
 }) {
-  const hasEmail = !!account.email_account;
   const [menuOpen, setMenuOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const [menuPosition, setMenuPosition] = useState({ top: 0, right: 0 });
@@ -849,8 +736,8 @@ function AccountCard({
     (account.daily_limits?.connections || 0) + (account.daily_limits?.messages || 0);
 
   const subscriptionLabels: Record<string, string> = {
-    free: 'Free',
-    premium: 'Premium',
+    free: 'LinkedIn Classic',
+    premium: 'LinkedIn Premium',
     sales_nav: 'Sales Navigator',
     recruiter: 'Recruiter',
   };
@@ -873,7 +760,7 @@ function AccountCard({
           <div className="min-w-0">
             <p className="truncate font-medium text-[#1E293B]">{displayName}</p>
             <p className="truncate text-sm text-[#64748B]">
-              {subscriptionLabels[account.subscription_type] || 'Free'}
+              {subscriptionLabels[account.subscription_type] || 'LinkedIn Classic'}
             </p>
           </div>
         </div>
@@ -920,27 +807,6 @@ function AccountCard({
                         'Sync Messages'
                       )}
                     </button>
-                    {hasEmail ? (
-                      <button
-                        onClick={() => {
-                          setMenuOpen(false);
-                          onDetachEmail(account.email_account!.id);
-                        }}
-                        className="w-full px-4 py-2 text-left text-sm text-[#1E293B] hover:bg-[#F8FAFC]"
-                      >
-                        Detach Email
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => {
-                          setMenuOpen(false);
-                          onAttachEmail(account.id);
-                        }}
-                        className="w-full px-4 py-2 text-left text-sm text-[#1E293B] hover:bg-[#F8FAFC]"
-                      >
-                        Attach Email
-                      </button>
-                    )}
                     {account.profile_url && (
                       <a
                         href={account.profile_url}
@@ -967,21 +833,6 @@ function AccountCard({
           </div>
         </div>
       </div>
-
-      {/* Attached Email */}
-      {hasEmail && (
-        <div className="mb-3 flex items-center gap-2 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] p-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#FF6B35]/10">
-            <EmailIcon className="h-4 w-4 text-[#FF6B35]" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium text-[#1E293B]">
-              {account.email_account!.email_address}
-            </p>
-            <p className="text-xs capitalize text-[#64748B]">{account.email_account!.provider}</p>
-          </div>
-        </div>
-      )}
 
       {/* Daily Limits */}
       <div className="mb-3">
@@ -1014,15 +865,11 @@ function AccountRow({
   onDelete,
   onSync,
   isSyncing,
-  onAttachEmail,
-  onDetachEmail,
 }: {
   account: LinkedInAccount;
   onDelete: (id: string, name: string) => void;
   onSync: (id: string) => void;
   isSyncing: boolean;
-  onAttachEmail: (linkedinAccountId: string) => void;
-  onDetachEmail: (emailAccountId: string) => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -1056,13 +903,11 @@ function AccountRow({
     (account.daily_limits?.connections || 0) + (account.daily_limits?.messages || 0);
 
   const subscriptionLabels: Record<string, string> = {
-    free: 'Free',
-    premium: 'Premium',
+    free: 'LinkedIn Classic',
+    premium: 'LinkedIn Premium',
     sales_nav: 'Sales Navigator',
     recruiter: 'Recruiter',
   };
-
-  const hasEmail = !!account.email_account;
 
   return (
     <tr className="transition-colors hover:bg-[#F8FAFC]">
@@ -1078,33 +923,10 @@ function AccountRow({
           <div>
             <p className="font-medium text-[#1E293B]">{displayName}</p>
             <p className="text-sm text-[#64748B]">
-              {subscriptionLabels[account.subscription_type] || 'Free'}
+              {subscriptionLabels[account.subscription_type] || 'LinkedIn Classic'}
             </p>
           </div>
         </div>
-      </td>
-      <td className="px-6 py-4">
-        {hasEmail ? (
-          <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#FF6B35]/10">
-              <EmailIcon className="h-4 w-4 text-[#FF6B35]" />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-[#1E293B]">
-                {account.email_account!.email_address}
-              </p>
-              <p className="text-xs capitalize text-[#64748B]">{account.email_account!.provider}</p>
-            </div>
-          </div>
-        ) : (
-          <button
-            onClick={() => onAttachEmail(account.id)}
-            className="flex items-center gap-2 rounded-lg border border-dashed border-[#E2E8F0] px-3 py-2 text-sm text-[#64748B] transition-colors hover:border-[#FF6B35] hover:text-[#FF6B35]"
-          >
-            <PlusIcon className="h-4 w-4" />
-            Attach Email
-          </button>
-        )}
       </td>
       <td className="px-6 py-4">
         <span
@@ -1171,27 +993,6 @@ function AccountRow({
                       'Sync Messages'
                     )}
                   </button>
-                  {hasEmail ? (
-                    <button
-                      onClick={() => {
-                        setMenuOpen(false);
-                        onDetachEmail(account.email_account!.id);
-                      }}
-                      className="w-full px-4 py-2 text-left text-sm text-[#1E293B] hover:bg-[#F8FAFC]"
-                    >
-                      Detach Email
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => {
-                        setMenuOpen(false);
-                        onAttachEmail(account.id);
-                      }}
-                      className="w-full px-4 py-2 text-left text-sm text-[#1E293B] hover:bg-[#F8FAFC]"
-                    >
-                      Attach Email
-                    </button>
-                  )}
                   {account.profile_url && (
                     <a
                       href={account.profile_url}
@@ -2878,20 +2679,6 @@ function CloseIcon() {
       strokeWidth={2}
     >
       <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-    </svg>
-  );
-}
-
-function PlusIcon({ className = 'h-5 w-5' }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      fill="none"
-      viewBox="0 0 24 24"
-      stroke="currentColor"
-      strokeWidth={2}
-    >
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
     </svg>
   );
 }

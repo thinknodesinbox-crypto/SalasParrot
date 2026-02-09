@@ -70,8 +70,6 @@ function InboxPage() {
       return {
         id: acc.id,
         name: displayName || 'LinkedIn Account',
-        hasEmail: !!acc.email_account,
-        emailAddress: acc.email_account?.email_address || null,
       };
     });
   }, [linkedInAccounts]);
@@ -232,7 +230,6 @@ function InboxPage() {
               <option value="">All Senders</option>
               {senderOptions.map((sender) => (
                 <option key={sender.id} value={sender.id}>
-                  {sender.hasEmail ? '🔗+📧 ' : '🔗 '}
                   {sender.name}
                 </option>
               ))}

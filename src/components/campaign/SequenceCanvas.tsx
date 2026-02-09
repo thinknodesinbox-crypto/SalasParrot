@@ -1,5 +1,5 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { SEQUENCE_TEMPLATES } from './sequenceTemplates';
 export { SEQUENCE_TEMPLATES } from './sequenceTemplates';
 
@@ -1079,6 +1079,26 @@ export function NodeConfigPanel({
   onClose: () => void;
 }) {
   const nodeConfig = getNodeConfig(node.type);
+  const messageRef = useRef<HTMLTextAreaElement>(null);
+
+  const insertVariable = (variable: string) => {
+    const textarea = messageRef.current;
+    const currentMessage = node.data.message || '';
+    if (textarea) {
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const newMessage = currentMessage.slice(0, start) + variable + currentMessage.slice(end);
+      onUpdate({ message: newMessage });
+      // Restore cursor position after the inserted variable
+      requestAnimationFrame(() => {
+        textarea.focus();
+        const cursorPos = start + variable.length;
+        textarea.setSelectionRange(cursorPos, cursorPos);
+      });
+    } else {
+      onUpdate({ message: currentMessage + variable });
+    }
+  };
 
   return (
     <motion.div
@@ -1173,6 +1193,7 @@ export function NodeConfigPanel({
           <div>
             <label className="mb-2 block text-sm font-medium text-[#1E293B]">Message</label>
             <textarea
+              ref={messageRef}
               value={node.data.message || ''}
               onChange={(e) => onUpdate({ message: e.target.value })}
               placeholder="Hi {{first_name}}, I noticed..."
@@ -1183,7 +1204,8 @@ export function NodeConfigPanel({
               {['{{first_name}}', '{{last_name}}', '{{company}}'].map((variable) => (
                 <button
                   key={variable}
-                  onClick={() => onUpdate({ message: (node.data.message || '') + variable })}
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => insertVariable(variable)}
                   className="rounded bg-[#FFF7ED] px-2 py-1 text-[10px] font-medium text-[#FF6B35] transition-colors hover:bg-[#FFEDD5]"
                 >
                   {variable}
@@ -1209,6 +1231,7 @@ export function NodeConfigPanel({
             <div>
               <label className="mb-2 block text-sm font-medium text-[#1E293B]">Message</label>
               <textarea
+                ref={messageRef}
                 value={node.data.message || ''}
                 onChange={(e) => onUpdate({ message: e.target.value })}
                 placeholder="Hi {{first_name}}..."
@@ -1220,7 +1243,8 @@ export function NodeConfigPanel({
                   (variable) => (
                     <button
                       key={variable}
-                      onClick={() => onUpdate({ message: (node.data.message || '') + variable })}
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => insertVariable(variable)}
                       className="rounded bg-[#FFF7ED] px-2 py-1 text-[10px] font-medium text-[#FF6B35] transition-colors hover:bg-[#FFEDD5]"
                     >
                       {variable}
@@ -1254,6 +1278,7 @@ export function NodeConfigPanel({
             <div>
               <label className="mb-2 block text-sm font-medium text-[#1E293B]">Email Body</label>
               <textarea
+                ref={messageRef}
                 value={node.data.message || ''}
                 onChange={(e) => onUpdate({ message: e.target.value })}
                 placeholder="Hi {{first_name}}..."
@@ -1265,7 +1290,8 @@ export function NodeConfigPanel({
                   (variable) => (
                     <button
                       key={variable}
-                      onClick={() => onUpdate({ message: (node.data.message || '') + variable })}
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => insertVariable(variable)}
                       className="rounded bg-[#FFF7ED] px-2 py-1 text-[10px] font-medium text-[#FF6B35] transition-colors hover:bg-[#FFEDD5]"
                     >
                       {variable}

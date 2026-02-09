@@ -79,9 +79,6 @@ export {
   useInitGoogleOAuth,
   useInitMicrosoftOAuth,
   useInitGmailHostedAuth,
-  // Email-LinkedIn Attachment
-  useAttachEmailToLinkedIn,
-  useDetachEmailFromLinkedIn,
 } from './useAccounts';
 
 // Auth

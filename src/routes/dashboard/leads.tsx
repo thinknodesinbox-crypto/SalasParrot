@@ -1126,16 +1126,6 @@ function LeadRow({
       </td>
       <td className="px-6 py-4 text-right">
         <div className="flex items-center justify-end gap-2">
-          {lead.linkedin_url && (
-            <a
-              href={lead.linkedin_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="rounded-lg p-2 text-[#0A66C2] transition-colors hover:bg-[#EFF6FF]"
-            >
-              <LinkedInSmallIcon />
-            </a>
-          )}
           <div className="relative" ref={menuRef}>
             <button
               onClick={() => setShowMenu(!showMenu)}
@@ -1961,7 +1951,17 @@ function LinkedInAccountSelector({
               <p className="truncate font-medium text-[#1E293B]">
                 {account.name || 'LinkedIn Account'}
               </p>
-              <p className="text-xs capitalize text-[#64748B]">{account.subscription_type}</p>
+              <p className="text-xs text-[#64748B]">
+                {account.subscription_type === 'free'
+                  ? 'LinkedIn Classic'
+                  : account.subscription_type === 'premium'
+                    ? 'LinkedIn Premium'
+                    : account.subscription_type === 'sales_nav'
+                      ? 'Sales Navigator'
+                      : account.subscription_type === 'recruiter'
+                        ? 'Recruiter'
+                        : 'LinkedIn Classic'}
+              </p>
             </div>
             {selectedId === account.id && (
               <div className="flex h-5 w-5 items-center justify-center rounded-full bg-[#0A66C2]">

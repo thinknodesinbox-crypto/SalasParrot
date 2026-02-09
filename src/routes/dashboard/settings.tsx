@@ -2332,7 +2332,7 @@ function IntegrationSettings() {
                     </p>
                     <p className="text-sm text-[#64748B]">
                       {account.subscription_type !== 'free'
-                        ? `${account.subscription_type} - `
+                        ? `${account.subscription_type === 'premium' ? 'LinkedIn Premium' : account.subscription_type === 'sales_nav' ? 'Sales Navigator' : account.subscription_type === 'recruiter' ? 'Recruiter' : ''} - `
                         : ''}
                       {account.status === 'connected'
                         ? 'Connected'
