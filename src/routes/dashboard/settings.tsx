@@ -2789,7 +2789,7 @@ function ConnectLinkedInModal({ onClose }: { onClose: () => void }) {
     if (!accountId) return;
 
     try {
-      const result = await pollStatus.mutateAsync(accountId);
+      const result = await pollStatus.mutateAsync({ accountId });
       console.log('[settings pollOnce] result:', result);
       if (result.status === 'connected') {
         console.log('[settings pollOnce] connected!');

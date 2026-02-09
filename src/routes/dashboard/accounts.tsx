@@ -21,7 +21,7 @@ import {
   useAttachEmailToLinkedIn,
   useDetachEmailFromLinkedIn,
 } from '../../lib/hooks/queries';
-import type { LinkedInAccount, EmailAccount, CheckpointType } from '../../lib/types';
+import type { LinkedInAccount, EmailAccount, CheckpointType, SyncMode } from '../../lib/types';
 import { getErrorMessage } from '../../lib/api';
 
 export const Route = createFileRoute('/dashboard/accounts')({
@@ -344,6 +344,135 @@ function EmptyState({ onConnect }: { onConnect: () => void }) {
   );
 }
 
+function SyncModeModal({
+  open,
+  defaultSyncMode,
+  onConfirm,
+  onCancel,
+  isSyncing,
+}: {
+  open: boolean;
+  defaultSyncMode: SyncMode;
+  onConfirm: (syncMode: SyncMode) => void;
+  onCancel: () => void;
+  isSyncing: boolean;
+}) {
+  const [selectedMode, setSelectedMode] = useState<SyncMode>(defaultSyncMode);
+
+  useEffect(() => {
+    setSelectedMode(defaultSyncMode);
+  }, [defaultSyncMode, open]);
+
+  return (
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+          onClick={onCancel}
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl"
+          >
+            <div className="p-6">
+              <h3 className="mb-1 text-lg font-bold text-[#1E293B]">Sync Messages</h3>
+              <p className="mb-5 text-sm text-[#64748B]">
+                Choose which messages to sync from this account.
+              </p>
+
+              <div className="space-y-3">
+                <label
+                  className={`flex cursor-pointer items-start gap-3 rounded-xl border-2 p-4 transition-colors ${
+                    selectedMode === 'campaign_only'
+                      ? 'border-[#FF6B35] bg-[#FFF7ED]'
+                      : 'border-[#E2E8F0] hover:border-[#CBD5E1]'
+                  }`}
+                  onClick={() => setSelectedMode('campaign_only')}
+                >
+                  <div
+                    className={`mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2 ${
+                      selectedMode === 'campaign_only'
+                        ? 'border-[#FF6B35] bg-[#FF6B35]'
+                        : 'border-[#CBD5E1]'
+                    }`}
+                  >
+                    {selectedMode === 'campaign_only' && (
+                      <div className="h-2 w-2 rounded-full bg-white" />
+                    )}
+                  </div>
+                  <div>
+                    <div className="text-sm font-semibold text-[#1E293B]">
+                      Campaign messages only
+                    </div>
+                    <div className="mt-0.5 text-xs text-[#64748B]">
+                      Only sync conversations with leads that are part of a campaign. Recommended
+                      for shared workspaces.
+                    </div>
+                  </div>
+                </label>
+
+                <label
+                  className={`flex cursor-pointer items-start gap-3 rounded-xl border-2 p-4 transition-colors ${
+                    selectedMode === 'all'
+                      ? 'border-[#FF6B35] bg-[#FFF7ED]'
+                      : 'border-[#E2E8F0] hover:border-[#CBD5E1]'
+                  }`}
+                  onClick={() => setSelectedMode('all')}
+                >
+                  <div
+                    className={`mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full border-2 ${
+                      selectedMode === 'all' ? 'border-[#FF6B35] bg-[#FF6B35]' : 'border-[#CBD5E1]'
+                    }`}
+                  >
+                    {selectedMode === 'all' && <div className="h-2 w-2 rounded-full bg-white" />}
+                  </div>
+                  <div>
+                    <div className="text-sm font-semibold text-[#1E293B]">All messages</div>
+                    <div className="mt-0.5 text-xs text-[#64748B]">
+                      Sync all conversations, including personal messages. Only you can see these in
+                      your inbox.
+                    </div>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 border-t border-[#E2E8F0] bg-[#F8FAFC] px-6 py-4">
+              <button
+                onClick={onCancel}
+                disabled={isSyncing}
+                className="rounded-lg px-4 py-2 text-sm font-medium text-[#64748B] transition-colors hover:bg-[#E2E8F0] disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => onConfirm(selectedMode)}
+                disabled={isSyncing}
+                className="flex items-center gap-2 rounded-lg bg-[#FF6B35] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#E85A2A] disabled:opacity-50"
+              >
+                {isSyncing ? (
+                  <>
+                    <LoadingSpinner />
+                    Syncing...
+                  </>
+                ) : (
+                  'Start Sync'
+                )}
+              </button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
 function AccountsList({ accounts }: { accounts: LinkedInAccount[] }) {
   const deleteAccount = useDeleteLinkedInAccount();
   const syncChats = useSyncLinkedInChats();
@@ -352,6 +481,15 @@ function AccountsList({ accounts }: { accounts: LinkedInAccount[] }) {
   const attachEmail = useAttachEmailToLinkedIn();
 
   const [syncingAccountId, setSyncingAccountId] = useState<string | null>(null);
+  const [syncModal, setSyncModal] = useState<{
+    open: boolean;
+    accountId: string;
+    syncMode: SyncMode;
+  }>({
+    open: false,
+    accountId: '',
+    syncMode: 'campaign_only',
+  });
   const [disconnectModal, setDisconnectModal] = useState<{
     open: boolean;
     accountId: string;
@@ -373,13 +511,24 @@ function AccountsList({ accounts }: { accounts: LinkedInAccount[] }) {
     setDisconnectModal({ open: true, accountId, accountName });
   };
 
-  const handleSyncClick = async (accountId: string) => {
+  const handleSyncClick = (accountId: string) => {
+    const account = accounts.find((a) => a.id === accountId);
+    setSyncModal({
+      open: true,
+      accountId,
+      syncMode: account?.sync_mode || 'campaign_only',
+    });
+  };
+
+  const handleConfirmSync = async (syncMode: SyncMode) => {
+    const accountId = syncModal.accountId;
     setSyncingAccountId(accountId);
     try {
-      const result = await syncChats.mutateAsync(accountId);
+      const result = await syncChats.mutateAsync({ accountId, syncMode });
       console.log('Sync result:', result);
     } finally {
       setSyncingAccountId(null);
+      setSyncModal({ open: false, accountId: '', syncMode: 'campaign_only' });
     }
   };
 
@@ -505,6 +654,15 @@ function AccountsList({ accounts }: { accounts: LinkedInAccount[] }) {
           ))}
         </div>
       </div>
+
+      {/* Sync Mode Modal */}
+      <SyncModeModal
+        open={syncModal.open}
+        defaultSyncMode={syncModal.syncMode}
+        onConfirm={handleConfirmSync}
+        onCancel={() => setSyncModal({ open: false, accountId: '', syncMode: 'campaign_only' })}
+        isSyncing={syncingAccountId === syncModal.accountId}
+      />
 
       {/* Disconnect Confirmation Modal */}
       <AnimatePresence>
@@ -1084,6 +1242,9 @@ function ConnectLinkedInModal({ onClose }: { onClose: () => void }) {
   const [cookie, setCookie] = useState('');
   const [userAgent, setUserAgent] = useState('');
 
+  // Sync mode state
+  const [syncMode, setSyncMode] = useState<SyncMode>('campaign_only');
+
   // Checkpoint state
   const [accountId, setAccountId] = useState('');
   const [checkpointType, setCheckpointType] = useState<CheckpointType | null>(null);
@@ -1163,7 +1324,7 @@ function ConnectLinkedInModal({ onClose }: { onClose: () => void }) {
     console.log('[pollOnce] Polling with accountId:', accountId);
 
     try {
-      const result = await pollStatus.mutateAsync(accountId);
+      const result = await pollStatus.mutateAsync({ accountId, syncMode });
       console.log('[pollOnce] Poll result:', result);
       if (result.status === 'connected') {
         console.log('[pollOnce] Status connected, handling response');
@@ -1220,7 +1381,11 @@ function ConnectLinkedInModal({ onClose }: { onClose: () => void }) {
     }
 
     try {
-      const result = await connectWithCredentials.mutateAsync({ username, password });
+      const result = await connectWithCredentials.mutateAsync({
+        username,
+        password,
+        sync_mode: syncMode,
+      });
       handleAuthResponse(result);
     } catch (err) {
       setError(getErrorMessage(err));
@@ -1238,6 +1403,7 @@ function ConnectLinkedInModal({ onClose }: { onClose: () => void }) {
       const result = await connectWithCookie.mutateAsync({
         access_token: cookie,
         user_agent: userAgent || undefined,
+        sync_mode: syncMode,
       });
       handleAuthResponse(result);
     } catch (err) {
@@ -1256,6 +1422,7 @@ function ConnectLinkedInModal({ onClose }: { onClose: () => void }) {
       const result = await solveCheckpoint.mutateAsync({
         account_id: accountId,
         code: verificationCode,
+        sync_mode: syncMode,
       });
       handleAuthResponse(result);
     } catch (err) {
@@ -1370,6 +1537,67 @@ function ConnectLinkedInModal({ onClose }: { onClose: () => void }) {
                   />
                 </div>
 
+                {/* Sync Mode Selection */}
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-[#1E293B]">
+                    Message Sync
+                  </label>
+                  <div className="space-y-2">
+                    <label
+                      className={`flex cursor-pointer items-start gap-3 rounded-lg border-2 p-3 transition-colors ${
+                        syncMode === 'campaign_only'
+                          ? 'border-[#0A66C2] bg-[#EFF6FF]'
+                          : 'border-[#E2E8F0] hover:border-[#CBD5E1]'
+                      }`}
+                      onClick={() => setSyncMode('campaign_only')}
+                    >
+                      <div
+                        className={`mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full border-2 ${
+                          syncMode === 'campaign_only'
+                            ? 'border-[#0A66C2] bg-[#0A66C2]'
+                            : 'border-[#CBD5E1]'
+                        }`}
+                      >
+                        {syncMode === 'campaign_only' && (
+                          <div className="h-1.5 w-1.5 rounded-full bg-white" />
+                        )}
+                      </div>
+                      <div>
+                        <div className="text-sm font-medium text-[#1E293B]">
+                          Campaign messages only
+                        </div>
+                        <div className="text-xs text-[#64748B]">
+                          Recommended for shared workspaces
+                        </div>
+                      </div>
+                    </label>
+                    <label
+                      className={`flex cursor-pointer items-start gap-3 rounded-lg border-2 p-3 transition-colors ${
+                        syncMode === 'all'
+                          ? 'border-[#0A66C2] bg-[#EFF6FF]'
+                          : 'border-[#E2E8F0] hover:border-[#CBD5E1]'
+                      }`}
+                      onClick={() => setSyncMode('all')}
+                    >
+                      <div
+                        className={`mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full border-2 ${
+                          syncMode === 'all' ? 'border-[#0A66C2] bg-[#0A66C2]' : 'border-[#CBD5E1]'
+                        }`}
+                      >
+                        {syncMode === 'all' && (
+                          <div className="h-1.5 w-1.5 rounded-full bg-white" />
+                        )}
+                      </div>
+                      <div>
+                        <div className="text-sm font-medium text-[#1E293B]">All messages</div>
+                        <div className="text-xs text-[#64748B]">
+                          Includes personal conversations
+                        </div>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+
                 {error && (
                   <div className="rounded-lg border border-[#EF4444]/20 bg-[#FEF2F2] p-3">
                     <p className="text-sm text-[#EF4444]">{error}</p>
@@ -1463,6 +1691,67 @@ function ConnectLinkedInModal({ onClose }: { onClose: () => void }) {
                   <p className="mt-1 text-xs text-[#64748B]">
                     Recommended to prevent disconnection
                   </p>
+                </div>
+
+                {/* Sync Mode Selection */}
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-[#1E293B]">
+                    Message Sync
+                  </label>
+                  <div className="space-y-2">
+                    <label
+                      className={`flex cursor-pointer items-start gap-3 rounded-lg border-2 p-3 transition-colors ${
+                        syncMode === 'campaign_only'
+                          ? 'border-[#0A66C2] bg-[#EFF6FF]'
+                          : 'border-[#E2E8F0] hover:border-[#CBD5E1]'
+                      }`}
+                      onClick={() => setSyncMode('campaign_only')}
+                    >
+                      <div
+                        className={`mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full border-2 ${
+                          syncMode === 'campaign_only'
+                            ? 'border-[#0A66C2] bg-[#0A66C2]'
+                            : 'border-[#CBD5E1]'
+                        }`}
+                      >
+                        {syncMode === 'campaign_only' && (
+                          <div className="h-1.5 w-1.5 rounded-full bg-white" />
+                        )}
+                      </div>
+                      <div>
+                        <div className="text-sm font-medium text-[#1E293B]">
+                          Campaign messages only
+                        </div>
+                        <div className="text-xs text-[#64748B]">
+                          Recommended for shared workspaces
+                        </div>
+                      </div>
+                    </label>
+                    <label
+                      className={`flex cursor-pointer items-start gap-3 rounded-lg border-2 p-3 transition-colors ${
+                        syncMode === 'all'
+                          ? 'border-[#0A66C2] bg-[#EFF6FF]'
+                          : 'border-[#E2E8F0] hover:border-[#CBD5E1]'
+                      }`}
+                      onClick={() => setSyncMode('all')}
+                    >
+                      <div
+                        className={`mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full border-2 ${
+                          syncMode === 'all' ? 'border-[#0A66C2] bg-[#0A66C2]' : 'border-[#CBD5E1]'
+                        }`}
+                      >
+                        {syncMode === 'all' && (
+                          <div className="h-1.5 w-1.5 rounded-full bg-white" />
+                        )}
+                      </div>
+                      <div>
+                        <div className="text-sm font-medium text-[#1E293B]">All messages</div>
+                        <div className="text-xs text-[#64748B]">
+                          Includes personal conversations
+                        </div>
+                      </div>
+                    </label>
+                  </div>
                 </div>
 
                 {error && (
@@ -1716,6 +2005,15 @@ function EmailAccountsList({ accounts }: { accounts: EmailAccount[] }) {
   const deleteAccount = useDeleteEmailAccount();
   const syncInbox = useSyncEmailInbox();
   const [syncingAccountId, setSyncingAccountId] = useState<string | null>(null);
+  const [syncModal, setSyncModal] = useState<{
+    open: boolean;
+    accountId: string;
+    syncMode: SyncMode;
+  }>({
+    open: false,
+    accountId: '',
+    syncMode: 'campaign_only',
+  });
   const [disconnectModal, setDisconnectModal] = useState<{
     open: boolean;
     accountId: string;
@@ -1730,12 +2028,23 @@ function EmailAccountsList({ accounts }: { accounts: EmailAccount[] }) {
     setDisconnectModal({ open: true, accountId, accountEmail });
   };
 
-  const handleSyncClick = async (accountId: string) => {
+  const handleSyncClick = (accountId: string) => {
+    const account = accounts.find((a) => a.id === accountId);
+    setSyncModal({
+      open: true,
+      accountId,
+      syncMode: account?.sync_mode || 'campaign_only',
+    });
+  };
+
+  const handleConfirmSync = async (syncMode: SyncMode) => {
+    const accountId = syncModal.accountId;
     setSyncingAccountId(accountId);
     try {
-      await syncInbox.mutateAsync(accountId);
+      await syncInbox.mutateAsync({ accountId, syncMode });
     } finally {
       setSyncingAccountId(null);
+      setSyncModal({ open: false, accountId: '', syncMode: 'campaign_only' });
     }
   };
 
@@ -1794,6 +2103,15 @@ function EmailAccountsList({ accounts }: { accounts: EmailAccount[] }) {
           ))}
         </div>
       </div>
+
+      {/* Sync Mode Modal */}
+      <SyncModeModal
+        open={syncModal.open}
+        defaultSyncMode={syncModal.syncMode}
+        onConfirm={handleConfirmSync}
+        onCancel={() => setSyncModal({ open: false, accountId: '', syncMode: 'campaign_only' })}
+        isSyncing={syncingAccountId === syncModal.accountId}
+      />
 
       {/* Disconnect Confirmation Modal */}
       <AnimatePresence>
@@ -1984,6 +2302,9 @@ function ConnectEmailModal({ onClose }: { onClose: () => void }) {
   const [step, setStep] = useState<EmailAuthStep>('method');
   const [error, setError] = useState('');
 
+  // Sync mode state
+  const [syncMode, setSyncMode] = useState<SyncMode>('campaign_only');
+
   // IMAP form state
   const [emailAddress, setEmailAddress] = useState('');
   const [imapPassword, setImapPassword] = useState('');
@@ -2009,8 +2330,8 @@ function ConnectEmailModal({ onClose }: { onClose: () => void }) {
       // Use appropriate auth method based on config
       const isHostedAuth = authConfig?.gmail_auth_method === 'unipile';
       const result = isHostedAuth
-        ? await initGmailHostedAuth.mutateAsync({ returnUrl })
-        : await initGoogleOAuth.mutateAsync({ returnUrl });
+        ? await initGmailHostedAuth.mutateAsync({ returnUrl, syncMode })
+        : await initGoogleOAuth.mutateAsync({ returnUrl, syncMode });
 
       // Redirect to OAuth consent screen (either Unipile hosted or Google direct)
       window.location.href = result.url;
@@ -2026,7 +2347,7 @@ function ConnectEmailModal({ onClose }: { onClose: () => void }) {
     try {
       // Pass current URL so user returns here after OAuth
       const returnUrl = window.location.href.split('?')[0]; // Remove any existing query params
-      const result = await initMicrosoftOAuth.mutateAsync({ returnUrl });
+      const result = await initMicrosoftOAuth.mutateAsync({ returnUrl, syncMode });
       // Redirect to Microsoft OAuth consent screen
       window.location.href = result.url;
     } catch (err) {
@@ -2051,6 +2372,7 @@ function ConnectEmailModal({ onClose }: { onClose: () => void }) {
         smtp_host: smtpHost,
         smtp_port: smtpPort,
         display_name: displayName || undefined,
+        sync_mode: syncMode,
       });
       if (result.status === 'connected') {
         setStep('success');
@@ -2109,9 +2431,66 @@ function ConnectEmailModal({ onClose }: { onClose: () => void }) {
                 </button>
               </div>
 
-              <p className="mb-6 text-[#64748B]">
+              <p className="mb-4 text-[#64748B]">
                 Choose your email provider to connect your account.
               </p>
+
+              {/* Sync Mode Selection */}
+              <div className="mb-5">
+                <label className="mb-2 block text-sm font-medium text-[#1E293B]">
+                  Message Sync
+                </label>
+                <div className="space-y-2">
+                  <label
+                    className={`flex cursor-pointer items-start gap-3 rounded-lg border-2 p-3 transition-colors ${
+                      syncMode === 'campaign_only'
+                        ? 'border-[#FF6B35] bg-[#FFF7ED]'
+                        : 'border-[#E2E8F0] hover:border-[#CBD5E1]'
+                    }`}
+                    onClick={() => setSyncMode('campaign_only')}
+                  >
+                    <div
+                      className={`mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full border-2 ${
+                        syncMode === 'campaign_only'
+                          ? 'border-[#FF6B35] bg-[#FF6B35]'
+                          : 'border-[#CBD5E1]'
+                      }`}
+                    >
+                      {syncMode === 'campaign_only' && (
+                        <div className="h-1.5 w-1.5 rounded-full bg-white" />
+                      )}
+                    </div>
+                    <div>
+                      <div className="text-sm font-medium text-[#1E293B]">
+                        Campaign messages only
+                      </div>
+                      <div className="text-xs text-[#64748B]">
+                        Recommended for shared workspaces
+                      </div>
+                    </div>
+                  </label>
+                  <label
+                    className={`flex cursor-pointer items-start gap-3 rounded-lg border-2 p-3 transition-colors ${
+                      syncMode === 'all'
+                        ? 'border-[#FF6B35] bg-[#FFF7ED]'
+                        : 'border-[#E2E8F0] hover:border-[#CBD5E1]'
+                    }`}
+                    onClick={() => setSyncMode('all')}
+                  >
+                    <div
+                      className={`mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full border-2 ${
+                        syncMode === 'all' ? 'border-[#FF6B35] bg-[#FF6B35]' : 'border-[#CBD5E1]'
+                      }`}
+                    >
+                      {syncMode === 'all' && <div className="h-1.5 w-1.5 rounded-full bg-white" />}
+                    </div>
+                    <div>
+                      <div className="text-sm font-medium text-[#1E293B]">All messages</div>
+                      <div className="text-xs text-[#64748B]">Includes personal conversations</div>
+                    </div>
+                  </label>
+                </div>
+              </div>
 
               {error && (
                 <div className="mb-4 rounded-lg border border-[#FECACA] bg-[#FEF2F2] p-3 text-sm text-[#DC2626]">

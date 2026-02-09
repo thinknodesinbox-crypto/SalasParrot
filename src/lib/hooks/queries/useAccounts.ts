@@ -12,6 +12,7 @@ import type {
   EmailConnectGoogleRequest,
   EmailConnectMicrosoftRequest,
   EmailAuthResponse,
+  SyncMode,
 } from '../../types';
 
 interface AccountFilters {
@@ -157,11 +158,12 @@ export const useSyncLinkedInChats = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (linkedinAccountId: string) => {
+    mutationFn: async ({ accountId, syncMode }: { accountId: string; syncMode?: SyncMode }) => {
       const response = await api.post<SyncChatsResponse>('/inbox/sync', {
-        linkedin_account_id: linkedinAccountId,
+        linkedin_account_id: accountId,
         limit: 100,
         sync_messages: true,
+        sync_mode: syncMode,
       });
       return response.data;
     },
@@ -245,10 +247,10 @@ export const usePollLinkedInStatus = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (accountId: string) => {
+    mutationFn: async ({ accountId, syncMode }: { accountId: string; syncMode?: SyncMode }) => {
       const response = await api.post<LinkedInAuthResponse>(
         '/linkedin-accounts/connect/poll-status',
-        { account_id: accountId }
+        { account_id: accountId, sync_mode: syncMode }
       );
       return response.data;
     },
@@ -365,11 +367,12 @@ export const useSyncEmailInbox = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (emailAccountId: string) => {
+    mutationFn: async ({ accountId, syncMode }: { accountId: string; syncMode?: SyncMode }) => {
       const response = await api.post<SyncEmailsResponse>('/inbox/sync-emails', {
-        email_account_id: emailAccountId,
+        email_account_id: accountId,
         limit: 100,
         exclude_sent: true,
+        sync_mode: syncMode,
       });
       return response.data;
     },
@@ -507,6 +510,7 @@ interface OAuthInitResponse {
 interface OAuthInitParams {
   workspaceId?: string;
   returnUrl?: string;
+  syncMode?: SyncMode;
 }
 
 // Gmail Custom OAuth (when GMAIL_AUTH_METHOD is "custom")
@@ -516,6 +520,7 @@ export const useInitGoogleOAuth = () => {
       const searchParams = new URLSearchParams();
       if (params?.workspaceId) searchParams.append('workspace_id', params.workspaceId);
       if (params?.returnUrl) searchParams.append('return_url', params.returnUrl);
+      if (params?.syncMode) searchParams.append('sync_mode', params.syncMode);
       const response = await api.get<OAuthInitResponse>(
         `/email-accounts/oauth/google/init?${searchParams}`
       );
@@ -534,6 +539,7 @@ export const useInitGmailHostedAuth = () => {
       const searchParams = new URLSearchParams();
       if (params?.workspaceId) searchParams.append('workspace_id', params.workspaceId);
       if (params?.returnUrl) searchParams.append('return_url', params.returnUrl);
+      if (params?.syncMode) searchParams.append('sync_mode', params.syncMode);
       const response = await api.get<OAuthInitResponse>(
         `/email-accounts/oauth/gmail/hosted-auth-link?${searchParams}`
       );
@@ -551,6 +557,7 @@ export const useInitMicrosoftOAuth = () => {
       const searchParams = new URLSearchParams();
       if (params?.workspaceId) searchParams.append('workspace_id', params.workspaceId);
       if (params?.returnUrl) searchParams.append('return_url', params.returnUrl);
+      if (params?.syncMode) searchParams.append('sync_mode', params.syncMode);
       const response = await api.get<OAuthInitResponse>(
         `/email-accounts/oauth/microsoft/init?${searchParams}`
       );

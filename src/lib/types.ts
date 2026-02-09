@@ -287,6 +287,7 @@ export interface LeadListResponse {
 // LinkedIn Account types
 export type LinkedInStatus = 'connected' | 'disconnected' | 'warning' | 'banned';
 export type SubscriptionType = 'free' | 'premium' | 'sales_nav' | 'recruiter';
+export type SyncMode = 'all' | 'campaign_only';
 
 export interface AttachedEmailAccount {
   id: string;
@@ -314,6 +315,7 @@ export interface LinkedInAccount {
     days?: number[];
   } | null;
   proxy_ip: string | null;
+  sync_mode: SyncMode;
   last_synced_at: string | null;
   created_at: string;
   email_account: AttachedEmailAccount | null; // Attached email account
@@ -334,6 +336,7 @@ export interface LinkedInConnectCredentialsRequest {
   password: string;
   workspace_id?: string;
   proxy?: ProxyConfig;
+  sync_mode?: SyncMode;
 }
 
 export interface LinkedInConnectCookieRequest {
@@ -341,11 +344,13 @@ export interface LinkedInConnectCookieRequest {
   user_agent?: string;
   workspace_id?: string;
   proxy?: ProxyConfig;
+  sync_mode?: SyncMode;
 }
 
 export interface LinkedInSolveCheckpointRequest {
   account_id: string;
   code: string;
+  sync_mode?: SyncMode;
 }
 
 export interface LinkedInAuthSuccessResponse {
@@ -389,6 +394,7 @@ export interface EmailAccount {
   status: EmailStatus;
   display_name: string | null;
   working_hours: WorkingHours | null;
+  sync_mode: SyncMode;
   last_synced_at: string | null;
   created_at: string;
 }
@@ -412,6 +418,7 @@ export interface EmailConnectIMAPRequest {
   smtp_password?: string;
   workspace_id?: string;
   display_name?: string;
+  sync_mode?: SyncMode;
 }
 
 export interface EmailConnectGoogleRequest {
@@ -420,6 +427,7 @@ export interface EmailConnectGoogleRequest {
   email_address: string;
   workspace_id?: string;
   display_name?: string;
+  sync_mode?: SyncMode;
 }
 
 export interface EmailConnectMicrosoftRequest {
@@ -429,6 +437,7 @@ export interface EmailConnectMicrosoftRequest {
   user_id: string;
   workspace_id?: string;
   display_name?: string;
+  sync_mode?: SyncMode;
 }
 
 export interface EmailAuthSuccessResponse {
