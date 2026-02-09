@@ -1112,3 +1112,32 @@ export interface CampaignProgressSSEEvent {
   timestamp: string;
   data: Record<string, unknown>;
 }
+
+export interface CampaignErrorItem {
+  lead_id: string;
+  lead_name: string | null;
+  linkedin_url: string | null;
+  error_message: string | null;
+  error_count: number;
+  last_error_at: string | null;
+  current_step_type: string | null;
+}
+
+export interface CampaignErrors {
+  campaign_id: string;
+  total_errors: number;
+  errors: CampaignErrorItem[];
+}
+
+export interface RecentActivityItem {
+  lead_id: string;
+  lead_name: string | null;
+  step_type: string;
+  outcome: string;
+  timestamp: string;
+}
+
+export interface CampaignActivity {
+  campaign_id: string;
+  activities: RecentActivityItem[];
+}

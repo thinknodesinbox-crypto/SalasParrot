@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { api, getAccessToken } from '../../api';
 import { queryKeys } from '../../queryClient';
 import type {
+  CampaignActivity,
+  CampaignErrors,
   CampaignMetrics,
   CampaignProgress,
   CampaignProgressSSEEvent,
@@ -48,6 +50,32 @@ export function useLeadBreakdown(campaignId: string | undefined) {
     },
     enabled: !!campaignId,
     refetchInterval: 30000,
+  });
+}
+
+// Fetch campaign errors
+export function useCampaignErrors(campaignId: string | undefined) {
+  return useQuery({
+    queryKey: ['campaigns', campaignId, 'errors'],
+    queryFn: async () => {
+      const response = await api.get<CampaignErrors>(`/campaigns/${campaignId}/errors`);
+      return response.data;
+    },
+    enabled: !!campaignId,
+    refetchInterval: 30000,
+  });
+}
+
+// Fetch campaign activity feed
+export function useCampaignActivity(campaignId: string | undefined) {
+  return useQuery({
+    queryKey: ['campaigns', campaignId, 'activity'],
+    queryFn: async () => {
+      const response = await api.get<CampaignActivity>(`/campaigns/${campaignId}/activity`);
+      return response.data;
+    },
+    enabled: !!campaignId,
+    refetchInterval: 15000, // More frequent for activity feed
   });
 }
 

@@ -2245,7 +2245,7 @@ function CampaignDetailDrawer({
               {/* Steps Section - Visual Tree */}
               <div>
                 <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-[#64748B]">
-                  Sequence ({steps.length} steps)
+                  Sequence ({steps.filter((s) => s.type !== 'end').length} steps)
                 </h3>
                 {steps.length === 0 ? (
                   <div className="rounded-lg border border-[#E2E8F0] p-4 text-center text-sm text-[#64748B]">
@@ -2272,16 +2272,18 @@ function CampaignDetailDrawer({
                         <span className="font-medium">Campaign Start</span>
                       </div>
 
-                      {/* Steps */}
-                      {steps.map((step) => (
-                        <div key={step.id} className="flex flex-col items-center">
-                          {/* Connector Line */}
-                          <div className="h-6 w-0.5 bg-[#CBD5E1]" />
+                      {/* Steps - filter out end steps (they are branch terminators) */}
+                      {steps
+                        .filter((s) => s.type !== 'end')
+                        .map((step) => (
+                          <div key={step.id} className="flex flex-col items-center">
+                            {/* Connector Line */}
+                            <div className="h-6 w-0.5 bg-[#CBD5E1]" />
 
-                          {/* Step Node */}
-                          <SequenceStepNode step={step} />
-                        </div>
-                      ))}
+                            {/* Step Node */}
+                            <SequenceStepNode step={step} />
+                          </div>
+                        ))}
 
                       {/* End connector */}
                       <div className="h-6 w-0.5 bg-[#CBD5E1]" />
