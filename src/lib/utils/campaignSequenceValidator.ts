@@ -12,6 +12,7 @@ const MAX_BRANCH_DEPTH = 10;
 
 export interface ValidationContext {
   hasInmailCapableSenders?: boolean; // Whether selected senders have InMail capability
+  hasEmailAccountSelected?: boolean; // Whether at least one email account is selected
 }
 
 /**
@@ -95,7 +96,11 @@ export function validateCampaignSequence(
   // Check InMail usage against sender capabilities
   if (context) {
     warnings.push(...checkInmailCapability(nodes, context));
+    warnings.push(...checkEmailAccountSelected(nodes, context));
   }
+
+  // Check email steps have enrichment step before them
+  warnings.push(...checkEnrichmentBeforeEmail(nodes));
 
   return warnings;
 }
@@ -470,6 +475,55 @@ function checkInmailCapability(
       suggestion:
         'InMail requires Premium, Sales Navigator, or Recruiter subscription. Select at least one sender with InMail capability, or remove the InMail steps.',
       nodeIds: inmailNodes.map((n) => n.id),
+    });
+  }
+
+  return warnings;
+}
+
+/**
+ * Check if email steps exist but no email account is selected
+ */
+function checkEmailAccountSelected(
+  nodes: SequenceNode[],
+  context: ValidationContext
+): SequenceWarning[] {
+  const warnings: SequenceWarning[] = [];
+
+  const emailNodes = nodes.filter((n) => n.type === 'email');
+
+  if (emailNodes.length > 0 && context.hasEmailAccountSelected === false) {
+    warnings.push({
+      type: 'error',
+      code: 'EMAIL_NO_ACCOUNT_SELECTED',
+      message: 'Campaign has email steps but no email account selected',
+      suggestion: 'Select at least one email account in the Senders step to send emails from.',
+      nodeIds: emailNodes.map((n) => n.id),
+    });
+  }
+
+  return warnings;
+}
+
+/**
+ * Check if email steps exist without a prior enrichment step
+ * Enrichment finds email addresses for leads — required before sending emails
+ */
+function checkEnrichmentBeforeEmail(nodes: SequenceNode[]): SequenceWarning[] {
+  const warnings: SequenceWarning[] = [];
+
+  const hasEmailStep = nodes.some((n) => n.type === 'email');
+  const hasEnrichmentStep = nodes.some((n) => n.type === 'enrichment');
+
+  if (hasEmailStep && !hasEnrichmentStep) {
+    const emailNodes = nodes.filter((n) => n.type === 'email');
+    warnings.push({
+      type: 'error',
+      code: 'EMAIL_WITHOUT_ENRICHMENT',
+      message: 'Campaign has email steps but no enrichment step',
+      suggestion:
+        'Add an enrichment step before your email steps to find email addresses for your leads. Without enrichment, emails will be skipped for leads without an email address.',
+      nodeIds: emailNodes.map((n) => n.id),
     });
   }
 
