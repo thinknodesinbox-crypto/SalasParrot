@@ -251,7 +251,11 @@ function checkConditionAfterActionWithoutWait(
     }
 
     // Check: email directly followed by condition (opened)
-    if (current.type === 'email' && next.type === 'condition' && next.data.condition === 'opened') {
+    if (
+      current.type === 'email' &&
+      next.type === 'condition' &&
+      next.data.condition === 'email_opened'
+    ) {
       warnings.push({
         type: 'warning',
         code: 'CONDITION_WITHOUT_WAIT',
@@ -379,7 +383,7 @@ function checkConditionWithoutPriorAction(nodes: SequenceNode[]): SequenceWarnin
       }
     }
 
-    if (conditionType === 'opened') {
+    if (conditionType === 'email_opened') {
       const hasEmail = priorNodes.some((n) => n.type === 'email');
       if (!hasEmail) {
         warnings.push({

@@ -29,7 +29,7 @@ interface NodeData {
   subject?: string;
   delayDays?: number;
   delayHours?: number;
-  condition?: 'connected' | 'replied' | 'opened';
+  condition?: 'connected' | 'replied' | 'email_opened' | 'email_link_clicked';
   trueBranch?: string;
   falseBranch?: string;
 }
@@ -400,8 +400,15 @@ function TreeNode({
   // Get display label
   const getDisplayLabel = () => {
     switch (node.type) {
-      case 'condition':
-        return `If ${node.data.condition === 'connected' ? 'Connection' : node.data.condition === 'replied' ? 'Replied' : 'Opened'}`;
+      case 'condition': {
+        const conditionLabelMap: Record<string, string> = {
+          connected: 'If Connected',
+          replied: 'If Replied',
+          email_opened: 'If Email Opened',
+          email_link_clicked: 'If Link Clicked',
+        };
+        return conditionLabelMap[node.data.condition || 'connected'] || 'If / Then';
+      }
       case 'delay': {
         const days = node.data.delayDays || 0;
         const hours = node.data.delayHours || 0;
@@ -489,18 +496,13 @@ function ConditionBranches({
   onAddNode: (type: SequenceNode['type'], branch: 'true' | 'false') => void;
   hasInmailCapability?: boolean;
 }) {
-  const falseLabel =
-    conditionType === 'connected'
-      ? 'Not Connected'
-      : conditionType === 'replied'
-        ? 'Not Replied'
-        : 'Not Opened';
-  const trueLabel =
-    conditionType === 'connected'
-      ? 'Connected'
-      : conditionType === 'replied'
-        ? 'Replied'
-        : 'Opened';
+  const labelMap: Record<string, { trueLabel: string; falseLabel: string }> = {
+    connected: { trueLabel: 'Connected', falseLabel: 'Not Connected' },
+    replied: { trueLabel: 'Replied', falseLabel: 'Not Replied' },
+    email_opened: { trueLabel: 'Opened', falseLabel: 'Not Opened' },
+    email_link_clicked: { trueLabel: 'Clicked', falseLabel: 'Not Clicked' },
+  };
+  const { trueLabel, falseLabel } = labelMap[conditionType] || labelMap.connected;
 
   // Check if branches have end nodes
   const falseBranchEnded = falseBranch.some((node) => node.type === 'end');
@@ -1314,13 +1316,34 @@ export function NodeConfigPanel({
             >
               <option value="connected">If Connected</option>
               <option value="replied">If Replied</option>
-              <option value="opened">If Email Opened</option>
+              <option value="email_opened">If Email Opened</option>
+              <option value="email_link_clicked">If Email Link Clicked</option>
             </select>
             <div className="mt-3 rounded-lg bg-[#F8FAFC] p-3">
               <p className="text-xs text-[#64748B]">
                 Leads that match this condition will follow the{' '}
-                <strong className="text-[#22C55E]">Connected</strong> branch. Others will follow the{' '}
-                <strong className="text-[#EF4444]">Not Connected</strong> branch.
+                <strong className="text-[#22C55E]">
+                  {
+                    {
+                      connected: 'Connected',
+                      replied: 'Replied',
+                      email_opened: 'Opened',
+                      email_link_clicked: 'Clicked',
+                    }[node.data.condition || 'connected']
+                  }
+                </strong>{' '}
+                branch. Others will follow the{' '}
+                <strong className="text-[#EF4444]">
+                  {
+                    {
+                      connected: 'Not Connected',
+                      replied: 'Not Replied',
+                      email_opened: 'Not Opened',
+                      email_link_clicked: 'Not Clicked',
+                    }[node.data.condition || 'connected']
+                  }
+                </strong>{' '}
+                branch.
               </p>
             </div>
           </div>

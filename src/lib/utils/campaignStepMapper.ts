@@ -62,7 +62,12 @@ export function mapConfigToNodeData(config: Record<string, unknown>): SequenceNo
     subject: config.subject as string | undefined,
     delayDays: config.delay_days as number | undefined,
     delayHours: config.delay_hours as number | undefined,
-    condition: config.condition_type as 'connected' | 'replied' | 'opened' | undefined,
+    condition: config.condition_type as
+      | 'connected'
+      | 'replied'
+      | 'email_opened'
+      | 'email_link_clicked'
+      | undefined,
   };
 }
 
