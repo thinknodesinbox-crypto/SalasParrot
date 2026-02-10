@@ -200,6 +200,10 @@ export function SequenceCanvas({
                     onNodeSelect={onNodeSelect}
                     onDeleteNode={handleDeleteNode}
                     onAddNode={(type, branch) => handleAddNode(type, node.id, branch)}
+                    onAddNodeForCondition={(type, conditionId, branch) =>
+                      handleAddNode(type, conditionId, branch)
+                    }
+                    conditionBranchesMap={conditionBranches}
                     hasInmailCapability={hasInmailCapability}
                   />
                 )}
@@ -485,6 +489,8 @@ function ConditionBranches({
   onNodeSelect,
   onDeleteNode,
   onAddNode,
+  onAddNodeForCondition,
+  conditionBranchesMap,
   hasInmailCapability = false,
 }: {
   conditionType: string;
@@ -494,6 +500,12 @@ function ConditionBranches({
   onNodeSelect: (node: SequenceNode | null) => void;
   onDeleteNode: (id: string) => void;
   onAddNode: (type: SequenceNode['type'], branch: 'true' | 'false') => void;
+  onAddNodeForCondition: (
+    type: SequenceNode['type'],
+    conditionId: string,
+    branch: 'true' | 'false'
+  ) => void;
+  conditionBranchesMap: Map<string, { true: SequenceNode[]; false: SequenceNode[] }>;
   hasInmailCapability?: boolean;
 }) {
   const labelMap: Record<string, { trueLabel: string; falseLabel: string }> = {
@@ -504,9 +516,13 @@ function ConditionBranches({
   };
   const { trueLabel, falseLabel } = labelMap[conditionType] || labelMap.connected;
 
-  // Check if branches have end nodes
-  const falseBranchEnded = falseBranch.some((node) => node.type === 'end');
-  const trueBranchEnded = trueBranch.some((node) => node.type === 'end');
+  // Check if branches have end nodes or end with a condition (which handles its own branching)
+  const falseBranchEnded =
+    falseBranch.some((node) => node.type === 'end') ||
+    (falseBranch.length > 0 && falseBranch[falseBranch.length - 1].type === 'condition');
+  const trueBranchEnded =
+    trueBranch.some((node) => node.type === 'end') ||
+    (trueBranch.length > 0 && trueBranch[trueBranch.length - 1].type === 'condition');
 
   return (
     <div className="flex flex-col items-center">
@@ -543,6 +559,21 @@ function ConditionBranches({
                 onSelect={() => onNodeSelect(node)}
                 onDelete={() => onDeleteNode(node.id)}
               />
+              {/* Recursively render nested condition branches */}
+              {node.type === 'condition' && (
+                <ConditionBranches
+                  conditionType={node.data.condition || 'connected'}
+                  trueBranch={conditionBranchesMap.get(node.id)?.true || []}
+                  falseBranch={conditionBranchesMap.get(node.id)?.false || []}
+                  selectedNodeId={selectedNodeId}
+                  onNodeSelect={onNodeSelect}
+                  onDeleteNode={onDeleteNode}
+                  onAddNode={(type, branch) => onAddNodeForCondition(type, node.id, branch)}
+                  onAddNodeForCondition={onAddNodeForCondition}
+                  conditionBranchesMap={conditionBranchesMap}
+                  hasInmailCapability={hasInmailCapability}
+                />
+              )}
             </div>
           ))}
 
@@ -577,6 +608,21 @@ function ConditionBranches({
                 onSelect={() => onNodeSelect(node)}
                 onDelete={() => onDeleteNode(node.id)}
               />
+              {/* Recursively render nested condition branches */}
+              {node.type === 'condition' && (
+                <ConditionBranches
+                  conditionType={node.data.condition || 'connected'}
+                  trueBranch={conditionBranchesMap.get(node.id)?.true || []}
+                  falseBranch={conditionBranchesMap.get(node.id)?.false || []}
+                  selectedNodeId={selectedNodeId}
+                  onNodeSelect={onNodeSelect}
+                  onDeleteNode={onDeleteNode}
+                  onAddNode={(type, branch) => onAddNodeForCondition(type, node.id, branch)}
+                  onAddNodeForCondition={onAddNodeForCondition}
+                  conditionBranchesMap={conditionBranchesMap}
+                  hasInmailCapability={hasInmailCapability}
+                />
+              )}
             </div>
           ))}
 
