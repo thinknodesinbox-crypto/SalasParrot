@@ -916,6 +916,12 @@ function CreateCampaignModal({
       return;
     }
 
+    // Skip validation for draft saves — only validate when starting
+    if (!startImmediately) {
+      handleCreate(false);
+      return;
+    }
+
     // Validate sequence for potential issues
     // Check if any selected sender has InMail capability
     const hasInmailCapableSenders = selectedSenderIds.some((senderId) => {
@@ -937,13 +943,13 @@ function CreateCampaignModal({
     if (hasSequenceWarnings(warnings)) {
       // Show warning dialog and let user decide
       setValidationWarnings(warnings);
-      setPendingStartImmediately(startImmediately);
+      setPendingStartImmediately(true);
       setShowWarningDialog(true);
       return;
     }
 
-    // No warnings, proceed with save
-    handleCreate(startImmediately);
+    // No warnings, proceed with start
+    handleCreate(true);
   };
 
   const handleCreate = async (startImmediately = false) => {
@@ -1156,7 +1162,7 @@ function CreateCampaignModal({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4"
+            className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4"
             onClick={() => setShowWarningDialog(false)}
           >
             <motion.div
