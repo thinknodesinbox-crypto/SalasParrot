@@ -12,6 +12,7 @@ import type {
   CampaignErrors,
   CampaignActivity,
   LeadBreakdown,
+  SenderActivityItem,
   StepProgressItem,
 } from '@/lib/types';
 
@@ -33,10 +34,26 @@ export function CampaignProgressView({ campaignId }: CampaignProgressViewProps) 
     return <LoadingSkeleton />;
   }
 
+  // Derive sender limit text for Today card
+  const senderLimitText = metrics?.sender_activity?.length
+    ? (() => {
+        const totalActions = metrics.sender_activity.reduce(
+          (sum, s) => sum + s.connection_requests_today,
+          0
+        );
+        const totalLimit = metrics.sender_activity.reduce((sum, s) => sum + s.daily_limit, 0);
+        return `${totalActions}/${totalLimit} daily limit`;
+      })()
+    : undefined;
+
   return (
     <div className="space-y-4">
-      {/* Live Connection Status */}
-      <LiveStatusBar isConnected={isConnected} currentStep={progress?.current_step || null} />
+      {/* Status Banner */}
+      <StatusBanner
+        isConnected={isConnected}
+        statusSummary={metrics?.status_summary || ''}
+        statusType={metrics?.status_type || 'active'}
+      />
 
       {/* Overall Progress Bar */}
       <ProgressBar
@@ -52,7 +69,7 @@ export function CampaignProgressView({ campaignId }: CampaignProgressViewProps) 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <MetricCard label="Total Leads" value={metrics?.total_leads || 0} icon={<UsersIcon />} />
         <MetricCard
-          label="Processed"
+          label="Contacted"
           value={(metrics?.total_leads || 0) - (progress?.leads_pending || 0)}
           subtitle={`${progress?.leads_pending || 0} remaining`}
           icon={<CheckIcon />}
@@ -67,19 +84,18 @@ export function CampaignProgressView({ campaignId }: CampaignProgressViewProps) 
           pulse={!!progress?.leads_in_progress && progress.leads_in_progress > 0}
         />
         <MetricCard
-          label="Speed"
-          value={
-            metrics?.processing_speed
-              ? metrics.processing_speed >= 1
-                ? `${metrics.processing_speed.toFixed(0)}/hr`
-                : `${(metrics.processing_speed * 60).toFixed(0)}/min`
-              : 'Starting...'
-          }
-          subtitle={metrics?.processed_today ? `${metrics.processed_today} today` : undefined}
+          label="Today"
+          value={metrics?.actions_today || 0}
+          subtitle={senderLimitText}
           icon={<TrendingUpIcon />}
           color="purple"
         />
       </div>
+
+      {/* Sender Activity */}
+      {metrics?.sender_activity && metrics.sender_activity.length > 0 && (
+        <SenderActivityPanel senders={metrics.sender_activity} />
+      )}
 
       {/* Lead Status Distribution */}
       {breakdown && <LeadStatusBreakdown breakdown={breakdown} />}
@@ -101,56 +117,110 @@ export function CampaignProgressView({ campaignId }: CampaignProgressViewProps) 
   );
 }
 
-/* ─── Live Status Bar ─── */
-function LiveStatusBar({
+/* ─── Status Banner ─── */
+function StatusBanner({
   isConnected,
-  currentStep,
+  statusSummary,
+  statusType,
 }: {
   isConnected: boolean;
-  currentStep: string | null;
+  statusSummary: string;
+  statusType: string;
 }) {
-  const stepLabels: Record<string, string> = {
-    profile_view: 'Viewing profiles',
-    connection_request: 'Sending connection requests',
-    message: 'Sending messages',
-    wait: 'Waiting on leads',
-    condition: 'Evaluating conditions',
-    email: 'Sending emails',
-    inmail: 'Sending InMails',
-    enrichment: 'Enriching leads',
+  const config: Record<string, { bg: string; border: string; dot: string; text: string }> = {
+    active: {
+      bg: 'bg-[#F0FDF4]',
+      border: 'border-[#22C55E]/20',
+      dot: 'bg-[#22C55E]',
+      text: 'text-[#166534]',
+    },
+    at_limit: {
+      bg: 'bg-[#FFFBEB]',
+      border: 'border-[#F59E0B]/20',
+      dot: 'bg-[#F59E0B]',
+      text: 'text-[#92400E]',
+    },
+    waiting: {
+      bg: 'bg-[#EFF6FF]',
+      border: 'border-[#3B82F6]/20',
+      dot: 'bg-[#3B82F6]',
+      text: 'text-[#1E40AF]',
+    },
+    complete: {
+      bg: 'bg-[#F0FDF4]',
+      border: 'border-[#22C55E]/20',
+      dot: 'bg-[#22C55E]',
+      text: 'text-[#166534]',
+    },
   };
 
+  const style = config[statusType] || config.active;
+
   return (
-    <div className="flex items-center justify-between rounded-lg border border-[#E2E8F0] bg-white px-4 py-2.5">
-      <div className="flex items-center gap-2">
+    <div
+      className={`flex items-center justify-between rounded-lg border px-4 py-2.5 ${style.bg} ${style.border}`}
+    >
+      <div className="flex items-center gap-2.5">
         <span className="relative flex h-2.5 w-2.5">
-          {isConnected && (
-            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#22C55E] opacity-75" />
+          {isConnected && statusType === 'active' && (
+            <span
+              className={`absolute inline-flex h-full w-full animate-ping rounded-full ${style.dot} opacity-75`}
+            />
           )}
           <span
-            className={`relative inline-flex h-2.5 w-2.5 rounded-full ${
-              isConnected ? 'bg-[#22C55E]' : 'bg-[#94A3B8]'
-            }`}
+            className={`relative inline-flex h-2.5 w-2.5 rounded-full ${isConnected ? style.dot : 'bg-[#94A3B8]'}`}
           />
         </span>
-        <span className="text-sm font-medium text-[#1E293B]">
-          {isConnected ? 'Live' : 'Connecting...'}
+        <span className={`text-sm font-medium ${style.text}`}>
+          {statusSummary || (isConnected ? 'Campaign is running' : 'Connecting...')}
         </span>
       </div>
-      {currentStep && isConnected && (
-        <motion.div
-          initial={{ opacity: 0, x: 10 }}
-          animate={{ opacity: 1, x: 0 }}
-          className="flex items-center gap-1.5 text-sm text-[#64748B]"
-        >
-          <motion.span
-            animate={{ opacity: [0.5, 1, 0.5] }}
-            transition={{ duration: 2, repeat: Infinity }}
-            className="inline-block h-1.5 w-1.5 rounded-full bg-[#3B82F6]"
-          />
-          {stepLabels[currentStep] || `Processing: ${currentStep}`}
-        </motion.div>
-      )}
+      {isConnected && <span className="text-xs text-[#94A3B8]">Live</span>}
+    </div>
+  );
+}
+
+/* ─── Sender Activity Panel ─── */
+function SenderActivityPanel({ senders }: { senders: SenderActivityItem[] }) {
+  return (
+    <div className="rounded-xl border border-[#E2E8F0] bg-white p-5">
+      <h3 className="mb-3 text-base font-semibold text-[#1E293B]">Sender Activity</h3>
+      <div className="space-y-3">
+        {senders.map((sender, index) => {
+          const usage = sender.connection_requests_today;
+          const limit = sender.daily_limit;
+          const percentage = limit > 0 ? Math.min((usage / limit) * 100, 100) : 0;
+          const atLimit = usage >= limit;
+          const nearLimit = percentage >= 80;
+
+          return (
+            <div key={index} className="space-y-1.5">
+              <div className="flex items-center justify-between text-sm">
+                <span className="font-medium text-[#1E293B]">{sender.name}</span>
+                <span
+                  className={
+                    atLimit
+                      ? 'font-semibold text-[#EF4444]'
+                      : nearLimit
+                        ? 'font-medium text-[#F59E0B]'
+                        : 'text-[#64748B]'
+                  }
+                >
+                  {usage}/{limit} requests today
+                </span>
+              </div>
+              <div className="h-2 w-full overflow-hidden rounded-full bg-[#F1F5F9]">
+                <motion.div
+                  className={`h-full rounded-full ${atLimit ? 'bg-[#EF4444]' : nearLimit ? 'bg-[#F59E0B]' : 'bg-[#3B82F6]'}`}
+                  initial={{ width: 0 }}
+                  animate={{ width: `${percentage}%` }}
+                  transition={{ duration: 0.5 }}
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -575,7 +645,7 @@ function ActivityFeed({ activity }: { activity: CampaignActivity }) {
                 <div className="min-w-0 flex-1">
                   <p className="text-xs text-[#1E293B]">
                     <span className="text-[#64748B]">
-                      {stepLabels[item.step_type] || item.step_type}
+                      {item.action_label || stepLabels[item.step_type] || item.step_type}
                     </span>{' '}
                     <span className="font-medium">{item.lead_name || 'Unknown'}</span>
                   </p>

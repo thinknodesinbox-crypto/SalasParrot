@@ -1046,6 +1046,13 @@ export interface AdminSignupTrends {
 
 // Campaign Progress Tracking Types
 
+export interface SenderActivityItem {
+  name: string;
+  actions_today: number;
+  connection_requests_today: number;
+  daily_limit: number;
+}
+
 export interface CampaignMetrics {
   campaign_id: string;
   total_leads: number;
@@ -1053,6 +1060,10 @@ export interface CampaignMetrics {
   processing_speed: number;
   processed_today: number;
   last_activity_at: string | null;
+  actions_today: number;
+  sender_activity: SenderActivityItem[];
+  status_summary: string;
+  status_type: 'active' | 'at_limit' | 'waiting' | 'complete';
 }
 
 export interface StepProgressItem {
@@ -1126,6 +1137,7 @@ export interface RecentActivityItem {
   step_type: string;
   outcome: string;
   timestamp: string;
+  action_label: string | null;
 }
 
 export interface CampaignActivity {
