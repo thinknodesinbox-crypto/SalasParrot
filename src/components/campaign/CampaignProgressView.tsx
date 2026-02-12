@@ -525,11 +525,11 @@ function StepFunnelVisualization({
                   </span>
                   <span className="text-[#64748B]">
                     <span className={isActive ? 'font-semibold text-[#3B82F6]' : ''}>
-                      {step.leads_at_step} active
+                      {step.leads_at_step} queued
                     </span>
                     {' / '}
                     <span className={step.leads_completed > 0 ? 'text-[#22C55E]' : ''}>
-                      {step.leads_completed} done
+                      {step.leads_completed} completed
                     </span>
                     {etaText && <span className="ml-1 text-[10px] text-[#94A3B8]">~{etaText}</span>}
                   </span>
