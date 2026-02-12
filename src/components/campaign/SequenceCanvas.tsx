@@ -1,6 +1,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState, useCallback, useRef } from 'react';
 import { SEQUENCE_TEMPLATES } from './sequenceTemplates';
+import { RichTextEditor } from '@/components/ui/RichTextEditor';
 export { SEQUENCE_TEMPLATES } from './sequenceTemplates';
 
 // Types
@@ -94,6 +95,22 @@ export function SequenceCanvas({
         const afterIndex = nodes.findIndex((n) => n.id === afterId);
         const newNodes = [...nodes];
         newNodes.splice(afterIndex + 1, 0, newNode);
+
+        // When inserting a condition, move subsequent main flow nodes into its true branch
+        if (type === 'condition') {
+          const conditionIndex = afterIndex + 1; // where the condition was just inserted
+          for (let i = conditionIndex + 1; i < newNodes.length; i++) {
+            const n = newNodes[i];
+            // Only move main flow nodes (no parentId/branch), stop at end nodes
+            if (!n.parentId && !n.branch && n.type !== 'end') {
+              n.parentId = newNode.id;
+              n.branch = 'true';
+            } else {
+              break;
+            }
+          }
+        }
+
         onNodesChange(newNodes);
       } else {
         // Add before end or at the end
@@ -106,6 +123,47 @@ export function SequenceCanvas({
           onNodesChange([...nodes, newNode]);
         }
       }
+    },
+    [nodes, onNodesChange]
+  );
+
+  // Insert a node after a specific node within a branch
+  const handleInsertInBranch = useCallback(
+    (type: SequenceNode['type'], afterNodeId: string) => {
+      const afterNode = nodes.find((n) => n.id === afterNodeId);
+      if (!afterNode || !afterNode.parentId || !afterNode.branch) return;
+
+      const newNode: SequenceNode = {
+        id: `node-${Date.now()}`,
+        type,
+        data: getDefaultNodeData(type),
+        parentId: afterNode.parentId,
+        branch: afterNode.branch,
+      };
+
+      const afterIndex = nodes.findIndex((n) => n.id === afterNodeId);
+      const newNodes = [...nodes];
+      newNodes.splice(afterIndex + 1, 0, newNode);
+
+      // When inserting a condition in a branch, move subsequent same-branch nodes into its true branch
+      if (type === 'condition') {
+        const conditionIndex = afterIndex + 1;
+        for (let i = conditionIndex + 1; i < newNodes.length; i++) {
+          const n = newNodes[i];
+          if (
+            n.parentId === afterNode.parentId &&
+            n.branch === afterNode.branch &&
+            n.type !== 'end'
+          ) {
+            n.parentId = newNode.id;
+            n.branch = 'true';
+          } else if (n.parentId === afterNode.parentId && n.branch === afterNode.branch) {
+            break;
+          }
+        }
+      }
+
+      onNodesChange(newNodes);
     },
     [nodes, onNodesChange]
   );
@@ -203,6 +261,7 @@ export function SequenceCanvas({
                     onAddNodeForCondition={(type, conditionId, branch) =>
                       handleAddNode(type, conditionId, branch)
                     }
+                    onInsertInBranch={handleInsertInBranch}
                     conditionBranchesMap={conditionBranches}
                     hasInmailCapability={hasInmailCapability}
                   />
@@ -490,6 +549,7 @@ function ConditionBranches({
   onDeleteNode,
   onAddNode,
   onAddNodeForCondition,
+  onInsertInBranch,
   conditionBranchesMap,
   hasInmailCapability = false,
 }: {
@@ -505,6 +565,7 @@ function ConditionBranches({
     conditionId: string,
     branch: 'true' | 'false'
   ) => void;
+  onInsertInBranch: (type: SequenceNode['type'], afterNodeId: string) => void;
   conditionBranchesMap: Map<string, { true: SequenceNode[]; false: SequenceNode[] }>;
   hasInmailCapability?: boolean;
 }) {
@@ -550,32 +611,44 @@ function ConditionBranches({
           </div>
 
           {/* Branch nodes */}
-          {falseBranch.map((node, index) => (
-            <div key={node.id} className="flex flex-col items-center">
-              {index > 0 && <ConnectorLine height={24} />}
-              <TreeNode
-                node={node}
-                isSelected={selectedNodeId === node.id}
-                onSelect={() => onNodeSelect(node)}
-                onDelete={() => onDeleteNode(node.id)}
-              />
-              {/* Recursively render nested condition branches */}
-              {node.type === 'condition' && (
-                <ConditionBranches
-                  conditionType={node.data.condition || 'connected'}
-                  trueBranch={conditionBranchesMap.get(node.id)?.true || []}
-                  falseBranch={conditionBranchesMap.get(node.id)?.false || []}
-                  selectedNodeId={selectedNodeId}
-                  onNodeSelect={onNodeSelect}
-                  onDeleteNode={onDeleteNode}
-                  onAddNode={(type, branch) => onAddNodeForCondition(type, node.id, branch)}
-                  onAddNodeForCondition={onAddNodeForCondition}
-                  conditionBranchesMap={conditionBranchesMap}
-                  hasInmailCapability={hasInmailCapability}
+          {falseBranch.map((node, index) => {
+            const prevNode = index > 0 ? falseBranch[index - 1] : null;
+            return (
+              <div key={node.id} className="flex flex-col items-center">
+                {index > 0 && prevNode && prevNode.type !== 'condition' && (
+                  <InsertButton
+                    onAdd={(type) => onInsertInBranch(type, prevNode.id)}
+                    hasInmailCapability={hasInmailCapability}
+                  />
+                )}
+                {index > 0 && prevNode && prevNode.type === 'condition' && (
+                  <ConnectorLine height={24} />
+                )}
+                <TreeNode
+                  node={node}
+                  isSelected={selectedNodeId === node.id}
+                  onSelect={() => onNodeSelect(node)}
+                  onDelete={() => onDeleteNode(node.id)}
                 />
-              )}
-            </div>
-          ))}
+                {/* Recursively render nested condition branches */}
+                {node.type === 'condition' && (
+                  <ConditionBranches
+                    conditionType={node.data.condition || 'connected'}
+                    trueBranch={conditionBranchesMap.get(node.id)?.true || []}
+                    falseBranch={conditionBranchesMap.get(node.id)?.false || []}
+                    selectedNodeId={selectedNodeId}
+                    onNodeSelect={onNodeSelect}
+                    onDeleteNode={onDeleteNode}
+                    onAddNode={(type, branch) => onAddNodeForCondition(type, node.id, branch)}
+                    onAddNodeForCondition={onAddNodeForCondition}
+                    onInsertInBranch={onInsertInBranch}
+                    conditionBranchesMap={conditionBranchesMap}
+                    hasInmailCapability={hasInmailCapability}
+                  />
+                )}
+              </div>
+            );
+          })}
 
           {/* Add action / End for false branch (only if not ended) */}
           {!falseBranchEnded && (
@@ -599,32 +672,44 @@ function ConditionBranches({
           </div>
 
           {/* Branch nodes */}
-          {trueBranch.map((node, index) => (
-            <div key={node.id} className="flex flex-col items-center">
-              {index > 0 && <ConnectorLine height={24} />}
-              <TreeNode
-                node={node}
-                isSelected={selectedNodeId === node.id}
-                onSelect={() => onNodeSelect(node)}
-                onDelete={() => onDeleteNode(node.id)}
-              />
-              {/* Recursively render nested condition branches */}
-              {node.type === 'condition' && (
-                <ConditionBranches
-                  conditionType={node.data.condition || 'connected'}
-                  trueBranch={conditionBranchesMap.get(node.id)?.true || []}
-                  falseBranch={conditionBranchesMap.get(node.id)?.false || []}
-                  selectedNodeId={selectedNodeId}
-                  onNodeSelect={onNodeSelect}
-                  onDeleteNode={onDeleteNode}
-                  onAddNode={(type, branch) => onAddNodeForCondition(type, node.id, branch)}
-                  onAddNodeForCondition={onAddNodeForCondition}
-                  conditionBranchesMap={conditionBranchesMap}
-                  hasInmailCapability={hasInmailCapability}
+          {trueBranch.map((node, index) => {
+            const prevNode = index > 0 ? trueBranch[index - 1] : null;
+            return (
+              <div key={node.id} className="flex flex-col items-center">
+                {index > 0 && prevNode && prevNode.type !== 'condition' && (
+                  <InsertButton
+                    onAdd={(type) => onInsertInBranch(type, prevNode.id)}
+                    hasInmailCapability={hasInmailCapability}
+                  />
+                )}
+                {index > 0 && prevNode && prevNode.type === 'condition' && (
+                  <ConnectorLine height={24} />
+                )}
+                <TreeNode
+                  node={node}
+                  isSelected={selectedNodeId === node.id}
+                  onSelect={() => onNodeSelect(node)}
+                  onDelete={() => onDeleteNode(node.id)}
                 />
-              )}
-            </div>
-          ))}
+                {/* Recursively render nested condition branches */}
+                {node.type === 'condition' && (
+                  <ConditionBranches
+                    conditionType={node.data.condition || 'connected'}
+                    trueBranch={conditionBranchesMap.get(node.id)?.true || []}
+                    falseBranch={conditionBranchesMap.get(node.id)?.false || []}
+                    selectedNodeId={selectedNodeId}
+                    onNodeSelect={onNodeSelect}
+                    onDeleteNode={onDeleteNode}
+                    onAddNode={(type, branch) => onAddNodeForCondition(type, node.id, branch)}
+                    onAddNodeForCondition={onAddNodeForCondition}
+                    onInsertInBranch={onInsertInBranch}
+                    conditionBranchesMap={conditionBranchesMap}
+                    hasInmailCapability={hasInmailCapability}
+                  />
+                )}
+              </div>
+            );
+          })}
 
           {/* Add action / End for true branch (only if not ended) */}
           {!trueBranchEnded && (
@@ -1325,28 +1410,13 @@ export function NodeConfigPanel({
             </div>
             <div>
               <label className="mb-2 block text-sm font-medium text-[#1E293B]">Email Body</label>
-              <textarea
-                ref={messageRef}
-                value={node.data.message || ''}
-                onChange={(e) => onUpdate({ message: e.target.value })}
+              <RichTextEditor
+                content={node.data.message || ''}
+                onChange={(html) => onUpdate({ message: html })}
                 placeholder="Hi {{first_name}}..."
-                rows={6}
-                className="w-full resize-none rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+                minHeight="120px"
+                variables={['{{first_name}}', '{{last_name}}', '{{company}}', '{{icebreaker}}']}
               />
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {['{{first_name}}', '{{last_name}}', '{{company}}', '{{icebreaker}}'].map(
-                  (variable) => (
-                    <button
-                      key={variable}
-                      onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => insertVariable(variable)}
-                      className="rounded bg-[#FFF7ED] px-2 py-1 text-[10px] font-medium text-[#FF6B35] transition-colors hover:bg-[#FFEDD5]"
-                    >
-                      {variable}
-                    </button>
-                  )
-                )}
-              </div>
             </div>
           </>
         )}

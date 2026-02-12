@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useState, useEffect, useRef } from 'react';
 import {
   useLinkedInAccounts,
+  useUpdateLinkedInAccount,
   useDeleteLinkedInAccount,
   useSyncLinkedInChats,
   useConnectLinkedInWithCredentials,
@@ -474,6 +475,8 @@ function SyncModeModal({
 function AccountsList({ accounts }: { accounts: LinkedInAccount[] }) {
   const deleteAccount = useDeleteLinkedInAccount();
   const syncChats = useSyncLinkedInChats();
+  const { data: emailAccounts = [] } = useEmailAccounts();
+  const connectedEmailAccounts = emailAccounts.filter((a) => a.status === 'connected');
 
   const [syncingAccountId, setSyncingAccountId] = useState<string | null>(null);
   const [syncModal, setSyncModal] = useState<{
@@ -579,6 +582,9 @@ function AccountsList({ accounts }: { accounts: LinkedInAccount[] }) {
                   Status
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[#64748B]">
+                  Default Email
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[#64748B]">
                   Daily Limit
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[#64748B]">
@@ -594,6 +600,7 @@ function AccountsList({ accounts }: { accounts: LinkedInAccount[] }) {
                 <AccountRow
                   key={account.id}
                   account={account}
+                  emailAccounts={connectedEmailAccounts}
                   onDelete={handleDeleteClick}
                   onSync={handleSyncClick}
                   isSyncing={syncingAccountId === account.id}
@@ -609,6 +616,7 @@ function AccountsList({ accounts }: { accounts: LinkedInAccount[] }) {
             <AccountCard
               key={account.id}
               account={account}
+              emailAccounts={connectedEmailAccounts}
               onDelete={handleDeleteClick}
               onSync={handleSyncClick}
               isSyncing={syncingAccountId === account.id}
@@ -695,11 +703,13 @@ function AccountsList({ accounts }: { accounts: LinkedInAccount[] }) {
 
 function AccountCard({
   account,
+  emailAccounts,
   onDelete,
   onSync,
   isSyncing,
 }: {
   account: LinkedInAccount;
+  emailAccounts: EmailAccount[];
   onDelete: (id: string, name: string) => void;
   onSync: (id: string) => void;
   isSyncing: boolean;
@@ -707,6 +717,7 @@ function AccountCard({
   const [menuOpen, setMenuOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const [menuPosition, setMenuPosition] = useState({ top: 0, right: 0 });
+  const updateAccount = useUpdateLinkedInAccount(account.id);
 
   useEffect(() => {
     if (menuOpen && buttonRef.current) {
@@ -834,6 +845,27 @@ function AccountCard({
         </div>
       </div>
 
+      {/* Default Email */}
+      <div className="mb-3">
+        <div className="mb-1 text-xs text-[#64748B]">Default Email</div>
+        <select
+          value={account.default_email_account_id || ''}
+          onChange={(e) => {
+            updateAccount.mutate({
+              default_email_account_id: e.target.value || null,
+            });
+          }}
+          className="w-full rounded-lg border border-[#E2E8F0] bg-white px-3 py-1.5 text-sm text-[#1E293B] focus:border-[#0A66C2] focus:outline-none focus:ring-1 focus:ring-[#0A66C2]/20"
+        >
+          <option value="">None</option>
+          {emailAccounts.map((email) => (
+            <option key={email.id} value={email.id}>
+              {email.email_address}
+            </option>
+          ))}
+        </select>
+      </div>
+
       {/* Daily Limits */}
       <div className="mb-3">
         <div className="mb-1 flex items-center justify-between text-xs">
@@ -862,11 +894,13 @@ function AccountCard({
 
 function AccountRow({
   account,
+  emailAccounts,
   onDelete,
   onSync,
   isSyncing,
 }: {
   account: LinkedInAccount;
+  emailAccounts: EmailAccount[];
   onDelete: (id: string, name: string) => void;
   onSync: (id: string) => void;
   isSyncing: boolean;
@@ -874,6 +908,7 @@ function AccountRow({
   const [menuOpen, setMenuOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const [menuPosition, setMenuPosition] = useState({ top: 0, right: 0 });
+  const updateAccount = useUpdateLinkedInAccount(account.id);
 
   useEffect(() => {
     if (menuOpen && buttonRef.current) {
@@ -935,6 +970,24 @@ function AccountRow({
           <span className="h-1.5 w-1.5 rounded-full bg-current" />
           {status.label}
         </span>
+      </td>
+      <td className="px-6 py-4">
+        <select
+          value={account.default_email_account_id || ''}
+          onChange={(e) => {
+            updateAccount.mutate({
+              default_email_account_id: e.target.value || null,
+            });
+          }}
+          className="w-44 rounded-lg border border-[#E2E8F0] bg-white px-2 py-1.5 text-sm text-[#1E293B] focus:border-[#0A66C2] focus:outline-none focus:ring-1 focus:ring-[#0A66C2]/20"
+        >
+          <option value="">None</option>
+          {emailAccounts.map((email) => (
+            <option key={email.id} value={email.id}>
+              {email.email_address}
+            </option>
+          ))}
+        </select>
       </td>
       <td className="px-6 py-4">
         <div className="w-32">

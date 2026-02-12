@@ -43,6 +43,11 @@ export const useWorkspaceStore = create<WorkspaceState>()(
   )
 );
 
+// Hook to check if workspace store has hydrated from localStorage
+export const useWorkspaceHydrated = () => {
+  return useWorkspaceStore.persist.hasHydrated();
+};
+
 // Hook to get current workspace
 export const useCurrentWorkspace = () => {
   const { currentWorkspaceId, currentWorkspace, setCurrentWorkspace } = useWorkspaceStore();

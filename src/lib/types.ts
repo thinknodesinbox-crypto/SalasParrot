@@ -307,6 +307,7 @@ export interface LinkedInAccount {
     days?: number[];
   } | null;
   proxy_ip: string | null;
+  default_email_account_id: string | null;
   sync_mode: SyncMode;
   last_synced_at: string | null;
   created_at: string;

@@ -48,7 +48,7 @@ export const SEQUENCE_TEMPLATES = {
         data: {
           subject: 'Quick question, {{first_name}}',
           message:
-            'Hi {{first_name}},\n\nI tried connecting on LinkedIn but wanted to make sure my message reached you...',
+            '<p>Hi {{first_name}},</p><p>I tried connecting on LinkedIn but wanted to make sure my message reached you...</p>',
         },
         parentId: 't3',
         branch: 'false' as const,
@@ -66,7 +66,7 @@ export const SEQUENCE_TEMPLATES = {
         type: 'email' as const,
         data: {
           subject: 'Quick question for {{company}}',
-          message: 'Hi {{first_name}},\n\nI noticed that {{company}} is...',
+          message: '<p>Hi {{first_name}},</p><p>I noticed that {{company}} is...</p>',
         },
       },
       { id: 't2', type: 'delay' as const, data: { delayDays: 3, delayHours: 0 } },
@@ -75,7 +75,8 @@ export const SEQUENCE_TEMPLATES = {
         type: 'email' as const,
         data: {
           subject: 'Re: Quick question for {{company}}',
-          message: 'Hi {{first_name}},\n\nJust wanted to follow up on my previous email...',
+          message:
+            '<p>Hi {{first_name}},</p><p>Just wanted to follow up on my previous email...</p>',
         },
       },
       { id: 't4', type: 'delay' as const, data: { delayDays: 4, delayHours: 0 } },
@@ -85,7 +86,7 @@ export const SEQUENCE_TEMPLATES = {
         data: {
           subject: 'Last attempt',
           message:
-            "Hi {{first_name}},\n\nI don't want to be a pest, but I'll close the loop here...",
+            "<p>Hi {{first_name}},</p><p>I don't want to be a pest, but I'll close the loop here...</p>",
         },
       },
       { id: 'end', type: 'end' as const, data: {} },

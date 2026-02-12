@@ -600,6 +600,8 @@ function CreateCodeModal({
   onCreate: (data: PartnerCodeCreate) => Promise<void>;
   isLoading: boolean;
 }) {
+  const { theme } = useAdminTheme();
+  const isDark = theme === 'dark';
   const { data: templates } = usePartnerCodeTemplates();
   const [selectedTemplate, setSelectedTemplate] = useState<PartnerCodeTemplate | null>(null);
   const [formData, setFormData] = useState<PartnerCodeCreate>({
@@ -649,11 +651,18 @@ function CreateCodeModal({
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.95, opacity: 0 }}
         onClick={(e) => e.stopPropagation()}
-        className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-white/10 bg-[#111113] p-6"
+        className={`max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl border p-6 ${isDark ? 'border-white/10 bg-[#111113]' : 'border-gray-200 bg-white'}`}
       >
         <div className="mb-6 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-white">Create Partner Code</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-white">
+          <h2 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+            Create Partner Code
+          </h2>
+          <button
+            onClick={onClose}
+            className={
+              isDark ? 'text-gray-400 hover:text-white' : 'text-gray-500 hover:text-gray-700'
+            }
+          >
             <X className="h-5 w-5" />
           </button>
         </div>
@@ -661,7 +670,11 @@ function CreateCodeModal({
         {/* Templates */}
         {templates && templates.length > 0 && (
           <div className="mb-6">
-            <label className="mb-2 block text-sm font-medium text-gray-400">Quick Templates</label>
+            <label
+              className={`mb-2 block text-sm font-medium ${isDark ? 'text-gray-400' : 'text-gray-600'}`}
+            >
+              Quick Templates
+            </label>
             <div className="flex flex-wrap gap-2">
               {templates.map((template) => (
                 <button
@@ -671,7 +684,9 @@ function CreateCodeModal({
                   className={`rounded-lg border px-3 py-1.5 text-sm transition-colors ${
                     selectedTemplate?.name === template.name
                       ? 'border-[#14B8A6] bg-[#14B8A6]/10 text-[#14B8A6]'
-                      : 'border-white/10 text-gray-300 hover:border-white/20 hover:bg-white/5'
+                      : isDark
+                        ? 'border-white/10 text-gray-300 hover:border-white/20 hover:bg-white/5'
+                        : 'border-gray-200 text-gray-700 hover:border-gray-300 hover:bg-gray-50'
                   }`}
                 >
                   {template.name}
@@ -679,7 +694,9 @@ function CreateCodeModal({
               ))}
             </div>
             {selectedTemplate && (
-              <p className="mt-2 text-xs text-gray-500">{selectedTemplate.description}</p>
+              <p className={`mt-2 text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
+                {selectedTemplate.description}
+              </p>
             )}
           </div>
         )}
@@ -687,63 +704,89 @@ function CreateCodeModal({
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="mb-1.5 block text-sm text-gray-400">
-                Code <span className="text-gray-500">(auto-generated if empty)</span>
+              <label
+                className={`mb-1.5 block text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}
+              >
+                Code{' '}
+                <span className={isDark ? 'text-gray-500' : 'text-gray-400'}>
+                  (auto-generated if empty)
+                </span>
               </label>
               <input
                 type="text"
                 value={formData.code || ''}
                 onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
                 placeholder="PARTNER50"
-                className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 font-mono text-white focus:border-[#14B8A6] focus:outline-none"
+                className={`h-10 w-full rounded-lg border px-3 font-mono focus:border-[#14B8A6] focus:outline-none ${isDark ? 'border-white/10 bg-white/5 text-white' : 'border-gray-200 bg-gray-50 text-gray-900'}`}
               />
             </div>
             <div>
-              <label className="mb-1.5 block text-sm text-gray-400">Partner Name *</label>
+              <label
+                className={`mb-1.5 block text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}
+              >
+                Partner Name *
+              </label>
               <input
                 type="text"
                 required
                 value={formData.partner_name}
                 onChange={(e) => setFormData({ ...formData, partner_name: e.target.value })}
                 placeholder="John Doe"
-                className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-white focus:border-[#14B8A6] focus:outline-none"
+                className={`h-10 w-full rounded-lg border px-3 focus:border-[#14B8A6] focus:outline-none ${isDark ? 'border-white/10 bg-white/5 text-white' : 'border-gray-200 bg-gray-50 text-gray-900'}`}
               />
             </div>
           </div>
 
           <div>
-            <label className="mb-1.5 block text-sm text-gray-400">Partner Email *</label>
+            <label className={`mb-1.5 block text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+              Partner Email *
+            </label>
             <input
               type="email"
               required
               value={formData.partner_email}
               onChange={(e) => setFormData({ ...formData, partner_email: e.target.value })}
               placeholder="partner@company.com"
-              className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-white focus:border-[#14B8A6] focus:outline-none"
+              className={`h-10 w-full rounded-lg border px-3 focus:border-[#14B8A6] focus:outline-none ${isDark ? 'border-white/10 bg-white/5 text-white' : 'border-gray-200 bg-gray-50 text-gray-900'}`}
             />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="mb-1.5 block text-sm text-gray-400">Access Type</label>
+              <label
+                className={`mb-1.5 block text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}
+              >
+                Access Type
+              </label>
               <select
                 value={formData.access_type}
                 onChange={(e) =>
                   setFormData({ ...formData, access_type: e.target.value as 'full' | 'limited' })
                 }
-                className="h-10 w-full rounded-lg border border-white/10 bg-[#1A1A1C] px-3 text-white focus:border-[#14B8A6] focus:outline-none"
+                className={`h-10 w-full rounded-lg border px-3 focus:border-[#14B8A6] focus:outline-none ${isDark ? 'border-white/10 bg-[#1A1A1C] text-white' : 'border-gray-200 bg-white text-gray-900'}`}
               >
-                <option value="full" className="bg-[#1A1A1C] text-white">
+                <option
+                  value="full"
+                  className={isDark ? 'bg-[#1A1A1C] text-white' : 'bg-white text-gray-900'}
+                >
                   Full Access
                 </option>
-                <option value="limited" className="bg-[#1A1A1C] text-white">
+                <option
+                  value="limited"
+                  className={isDark ? 'bg-[#1A1A1C] text-white' : 'bg-white text-gray-900'}
+                >
                   Limited Access
                 </option>
               </select>
             </div>
             <div>
-              <label className="mb-1.5 block text-sm text-gray-400">
-                Duration (days) <span className="text-gray-500">(empty = lifetime)</span>
+              <label
+                className={`mb-1.5 block text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}
+              >
+                Duration (days){' '}
+                <span className={isDark ? 'text-gray-500' : 'text-gray-400'}>
+                  (empty = lifetime)
+                </span>
               </label>
               <input
                 type="number"
@@ -756,15 +799,20 @@ function CreateCodeModal({
                   })
                 }
                 placeholder="30"
-                className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-white focus:border-[#14B8A6] focus:outline-none"
+                className={`h-10 w-full rounded-lg border px-3 focus:border-[#14B8A6] focus:outline-none ${isDark ? 'border-white/10 bg-white/5 text-white' : 'border-gray-200 bg-gray-50 text-gray-900'}`}
               />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="mb-1.5 block text-sm text-gray-400">
-                Max Uses <span className="text-gray-500">(empty = unlimited)</span>
+              <label
+                className={`mb-1.5 block text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}
+              >
+                Max Uses{' '}
+                <span className={isDark ? 'text-gray-500' : 'text-gray-400'}>
+                  (empty = unlimited)
+                </span>
               </label>
               <input
                 type="number"
@@ -777,12 +825,15 @@ function CreateCodeModal({
                   })
                 }
                 placeholder="100"
-                className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-white focus:border-[#14B8A6] focus:outline-none"
+                className={`h-10 w-full rounded-lg border px-3 focus:border-[#14B8A6] focus:outline-none ${isDark ? 'border-white/10 bg-white/5 text-white' : 'border-gray-200 bg-gray-50 text-gray-900'}`}
               />
             </div>
             <div>
-              <label className="mb-1.5 block text-sm text-gray-400">
-                Code Expiry <span className="text-gray-500">(empty = never)</span>
+              <label
+                className={`mb-1.5 block text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}
+              >
+                Code Expiry{' '}
+                <span className={isDark ? 'text-gray-500' : 'text-gray-400'}>(empty = never)</span>
               </label>
               <input
                 type="date"
@@ -795,7 +846,7 @@ function CreateCodeModal({
                       : undefined,
                   })
                 }
-                className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-white focus:border-[#14B8A6] focus:outline-none"
+                className={`h-10 w-full rounded-lg border px-3 focus:border-[#14B8A6] focus:outline-none ${isDark ? 'border-white/10 bg-white/5 text-white' : 'border-gray-200 bg-gray-50 text-gray-900'}`}
               />
             </div>
           </div>
@@ -807,17 +858,21 @@ function CreateCodeModal({
                 type="checkbox"
                 checked={formData.new_users_only ?? true}
                 onChange={(e) => setFormData({ ...formData, new_users_only: e.target.checked })}
-                className="h-4 w-4 rounded border-white/10 bg-white/5 text-[#14B8A6] focus:ring-[#14B8A6]"
+                className={`h-4 w-4 rounded text-[#14B8A6] focus:ring-[#14B8A6] ${isDark ? 'border-white/10 bg-white/5' : 'border-gray-300 bg-white'}`}
               />
-              <span className="text-sm text-gray-300">New users only</span>
+              <span className={`text-sm ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>
+                New users only
+              </span>
             </label>
-            <span className="text-xs text-gray-500">
+            <span className={`text-xs ${isDark ? 'text-gray-500' : 'text-gray-400'}`}>
               (Uncheck to allow existing users to redeem)
             </span>
           </div>
 
           {/* Revenue Share */}
-          <div className="rounded-lg border border-white/10 bg-white/5 p-4">
+          <div
+            className={`rounded-lg border p-4 ${isDark ? 'border-white/10 bg-white/5' : 'border-gray-200 bg-gray-50'}`}
+          >
             <div className="mb-3 flex items-center gap-3">
               <input
                 type="checkbox"
@@ -826,9 +881,12 @@ function CreateCodeModal({
                 onChange={(e) =>
                   setFormData({ ...formData, revenue_share_enabled: e.target.checked })
                 }
-                className="h-4 w-4 rounded border-white/10 bg-white/5 text-[#14B8A6] focus:ring-[#14B8A6]"
+                className={`h-4 w-4 rounded text-[#14B8A6] focus:ring-[#14B8A6] ${isDark ? 'border-white/10 bg-white/5' : 'border-gray-300 bg-white'}`}
               />
-              <label htmlFor="revenue_share" className="text-sm font-medium text-white">
+              <label
+                htmlFor="revenue_share"
+                className={`text-sm font-medium ${isDark ? 'text-white' : 'text-gray-900'}`}
+              >
                 Enable Revenue Share
               </label>
             </div>
@@ -836,7 +894,11 @@ function CreateCodeModal({
             {formData.revenue_share_enabled && (
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="mb-1.5 block text-sm text-gray-400">Percentage</label>
+                  <label
+                    className={`mb-1.5 block text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}
+                  >
+                    Percentage
+                  </label>
                   <input
                     type="number"
                     min="10"
@@ -849,11 +911,15 @@ function CreateCodeModal({
                       })
                     }
                     placeholder="25"
-                    className="h-10 w-full rounded-lg border border-white/10 bg-white/5 px-3 text-white focus:border-[#14B8A6] focus:outline-none"
+                    className={`h-10 w-full rounded-lg border px-3 focus:border-[#14B8A6] focus:outline-none ${isDark ? 'border-white/10 bg-white/5 text-white' : 'border-gray-200 bg-gray-50 text-gray-900'}`}
                   />
                 </div>
                 <div>
-                  <label className="mb-1.5 block text-sm text-gray-400">Duration</label>
+                  <label
+                    className={`mb-1.5 block text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}
+                  >
+                    Duration
+                  </label>
                   <select
                     value={formData.revenue_share_duration || ''}
                     onChange={(e) =>
@@ -863,21 +929,36 @@ function CreateCodeModal({
                           .value as PartnerCodeCreate['revenue_share_duration'],
                       })
                     }
-                    className="h-10 w-full rounded-lg border border-white/10 bg-[#1A1A1C] px-3 text-white focus:border-[#14B8A6] focus:outline-none"
+                    className={`h-10 w-full rounded-lg border px-3 focus:border-[#14B8A6] focus:outline-none ${isDark ? 'border-white/10 bg-[#1A1A1C] text-white' : 'border-gray-200 bg-white text-gray-900'}`}
                   >
-                    <option value="" className="bg-[#1A1A1C] text-white">
+                    <option
+                      value=""
+                      className={isDark ? 'bg-[#1A1A1C] text-white' : 'bg-white text-gray-900'}
+                    >
                       Select duration
                     </option>
-                    <option value="first_payment" className="bg-[#1A1A1C] text-white">
+                    <option
+                      value="first_payment"
+                      className={isDark ? 'bg-[#1A1A1C] text-white' : 'bg-white text-gray-900'}
+                    >
                       First Payment Only
                     </option>
-                    <option value="3_months" className="bg-[#1A1A1C] text-white">
+                    <option
+                      value="3_months"
+                      className={isDark ? 'bg-[#1A1A1C] text-white' : 'bg-white text-gray-900'}
+                    >
                       3 Months
                     </option>
-                    <option value="1_year" className="bg-[#1A1A1C] text-white">
+                    <option
+                      value="1_year"
+                      className={isDark ? 'bg-[#1A1A1C] text-white' : 'bg-white text-gray-900'}
+                    >
                       1 Year
                     </option>
-                    <option value="lifetime" className="bg-[#1A1A1C] text-white">
+                    <option
+                      value="lifetime"
+                      className={isDark ? 'bg-[#1A1A1C] text-white' : 'bg-white text-gray-900'}
+                    >
                       Lifetime
                     </option>
                   </select>
@@ -887,12 +968,14 @@ function CreateCodeModal({
           </div>
 
           <div>
-            <label className="mb-1.5 block text-sm text-gray-400">Notes</label>
+            <label className={`mb-1.5 block text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+              Notes
+            </label>
             <textarea
               value={formData.notes || ''}
               onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
               rows={2}
-              className="w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-white focus:border-[#14B8A6] focus:outline-none"
+              className={`w-full rounded-lg border px-3 py-2 focus:border-[#14B8A6] focus:outline-none ${isDark ? 'border-white/10 bg-white/5 text-white' : 'border-gray-200 bg-gray-50 text-gray-900'}`}
               placeholder="Internal notes about this partner code..."
             />
           </div>
@@ -901,7 +984,7 @@ function CreateCodeModal({
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg border border-white/10 px-4 py-2 text-sm text-gray-300 hover:bg-white/5"
+              className={`rounded-lg border px-4 py-2 text-sm ${isDark ? 'border-white/10 text-gray-300 hover:bg-white/5' : 'border-gray-200 text-gray-700 hover:bg-gray-50'}`}
             >
               Cancel
             </button>

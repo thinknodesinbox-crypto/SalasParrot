@@ -2,6 +2,7 @@ import { createFileRoute } from '@tanstack/react-router';
 import { motion } from 'framer-motion';
 import { useState, useMemo } from 'react';
 import DOMPurify from 'dompurify';
+import { RichTextEditor } from '@/components/ui/RichTextEditor';
 import {
   useConversations,
   useConversation,
@@ -120,7 +121,10 @@ function InboxPage() {
 
   // Handle sending a reply
   const handleSendReply = async () => {
-    if (!selectedConversationId || !replyText.trim()) return;
+    if (!selectedConversationId) return;
+    // For HTML content, strip tags to check if there's actual text
+    const textContent = replyText.replace(/<[^>]*>/g, '').trim();
+    if (!textContent) return;
     try {
       await sendReply.mutateAsync({ content: replyText });
       setReplyText('');
@@ -606,22 +610,46 @@ function InboxPage() {
                     Email
                   </button>
                 </div>
-                <div className="flex gap-3">
-                  <textarea
-                    value={replyText}
-                    onChange={(e) => setReplyText(e.target.value)}
-                    placeholder="Type your reply..."
-                    rows={3}
-                    className="flex-1 resize-none rounded-xl border border-[#E2E8F0] px-4 py-3 focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
-                  />
-                  <button
-                    onClick={handleSendReply}
-                    disabled={!replyText.trim() || sendReply.isPending}
-                    className="self-end rounded-xl bg-[#FF6B35] px-4 py-2 font-medium text-white hover:bg-[#E85A2A] disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {sendReply.isPending ? <LoadingSpinner className="h-5 w-5" /> : <SendIcon />}
-                  </button>
-                </div>
+                {selectedConversation.channel === 'email' ? (
+                  <div className="flex flex-col gap-3">
+                    <RichTextEditor
+                      content={replyText}
+                      onChange={setReplyText}
+                      placeholder="Type your reply..."
+                      minHeight="80px"
+                    />
+                    <div className="flex justify-end">
+                      <button
+                        onClick={handleSendReply}
+                        disabled={!replyText.replace(/<[^>]*>/g, '').trim() || sendReply.isPending}
+                        className="rounded-xl bg-[#FF6B35] px-4 py-2 font-medium text-white hover:bg-[#E85A2A] disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {sendReply.isPending ? (
+                          <LoadingSpinner className="h-5 w-5" />
+                        ) : (
+                          <SendIcon />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex gap-3">
+                    <textarea
+                      value={replyText}
+                      onChange={(e) => setReplyText(e.target.value)}
+                      placeholder="Type your reply..."
+                      rows={3}
+                      className="flex-1 resize-none rounded-xl border border-[#E2E8F0] px-4 py-3 focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+                    />
+                    <button
+                      onClick={handleSendReply}
+                      disabled={!replyText.trim() || sendReply.isPending}
+                      className="self-end rounded-xl bg-[#FF6B35] px-4 py-2 font-medium text-white hover:bg-[#E85A2A] disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {sendReply.isPending ? <LoadingSpinner className="h-5 w-5" /> : <SendIcon />}
+                    </button>
+                  </div>
+                )}
               </div>
             </>
           ) : (

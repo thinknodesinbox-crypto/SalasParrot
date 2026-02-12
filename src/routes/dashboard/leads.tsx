@@ -14,7 +14,14 @@ import {
   useDeleteLeadList,
   useDeleteLeads,
 } from '../../lib/hooks/queries';
-import type { Lead, LeadList, LinkedInAccount, ImportType } from '../../lib/types';
+import type {
+  Lead,
+  LeadList,
+  LeadListResponse,
+  LinkedInAccount,
+  ImportType,
+} from '../../lib/types';
+import { api } from '../../lib/api';
 import { validateImportURL, validateProfileURLsBatch } from '../../lib/linkedinValidation';
 
 export const Route = createFileRoute('/dashboard/leads')({
@@ -651,63 +658,86 @@ function LeadListDetail({
     }
   };
 
-  const handleExportCSV = () => {
-    if (leads.length === 0) return;
+  const [isExporting, setIsExporting] = useState(false);
 
-    // Define CSV headers
-    const headers = [
-      'First Name',
-      'Last Name',
-      'Email',
-      'LinkedIn URL',
-      'Company',
-      'Title',
-      'Headline',
-      'Location',
-      'Status',
-      'Tags',
-      'Created At',
-    ];
+  const handleExportCSV = async () => {
+    if (totalLeads === 0) return;
+    setIsExporting(true);
 
-    // Convert leads to CSV rows
-    const rows = leads.map((lead) => [
-      lead.first_name || '',
-      lead.last_name || '',
-      lead.email || '',
-      lead.linkedin_url || '',
-      lead.company || '',
-      lead.title || '',
-      lead.headline || '',
-      lead.location || '',
-      lead.status || '',
-      (lead.tags || []).join('; '),
-      lead.created_at ? new Date(lead.created_at).toLocaleDateString() : '',
-    ]);
+    try {
+      // Fetch all leads by paginating through the API
+      const allLeads: Lead[] = [];
+      const batchSize = 500;
+      let offset = 0;
 
-    // Escape CSV values (handle commas, quotes, newlines)
-    const escapeCSV = (value: string) => {
-      if (value.includes(',') || value.includes('"') || value.includes('\n')) {
-        return `"${value.replace(/"/g, '""')}"`;
+      while (offset < totalLeads) {
+        const params = new URLSearchParams();
+        params.append('list_id', list.id);
+        params.append('limit', batchSize.toString());
+        params.append('offset', offset.toString());
+
+        const response = await api.get<LeadListResponse>(`/leads?${params}`);
+        allLeads.push(...response.data.leads);
+        offset += batchSize;
       }
-      return value;
-    };
 
-    // Build CSV content
-    const csvContent = [
-      headers.map(escapeCSV).join(','),
-      ...rows.map((row) => row.map(escapeCSV).join(',')),
-    ].join('\n');
+      // Define CSV headers
+      const headers = [
+        'First Name',
+        'Last Name',
+        'Email',
+        'LinkedIn URL',
+        'Company',
+        'Title',
+        'Headline',
+        'Location',
+        'Status',
+        'Tags',
+        'Created At',
+      ];
 
-    // Create and download file
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${list.name.replace(/[^a-z0-9]/gi, '_')}_leads.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+      // Convert leads to CSV rows
+      const rows = allLeads.map((lead) => [
+        lead.first_name || '',
+        lead.last_name || '',
+        lead.email || '',
+        lead.linkedin_url || '',
+        lead.company || '',
+        lead.title || '',
+        lead.headline || '',
+        lead.location || '',
+        lead.status || '',
+        (lead.tags || []).join('; '),
+        lead.created_at ? new Date(lead.created_at).toLocaleDateString() : '',
+      ]);
+
+      // Escape CSV values (handle commas, quotes, newlines)
+      const escapeCSV = (value: string) => {
+        if (value.includes(',') || value.includes('"') || value.includes('\n')) {
+          return `"${value.replace(/"/g, '""')}"`;
+        }
+        return value;
+      };
+
+      // Build CSV content
+      const csvContent = [
+        headers.map(escapeCSV).join(','),
+        ...rows.map((row) => row.map(escapeCSV).join(',')),
+      ].join('\n');
+
+      // Create and download file
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${list.name.replace(/[^a-z0-9]/gi, '_')}_leads.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   return (
@@ -752,11 +782,15 @@ function LeadListDetail({
             <div className="flex flex-wrap items-center gap-3">
               <button
                 onClick={handleExportCSV}
-                disabled={leads.length === 0}
+                disabled={totalLeads === 0 || isExporting}
                 className="flex items-center gap-2 rounded-lg border border-[#E2E8F0] px-4 py-2 text-sm font-medium text-[#64748B] transition-colors hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-50"
               >
-                <ExportIcon className="h-4 w-4" />
-                Export
+                {isExporting ? (
+                  <LoadingSpinner className="h-4 w-4" />
+                ) : (
+                  <ExportIcon className="h-4 w-4" />
+                )}
+                {isExporting ? 'Exporting...' : 'Export'}
               </button>
               <Link
                 to="/dashboard/campaigns"

@@ -718,7 +718,7 @@ function CreateCampaignModal({
     preSelectedLeadListId || null
   );
   const [selectedSenderIds, setSelectedSenderIds] = useState<string[]>([]);
-  const [selectedEmailIds, setSelectedEmailIds] = useState<string[]>([]);
+  const [senderEmailMap, setSenderEmailMap] = useState<Record<string, string>>({});
   const [sequenceNodes, setSequenceNodes] = useState<SequenceNode[]>([
     { id: 'start', type: 'start', data: {} },
     { id: 'end', type: 'end', data: {} },
@@ -739,13 +739,44 @@ function CreateCampaignModal({
   const { data: leadListsData, isLoading: leadListsLoading } = useLeadLists();
   const leadLists = leadListsData?.lists || [];
   const { data: linkedInAccounts = [], isLoading: accountsLoading } = useLinkedInAccounts();
-  const { data: emailAccounts = [], isLoading: emailAccountsLoading } = useEmailAccounts();
+  const { data: emailAccounts = [] } = useEmailAccounts();
   const { data: leadAvailability, isLoading: availabilityLoading } =
     useLeadAvailabilityPreview(selectedLeadListId);
 
   // Check if sequence has email steps
   const hasEmailSteps = sequenceNodes.some((n) => n.type === 'email');
   const connectedEmailAccounts = emailAccounts.filter((a) => a.status === 'connected');
+
+  // Auto-initialize sender email map from LinkedIn account defaults
+  useEffect(() => {
+    if (hasEmailSteps) {
+      setSenderEmailMap((prev) => {
+        const next = { ...prev };
+        let changed = false;
+        for (const id of selectedSenderIds) {
+          if (!next[id]) {
+            const account = linkedInAccounts.find((a) => a.id === id);
+            if (account?.default_email_account_id) {
+              next[id] = account.default_email_account_id;
+              changed = true;
+            }
+          }
+        }
+        // Clean up deselected senders
+        for (const id of Object.keys(next)) {
+          if (!selectedSenderIds.includes(id)) {
+            delete next[id];
+            changed = true;
+          }
+        }
+        return changed ? next : prev;
+      });
+    }
+  }, [hasEmailSteps, selectedSenderIds, linkedInAccounts]);
+
+  // Derive selectedEmailIds for backward-compatible checks
+  const selectedEmailIds = [...new Set(Object.values(senderEmailMap).filter(Boolean))];
+  const allSendersHaveEmail = !hasEmailSteps || selectedSenderIds.every((id) => senderEmailMap[id]);
 
   // Check if any connected account has InMail capability (Premium, Sales Nav, or Recruiter)
   const hasInmailCapability = linkedInAccounts.some(
@@ -799,17 +830,16 @@ function CreateCampaignModal({
         setSequenceNodes(nodes);
       }
 
-      // Set selected senders and email accounts
+      // Set selected senders and email pairings
       if (campaignDetails.senders) {
         setSelectedSenderIds(campaignDetails.senders.map((s) => s.linkedin_account_id));
-        const emailIds = [
-          ...new Set(
-            campaignDetails.senders
-              .map((s) => s.email_account_id)
-              .filter((id): id is string => !!id)
-          ),
-        ];
-        setSelectedEmailIds(emailIds);
+        const emailMap: Record<string, string> = {};
+        for (const sender of campaignDetails.senders) {
+          if (sender.email_account_id) {
+            emailMap[sender.linkedin_account_id] = sender.email_account_id;
+          }
+        }
+        setSenderEmailMap(emailMap);
       }
 
       // Note: We don't set selectedLeadListId because we don't have that info from campaignDetails
@@ -1066,12 +1096,10 @@ function CreateCampaignModal({
       }
 
       // Step 5: Add senders to campaign (both create and edit mode)
-      // Pair email accounts with LinkedIn senders in round-robin
+      // Each sender is paired with its explicitly chosen email from senderEmailMap
       if (selectedSenderIds.length > 0) {
-        for (let i = 0; i < selectedSenderIds.length; i++) {
-          const senderId = selectedSenderIds[i];
-          const emailAccountId =
-            selectedEmailIds.length > 0 ? selectedEmailIds[i % selectedEmailIds.length] : undefined;
+        for (const senderId of selectedSenderIds) {
+          const emailAccountId = senderEmailMap[senderId] || undefined;
           try {
             await api.post(`/campaigns/${campaignId}/senders`, {
               linkedin_account_id: senderId,
@@ -1704,97 +1732,163 @@ function CreateCampaignModal({
                           </div>
 
                           {/* Account List */}
-                          <div className="max-h-[300px] space-y-2 overflow-y-auto">
+                          <div className="max-h-[400px] space-y-2 overflow-y-auto">
                             {linkedInAccounts.map((account) => {
                               const isSelected = selectedSenderIds.includes(account.id);
+                              const pairedEmailId = senderEmailMap[account.id];
+                              const hasMissingEmail = hasEmailSteps && isSelected && !pairedEmailId;
                               return (
                                 <motion.div
                                   key={account.id}
-                                  onClick={() => {
-                                    if (isSelected) {
-                                      setSelectedSenderIds((ids) =>
-                                        ids.filter((id) => id !== account.id)
-                                      );
-                                    } else {
-                                      setSelectedSenderIds((ids) => [...ids, account.id]);
-                                    }
-                                  }}
-                                  className={`flex cursor-pointer items-center gap-3 rounded-xl border p-3 transition-all ${
+                                  className={`rounded-xl border transition-all ${
                                     isSelected
-                                      ? 'border-[#0A66C2] bg-[#EFF6FF]'
+                                      ? hasMissingEmail
+                                        ? 'border-[#F59E0B] bg-[#FFFBEB]'
+                                        : 'border-[#0A66C2] bg-[#EFF6FF]'
                                       : 'border-[#E2E8F0] hover:border-[#0A66C2]/30 hover:bg-[#F8FAFC]'
                                   }`}
                                   whileHover={{ scale: 1.01 }}
                                   whileTap={{ scale: 0.99 }}
                                 >
-                                  {/* Checkbox */}
                                   <div
-                                    className={`flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border-2 transition-colors ${
-                                      isSelected
-                                        ? 'border-[#0A66C2] bg-[#0A66C2]'
-                                        : 'border-[#D1D5DB]'
-                                    }`}
+                                    className="flex cursor-pointer items-center gap-3 p-3"
+                                    onClick={() => {
+                                      if (isSelected) {
+                                        setSelectedSenderIds((ids) =>
+                                          ids.filter((id) => id !== account.id)
+                                        );
+                                      } else {
+                                        setSelectedSenderIds((ids) => [...ids, account.id]);
+                                      }
+                                    }}
                                   >
-                                    {isSelected && (
-                                      <svg
-                                        className="h-3 w-3 text-white"
-                                        fill="none"
-                                        viewBox="0 0 24 24"
-                                        stroke="currentColor"
-                                        strokeWidth={3}
-                                      >
-                                        <path
-                                          strokeLinecap="round"
-                                          strokeLinejoin="round"
-                                          d="M5 13l4 4L19 7"
+                                    {/* Checkbox */}
+                                    <div
+                                      className={`flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border-2 transition-colors ${
+                                        isSelected
+                                          ? 'border-[#0A66C2] bg-[#0A66C2]'
+                                          : 'border-[#D1D5DB]'
+                                      }`}
+                                    >
+                                      {isSelected && (
+                                        <svg
+                                          className="h-3 w-3 text-white"
+                                          fill="none"
+                                          viewBox="0 0 24 24"
+                                          stroke="currentColor"
+                                          strokeWidth={3}
+                                        >
+                                          <path
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            d="M5 13l4 4L19 7"
+                                          />
+                                        </svg>
+                                      )}
+                                    </div>
+
+                                    {/* Avatar */}
+                                    <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#0A66C2] to-[#004182]">
+                                      {account.avatar_url ? (
+                                        <img
+                                          src={account.avatar_url}
+                                          alt={account.name || 'Account'}
+                                          className="h-10 w-10 rounded-full object-cover"
                                         />
-                                      </svg>
-                                    )}
-                                  </div>
+                                      ) : (
+                                        <span className="text-sm font-semibold text-white">
+                                          {account.name?.charAt(0) || 'U'}
+                                        </span>
+                                      )}
+                                    </div>
 
-                                  {/* Avatar */}
-                                  <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#0A66C2] to-[#004182]">
-                                    {account.avatar_url ? (
-                                      <img
-                                        src={account.avatar_url}
-                                        alt={account.name || 'Account'}
-                                        className="h-10 w-10 rounded-full object-cover"
-                                      />
-                                    ) : (
-                                      <span className="text-sm font-semibold text-white">
-                                        {account.name?.charAt(0) || 'U'}
-                                      </span>
-                                    )}
-                                  </div>
+                                    {/* Info */}
+                                    <div className="min-w-0 flex-1">
+                                      <p className="truncate font-medium text-[#1E293B]">
+                                        {account.name || 'Unknown'}
+                                      </p>
+                                      <p className="truncate text-sm text-[#64748B]">
+                                        {account.profile_url || 'LinkedIn Account'}
+                                      </p>
+                                    </div>
 
-                                  {/* Info */}
-                                  <div className="min-w-0 flex-1">
-                                    <p className="truncate font-medium text-[#1E293B]">
-                                      {account.name || 'Unknown'}
-                                    </p>
-                                    <p className="truncate text-sm text-[#64748B]">
-                                      {account.profile_url || 'LinkedIn Account'}
-                                    </p>
-                                  </div>
-
-                                  {/* Status */}
-                                  <div
-                                    className={`flex-shrink-0 rounded-full px-2 py-1 text-xs font-medium ${
-                                      account.status === 'connected'
-                                        ? 'bg-[#DCFCE7] text-[#166534]'
+                                    {/* Status */}
+                                    <div
+                                      className={`flex-shrink-0 rounded-full px-2 py-1 text-xs font-medium ${
+                                        account.status === 'connected'
+                                          ? 'bg-[#DCFCE7] text-[#166534]'
+                                          : account.status === 'warning'
+                                            ? 'bg-[#FEF3C7] text-[#92400E]'
+                                            : 'bg-[#FEE2E2] text-[#DC2626]'
+                                      }`}
+                                    >
+                                      {account.status === 'connected'
+                                        ? 'Connected'
                                         : account.status === 'warning'
-                                          ? 'bg-[#FEF3C7] text-[#92400E]'
-                                          : 'bg-[#FEE2E2] text-[#DC2626]'
-                                    }`}
-                                  >
-                                    {account.status === 'connected'
-                                      ? 'Connected'
-                                      : account.status === 'warning'
-                                        ? 'Warning'
-                                        : account.status === 'disconnected'
-                                          ? 'Disconnected'
-                                          : 'Banned'}
+                                          ? 'Warning'
+                                          : account.status === 'disconnected'
+                                            ? 'Disconnected'
+                                            : 'Banned'}
+                                    </div>
                                   </div>
+
+                                  {/* Inline email dropdown - shown when selected and has email steps */}
+                                  {hasEmailSteps && isSelected && (
+                                    <div className="border-t border-[#E2E8F0]/50 px-3 pb-3 pt-2">
+                                      <div className="flex items-center gap-2">
+                                        <EmailIcon className="h-4 w-4 flex-shrink-0 text-[#64748B]" />
+                                        <select
+                                          value={pairedEmailId || ''}
+                                          onChange={(e) => {
+                                            e.stopPropagation();
+                                            setSenderEmailMap((prev) => {
+                                              const next = { ...prev };
+                                              if (e.target.value) {
+                                                next[account.id] = e.target.value;
+                                              } else {
+                                                delete next[account.id];
+                                              }
+                                              return next;
+                                            });
+                                          }}
+                                          onClick={(e) => e.stopPropagation()}
+                                          className={`flex-1 rounded-lg border px-2 py-1.5 text-sm focus:outline-none focus:ring-1 ${
+                                            pairedEmailId
+                                              ? 'border-[#22C55E]/30 bg-white text-[#1E293B] focus:border-[#22C55E] focus:ring-[#22C55E]/20'
+                                              : 'border-[#F59E0B]/50 bg-[#FFFBEB] text-[#92400E] focus:border-[#F59E0B] focus:ring-[#F59E0B]/20'
+                                          }`}
+                                        >
+                                          <option value="">Select email account...</option>
+                                          {connectedEmailAccounts.map((email) => (
+                                            <option key={email.id} value={email.id}>
+                                              {email.email_address}
+                                            </option>
+                                          ))}
+                                        </select>
+                                        {pairedEmailId ? (
+                                          <div className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-[#22C55E]">
+                                            <svg
+                                              className="h-3 w-3 text-white"
+                                              fill="none"
+                                              viewBox="0 0 24 24"
+                                              stroke="currentColor"
+                                              strokeWidth={3}
+                                            >
+                                              <path
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                d="M5 13l4 4L19 7"
+                                              />
+                                            </svg>
+                                          </div>
+                                        ) : (
+                                          <div className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-[#F59E0B]">
+                                            <span className="text-xs font-bold text-white">!</span>
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+                                  )}
                                 </motion.div>
                               );
                             })}
@@ -1809,134 +1903,19 @@ function CreateCampaignModal({
                             </p>
                           </div>
 
-                          {/* Email Accounts Section - shown when sequence has email steps */}
-                          {hasEmailSteps && (
-                            <div className="mt-4 space-y-3 border-t border-[#E2E8F0] pt-4">
-                              <div>
-                                <h4 className="mb-1 text-base font-semibold text-[#1E293B]">
-                                  Email accounts
-                                </h4>
-                                <p className="text-sm text-[#64748B]">
-                                  Your sequence includes email steps. Select email accounts to send
-                                  from.
+                          {/* Email pairing warning */}
+                          {hasEmailSteps &&
+                            selectedSenderIds.length > 0 &&
+                            !allSendersHaveEmail && (
+                              <div className="flex items-start gap-2 rounded-lg border border-[#F59E0B]/20 bg-[#FFFBEB] p-3">
+                                <WarningIcon className="mt-0.5 h-4 w-4 flex-shrink-0 text-[#F59E0B]" />
+                                <p className="text-xs text-[#92400E]">
+                                  {selectedSenderIds.filter((id) => !senderEmailMap[id]).length}{' '}
+                                  sender(s) have no email account assigned. Assign an email to each
+                                  sender to enable email steps.
                                 </p>
                               </div>
-
-                              {emailAccountsLoading ? (
-                                <div className="flex items-center justify-center py-4">
-                                  <LoadingSpinner />
-                                </div>
-                              ) : connectedEmailAccounts.length === 0 ? (
-                                <div className="rounded-xl bg-[#F8FAFC] p-4 text-center">
-                                  <EmailIcon className="mx-auto mb-2 h-8 w-8 text-[#94A3B8]" />
-                                  <p className="mb-3 text-sm text-[#64748B]">
-                                    No email accounts connected yet
-                                  </p>
-                                </div>
-                              ) : (
-                                <>
-                                  {/* Select All */}
-                                  <div className="flex items-center justify-between border-b border-[#E2E8F0] pb-2">
-                                    <span className="text-sm text-[#64748B]">
-                                      {selectedEmailIds.length} of {connectedEmailAccounts.length}{' '}
-                                      selected
-                                    </span>
-                                    <button
-                                      onClick={() => {
-                                        if (
-                                          selectedEmailIds.length === connectedEmailAccounts.length
-                                        ) {
-                                          setSelectedEmailIds([]);
-                                        } else {
-                                          setSelectedEmailIds(
-                                            connectedEmailAccounts.map((a) => a.id)
-                                          );
-                                        }
-                                      }}
-                                      className="text-sm font-medium text-[#14B8A6] hover:underline"
-                                    >
-                                      {selectedEmailIds.length === connectedEmailAccounts.length
-                                        ? 'Deselect all'
-                                        : 'Select all'}
-                                    </button>
-                                  </div>
-
-                                  {/* Email Account List */}
-                                  <div className="max-h-[200px] space-y-2 overflow-y-auto">
-                                    {connectedEmailAccounts.map((account) => {
-                                      const isSelected = selectedEmailIds.includes(account.id);
-                                      return (
-                                        <motion.div
-                                          key={account.id}
-                                          onClick={() => {
-                                            if (isSelected) {
-                                              setSelectedEmailIds((ids) =>
-                                                ids.filter((id) => id !== account.id)
-                                              );
-                                            } else {
-                                              setSelectedEmailIds((ids) => [...ids, account.id]);
-                                            }
-                                          }}
-                                          className={`flex cursor-pointer items-center gap-3 rounded-xl border p-3 transition-all ${
-                                            isSelected
-                                              ? 'border-[#14B8A6] bg-[#F0FDFA]'
-                                              : 'border-[#E2E8F0] hover:border-[#14B8A6]/30 hover:bg-[#F8FAFC]'
-                                          }`}
-                                          whileHover={{ scale: 1.01 }}
-                                          whileTap={{ scale: 0.99 }}
-                                        >
-                                          {/* Checkbox */}
-                                          <div
-                                            className={`flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border-2 transition-colors ${
-                                              isSelected
-                                                ? 'border-[#14B8A6] bg-[#14B8A6]'
-                                                : 'border-[#D1D5DB]'
-                                            }`}
-                                          >
-                                            {isSelected && (
-                                              <svg
-                                                className="h-3 w-3 text-white"
-                                                fill="none"
-                                                viewBox="0 0 24 24"
-                                                stroke="currentColor"
-                                                strokeWidth={3}
-                                              >
-                                                <path
-                                                  strokeLinecap="round"
-                                                  strokeLinejoin="round"
-                                                  d="M5 13l4 4L19 7"
-                                                />
-                                              </svg>
-                                            )}
-                                          </div>
-
-                                          {/* Icon */}
-                                          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#14B8A6] to-[#0D9488]">
-                                            <EmailIcon className="h-5 w-5 text-white" />
-                                          </div>
-
-                                          {/* Info */}
-                                          <div className="min-w-0 flex-1">
-                                            <p className="truncate font-medium text-[#1E293B]">
-                                              {account.display_name || account.email_address}
-                                            </p>
-                                            <p className="truncate text-sm text-[#64748B]">
-                                              {account.email_address}
-                                            </p>
-                                          </div>
-
-                                          {/* Provider badge */}
-                                          <div className="rounded-full bg-[#DCFCE7] px-2 py-0.5 text-xs font-medium text-[#166534]">
-                                            {account.provider}
-                                          </div>
-                                        </motion.div>
-                                      );
-                                    })}
-                                  </div>
-                                </>
-                              )}
-                            </div>
-                          )}
+                            )}
                         </div>
                       )}
                     </motion.div>
@@ -2016,13 +1995,13 @@ function CreateCampaignModal({
                           </div>
                           {hasEmailSteps && (
                             <div className="flex items-center justify-between">
-                              <span className="text-sm text-[#64748B]">Email Accounts</span>
+                              <span className="text-sm text-[#64748B]">Email Pairing</span>
                               <span
-                                className={`font-medium ${selectedEmailIds.length > 0 ? 'text-[#1E293B]' : 'text-[#EF4444]'}`}
+                                className={`font-medium ${allSendersHaveEmail ? 'text-[#22C55E]' : 'text-[#EF4444]'}`}
                               >
-                                {selectedEmailIds.length > 0
-                                  ? `${selectedEmailIds.length} selected`
-                                  : 'None selected'}
+                                {allSendersHaveEmail
+                                  ? `All ${selectedSenderIds.length} sender(s) paired`
+                                  : `${selectedSenderIds.filter((id) => !senderEmailMap[id]).length} sender(s) missing email`}
                               </span>
                             </div>
                           )}
@@ -2054,6 +2033,20 @@ function CreateCampaignModal({
                               </p>
                               <p className="text-xs text-[#B45309]">
                                 Select at least one sender to start this campaign.
+                              </p>
+                            </div>
+                          </div>
+                        ) : hasEmailSteps && !allSendersHaveEmail ? (
+                          <div className="flex items-start gap-3 rounded-xl border border-[#F59E0B]/20 bg-[#FFFBEB] p-4">
+                            <WarningIcon className="mt-0.5 h-5 w-5 flex-shrink-0 text-[#F59E0B]" />
+                            <div>
+                              <p className="text-sm font-medium text-[#92400E]">
+                                Email pairing incomplete
+                              </p>
+                              <p className="text-xs text-[#B45309]">
+                                {selectedSenderIds.filter((id) => !senderEmailMap[id]).length}{' '}
+                                sender(s) are missing an email account. Go back to assign emails
+                                before starting.
                               </p>
                             </div>
                           </div>
@@ -2117,35 +2110,34 @@ function CreateCampaignModal({
                       >
                         {isSaving ? 'Saving...' : isEditMode ? 'Save Changes' : 'Save as Draft'}
                       </button>
-                      {selectedSenderIds.length > 0 &&
-                        (!hasEmailSteps || selectedEmailIds.length > 0) && (
-                          <button
-                            onClick={() => handleSaveWithValidation(true)}
-                            disabled={
-                              !campaignName ||
-                              isSaving ||
-                              (!isEditMode &&
-                                !!selectedLeadListId &&
-                                !!leadAvailability &&
-                                leadAvailability.available === 0)
-                            }
-                            className="rounded-lg bg-[#22C55E] px-6 py-2 font-medium text-white hover:bg-[#16A34A] disabled:opacity-50"
-                            title={
-                              !isEditMode &&
-                              selectedLeadListId &&
-                              leadAvailability &&
-                              leadAvailability.available === 0
-                                ? 'Cannot start: No available leads'
-                                : ''
-                            }
-                          >
-                            {isSaving
-                              ? 'Starting...'
-                              : isEditMode
-                                ? 'Save and Start'
-                                : 'Create and Start'}
-                          </button>
-                        )}
+                      {selectedSenderIds.length > 0 && allSendersHaveEmail && (
+                        <button
+                          onClick={() => handleSaveWithValidation(true)}
+                          disabled={
+                            !campaignName ||
+                            isSaving ||
+                            (!isEditMode &&
+                              !!selectedLeadListId &&
+                              !!leadAvailability &&
+                              leadAvailability.available === 0)
+                          }
+                          className="rounded-lg bg-[#22C55E] px-6 py-2 font-medium text-white hover:bg-[#16A34A] disabled:opacity-50"
+                          title={
+                            !isEditMode &&
+                            selectedLeadListId &&
+                            leadAvailability &&
+                            leadAvailability.available === 0
+                              ? 'Cannot start: No available leads'
+                              : ''
+                          }
+                        >
+                          {isSaving
+                            ? 'Starting...'
+                            : isEditMode
+                              ? 'Save and Start'
+                              : 'Create and Start'}
+                        </button>
+                      )}
                     </>
                   )}
                   {step !== 'review' && (

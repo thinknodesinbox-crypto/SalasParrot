@@ -31,6 +31,7 @@ interface UpdateLinkedInAccountData {
   workspace_id?: string;
   daily_limits?: Record<string, number>;
   working_hours?: Record<string, unknown>;
+  default_email_account_id?: string | null;
 }
 
 // LinkedIn Accounts

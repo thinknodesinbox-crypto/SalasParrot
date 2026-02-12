@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import logoImage from '@/assets/images/logo.png';
 import { useAuth } from '@/lib/auth';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
-import { useWorkspaceStore } from '@/lib/workspace';
+import { useWorkspaceStore, useWorkspaceHydrated } from '@/lib/workspace';
 import { useWorkspaces } from '@/lib/hooks/queries';
 
 interface DashboardLayoutProps {
@@ -40,23 +40,24 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   // Workspace context
   const { currentWorkspace, currentWorkspaceId, setCurrentWorkspace } = useWorkspaceStore();
   const { data: workspaces = [] } = useWorkspaces();
+  const hasHydrated = useWorkspaceHydrated();
 
-  // Auto-select first workspace if none selected
+  // Auto-select first workspace if none selected (wait for hydration to avoid overwriting persisted value)
   useEffect(() => {
-    if (!currentWorkspaceId && workspaces.length > 0) {
+    if (hasHydrated && !currentWorkspaceId && workspaces.length > 0) {
       setCurrentWorkspace(workspaces[0]);
     }
-  }, [workspaces, currentWorkspaceId, setCurrentWorkspace]);
+  }, [hasHydrated, workspaces, currentWorkspaceId, setCurrentWorkspace]);
 
   // Sync current workspace object when workspaces are loaded
   useEffect(() => {
-    if (currentWorkspaceId && workspaces.length > 0 && !currentWorkspace) {
+    if (hasHydrated && currentWorkspaceId && workspaces.length > 0 && !currentWorkspace) {
       const workspace = workspaces.find((w) => w.id === currentWorkspaceId);
       if (workspace) {
         setCurrentWorkspace(workspace);
       }
     }
-  }, [workspaces, currentWorkspaceId, currentWorkspace, setCurrentWorkspace]);
+  }, [hasHydrated, workspaces, currentWorkspaceId, currentWorkspace, setCurrentWorkspace]);
 
   // Get user initials for avatar
   const userInitials = user?.name
