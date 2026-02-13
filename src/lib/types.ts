@@ -737,6 +737,7 @@ export interface ImportJobStartRequest {
   source_url?: string;
   source_data?: string[];
   workspace_id?: string;
+  max_leads?: number | null;
 }
 
 export interface ImportJobStartResponse {

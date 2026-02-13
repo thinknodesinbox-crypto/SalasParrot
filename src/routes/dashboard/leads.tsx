@@ -1199,6 +1199,7 @@ function ImportLeadsModal({ onClose, onSuccess }: { onClose: () => void; onSucce
   );
   const [importError, setImportError] = useState<string | null>(null);
   const [currentJobId, setCurrentJobId] = useState<string | null>(null);
+  const [maxLeads, setMaxLeads] = useState<number | null>(null); // null = all
 
   // Hooks
   const importCSVMutation = useImportLeadsFromCSV();
@@ -1322,6 +1323,7 @@ function ImportLeadsModal({ onClose, onSuccess }: { onClose: () => void; onSucce
         linkedin_account_id: selectedAccountId,
         source_url: sourceUrl || undefined,
         source_data: sourceData,
+        max_leads: maxLeads,
       });
       setCurrentJobId(result.job_id);
     } catch (error) {
@@ -1510,6 +1512,8 @@ function ImportLeadsModal({ onClose, onSuccess }: { onClose: () => void; onSucce
                   accountsLoading={accountsLoading}
                   selectedAccountId={selectedAccountId}
                   setSelectedAccountId={setSelectedAccountId}
+                  maxLeads={maxLeads}
+                  setMaxLeads={setMaxLeads}
                 />
               </motion.div>
             )}
@@ -1619,6 +1623,8 @@ function ImportMethodConfig({
   accountsLoading,
   selectedAccountId,
   setSelectedAccountId,
+  maxLeads,
+  setMaxLeads,
 }: {
   method: ImportMethod;
   listName: string;
@@ -1630,6 +1636,8 @@ function ImportMethodConfig({
   accountsLoading: boolean;
   selectedAccountId: string | null;
   setSelectedAccountId: (id: string | null) => void;
+  maxLeads: number | null;
+  setMaxLeads: (value: number | null) => void;
 }) {
   const [pastedUrls, setPastedUrls] = useState('');
   const [csvFile, setCsvFile] = useState<File | null>(null);
@@ -1853,6 +1861,50 @@ function ImportMethodConfig({
           }
           className="w-full rounded-xl border border-[#E2E8F0] px-4 py-3 focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
         />
+      </div>
+
+      {/* Number of Leads selector */}
+      <div>
+        <label className="mb-2 block text-sm font-medium text-[#1E293B]">Number of Leads</label>
+        <div className="flex items-center gap-2">
+          {[25, 50, 100].map((preset) => (
+            <button
+              key={preset}
+              type="button"
+              onClick={() => setMaxLeads(maxLeads === preset ? null : preset)}
+              className={`rounded-lg border px-3.5 py-2 text-sm font-medium transition-all ${
+                maxLeads === preset
+                  ? 'border-[#FF6B35] bg-[#FFF7ED] text-[#FF6B35]'
+                  : 'border-[#E2E8F0] text-[#64748B] hover:border-[#FF6B35]/30 hover:bg-[#F8FAFC]'
+              }`}
+            >
+              {preset}
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={() => setMaxLeads(null)}
+            className={`rounded-lg border px-3.5 py-2 text-sm font-medium transition-all ${
+              maxLeads === null
+                ? 'border-[#FF6B35] bg-[#FFF7ED] text-[#FF6B35]'
+                : 'border-[#E2E8F0] text-[#64748B] hover:border-[#FF6B35]/30 hover:bg-[#F8FAFC]'
+            }`}
+          >
+            All
+          </button>
+          <div className="mx-1 h-5 w-px bg-[#E2E8F0]" />
+          <input
+            type="number"
+            min={1}
+            placeholder="Custom"
+            value={maxLeads !== null && ![25, 50, 100].includes(maxLeads) ? maxLeads : ''}
+            onChange={(e) => {
+              const val = e.target.value ? parseInt(e.target.value, 10) : null;
+              setMaxLeads(val && val > 0 ? val : null);
+            }}
+            className="w-20 rounded-lg border border-[#E2E8F0] px-3 py-2 text-center text-sm focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+          />
+        </div>
       </div>
 
       {/* How it works section */}
