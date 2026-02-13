@@ -1300,7 +1300,7 @@ export function NodeConfigPanel({
             </div>
             <div className="rounded-lg bg-[#F8FAFC] p-3">
               <p className="text-xs text-[#64748B]">
-                Lead will wait{' '}
+                Lead will wait up to{' '}
                 {(node.data.delayDays || 0) > 0 && (
                   <>
                     <strong className="text-[#1E293B]">
@@ -1315,7 +1315,7 @@ export function NodeConfigPanel({
                 {(node.data.delayDays || 0) === 0 && (node.data.delayHours || 0) === 0 && (
                   <strong className="text-[#1E293B]">no time</strong>
                 )}{' '}
-                before the next step.
+                before the next step. Skips early if they respond.
               </p>
             </div>
           </>
