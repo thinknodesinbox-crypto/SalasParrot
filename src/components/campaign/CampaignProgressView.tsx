@@ -42,7 +42,8 @@ export function CampaignProgressView({ campaignId }: CampaignProgressViewProps) 
           0
         );
         const totalLimit = metrics.sender_activity.reduce((sum, s) => sum + s.daily_limit, 0);
-        return `${totalActions}/${totalLimit} daily limit`;
+        if (totalActions >= totalLimit) return `Daily limit reached (${totalLimit})`;
+        return `${totalLimit - totalActions} remaining today`;
       })()
     : undefined;
 
@@ -84,7 +85,7 @@ export function CampaignProgressView({ campaignId }: CampaignProgressViewProps) 
           pulse={!!progress?.leads_in_progress && progress.leads_in_progress > 0}
         />
         <MetricCard
-          label="Today"
+          label="Sent Today"
           value={metrics?.actions_today || 0}
           subtitle={senderLimitText}
           icon={<TrendingUpIcon />}
@@ -483,6 +484,16 @@ function StepFunnelVisualization({
     enrichment: 'Email Enrichment',
   };
 
+  const conditionLabels: Record<string, string> = {
+    connected: 'Connected?',
+    is_connected: 'Connected?',
+    accepted: 'Accepted?',
+    replied: 'Replied?',
+    has_email: 'Has Email?',
+    email_opened: 'Email Opened?',
+    email_link_clicked: 'Link Clicked?',
+  };
+
   // Filter out 'end' steps from funnel
   const visibleSteps = steps.filter((s) => s.step_type !== 'end');
   const maxLeads = Math.max(...visibleSteps.map((s) => s.leads_at_step + s.leads_completed), 1);
@@ -514,7 +525,10 @@ function StepFunnelVisualization({
               <div className="flex-1">
                 <div className="mb-1 flex items-center justify-between text-xs">
                   <span className="flex items-center gap-1.5 font-medium text-[#1E293B]">
-                    {stepTypeLabels[step.step_type] || step.step_type}
+                    {step.step_type === 'condition' && step.step_config?.condition_type
+                      ? conditionLabels[step.step_config.condition_type as string] ||
+                        `Condition: ${step.step_config.condition_type}`
+                      : stepTypeLabels[step.step_type] || step.step_type}
                     {isActive && (
                       <motion.span
                         animate={{ scale: [1, 1.3, 1] }}
