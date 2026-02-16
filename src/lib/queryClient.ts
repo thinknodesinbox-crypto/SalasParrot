@@ -93,19 +93,25 @@ export const queryKeys = {
   // Analytics
   analytics: {
     // Dashboard
-    dashboardStats: (dateRange: string) => ['analytics', 'dashboard', 'stats', dateRange] as const,
-    dashboardChart: (dateRange: string) => ['analytics', 'dashboard', 'chart', dateRange] as const,
-    dashboardActivity: (limit?: number) => ['analytics', 'dashboard', 'activity', limit] as const,
-    dashboardCampaigns: ['analytics', 'dashboard', 'campaigns'] as const,
+    dashboardStats: (dateRange: string, workspaceId?: string | null) =>
+      ['analytics', 'dashboard', 'stats', dateRange, workspaceId] as const,
+    dashboardChart: (dateRange: string, workspaceId?: string | null) =>
+      ['analytics', 'dashboard', 'chart', dateRange, workspaceId] as const,
+    dashboardActivity: (limit?: number, workspaceId?: string | null) =>
+      ['analytics', 'dashboard', 'activity', limit, workspaceId] as const,
+    dashboardCampaigns: (workspaceId?: string | null) =>
+      ['analytics', 'dashboard', 'campaigns', workspaceId] as const,
     // Analytics page
-    overview: (dateRange?: string) => ['analytics', 'overview', dateRange] as const,
-    channelPerformance: (dateRange: string) =>
-      ['analytics', 'channel-performance', dateRange] as const,
-    topCampaigns: (dateRange: string, limit?: number) =>
-      ['analytics', 'top-campaigns', dateRange, limit] as const,
-    senderPerformance: (dateRange: string) =>
-      ['analytics', 'sender-performance', dateRange] as const,
-    replyRateTrend: (dateRange: string) => ['analytics', 'reply-rate-trend', dateRange] as const,
+    overview: (dateRange?: string, workspaceId?: string | null) =>
+      ['analytics', 'overview', dateRange, workspaceId] as const,
+    channelPerformance: (dateRange: string, workspaceId?: string | null) =>
+      ['analytics', 'channel-performance', dateRange, workspaceId] as const,
+    topCampaigns: (dateRange: string, limit?: number, workspaceId?: string | null) =>
+      ['analytics', 'top-campaigns', dateRange, limit, workspaceId] as const,
+    senderPerformance: (dateRange: string, workspaceId?: string | null) =>
+      ['analytics', 'sender-performance', dateRange, workspaceId] as const,
+    replyRateTrend: (dateRange: string, workspaceId?: string | null) =>
+      ['analytics', 'reply-rate-trend', dateRange, workspaceId] as const,
     // Legacy
     campaign: (campaignId: string) => ['analytics', 'campaign', campaignId] as const,
     accountUsage: (accountId: string) => ['analytics', 'account-usage', accountId] as const,

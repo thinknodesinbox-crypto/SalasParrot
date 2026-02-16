@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../../api';
 import { queryKeys } from '../../queryClient';
+import { useWorkspaceStore } from '../../workspace';
 import type {
   DashboardStats,
   ActivityChartData,
@@ -15,15 +16,20 @@ import type {
   CampaignAnalytics,
 } from '../../types';
 
+function wsParam(workspaceId: string | null | undefined): string {
+  return workspaceId ? `&workspace_id=${workspaceId}` : '';
+}
+
 // ==================== Dashboard Hooks ====================
 
 // Get dashboard stats (6 stat cards)
 export const useDashboardStats = (dateRange: string = '7d') => {
+  const workspaceId = useWorkspaceStore((s) => s.currentWorkspaceId);
   return useQuery({
-    queryKey: queryKeys.analytics.dashboardStats(dateRange),
+    queryKey: queryKeys.analytics.dashboardStats(dateRange, workspaceId),
     queryFn: async () => {
       const response = await api.get<DashboardStats>(
-        `/analytics/dashboard/stats?date_range=${dateRange}`
+        `/analytics/dashboard/stats?date_range=${dateRange}${wsParam(workspaceId)}`
       );
       return response.data;
     },
@@ -32,11 +38,12 @@ export const useDashboardStats = (dateRange: string = '7d') => {
 
 // Get dashboard activity chart data
 export const useDashboardChart = (dateRange: string = '7d') => {
+  const workspaceId = useWorkspaceStore((s) => s.currentWorkspaceId);
   return useQuery({
-    queryKey: queryKeys.analytics.dashboardChart(dateRange),
+    queryKey: queryKeys.analytics.dashboardChart(dateRange, workspaceId),
     queryFn: async () => {
       const response = await api.get<ActivityChartData>(
-        `/analytics/dashboard/chart?date_range=${dateRange}`
+        `/analytics/dashboard/chart?date_range=${dateRange}${wsParam(workspaceId)}`
       );
       return response.data;
     },
@@ -45,11 +52,12 @@ export const useDashboardChart = (dateRange: string = '7d') => {
 
 // Get recent activity feed
 export const useDashboardActivity = (limit: number = 5) => {
+  const workspaceId = useWorkspaceStore((s) => s.currentWorkspaceId);
   return useQuery({
-    queryKey: queryKeys.analytics.dashboardActivity(limit),
+    queryKey: queryKeys.analytics.dashboardActivity(limit, workspaceId),
     queryFn: async () => {
       const response = await api.get<RecentActivityItem[]>(
-        `/analytics/dashboard/activity?limit=${limit}`
+        `/analytics/dashboard/activity?limit=${limit}${wsParam(workspaceId)}`
       );
       return response.data;
     },
@@ -58,10 +66,13 @@ export const useDashboardActivity = (limit: number = 5) => {
 
 // Get active campaigns for dashboard
 export const useDashboardCampaigns = () => {
+  const workspaceId = useWorkspaceStore((s) => s.currentWorkspaceId);
   return useQuery({
-    queryKey: queryKeys.analytics.dashboardCampaigns,
+    queryKey: queryKeys.analytics.dashboardCampaigns(workspaceId),
     queryFn: async () => {
-      const response = await api.get<ActiveCampaignItem[]>('/analytics/dashboard/campaigns');
+      const response = await api.get<ActiveCampaignItem[]>(
+        `/analytics/dashboard/campaigns?${workspaceId ? `workspace_id=${workspaceId}` : ''}`
+      );
       return response.data;
     },
   });
@@ -71,11 +82,12 @@ export const useDashboardCampaigns = () => {
 
 // Get analytics overview stats (4 stat cards)
 export const useAnalyticsOverviewStats = (dateRange: string = '30d') => {
+  const workspaceId = useWorkspaceStore((s) => s.currentWorkspaceId);
   return useQuery({
-    queryKey: queryKeys.analytics.overview(dateRange),
+    queryKey: queryKeys.analytics.overview(dateRange, workspaceId),
     queryFn: async () => {
       const response = await api.get<AnalyticsOverviewStats>(
-        `/analytics/overview?date_range=${dateRange}`
+        `/analytics/overview?date_range=${dateRange}${wsParam(workspaceId)}`
       );
       return response.data;
     },
@@ -84,11 +96,12 @@ export const useAnalyticsOverviewStats = (dateRange: string = '30d') => {
 
 // Get channel performance (LinkedIn vs Email)
 export const useChannelPerformance = (dateRange: string = '30d') => {
+  const workspaceId = useWorkspaceStore((s) => s.currentWorkspaceId);
   return useQuery({
-    queryKey: queryKeys.analytics.channelPerformance(dateRange),
+    queryKey: queryKeys.analytics.channelPerformance(dateRange, workspaceId),
     queryFn: async () => {
       const response = await api.get<ChannelPerformance>(
-        `/analytics/channel-performance?date_range=${dateRange}`
+        `/analytics/channel-performance?date_range=${dateRange}${wsParam(workspaceId)}`
       );
       return response.data;
     },
@@ -97,11 +110,12 @@ export const useChannelPerformance = (dateRange: string = '30d') => {
 
 // Get top performing campaigns
 export const useTopCampaigns = (dateRange: string = '30d', limit: number = 10) => {
+  const workspaceId = useWorkspaceStore((s) => s.currentWorkspaceId);
   return useQuery({
-    queryKey: queryKeys.analytics.topCampaigns(dateRange, limit),
+    queryKey: queryKeys.analytics.topCampaigns(dateRange, limit, workspaceId),
     queryFn: async () => {
       const response = await api.get<CampaignPerformanceItem[]>(
-        `/analytics/top-campaigns?date_range=${dateRange}&limit=${limit}`
+        `/analytics/top-campaigns?date_range=${dateRange}&limit=${limit}${wsParam(workspaceId)}`
       );
       return response.data;
     },
@@ -110,11 +124,12 @@ export const useTopCampaigns = (dateRange: string = '30d', limit: number = 10) =
 
 // Get sender performance
 export const useSenderPerformance = (dateRange: string = '30d') => {
+  const workspaceId = useWorkspaceStore((s) => s.currentWorkspaceId);
   return useQuery({
-    queryKey: queryKeys.analytics.senderPerformance(dateRange),
+    queryKey: queryKeys.analytics.senderPerformance(dateRange, workspaceId),
     queryFn: async () => {
       const response = await api.get<SenderPerformanceItem[]>(
-        `/analytics/sender-performance?date_range=${dateRange}`
+        `/analytics/sender-performance?date_range=${dateRange}${wsParam(workspaceId)}`
       );
       return response.data;
     },
@@ -123,11 +138,12 @@ export const useSenderPerformance = (dateRange: string = '30d') => {
 
 // Get reply rate trend
 export const useReplyRateTrend = (dateRange: string = '30d') => {
+  const workspaceId = useWorkspaceStore((s) => s.currentWorkspaceId);
   return useQuery({
-    queryKey: queryKeys.analytics.replyRateTrend(dateRange),
+    queryKey: queryKeys.analytics.replyRateTrend(dateRange, workspaceId),
     queryFn: async () => {
       const response = await api.get<ReplyRateTrendPoint[]>(
-        `/analytics/reply-rate-trend?date_range=${dateRange}`
+        `/analytics/reply-rate-trend?date_range=${dateRange}${wsParam(workspaceId)}`
       );
       return response.data;
     },
@@ -138,10 +154,13 @@ export const useReplyRateTrend = (dateRange: string = '30d') => {
 
 // Get analytics overview (legacy format)
 export const useAnalyticsOverview = () => {
+  const workspaceId = useWorkspaceStore((s) => s.currentWorkspaceId);
   return useQuery({
-    queryKey: queryKeys.analytics.overview(),
+    queryKey: queryKeys.analytics.overview(undefined, workspaceId),
     queryFn: async () => {
-      const response = await api.get<AnalyticsOverview>('/analytics/overview');
+      const response = await api.get<AnalyticsOverview>(
+        `/analytics/overview?${workspaceId ? `workspace_id=${workspaceId}` : ''}`
+      );
       return response.data;
     },
   });
