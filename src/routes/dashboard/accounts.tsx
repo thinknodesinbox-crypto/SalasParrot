@@ -22,6 +22,7 @@ import {
 } from '../../lib/hooks/queries';
 import type { LinkedInAccount, EmailAccount, CheckpointType, SyncMode } from '../../lib/types';
 import { getErrorMessage } from '../../lib/api';
+import { useWorkspaceStore } from '../../lib/workspace';
 
 export const Route = createFileRoute('/dashboard/accounts')({
   component: AccountsPage,
@@ -1087,6 +1088,7 @@ type LinkedInAuthStep =
 function ConnectLinkedInModal({ onClose }: { onClose: () => void }) {
   const [step, setStep] = useState<LinkedInAuthStep>('method');
   const [error, setError] = useState('');
+  const currentWorkspaceId = useWorkspaceStore((s) => s.currentWorkspaceId);
 
   // Credentials form state
   const [username, setUsername] = useState('');
@@ -1178,7 +1180,11 @@ function ConnectLinkedInModal({ onClose }: { onClose: () => void }) {
     console.log('[pollOnce] Polling with accountId:', accountId);
 
     try {
-      const result = await pollStatus.mutateAsync({ accountId, syncMode });
+      const result = await pollStatus.mutateAsync({
+        accountId,
+        syncMode,
+        workspaceId: currentWorkspaceId || undefined,
+      });
       console.log('[pollOnce] Poll result:', result);
       if (result.status === 'connected') {
         console.log('[pollOnce] Status connected, handling response');
@@ -1239,6 +1245,7 @@ function ConnectLinkedInModal({ onClose }: { onClose: () => void }) {
         username,
         password,
         sync_mode: syncMode,
+        workspace_id: currentWorkspaceId || undefined,
       });
       handleAuthResponse(result);
     } catch (err) {
@@ -1258,6 +1265,7 @@ function ConnectLinkedInModal({ onClose }: { onClose: () => void }) {
         access_token: cookie,
         user_agent: userAgent || undefined,
         sync_mode: syncMode,
+        workspace_id: currentWorkspaceId || undefined,
       });
       handleAuthResponse(result);
     } catch (err) {
@@ -1277,6 +1285,7 @@ function ConnectLinkedInModal({ onClose }: { onClose: () => void }) {
         account_id: accountId,
         code: verificationCode,
         sync_mode: syncMode,
+        workspace_id: currentWorkspaceId || undefined,
       });
       handleAuthResponse(result);
     } catch (err) {
@@ -2155,6 +2164,7 @@ type EmailAuthStep = 'method' | 'imap' | 'success' | 'loading';
 function ConnectEmailModal({ onClose }: { onClose: () => void }) {
   const [step, setStep] = useState<EmailAuthStep>('method');
   const [error, setError] = useState('');
+  const currentWorkspaceId = useWorkspaceStore((s) => s.currentWorkspaceId);
 
   // Sync mode state
   const [syncMode, setSyncMode] = useState<SyncMode>('campaign_only');
@@ -2184,8 +2194,16 @@ function ConnectEmailModal({ onClose }: { onClose: () => void }) {
       // Use appropriate auth method based on config
       const isHostedAuth = authConfig?.gmail_auth_method === 'unipile';
       const result = isHostedAuth
-        ? await initGmailHostedAuth.mutateAsync({ returnUrl, syncMode })
-        : await initGoogleOAuth.mutateAsync({ returnUrl, syncMode });
+        ? await initGmailHostedAuth.mutateAsync({
+            returnUrl,
+            syncMode,
+            workspaceId: currentWorkspaceId || undefined,
+          })
+        : await initGoogleOAuth.mutateAsync({
+            returnUrl,
+            syncMode,
+            workspaceId: currentWorkspaceId || undefined,
+          });
 
       // Redirect to OAuth consent screen (either Unipile hosted or Google direct)
       window.location.href = result.url;
@@ -2201,7 +2219,11 @@ function ConnectEmailModal({ onClose }: { onClose: () => void }) {
     try {
       // Pass current URL so user returns here after OAuth
       const returnUrl = window.location.href.split('?')[0]; // Remove any existing query params
-      const result = await initMicrosoftOAuth.mutateAsync({ returnUrl, syncMode });
+      const result = await initMicrosoftOAuth.mutateAsync({
+        returnUrl,
+        syncMode,
+        workspaceId: currentWorkspaceId || undefined,
+      });
       // Redirect to Microsoft OAuth consent screen
       window.location.href = result.url;
     } catch (err) {
@@ -2227,6 +2249,7 @@ function ConnectEmailModal({ onClose }: { onClose: () => void }) {
         smtp_port: smtpPort,
         display_name: displayName || undefined,
         sync_mode: syncMode,
+        workspace_id: currentWorkspaceId || undefined,
       });
       if (result.status === 'connected') {
         setStep('success');

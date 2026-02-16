@@ -343,6 +343,7 @@ export interface LinkedInSolveCheckpointRequest {
   account_id: string;
   code: string;
   sync_mode?: SyncMode;
+  workspace_id?: string;
 }
 
 export interface LinkedInAuthSuccessResponse {

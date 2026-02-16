@@ -95,6 +95,7 @@ import {
   useSendTestSlackNotification,
 } from '@/lib/hooks/queries/useSlack';
 import type { CheckpointType, Workspace, LinkedInAccount, BillingOverview } from '@/lib/types';
+import { useWorkspaceStore } from '@/lib/workspace';
 
 export const Route = createFileRoute('/dashboard/settings')({
   component: SettingsPage,
@@ -2696,6 +2697,7 @@ type LinkedInAuthStep =
 function ConnectLinkedInModal({ onClose }: { onClose: () => void }) {
   const [step, setStep] = useState<LinkedInAuthStep>('method');
   const [error, setError] = useState('');
+  const currentWorkspaceId = useWorkspaceStore((s) => s.currentWorkspaceId);
 
   // Credentials form state
   const [username, setUsername] = useState('');
@@ -2789,7 +2791,10 @@ function ConnectLinkedInModal({ onClose }: { onClose: () => void }) {
     if (!accountId) return;
 
     try {
-      const result = await pollStatus.mutateAsync({ accountId });
+      const result = await pollStatus.mutateAsync({
+        accountId,
+        workspaceId: currentWorkspaceId || undefined,
+      });
       console.log('[settings pollOnce] result:', result);
       if (result.status === 'connected') {
         console.log('[settings pollOnce] connected!');
@@ -2837,7 +2842,11 @@ function ConnectLinkedInModal({ onClose }: { onClose: () => void }) {
     }
 
     try {
-      const result = await connectWithCredentials.mutateAsync({ username, password });
+      const result = await connectWithCredentials.mutateAsync({
+        username,
+        password,
+        workspace_id: currentWorkspaceId || undefined,
+      });
       handleAuthResponse(result);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to connect');
@@ -2855,6 +2864,7 @@ function ConnectLinkedInModal({ onClose }: { onClose: () => void }) {
       const result = await connectWithCookie.mutateAsync({
         access_token: cookie,
         user_agent: userAgent || undefined,
+        workspace_id: currentWorkspaceId || undefined,
       });
       handleAuthResponse(result);
     } catch (err) {
@@ -2873,6 +2883,7 @@ function ConnectLinkedInModal({ onClose }: { onClose: () => void }) {
       const result = await solveCheckpoint.mutateAsync({
         account_id: accountId,
         code: verificationCode,
+        workspace_id: currentWorkspaceId || undefined,
       });
       handleAuthResponse(result);
     } catch (err) {

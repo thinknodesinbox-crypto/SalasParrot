@@ -254,10 +254,18 @@ export const usePollLinkedInStatus = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ accountId, syncMode }: { accountId: string; syncMode?: SyncMode }) => {
+    mutationFn: async ({
+      accountId,
+      syncMode,
+      workspaceId,
+    }: {
+      accountId: string;
+      syncMode?: SyncMode;
+      workspaceId?: string;
+    }) => {
       const response = await api.post<LinkedInAuthResponse>(
         '/linkedin-accounts/connect/poll-status',
-        { account_id: accountId, sync_mode: syncMode }
+        { account_id: accountId, sync_mode: syncMode, workspace_id: workspaceId }
       );
       return response.data;
     },
