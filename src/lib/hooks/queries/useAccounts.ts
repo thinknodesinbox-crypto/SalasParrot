@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, getErrorMessage } from '../../api';
 import { queryKeys } from '../../queryClient';
+import { useWorkspaceStore } from '../../workspace';
 import type {
   LinkedInAccount,
   EmailAccount,
@@ -37,11 +38,16 @@ interface UpdateLinkedInAccountData {
 // LinkedIn Accounts
 
 export const useLinkedInAccounts = (filters?: AccountFilters) => {
+  const currentWorkspaceId = useWorkspaceStore((s) => s.currentWorkspaceId);
+  const workspaceId = filters?.workspace_id ?? currentWorkspaceId ?? undefined;
+
   return useQuery({
-    queryKey: queryKeys.linkedinAccounts.list(filters),
+    queryKey: queryKeys.linkedinAccounts.list(
+      workspaceId ? { workspace_id: workspaceId } : undefined
+    ),
     queryFn: async () => {
       const params = new URLSearchParams();
-      if (filters?.workspace_id) params.append('workspace_id', filters.workspace_id);
+      if (workspaceId) params.append('workspace_id', workspaceId);
 
       const response = await api.get<LinkedInAccount[]>(`/linkedin-accounts?${params}`);
       return response.data;
@@ -269,11 +275,14 @@ export const usePollLinkedInStatus = () => {
 // Email Accounts
 
 export const useEmailAccounts = (filters?: AccountFilters) => {
+  const currentWorkspaceId = useWorkspaceStore((s) => s.currentWorkspaceId);
+  const workspaceId = filters?.workspace_id ?? currentWorkspaceId ?? undefined;
+
   return useQuery({
-    queryKey: queryKeys.emailAccounts.list(filters),
+    queryKey: queryKeys.emailAccounts.list(workspaceId ? { workspace_id: workspaceId } : undefined),
     queryFn: async () => {
       const params = new URLSearchParams();
-      if (filters?.workspace_id) params.append('workspace_id', filters.workspace_id);
+      if (workspaceId) params.append('workspace_id', workspaceId);
 
       const response = await api.get<EmailAccount[]>(`/email-accounts?${params}`);
       return response.data;

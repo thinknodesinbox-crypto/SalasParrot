@@ -42,19 +42,21 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const { data: workspaces = [] } = useWorkspaces();
   const hasHydrated = useWorkspaceHydrated();
 
-  // Auto-select first workspace if none selected (wait for hydration to avoid overwriting persisted value)
+  // Auto-select or fix workspace selection after hydration
   useEffect(() => {
-    if (hasHydrated && !currentWorkspaceId && workspaces.length > 0) {
-      setCurrentWorkspace(workspaces[0]);
-    }
-  }, [hasHydrated, workspaces, currentWorkspaceId, setCurrentWorkspace]);
+    if (!hasHydrated || workspaces.length === 0) return;
 
-  // Sync current workspace object when workspaces are loaded
-  useEffect(() => {
-    if (hasHydrated && currentWorkspaceId && workspaces.length > 0 && !currentWorkspace) {
-      const workspace = workspaces.find((w) => w.id === currentWorkspaceId);
-      if (workspace) {
-        setCurrentWorkspace(workspace);
+    if (!currentWorkspaceId) {
+      // No workspace selected — pick first available
+      setCurrentWorkspace(workspaces[0]);
+    } else {
+      // Validate stored workspace is one the user has access to
+      const match = workspaces.find((w) => w.id === currentWorkspaceId);
+      if (match) {
+        if (!currentWorkspace) setCurrentWorkspace(match);
+      } else {
+        // Stored workspace not in user's list — reset to first
+        setCurrentWorkspace(workspaces[0]);
       }
     }
   }, [hasHydrated, workspaces, currentWorkspaceId, currentWorkspace, setCurrentWorkspace]);
