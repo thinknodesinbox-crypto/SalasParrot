@@ -70,19 +70,28 @@ export function CampaignProgressView({ campaignId }: CampaignProgressViewProps) 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <MetricCard label="Total Leads" value={metrics?.total_leads || 0} icon={<UsersIcon />} />
         <MetricCard
-          label="Contacted"
-          value={(metrics?.total_leads || 0) - (progress?.leads_pending || 0)}
-          subtitle={`${progress?.leads_pending || 0} remaining`}
+          label="Accepted"
+          value={
+            (metrics?.leads_by_status?.accepted || 0) +
+            (metrics?.leads_by_status?.replied || 0) +
+            (metrics?.leads_by_status?.qualified || 0)
+          }
+          subtitle={`${metrics?.leads_by_status?.contacted || 0} awaiting response`}
           icon={<CheckIcon />}
           color="green"
         />
         <MetricCard
-          label="In Progress"
-          value={progress?.leads_in_progress || 0}
-          subtitle={progress?.leads_completed ? `${progress.leads_completed} completed` : undefined}
+          label="Replied"
+          value={
+            (metrics?.leads_by_status?.replied || 0) + (metrics?.leads_by_status?.qualified || 0)
+          }
+          subtitle={
+            metrics?.leads_by_status?.not_interested
+              ? `${metrics.leads_by_status.not_interested} not interested`
+              : undefined
+          }
           icon={<ClockIcon />}
           color="blue"
-          pulse={!!progress?.leads_in_progress && progress.leads_in_progress > 0}
         />
         <MetricCard
           label="Sent Today"
@@ -233,7 +242,6 @@ function ProgressBar({
   leadsCompleted,
   leadsInProgress,
   leadsPending,
-  totalLeads,
 }: {
   progress: number;
   estimatedCompletion: string | null;
@@ -242,8 +250,6 @@ function ProgressBar({
   leadsPending: number;
   totalLeads: number;
 }) {
-  const processed = totalLeads - leadsPending;
-
   return (
     <div className="rounded-xl border border-[#E2E8F0] bg-white p-5">
       <div className="mb-3 flex items-center justify-between">
@@ -251,46 +257,29 @@ function ProgressBar({
         <span className="text-xl font-bold text-[#FF6B35]">{progress.toFixed(1)}%</span>
       </div>
 
-      {/* Multi-segment progress bar */}
+      {/* Single progress bar driven by overall_progress */}
       <div className="mb-3 h-3 w-full overflow-hidden rounded-full bg-[#F1F5F9]">
-        <div className="flex h-full">
-          {/* Completed (terminal status) */}
-          {leadsCompleted > 0 && totalLeads > 0 && (
-            <motion.div
-              className="h-full bg-[#22C55E]"
-              initial={{ width: 0 }}
-              animate={{ width: `${(leadsCompleted / totalLeads) * 100}%` }}
-              transition={{ duration: 0.5 }}
-            />
-          )}
-          {/* In Progress (contacted/accepted but not terminal) */}
-          {leadsInProgress > 0 && totalLeads > 0 && (
-            <motion.div
-              className="h-full bg-[#3B82F6]"
-              initial={{ width: 0 }}
-              animate={{ width: `${(leadsInProgress / totalLeads) * 100}%` }}
-              transition={{ duration: 0.5, delay: 0.1 }}
-            />
-          )}
-        </div>
+        <motion.div
+          className="h-full rounded-full bg-gradient-to-r from-[#FF6B35] to-[#FF8F5E]"
+          initial={{ width: 0 }}
+          animate={{ width: `${Math.min(progress, 100)}%` }}
+          transition={{ duration: 0.5 }}
+        />
       </div>
 
       {/* Legend */}
       <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-[#64748B]">
         <span className="flex items-center gap-1">
           <span className="h-2 w-2 rounded-full bg-[#22C55E]" />
-          {leadsCompleted} completed
+          {leadsCompleted} completed sequence
         </span>
         <span className="flex items-center gap-1">
           <span className="h-2 w-2 rounded-full bg-[#3B82F6]" />
-          {leadsInProgress} in progress
+          {leadsInProgress} in sequence
         </span>
         <span className="flex items-center gap-1">
           <span className="h-2 w-2 rounded-full bg-[#E2E8F0]" />
-          {leadsPending} pending
-        </span>
-        <span className="ml-auto font-medium text-[#1E293B]">
-          {processed}/{totalLeads} processed
+          {leadsPending} not started
         </span>
       </div>
 
@@ -676,7 +665,8 @@ function ActivityFeed({ activity }: { activity: CampaignActivity }) {
 
 /* ─── Utilities ─── */
 function formatTimeAgo(dateStr: string): string {
-  const date = new Date(dateStr);
+  // Backend sends UTC timestamps without 'Z' suffix — append it so JS parses as UTC
+  const date = new Date(dateStr.endsWith('Z') ? dateStr : dateStr + 'Z');
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
   const diffMin = Math.floor(diffMs / 60000);
