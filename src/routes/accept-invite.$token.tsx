@@ -31,13 +31,13 @@ function AcceptInvitePage() {
   const acceptMutation = useAcceptInvitation();
   const declineMutation = useDeclineInvitation();
 
-  // Pre-fill name from email if available
+  // Pre-fill name from email if available (only once on load)
   useEffect(() => {
-    if (validation?.email && !name) {
+    if (validation?.email) {
       const emailName = validation.email.split('@')[0];
       setName(emailName.charAt(0).toUpperCase() + emailName.slice(1).replace(/[._]/g, ' '));
     }
-  }, [validation?.email, name]);
+  }, [validation?.email]);
 
   // Handle logged-in user accepting
   const handleAcceptAsLoggedInUser = async () => {
