@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate, Link } from '@tanstack/react-router';
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useAuthStore } from '@/lib/auth';
+import { useWorkspaceStore } from '@/lib/workspace';
 import {
   useValidateInvitation,
   useAcceptInvitation,
@@ -27,6 +28,8 @@ function AcceptInvitePage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
 
+  const setCurrentWorkspaceId = useWorkspaceStore((s) => s.setCurrentWorkspaceId);
+
   const { data: validation, isLoading: validating } = useValidateInvitation(token);
   const acceptMutation = useAcceptInvitation();
   const declineMutation = useDeclineInvitation();
@@ -44,6 +47,9 @@ function AcceptInvitePage() {
     try {
       const result = await acceptMutation.mutateAsync({ token });
       if (result.success) {
+        if (result.workspace_id) {
+          setCurrentWorkspaceId(result.workspace_id);
+        }
         navigate({ to: '/dashboard' });
       }
     } catch {
@@ -81,6 +87,9 @@ function AcceptInvitePage() {
         // New user created - set tokens and fetch user
         setTokens(result.access_token, result.refresh_token);
         await fetchUser();
+        if (result.workspace_id) {
+          setCurrentWorkspaceId(result.workspace_id);
+        }
         navigate({ to: '/dashboard' });
       }
     } catch {

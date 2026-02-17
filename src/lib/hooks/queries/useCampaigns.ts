@@ -8,6 +8,7 @@ import type {
   CampaignSender,
   CampaignStatus,
   StepType,
+  SequenceTemplate,
 } from '../../types';
 
 interface CampaignFilters {
@@ -336,5 +337,50 @@ export const useLeadAvailabilityPreview = (listId: string | null) => {
       return response.data;
     },
     enabled: !!listId,
+  });
+};
+
+// Sequence Templates
+
+export const useSequenceTemplates = () => {
+  return useQuery({
+    queryKey: queryKeys.campaigns.sequenceTemplates,
+    queryFn: async () => {
+      const response = await api.get<SequenceTemplate[]>('/campaigns/sequence-templates');
+      return response.data;
+    },
+  });
+};
+
+export const useSaveSequenceTemplate = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: { name: string; description?: string; nodes: unknown[] }) => {
+      const response = await api.post<SequenceTemplate>('/campaigns/sequence-templates', data);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.campaigns.sequenceTemplates });
+    },
+    onError: (error) => {
+      throw new Error(getErrorMessage(error));
+    },
+  });
+};
+
+export const useDeleteSequenceTemplate = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (templateId: string) => {
+      await api.delete(`/campaigns/sequence-templates/${templateId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.campaigns.sequenceTemplates });
+    },
+    onError: (error) => {
+      throw new Error(getErrorMessage(error));
+    },
   });
 };

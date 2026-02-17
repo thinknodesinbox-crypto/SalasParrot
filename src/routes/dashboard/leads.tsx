@@ -2004,9 +2004,9 @@ function LinkedInAccountSelector({
     );
   }
 
-  // Check if selected account is free
   const selectedAccount = accounts.find((a) => a.id === selectedId);
-  const isFreeAccount = selectedAccount?.subscription_type === 'free';
+  const isClassicAccount =
+    selectedAccount?.subscription_type === 'free' || !selectedAccount?.subscription_type;
 
   return (
     <div>
@@ -2058,15 +2058,14 @@ function LinkedInAccountSelector({
         ))}
       </div>
 
-      {/* Free account limitations warning */}
-      {isFreeAccount && (
+      {isClassicAccount && (
         <div className="mt-3 rounded-xl border border-[#F59E0B]/20 bg-[#FFFBEB] p-4">
           <div className="flex items-start gap-3">
             <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-[#F59E0B]/10">
               <AlertIcon className="h-3.5 w-3.5 text-[#F59E0B]" />
             </div>
             <div>
-              <p className="text-sm font-medium text-[#92400E]">Free Account Limitations</p>
+              <p className="text-sm font-medium text-[#92400E]">LinkedIn Classic Limitations</p>
               <ul className="mt-2 space-y-1 text-xs text-[#B45309]">
                 <li className="flex items-start gap-1.5">
                   <span className="mt-1 block h-1 w-1 flex-shrink-0 rounded-full bg-[#F59E0B]" />

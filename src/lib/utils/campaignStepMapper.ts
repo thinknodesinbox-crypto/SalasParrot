@@ -137,7 +137,8 @@ export function buildBranchRelationships(
 }
 
 // Reconstruct branch info when loading steps from backend
-// Handles nested conditions by tracing through the step chain
+// Uses next_step_id chains as primary signal, with order-based fallback
+// for campaigns where next_step_id was not properly set
 export function reconstructBranchInfo(
   steps: Array<{
     id: string;
@@ -152,32 +153,34 @@ export function reconstructBranchInfo(
   const branchInfo = new Map<string, { parentId: string; branch: 'true' | 'false' }>();
   const stepById = new Map(steps.map((s) => [s.id, s]));
 
-  // Helper to trace all steps in a branch chain
+  // Set of IDs that are main-flow continuation targets (next_step_id of conditions)
+  const mainFlowContinuations = new Set<string>();
+  for (const step of steps) {
+    if (step.type === 'condition' && step.next_step_id) {
+      mainFlowContinuations.add(step.next_step_id);
+    }
+  }
+
+  // Helper to trace all steps in a branch chain via next_step_id
   const traceBranch = (startStepId: string, conditionId: string, branch: 'true' | 'false') => {
     let currentId: string | null = startStepId;
     const visited = new Set<string>();
 
     while (currentId && !visited.has(currentId)) {
+      // Don't follow into main flow continuation steps
+      if (mainFlowContinuations.has(currentId) && currentId !== startStepId) break;
+
       visited.add(currentId);
       branchInfo.set(currentId, { parentId: conditionId, branch });
 
       const currentStep = stepById.get(currentId);
       if (!currentStep) break;
 
-      // If this is a nested condition, trace its branches too
-      // (they inherit the parent condition's branch info for the condition itself,
-      // but their own branches are separate)
-      if (currentStep.type === 'condition') {
-        // The nested condition belongs to the parent branch
-        // Its own branches will be handled when we process this condition
-      }
-
-      // Move to next step in the branch
       currentId = currentStep.next_step_id || null;
     }
   };
 
-  // Process all condition steps
+  // Process all condition steps - trace next_step_id chains
   for (const step of steps) {
     if (step.type === 'condition') {
       if (step.true_branch_step_id) {
@@ -185,6 +188,58 @@ export function reconstructBranchInfo(
       }
       if (step.false_branch_step_id) {
         traceBranch(step.false_branch_step_id, step.id, 'false');
+      }
+    }
+  }
+
+  // Fallback: use order-based inference for steps not yet assigned.
+  // For each condition, steps with orders between the branch start and
+  // the next branch start (or condition's main-flow continuation) that
+  // aren't assigned yet likely belong to that branch (broken next_step_id chain).
+  const sortedSteps = [...steps].sort((a, b) => a.order - b.order);
+
+  for (const condStep of steps) {
+    if (condStep.type !== 'condition') continue;
+
+    const trueStart = condStep.true_branch_step_id
+      ? stepById.get(condStep.true_branch_step_id)
+      : null;
+    const falseStart = condStep.false_branch_step_id
+      ? stepById.get(condStep.false_branch_step_id)
+      : null;
+    const mainContinuation = condStep.next_step_id ? stepById.get(condStep.next_step_id) : null;
+
+    // Determine the order boundaries for branches
+    // Steps are interleaved: typically true branch steps first, then false branch steps
+    const trueStartOrder = trueStart?.order ?? Infinity;
+    const falseStartOrder = falseStart?.order ?? Infinity;
+    const mainContinuationOrder = mainContinuation?.order ?? Infinity;
+
+    // The boundary after which steps no longer belong to this condition's branches
+    const branchEndOrder = mainContinuationOrder;
+
+    for (const s of sortedSteps) {
+      // Skip if already assigned or is a condition step in main flow
+      if (branchInfo.has(s.id)) continue;
+      if (s.id === condStep.id) continue;
+      if (s.order <= condStep.order) continue;
+      if (s.order >= branchEndOrder) continue;
+
+      // Determine which branch based on order relative to branch starts
+      if (trueStartOrder < falseStartOrder) {
+        // True branch comes first in order
+        if (s.order >= trueStartOrder && s.order < falseStartOrder) {
+          branchInfo.set(s.id, { parentId: condStep.id, branch: 'true' });
+        } else if (s.order >= falseStartOrder) {
+          branchInfo.set(s.id, { parentId: condStep.id, branch: 'false' });
+        }
+      } else {
+        // False branch comes first in order
+        if (s.order >= falseStartOrder && s.order < trueStartOrder) {
+          branchInfo.set(s.id, { parentId: condStep.id, branch: 'false' });
+        } else if (s.order >= trueStartOrder) {
+          branchInfo.set(s.id, { parentId: condStep.id, branch: 'true' });
+        }
       }
     }
   }

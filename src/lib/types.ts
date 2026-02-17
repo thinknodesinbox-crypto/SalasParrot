@@ -218,6 +218,21 @@ export interface CampaignWithDetails extends Campaign {
   lead_count: number;
 }
 
+export interface SequenceTemplate {
+  id: string;
+  user_id: string;
+  name: string;
+  description: string | null;
+  nodes: Array<{
+    id: string;
+    type: string;
+    data: Record<string, unknown>;
+    parentId?: string;
+    branch?: 'true' | 'false';
+  }>;
+  created_at: string;
+}
+
 // Lead List types
 export interface LeadList {
   id: string;

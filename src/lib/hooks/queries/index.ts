@@ -17,6 +17,9 @@ export {
   useAddCampaignSender,
   useRemoveCampaignSender,
   useLeadAvailabilityPreview,
+  useSequenceTemplates,
+  useSaveSequenceTemplate,
+  useDeleteSequenceTemplate,
 } from './useCampaigns';
 export type { LeadAvailability } from './useCampaigns';
 

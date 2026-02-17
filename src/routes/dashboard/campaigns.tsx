@@ -24,6 +24,9 @@ import {
   useLinkedInAccounts,
   useEmailAccounts,
   useLeadAvailabilityPreview,
+  useSequenceTemplates,
+  useSaveSequenceTemplate,
+  useDeleteSequenceTemplate,
 } from '../../lib/hooks/queries';
 import { useCurrentWorkspace } from '../../lib/workspace';
 import type { Campaign, CampaignStatus } from '../../lib/types';
@@ -759,6 +762,11 @@ function CreateCampaignModal({
   const { data: leadAvailability, isLoading: availabilityLoading } =
     useLeadAvailabilityPreview(selectedLeadListId);
 
+  // Sequence template hooks
+  const { data: userTemplates = [] } = useSequenceTemplates();
+  const saveTemplate = useSaveSequenceTemplate();
+  const deleteTemplate = useDeleteSequenceTemplate();
+
   // Check if sequence has email steps
   const hasEmailSteps = sequenceNodes.some((n) => n.type === 'email');
   const connectedEmailAccounts = emailAccounts.filter((a) => a.status === 'connected');
@@ -865,6 +873,11 @@ function CreateCampaignModal({
 
   const handleAddStep = useCallback(
     (type: SequenceNode['type']) => {
+      if (!selectedNodeId) return;
+
+      const selectedNode = sequenceNodes.find((n) => n.id === selectedNodeId);
+      if (!selectedNode) return;
+
       const newNode: SequenceNode = {
         id: `node-${Date.now()}`,
         type,
@@ -874,18 +887,33 @@ function CreateCampaignModal({
             : type === 'condition'
               ? { condition: 'connected' }
               : {},
+        // Inherit branch context from the selected node
+        parentId: selectedNode.parentId,
+        branch: selectedNode.branch,
       };
-      // Insert before the end node
-      const endIndex = sequenceNodes.findIndex((n) => n.type === 'end');
-      if (endIndex !== -1) {
-        const newNodes = [...sequenceNodes];
-        newNodes.splice(endIndex, 0, newNode);
-        setSequenceNodes(newNodes);
+
+      const afterIndex = sequenceNodes.findIndex((n) => n.id === selectedNodeId);
+      const newNodes = [...sequenceNodes];
+
+      if (selectedNode.type === 'condition') {
+        // If a condition is selected, insert after it and all its branch children
+        let insertAfter = afterIndex;
+        for (let i = afterIndex + 1; i < newNodes.length; i++) {
+          if (newNodes[i].parentId === selectedNode.id) {
+            insertAfter = i;
+          } else {
+            break;
+          }
+        }
+        newNodes.splice(insertAfter + 1, 0, newNode);
       } else {
-        setSequenceNodes([...sequenceNodes, newNode]);
+        // Insert right after the selected node
+        newNodes.splice(afterIndex + 1, 0, newNode);
       }
+
+      setSequenceNodes(newNodes);
     },
-    [sequenceNodes]
+    [sequenceNodes, selectedNodeId]
   );
 
   const handleUpdateNode = useCallback(
@@ -1666,6 +1694,18 @@ function CreateCampaignModal({
                           onAddStep={handleAddStep}
                           onApplyTemplate={(nodes) => setSequenceNodes(nodes)}
                           hasInmailCapability={hasInmailCapability}
+                          selectedNodeId={selectedNodeId}
+                          userTemplates={userTemplates}
+                          onSaveAsTemplate={async (name, description) => {
+                            await saveTemplate.mutateAsync({
+                              name,
+                              description,
+                              nodes: sequenceNodes,
+                            });
+                          }}
+                          onDeleteTemplate={async (id) => {
+                            await deleteTemplate.mutateAsync(id);
+                          }}
                         />
 
                         {/* Main Canvas */}

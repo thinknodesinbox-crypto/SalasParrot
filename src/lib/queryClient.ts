@@ -45,6 +45,7 @@ export const queryKeys = {
     metrics: (campaignId: string) => ['campaigns', campaignId, 'metrics'] as const,
     progress: (campaignId: string) => ['campaigns', campaignId, 'progress'] as const,
     leadBreakdown: (campaignId: string) => ['campaigns', campaignId, 'lead-breakdown'] as const,
+    sequenceTemplates: ['sequence-templates'] as const,
   },
 
   // Lead Lists

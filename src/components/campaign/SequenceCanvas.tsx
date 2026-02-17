@@ -2,6 +2,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useState, useCallback, useRef } from 'react';
 import { SEQUENCE_TEMPLATES } from './sequenceTemplates';
 import { RichTextEditor } from '@/components/ui/RichTextEditor';
+import type { SequenceTemplate } from '@/lib/types';
 export { SEQUENCE_TEMPLATES } from './sequenceTemplates';
 
 // Types
@@ -113,14 +114,36 @@ export function SequenceCanvas({
 
         onNodesChange(newNodes);
       } else {
-        // Add before end or at the end
-        const endIndex = nodes.findIndex((n) => n.type === 'end');
+        // Add before the main flow end node (not a branch end)
+        const endIndex = nodes.findIndex((n) => n.type === 'end' && !n.parentId && !n.branch);
         if (endIndex !== -1) {
           const newNodes = [...nodes];
           newNodes.splice(endIndex, 0, newNode);
           onNodesChange(newNodes);
         } else {
-          onNodesChange([...nodes, newNode]);
+          // No main flow end — find the last main flow node and insert after it
+          // (and after all its branch children)
+          const mainFlowNodes = nodes.filter((n) => !n.parentId && !n.branch);
+          const lastMainNode = mainFlowNodes[mainFlowNodes.length - 1];
+          if (lastMainNode) {
+            // Find the last index occupied by this node or any of its branch children
+            let insertAfter = nodes.findIndex((n) => n.id === lastMainNode.id);
+            if (lastMainNode.type === 'condition') {
+              // Skip past all branch children of this condition
+              for (let i = insertAfter + 1; i < nodes.length; i++) {
+                if (nodes[i].parentId === lastMainNode.id || nodes[i].branch) {
+                  insertAfter = i;
+                } else {
+                  break;
+                }
+              }
+            }
+            const newNodes = [...nodes];
+            newNodes.splice(insertAfter + 1, 0, newNode);
+            onNodesChange(newNodes);
+          } else {
+            onNodesChange([...nodes, newNode]);
+          }
         }
       }
     },
@@ -220,7 +243,7 @@ export function SequenceCanvas({
       {/* Canvas Area */}
       <div className="flex-1 overflow-auto p-8">
         <div
-          className="flex min-h-full flex-col items-center pt-8"
+          className="mx-auto flex min-h-full w-fit min-w-full flex-col items-center pt-8"
           style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'top center' }}
         >
           {/* Render tree */}
@@ -587,25 +610,22 @@ function ConditionBranches({
 
   return (
     <div className="flex flex-col items-center">
-      {/* Branch split connector */}
-      <div className="flex flex-col items-center">
-        <div className="h-6 w-0.5 bg-[#CBD5E1]" />
-        <div className="relative">
-          {/* Horizontal line */}
-          <div className="h-0.5 w-[280px] bg-[#CBD5E1]" />
-          {/* Left vertical connector */}
-          <div className="absolute left-0 top-0 h-6 w-0.5 bg-[#CBD5E1]" />
-          {/* Right vertical connector */}
-          <div className="absolute right-0 top-0 h-6 w-0.5 bg-[#CBD5E1]" />
-        </div>
-      </div>
+      {/* Vertical line from condition node down to split point */}
+      <div className="h-6 w-0.5 bg-[#CBD5E1]" />
 
-      {/* Two branches */}
-      <div className="mt-6 flex gap-16">
-        {/* False Branch (Not Connected) */}
+      {/* Branch container: the horizontal connector is the border-top of this flex row,
+          and each column draws its own vertical drop-down. No measurement needed. */}
+      <div className="flex items-start gap-0">
+        {/* False Branch (left) */}
         <div className="flex min-w-[140px] flex-col items-center">
+          {/* Top connector: half horizontal line to the right + vertical drop */}
+          <div className="flex w-full justify-end">
+            <div className="h-0.5 w-1/2 bg-[#CBD5E1]" />
+          </div>
+          <div className="h-6 w-0.5 bg-[#CBD5E1]" />
+
           {/* Branch Label */}
-          <div className="mb-4 flex items-center gap-2 text-[#64748B]">
+          <div className="mb-3 flex items-center gap-2 text-[#64748B]">
             <UserIcon className="h-4 w-4" />
             <span className="text-sm font-medium">{falseLabel}</span>
           </div>
@@ -663,10 +683,21 @@ function ConditionBranches({
           )}
         </div>
 
-        {/* True Branch (Connected) */}
+        {/* Gap between branches */}
+        <div className="w-16 flex-shrink-0">
+          <div className="h-0.5 w-full bg-[#CBD5E1]" />
+        </div>
+
+        {/* True Branch (right) */}
         <div className="flex min-w-[140px] flex-col items-center">
+          {/* Top connector: half horizontal line to the left + vertical drop */}
+          <div className="flex w-full justify-start">
+            <div className="h-0.5 w-1/2 bg-[#CBD5E1]" />
+          </div>
+          <div className="h-6 w-0.5 bg-[#CBD5E1]" />
+
           {/* Branch Label */}
-          <div className="mb-4 flex items-center gap-2 text-[#64748B]">
+          <div className="mb-3 flex items-center gap-2 text-[#64748B]">
             <UserIcon className="h-4 w-4" />
             <span className="text-sm font-medium">{trueLabel}</span>
           </div>
@@ -1008,12 +1039,25 @@ export function StepPalette({
   onAddStep,
   onApplyTemplate,
   hasInmailCapability = false,
+  userTemplates,
+  onSaveAsTemplate,
+  onDeleteTemplate,
+  selectedNodeId,
 }: {
   onAddStep: (type: SequenceNode['type']) => void;
   onApplyTemplate?: (nodes: SequenceNode[]) => void;
   hasInmailCapability?: boolean;
+  userTemplates?: SequenceTemplate[];
+  onSaveAsTemplate?: (name: string, description: string) => void;
+  onDeleteTemplate?: (id: string) => void;
+  selectedNodeId?: string | null;
 }) {
+  const canAddStep = !!selectedNodeId;
   const [showTemplates, setShowTemplates] = useState(false);
+  const [showSaveForm, setShowSaveForm] = useState(false);
+  const [saveName, setSaveName] = useState('');
+  const [saveDescription, setSaveDescription] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
   const linkedInSteps: Array<{ type: SequenceNode['type']; label: string; icon: React.ReactNode }> =
     [
       {
@@ -1084,7 +1128,9 @@ export function StepPalette({
     <div className="flex w-64 flex-col border-r border-[#E2E8F0] bg-white">
       <div className="border-b border-[#E2E8F0] p-4">
         <h3 className="text-sm font-semibold text-[#1E293B]">Add Step</h3>
-        <p className="mt-1 text-xs text-[#64748B]">Click to add to sequence</p>
+        <p className="mt-1 text-xs text-[#64748B]">
+          {canAddStep ? 'Click to insert after selected step' : 'Select a step on the canvas first'}
+        </p>
       </div>
 
       <div className="flex-1 space-y-4 overflow-y-auto p-3">
@@ -1097,10 +1143,15 @@ export function StepPalette({
               {category.steps.map((step) => (
                 <motion.button
                   key={step.type}
-                  onClick={() => onAddStep(step.type)}
-                  className="group flex w-full items-center gap-2.5 rounded-lg border border-[#E2E8F0] bg-white p-2.5 text-left transition-all hover:border-[#FF6B35]/40 hover:shadow-sm"
-                  whileHover={{ scale: 1.02, x: 2 }}
-                  whileTap={{ scale: 0.98 }}
+                  onClick={() => canAddStep && onAddStep(step.type)}
+                  disabled={!canAddStep}
+                  className={`group flex w-full items-center gap-2.5 rounded-lg border border-[#E2E8F0] p-2.5 text-left transition-all ${
+                    canAddStep
+                      ? 'bg-white hover:border-[#FF6B35]/40 hover:shadow-sm'
+                      : 'cursor-not-allowed bg-[#F8FAFC] opacity-50'
+                  }`}
+                  whileHover={canAddStep ? { scale: 1.02, x: 2 } : {}}
+                  whileTap={canAddStep ? { scale: 0.98 } : {}}
                 >
                   <div
                     className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg transition-colors"
@@ -1111,7 +1162,9 @@ export function StepPalette({
                   >
                     {step.icon}
                   </div>
-                  <span className="text-sm font-medium text-[#1E293B] transition-colors group-hover:text-[#FF6B35]">
+                  <span
+                    className={`text-sm font-medium transition-colors ${canAddStep ? 'text-[#1E293B] group-hover:text-[#FF6B35]' : 'text-[#94A3B8]'}`}
+                  >
                     {step.label}
                   </span>
                 </motion.button>
@@ -1119,84 +1172,254 @@ export function StepPalette({
             </div>
           </div>
         ))}
-      </div>
 
-      {/* Templates Section */}
-      {onApplyTemplate && (
-        <div className="border-t border-[#E2E8F0] p-3">
-          <p className="mb-2 px-1 text-[10px] font-semibold uppercase tracking-wider text-[#94A3B8]">
-            Quick Start
-          </p>
-          <button
-            onClick={() => setShowTemplates(!showTemplates)}
-            className="flex w-full items-center gap-2.5 rounded-lg border border-[#FF6B35]/20 bg-gradient-to-r from-[#FFF7ED] to-[#FFEDD5] p-2.5 text-left transition-all hover:border-[#FF6B35]/40"
-          >
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#FF6B35]/10">
-              <TemplateIcon className="h-4 w-4 text-[#FF6B35]" />
-            </div>
-            <div className="flex-1">
-              <span className="block text-sm font-medium text-[#1E293B]">Use Template</span>
-              <span className="text-[10px] text-[#64748B]">Start with proven sequences</span>
-            </div>
-            <ChevronIcon
-              className={`h-4 w-4 text-[#64748B] transition-transform ${showTemplates ? 'rotate-180' : ''}`}
-            />
-          </button>
+        {/* Templates Section */}
+        {onApplyTemplate && (
+          <div className="border-t border-[#E2E8F0] pt-3">
+            <p className="mb-2 px-1 text-[10px] font-semibold uppercase tracking-wider text-[#94A3B8]">
+              Quick Start
+            </p>
 
-          <AnimatePresence>
-            {showTemplates && (
-              <motion.div
-                initial={{ height: 0, opacity: 0 }}
-                animate={{ height: 'auto', opacity: 1 }}
-                exit={{ height: 0, opacity: 0 }}
-                className="overflow-hidden"
-              >
-                <div className="space-y-1.5 pt-2">
-                  {Object.entries(SEQUENCE_TEMPLATES).map(([key, template]) => (
-                    <motion.button
-                      key={key}
-                      onClick={() => {
-                        onApplyTemplate(
-                          template.nodes.map((n, i) => ({ ...n, id: `${n.id}-${Date.now()}-${i}` }))
-                        );
-                        setShowTemplates(false);
-                      }}
-                      className="w-full rounded-lg border border-[#E2E8F0] p-2.5 text-left transition-all hover:border-[#FF6B35]/30 hover:bg-[#FFF7ED]/50"
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                    >
-                      <p className="text-sm font-medium text-[#1E293B]">{template.name}</p>
-                      <p className="text-[10px] text-[#64748B]">{template.description}</p>
-                      <div className="mt-1.5 flex gap-1">
-                        {template.nodes
-                          .filter((n) => n.type !== 'start' && n.type !== 'end')
-                          .slice(0, 4)
-                          .map((n, i) => (
-                            <div
-                              key={i}
-                              className="flex h-5 w-5 items-center justify-center rounded [&_svg]:h-3 [&_svg]:w-3"
-                              style={{ backgroundColor: `${getNodeConfig(n.type).color}15` }}
-                            >
-                              {getNodeConfig(n.type).icon}
-                            </div>
-                          ))}
-                        {template.nodes.filter((n) => n.type !== 'start' && n.type !== 'end')
-                          .length > 4 && (
-                          <span className="flex items-center text-[10px] text-[#64748B]">
-                            +
-                            {template.nodes.filter((n) => n.type !== 'start' && n.type !== 'end')
-                              .length - 4}
-                          </span>
-                        )}
-                      </div>
-                    </motion.button>
-                  ))}
-                </div>
-              </motion.div>
+            {/* Save Current Sequence */}
+            {onSaveAsTemplate && (
+              <div className="mb-2">
+                {!showSaveForm ? (
+                  <button
+                    onClick={() => setShowSaveForm(true)}
+                    className="flex w-full items-center gap-2 rounded-lg border border-dashed border-[#CBD5E1] p-2 text-left text-sm text-[#64748B] transition-all hover:border-[#14B8A6] hover:text-[#14B8A6]"
+                  >
+                    <SaveIcon className="h-4 w-4" />
+                    Save Current Sequence
+                  </button>
+                ) : (
+                  <div className="rounded-lg border border-[#14B8A6]/30 bg-[#F0FDFA] p-2.5">
+                    <input
+                      type="text"
+                      value={saveName}
+                      onChange={(e) => setSaveName(e.target.value)}
+                      placeholder="Template name"
+                      className="mb-1.5 w-full rounded border border-[#E2E8F0] px-2 py-1.5 text-sm focus:border-[#14B8A6] focus:outline-none focus:ring-1 focus:ring-[#14B8A6]/30"
+                      autoFocus
+                    />
+                    <input
+                      type="text"
+                      value={saveDescription}
+                      onChange={(e) => setSaveDescription(e.target.value)}
+                      placeholder="Description (optional)"
+                      className="mb-2 w-full rounded border border-[#E2E8F0] px-2 py-1.5 text-sm focus:border-[#14B8A6] focus:outline-none focus:ring-1 focus:ring-[#14B8A6]/30"
+                    />
+                    <div className="flex gap-1.5">
+                      <button
+                        onClick={async () => {
+                          if (!saveName.trim()) return;
+                          setIsSaving(true);
+                          try {
+                            onSaveAsTemplate(saveName.trim(), saveDescription.trim());
+                            setSaveName('');
+                            setSaveDescription('');
+                            setShowSaveForm(false);
+                          } finally {
+                            setIsSaving(false);
+                          }
+                        }}
+                        disabled={!saveName.trim() || isSaving}
+                        className="flex-1 rounded bg-[#14B8A6] px-2 py-1.5 text-xs font-medium text-white transition-colors hover:bg-[#0D9488] disabled:opacity-50"
+                      >
+                        {isSaving ? 'Saving...' : 'Save'}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowSaveForm(false);
+                          setSaveName('');
+                          setSaveDescription('');
+                        }}
+                        className="rounded border border-[#E2E8F0] bg-white px-2 py-1.5 text-xs font-medium text-[#64748B] transition-colors hover:bg-[#F8FAFC]"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
-          </AnimatePresence>
-        </div>
-      )}
+
+            <button
+              onClick={() => setShowTemplates(!showTemplates)}
+              className="flex w-full items-center gap-2.5 rounded-lg border border-[#FF6B35]/20 bg-gradient-to-r from-[#FFF7ED] to-[#FFEDD5] p-2.5 text-left transition-all hover:border-[#FF6B35]/40"
+            >
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#FF6B35]/10">
+                <TemplateIcon className="h-4 w-4 text-[#FF6B35]" />
+              </div>
+              <div className="flex-1">
+                <span className="block text-sm font-medium text-[#1E293B]">Use Template</span>
+                <span className="text-[10px] text-[#64748B]">Start with proven sequences</span>
+              </div>
+              <ChevronIcon
+                className={`h-4 w-4 text-[#64748B] transition-transform ${showTemplates ? 'rotate-180' : ''}`}
+              />
+            </button>
+
+            <AnimatePresence>
+              {showTemplates && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  className="overflow-hidden"
+                >
+                  <div className="space-y-1.5 pt-2">
+                    {/* User Templates (shown first) */}
+                    {userTemplates && userTemplates.length > 0 && (
+                      <>
+                        <p className="px-1 text-[10px] font-semibold uppercase tracking-wider text-[#94A3B8]">
+                          My Templates
+                        </p>
+                        {userTemplates.map((template) => {
+                          const handleApplyUserTemplate = () => {
+                            const ts = Date.now();
+                            const idMap: Record<string, string> = {};
+                            template.nodes.forEach((n, i) => {
+                              idMap[n.id] = `${n.id}-${ts}-${i}`;
+                            });
+                            const remapped = template.nodes.map((n, i) => ({
+                              ...n,
+                              id: idMap[n.id] || `${n.id}-${ts}-${i}`,
+                              parentId: n.parentId ? idMap[n.parentId] || n.parentId : undefined,
+                            })) as SequenceNode[];
+                            onApplyTemplate(remapped);
+                            setShowTemplates(false);
+                          };
+
+                          return (
+                            <div key={template.id} className="group relative">
+                              <motion.button
+                                onClick={handleApplyUserTemplate}
+                                className="w-full rounded-lg border border-[#E2E8F0] p-2.5 text-left transition-all hover:border-[#FF6B35]/30 hover:bg-[#FFF7ED]/50"
+                                whileHover={{ scale: 1.02 }}
+                                whileTap={{ scale: 0.98 }}
+                              >
+                                <p className="text-sm font-medium text-[#1E293B]">
+                                  {template.name}
+                                </p>
+                                {template.description && (
+                                  <p className="text-[10px] text-[#64748B]">
+                                    {template.description}
+                                  </p>
+                                )}
+                                <div className="mt-1.5 flex gap-1">
+                                  {template.nodes
+                                    .filter((n) => n.type !== 'start' && n.type !== 'end')
+                                    .slice(0, 4)
+                                    .map((n, i) => (
+                                      <div
+                                        key={i}
+                                        className="flex h-5 w-5 items-center justify-center rounded [&_svg]:h-3 [&_svg]:w-3"
+                                        style={{
+                                          backgroundColor: `${getNodeConfig(n.type as SequenceNode['type']).color}15`,
+                                        }}
+                                      >
+                                        {getNodeConfig(n.type as SequenceNode['type']).icon}
+                                      </div>
+                                    ))}
+                                  {template.nodes.filter(
+                                    (n) => n.type !== 'start' && n.type !== 'end'
+                                  ).length > 4 && (
+                                    <span className="flex items-center text-[10px] text-[#64748B]">
+                                      +
+                                      {template.nodes.filter(
+                                        (n) => n.type !== 'start' && n.type !== 'end'
+                                      ).length - 4}
+                                    </span>
+                                  )}
+                                </div>
+                              </motion.button>
+                              {onDeleteTemplate && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onDeleteTemplate(template.id);
+                                  }}
+                                  className="absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full opacity-0 transition-all hover:bg-[#FEE2E2] group-hover:opacity-100"
+                                >
+                                  <CloseIcon className="h-3 w-3 text-[#64748B] hover:text-[#EF4444]" />
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </>
+                    )}
+
+                    {/* Empty state for user templates */}
+                    {userTemplates && userTemplates.length === 0 && onSaveAsTemplate && (
+                      <p className="px-1 text-center text-[10px] text-[#94A3B8]">
+                        No saved templates yet
+                      </p>
+                    )}
+
+                    {/* Built-in templates */}
+                    <p className="mt-3 px-1 text-[10px] font-semibold uppercase tracking-wider text-[#94A3B8]">
+                      Default Templates
+                    </p>
+                    {Object.entries(SEQUENCE_TEMPLATES).map(([key, template]) => (
+                      <motion.button
+                        key={key}
+                        onClick={() => {
+                          const ts = Date.now();
+                          const idMap: Record<string, string> = {};
+                          template.nodes.forEach((n, i) => {
+                            idMap[n.id] = `${n.id}-${ts}-${i}`;
+                          });
+                          onApplyTemplate(
+                            template.nodes.map((n, i) => {
+                              const pid =
+                                'parentId' in n ? (n as { parentId?: string }).parentId : undefined;
+                              return {
+                                ...n,
+                                id: idMap[n.id] || `${n.id}-${ts}-${i}`,
+                                parentId: pid ? idMap[pid] || pid : undefined,
+                              };
+                            })
+                          );
+                          setShowTemplates(false);
+                        }}
+                        className="w-full rounded-lg border border-[#E2E8F0] p-2.5 text-left transition-all hover:border-[#FF6B35]/30 hover:bg-[#FFF7ED]/50"
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                      >
+                        <p className="text-sm font-medium text-[#1E293B]">{template.name}</p>
+                        <p className="text-[10px] text-[#64748B]">{template.description}</p>
+                        <div className="mt-1.5 flex gap-1">
+                          {template.nodes
+                            .filter((n) => n.type !== 'start' && n.type !== 'end')
+                            .slice(0, 4)
+                            .map((n, i) => (
+                              <div
+                                key={i}
+                                className="flex h-5 w-5 items-center justify-center rounded [&_svg]:h-3 [&_svg]:w-3"
+                                style={{ backgroundColor: `${getNodeConfig(n.type).color}15` }}
+                              >
+                                {getNodeConfig(n.type).icon}
+                              </div>
+                            ))}
+                          {template.nodes.filter((n) => n.type !== 'start' && n.type !== 'end')
+                            .length > 4 && (
+                            <span className="flex items-center text-[10px] text-[#64748B]">
+                              +
+                              {template.nodes.filter((n) => n.type !== 'start' && n.type !== 'end')
+                                .length - 4}
+                            </span>
+                          )}
+                        </div>
+                      </motion.button>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -1790,6 +2013,25 @@ function CloseIcon({ className = 'w-4 h-4' }: { className?: string }) {
       strokeWidth={2}
     >
       <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+    </svg>
+  );
+}
+
+function SaveIcon({ className = 'w-4 h-4' }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={2}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M17 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V7l-4-4z"
+      />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M7 3v4h8V3M7 21v-8h10v8" />
     </svg>
   );
 }
