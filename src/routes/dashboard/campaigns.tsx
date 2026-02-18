@@ -10,6 +10,7 @@ import {
   type SequenceNode,
 } from '@/components/campaign/SequenceCanvas';
 import { CampaignProgressView } from '@/components/campaign/CampaignProgressView';
+import { ImportLeadsModal } from './leads';
 import {
   useCampaigns,
   useCampaign,
@@ -748,6 +749,7 @@ function CreateCampaignModal({
   const [validationWarnings, setValidationWarnings] = useState<SequenceWarning[]>([]);
   const [showWarningDialog, setShowWarningDialog] = useState(false);
   const [pendingStartImmediately, setPendingStartImmediately] = useState(false);
+  const [showImportLeadsModal, setShowImportLeadsModal] = useState(false);
 
   // API hooks
   const createCampaign = useCreateCampaign();
@@ -1508,7 +1510,10 @@ function CreateCampaignModal({
                               </button>
                             ))}
                           </div>
-                          <button className="w-full rounded-xl border-2 border-dashed border-[#E2E8F0] p-4 text-center transition-colors hover:border-[#FF6B35]/50 hover:bg-[#FFF7ED]/50">
+                          <button
+                            onClick={() => setShowImportLeadsModal(true)}
+                            className="w-full rounded-xl border-2 border-dashed border-[#E2E8F0] p-4 text-center transition-colors hover:border-[#FF6B35]/50 hover:bg-[#FFF7ED]/50"
+                          >
                             <PlusIcon className="mx-auto mb-1 h-5 w-5 text-[#94A3B8]" />
                             <span className="text-sm text-[#64748B]">Import new leads</span>
                           </button>
@@ -2253,6 +2258,18 @@ function CreateCampaignModal({
           )}
         </motion.div>
       </motion.div>
+
+      {/* Import Leads Modal */}
+      {showImportLeadsModal && (
+        <ImportLeadsModal
+          onClose={() => setShowImportLeadsModal(false)}
+          onSuccess={(listId) => {
+            queryClient.invalidateQueries({ queryKey: queryKeys.leadLists.all });
+            if (listId) setSelectedLeadListId(listId);
+            setShowImportLeadsModal(false);
+          }}
+        />
+      )}
     </>,
     document.body
   );

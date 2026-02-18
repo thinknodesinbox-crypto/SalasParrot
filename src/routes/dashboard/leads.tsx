@@ -1189,7 +1189,13 @@ function LeadRow({
 }
 
 // Main Import Modal with all methods
-function ImportLeadsModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
+export function ImportLeadsModal({
+  onClose,
+  onSuccess,
+}: {
+  onClose: () => void;
+  onSuccess: (listId?: string) => void;
+}) {
   const [selectedMethod, setSelectedMethod] = useState<ImportMethod | null>(null);
   const [step, setStep] = useState<'method' | 'configure' | 'processing' | 'complete'>('method');
   const [listName, setListName] = useState('');
@@ -1200,6 +1206,7 @@ function ImportLeadsModal({ onClose, onSuccess }: { onClose: () => void; onSucce
   const [importError, setImportError] = useState<string | null>(null);
   const [currentJobId, setCurrentJobId] = useState<string | null>(null);
   const [maxLeads, setMaxLeads] = useState<number | null>(null); // null = all
+  const [createdListId, setCreatedListId] = useState<string | null>(null);
 
   // Hooks
   const importCSVMutation = useImportLeadsFromCSV();
@@ -1268,6 +1275,7 @@ function ImportLeadsModal({ onClose, onSuccess }: { onClose: () => void; onSucce
         list_name: listName.trim(),
       });
       setImportResult(result);
+      if (result.list_id) setCreatedListId(result.list_id);
       setStep('complete');
     } catch (error) {
       setImportError(error instanceof Error ? error.message : 'Import failed');
@@ -1326,6 +1334,7 @@ function ImportLeadsModal({ onClose, onSuccess }: { onClose: () => void; onSucce
         max_leads: maxLeads,
       });
       setCurrentJobId(result.job_id);
+      if (result.list_id) setCreatedListId(result.list_id);
     } catch (error) {
       setImportError(error instanceof Error ? error.message : 'Failed to start import');
       setStep('configure');
@@ -1345,7 +1354,7 @@ function ImportLeadsModal({ onClose, onSuccess }: { onClose: () => void; onSucce
   };
 
   const handleFinish = () => {
-    onSuccess();
+    onSuccess(createdListId || undefined);
   };
 
   return createPortal(

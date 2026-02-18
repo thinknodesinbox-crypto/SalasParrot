@@ -65,6 +65,7 @@ interface ImportResult {
   created: number;
   skipped: number;
   errors: string[];
+  list_id?: string;
 }
 
 // Lead Lists hooks
