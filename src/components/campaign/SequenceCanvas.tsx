@@ -42,6 +42,7 @@ interface SequenceCanvasProps {
   onNodeSelect: (node: SequenceNode | null) => void;
   selectedNodeId: string | null;
   hasInmailCapability?: boolean; // Whether any connected account supports InMail
+  readonlyStructure?: boolean; // Hides delete buttons, prevents structural changes (for active campaigns)
 }
 
 export function SequenceCanvas({
@@ -50,6 +51,7 @@ export function SequenceCanvas({
   onNodeSelect,
   selectedNodeId,
   hasInmailCapability = false,
+  readonlyStructure = false,
 }: SequenceCanvasProps) {
   const [zoom, setZoom] = useState(100);
 
@@ -254,12 +256,17 @@ export function SequenceCanvas({
             return (
               <div key={node.id} className="flex flex-col items-center">
                 {/* Insert button between nodes (replaces plain connector line) */}
-                {index > 0 && prevNode && prevNode.type !== 'condition' && (
-                  <InsertButton
-                    onAdd={(type) => handleAddNode(type, prevNode.id)}
-                    hasInmailCapability={hasInmailCapability}
-                  />
-                )}
+                {index > 0 &&
+                  prevNode &&
+                  prevNode.type !== 'condition' &&
+                  (readonlyStructure ? (
+                    <ConnectorLine />
+                  ) : (
+                    <InsertButton
+                      onAdd={(type) => handleAddNode(type, prevNode.id)}
+                      hasInmailCapability={hasInmailCapability}
+                    />
+                  ))}
                 {/* Plain connector after condition (can't insert in middle of condition branches) */}
                 {index > 0 && prevNode && prevNode.type === 'condition' && <ConnectorLine />}
 
@@ -269,6 +276,7 @@ export function SequenceCanvas({
                   isSelected={selectedNodeId === node.id}
                   onSelect={() => onNodeSelect(node)}
                   onDelete={() => handleDeleteNode(node.id)}
+                  readonlyStructure={readonlyStructure}
                 />
 
                 {/* Condition branches */}
@@ -287,25 +295,29 @@ export function SequenceCanvas({
                     onInsertInBranch={handleInsertInBranch}
                     conditionBranchesMap={conditionBranches}
                     hasInmailCapability={hasInmailCapability}
+                    readonlyStructure={readonlyStructure}
                   />
                 )}
 
                 {/* Add action button at the end (only for last non-condition node) */}
-                {node.type !== 'condition' && node.type !== 'start' && isLast && (
-                  <>
-                    <ConnectorLine />
-                    <AddActionButton
-                      onAdd={(type) => handleAddNode(type)}
-                      hasInmailCapability={hasInmailCapability}
-                    />
-                  </>
-                )}
+                {!readonlyStructure &&
+                  node.type !== 'condition' &&
+                  node.type !== 'start' &&
+                  isLast && (
+                    <>
+                      <ConnectorLine />
+                      <AddActionButton
+                        onAdd={(type) => handleAddNode(type)}
+                        hasInmailCapability={hasInmailCapability}
+                      />
+                    </>
+                  )}
               </div>
             );
           })}
 
           {/* Initial add button if only start node */}
-          {mainFlow.length === 1 && mainFlow[0].type === 'start' && (
+          {!readonlyStructure && mainFlow.length === 1 && mainFlow[0].type === 'start' && (
             <>
               <ConnectorLine />
               <AddActionButton
@@ -460,14 +472,16 @@ function TreeNode({
   isSelected,
   onSelect,
   onDelete,
+  readonlyStructure = false,
 }: {
   node: SequenceNode;
   isSelected: boolean;
   onSelect: () => void;
   onDelete: () => void;
+  readonlyStructure?: boolean;
 }) {
   const config = getNodeConfig(node.type);
-  const canDelete = node.type !== 'start';
+  const canDelete = node.type !== 'start' && !readonlyStructure;
 
   // Special styling for start node
   if (node.type === 'start') {
@@ -575,6 +589,7 @@ function ConditionBranches({
   onInsertInBranch,
   conditionBranchesMap,
   hasInmailCapability = false,
+  readonlyStructure = false,
 }: {
   conditionType: string;
   trueBranch: SequenceNode[];
@@ -591,6 +606,7 @@ function ConditionBranches({
   onInsertInBranch: (type: SequenceNode['type'], afterNodeId: string) => void;
   conditionBranchesMap: Map<string, { true: SequenceNode[]; false: SequenceNode[] }>;
   hasInmailCapability?: boolean;
+  readonlyStructure?: boolean;
 }) {
   const labelMap: Record<string, { trueLabel: string; falseLabel: string }> = {
     connected: { trueLabel: 'Connected', falseLabel: 'Not Connected' },
@@ -635,12 +651,17 @@ function ConditionBranches({
             const prevNode = index > 0 ? falseBranch[index - 1] : null;
             return (
               <div key={node.id} className="flex flex-col items-center">
-                {index > 0 && prevNode && prevNode.type !== 'condition' && (
-                  <InsertButton
-                    onAdd={(type) => onInsertInBranch(type, prevNode.id)}
-                    hasInmailCapability={hasInmailCapability}
-                  />
-                )}
+                {index > 0 &&
+                  prevNode &&
+                  prevNode.type !== 'condition' &&
+                  (readonlyStructure ? (
+                    <ConnectorLine height={24} />
+                  ) : (
+                    <InsertButton
+                      onAdd={(type) => onInsertInBranch(type, prevNode.id)}
+                      hasInmailCapability={hasInmailCapability}
+                    />
+                  ))}
                 {index > 0 && prevNode && prevNode.type === 'condition' && (
                   <ConnectorLine height={24} />
                 )}
@@ -649,6 +670,7 @@ function ConditionBranches({
                   isSelected={selectedNodeId === node.id}
                   onSelect={() => onNodeSelect(node)}
                   onDelete={() => onDeleteNode(node.id)}
+                  readonlyStructure={readonlyStructure}
                 />
                 {/* Recursively render nested condition branches */}
                 {node.type === 'condition' && (
@@ -664,6 +686,7 @@ function ConditionBranches({
                     onInsertInBranch={onInsertInBranch}
                     conditionBranchesMap={conditionBranchesMap}
                     hasInmailCapability={hasInmailCapability}
+                    readonlyStructure={readonlyStructure}
                   />
                 )}
               </div>
@@ -671,7 +694,7 @@ function ConditionBranches({
           })}
 
           {/* Add action / End for false branch (only if not ended) */}
-          {!falseBranchEnded && (
+          {!readonlyStructure && !falseBranchEnded && (
             <>
               <ConnectorLine height={24} />
               <BranchEndButtons
@@ -707,12 +730,17 @@ function ConditionBranches({
             const prevNode = index > 0 ? trueBranch[index - 1] : null;
             return (
               <div key={node.id} className="flex flex-col items-center">
-                {index > 0 && prevNode && prevNode.type !== 'condition' && (
-                  <InsertButton
-                    onAdd={(type) => onInsertInBranch(type, prevNode.id)}
-                    hasInmailCapability={hasInmailCapability}
-                  />
-                )}
+                {index > 0 &&
+                  prevNode &&
+                  prevNode.type !== 'condition' &&
+                  (readonlyStructure ? (
+                    <ConnectorLine height={24} />
+                  ) : (
+                    <InsertButton
+                      onAdd={(type) => onInsertInBranch(type, prevNode.id)}
+                      hasInmailCapability={hasInmailCapability}
+                    />
+                  ))}
                 {index > 0 && prevNode && prevNode.type === 'condition' && (
                   <ConnectorLine height={24} />
                 )}
@@ -721,6 +749,7 @@ function ConditionBranches({
                   isSelected={selectedNodeId === node.id}
                   onSelect={() => onNodeSelect(node)}
                   onDelete={() => onDeleteNode(node.id)}
+                  readonlyStructure={readonlyStructure}
                 />
                 {/* Recursively render nested condition branches */}
                 {node.type === 'condition' && (
@@ -736,6 +765,7 @@ function ConditionBranches({
                     onInsertInBranch={onInsertInBranch}
                     conditionBranchesMap={conditionBranchesMap}
                     hasInmailCapability={hasInmailCapability}
+                    readonlyStructure={readonlyStructure}
                   />
                 )}
               </div>
@@ -743,7 +773,7 @@ function ConditionBranches({
           })}
 
           {/* Add action / End for true branch (only if not ended) */}
-          {!trueBranchEnded && (
+          {!readonlyStructure && !trueBranchEnded && (
             <>
               <ConnectorLine height={24} />
               <BranchEndButtons
@@ -1429,10 +1459,12 @@ export function NodeConfigPanel({
   node,
   onUpdate,
   onClose,
+  readonlyStructure = false,
 }: {
   node: SequenceNode;
   onUpdate: (data: Partial<NodeData>) => void;
   onClose: () => void;
+  readonlyStructure?: boolean;
 }) {
   const nodeConfig = getNodeConfig(node.type);
   const messageRef = useRef<HTMLTextAreaElement>(null);
@@ -1651,7 +1683,8 @@ export function NodeConfigPanel({
             <select
               value={node.data.condition || 'connected'}
               onChange={(e) => onUpdate({ condition: e.target.value as NodeData['condition'] })}
-              className="w-full rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-sm focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+              disabled={readonlyStructure}
+              className={`w-full rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-sm focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20 ${readonlyStructure ? 'cursor-not-allowed opacity-60' : ''}`}
             >
               <option value="connected">If Connected</option>
               <option value="replied">If Replied</option>

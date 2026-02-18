@@ -39,6 +39,7 @@ import {
   reconstructBranchInfo,
   mapStepTypeToNodeType,
   mapConfigToNodeData,
+  mapNodeDataToConfig,
 } from '@/lib/utils/campaignStepMapper';
 import {
   validateCampaignSequence,
@@ -486,27 +487,27 @@ function CampaignCard({
                     >
                       View Details
                     </button>
+                    {campaign.status !== 'completed' && (
+                      <button
+                        onClick={() => {
+                          onEdit(campaign);
+                          setMenuOpen(false);
+                        }}
+                        className="w-full px-4 py-2 text-left text-sm text-[#1E293B] hover:bg-[#F8FAFC]"
+                      >
+                        Edit
+                      </button>
+                    )}
                     {campaign.status === 'draft' && (
-                      <>
-                        <button
-                          onClick={() => {
-                            onEdit(campaign);
-                            setMenuOpen(false);
-                          }}
-                          className="w-full px-4 py-2 text-left text-sm text-[#1E293B] hover:bg-[#F8FAFC]"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={async () => {
-                            setMenuOpen(false);
-                            await startCampaign.mutateAsync();
-                          }}
-                          className="w-full px-4 py-2 text-left text-sm text-[#22C55E] hover:bg-[#F0FDF4]"
-                        >
-                          Start Campaign
-                        </button>
-                      </>
+                      <button
+                        onClick={async () => {
+                          setMenuOpen(false);
+                          await startCampaign.mutateAsync();
+                        }}
+                        className="w-full px-4 py-2 text-left text-sm text-[#22C55E] hover:bg-[#F0FDF4]"
+                      >
+                        Start Campaign
+                      </button>
                     )}
                     {campaign.status === 'active' && (
                       <button
@@ -647,27 +648,27 @@ function CampaignRow({
                   >
                     View Details
                   </button>
+                  {campaign.status !== 'completed' && (
+                    <button
+                      onClick={() => {
+                        onEdit(campaign);
+                        setMenuOpen(false);
+                      }}
+                      className="w-full px-4 py-2 text-left text-sm text-[#1E293B] hover:bg-[#F8FAFC]"
+                    >
+                      Edit
+                    </button>
+                  )}
                   {campaign.status === 'draft' && (
-                    <>
-                      <button
-                        onClick={() => {
-                          onEdit(campaign);
-                          setMenuOpen(false);
-                        }}
-                        className="w-full px-4 py-2 text-left text-sm text-[#1E293B] hover:bg-[#F8FAFC]"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={async () => {
-                          setMenuOpen(false);
-                          await startCampaign.mutateAsync();
-                        }}
-                        className="w-full px-4 py-2 text-left text-sm text-[#22C55E] hover:bg-[#F0FDF4]"
-                      >
-                        Start Campaign
-                      </button>
-                    </>
+                    <button
+                      onClick={async () => {
+                        setMenuOpen(false);
+                        await startCampaign.mutateAsync();
+                      }}
+                      className="w-full px-4 py-2 text-left text-sm text-[#22C55E] hover:bg-[#F0FDF4]"
+                    >
+                      Start Campaign
+                    </button>
                   )}
                   {campaign.status === 'active' && (
                     <button
@@ -728,10 +729,14 @@ function CreateCampaignModal({
   editingCampaign?: Campaign | null;
 }) {
   const isEditMode = !!editingCampaign;
+  const isActiveCampaign =
+    isEditMode && (editingCampaign?.status === 'active' || editingCampaign?.status === 'paused');
   const queryClient = useQueryClient();
 
-  // State declarations
-  const [step, setStep] = useState<'name' | 'leads' | 'sequence' | 'senders' | 'review'>('name');
+  // State declarations — skip to sequence step for active/paused campaigns
+  const [step, setStep] = useState<'name' | 'leads' | 'sequence' | 'senders' | 'review'>(
+    isActiveCampaign ? 'sequence' : 'name'
+  );
   const [campaignName, setCampaignName] = useState('');
   const [campaignDescription, setCampaignDescription] = useState('');
   const [selectedLeadListId, setSelectedLeadListId] = useState<string | null>(
@@ -1041,6 +1046,35 @@ function CreateCampaignModal({
     }
 
     try {
+      // Active campaign: config-only save (no delete-and-recreate)
+      if (isActiveCampaign && editingCampaign) {
+        const campaignId = editingCampaign.id;
+
+        // Update campaign name
+        if (updateCampaign) {
+          await updateCampaign.mutateAsync({ name: campaignName });
+        }
+
+        // Patch each step's config individually
+        for (const node of sequenceNodes) {
+          if (node.type === 'start' || node.type === 'end') continue;
+          const config = mapNodeDataToConfig(node);
+          await api.patch(`/campaigns/${campaignId}/steps/${node.id}`, { config });
+        }
+
+        // Invalidate queries to refresh campaign data
+        await queryClient.invalidateQueries({ queryKey: queryKeys.campaigns.detail(campaignId) });
+        await queryClient.invalidateQueries({ queryKey: queryKeys.campaigns.all });
+
+        showSuccessToast(
+          'Campaign updated!',
+          `"${campaignName}" has been updated. Changes take effect immediately for new leads.`
+        );
+
+        onClose();
+        return;
+      }
+
       let campaignId: string;
 
       if (isEditMode && editingCampaign && updateCampaign) {
@@ -1435,149 +1469,186 @@ function CreateCampaignModal({
                       exit={{ opacity: 0, x: -20 }}
                       className="space-y-4"
                     >
-                      <div>
-                        <h3 className="mb-1 text-lg font-semibold text-[#1E293B]">
-                          {isEditMode ? 'Add leads to campaign' : 'Select your leads'}
-                        </h3>
-                        <p className="text-sm text-[#64748B]">
-                          {isEditMode
-                            ? `This campaign currently has ${campaignDetails?.lead_count || 0} leads. Select a list to add more.`
-                            : 'Choose a lead list to target with this campaign.'}
-                        </p>
-                      </div>
-                      {leadListsLoading ? (
-                        <div className="flex items-center justify-center py-8">
-                          <LoadingSpinner />
-                        </div>
-                      ) : leadLists.length === 0 ? (
-                        <div className="py-8 text-center">
-                          <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-[#F8FAFC]">
-                            <ListIcon className="h-6 w-6 text-[#94A3B8]" />
+                      {isActiveCampaign ? (
+                        <>
+                          <div>
+                            <h3 className="mb-1 text-lg font-semibold text-[#1E293B]">
+                              Campaign Leads
+                            </h3>
+                            <p className="text-sm text-[#64748B]">
+                              Leads are managed from the campaign detail view.
+                            </p>
                           </div>
-                          <p className="mb-2 text-[#64748B]">No lead lists yet</p>
-                          <p className="text-sm text-[#94A3B8]">
-                            Import leads first to create a campaign.
-                          </p>
-                        </div>
-                      ) : (
-                        <div className="space-y-3">
-                          {isEditMode && (
-                            <div className="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
-                              <div className="flex items-center gap-3">
-                                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#FF6B35]">
-                                  <ListIcon className="h-5 w-5 text-white" />
-                                </div>
-                                <div className="flex-1">
-                                  <p className="font-medium text-[#1E293B]">
-                                    Current Campaign Leads
-                                  </p>
-                                  <p className="text-sm text-[#64748B]">
-                                    {campaignDetails?.lead_count || 0} leads already assigned
-                                  </p>
-                                </div>
+                          <div className="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-5">
+                            <div className="flex items-center gap-4">
+                              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#FF6B35]">
+                                <ListIcon className="h-6 w-6 text-white" />
+                              </div>
+                              <div>
+                                <p className="text-2xl font-bold text-[#1E293B]">
+                                  {campaignDetails?.lead_count || 0}
+                                </p>
+                                <p className="text-sm text-[#64748B]">leads assigned</p>
                               </div>
                             </div>
-                          )}
-                          <div className="grid gap-3">
-                            {leadLists.map((list) => (
-                              <button
-                                key={list.id}
-                                onClick={() => setSelectedLeadListId(list.id)}
-                                className={`flex items-center gap-4 rounded-xl border p-4 transition-all ${
-                                  selectedLeadListId === list.id
-                                    ? 'border-[#FF6B35] bg-[#FFF7ED]'
-                                    : 'border-[#E2E8F0] hover:border-[#FF6B35]/30'
-                                }`}
-                              >
-                                <div
-                                  className={`flex h-10 w-10 items-center justify-center rounded-lg ${
-                                    selectedLeadListId === list.id ? 'bg-[#FF6B35]' : 'bg-[#F8FAFC]'
-                                  }`}
-                                >
-                                  <ListIcon
-                                    className={`h-5 w-5 ${selectedLeadListId === list.id ? 'text-white' : 'text-[#64748B]'}`}
-                                  />
-                                </div>
-                                <div className="flex-1 text-left">
-                                  <p className="font-medium text-[#1E293B]">{list.name}</p>
-                                  <p className="text-sm text-[#64748B]">
-                                    {list.lead_count} leads • {list.enriched_count} enriched
-                                  </p>
-                                </div>
-                                {selectedLeadListId === list.id && (
-                                  <CheckCircleIcon className="h-5 w-5 text-[#FF6B35]" />
-                                )}
-                              </button>
-                            ))}
                           </div>
-                          <button
-                            onClick={() => setShowImportLeadsModal(true)}
-                            className="w-full rounded-xl border-2 border-dashed border-[#E2E8F0] p-4 text-center transition-colors hover:border-[#FF6B35]/50 hover:bg-[#FFF7ED]/50"
-                          >
-                            <PlusIcon className="mx-auto mb-1 h-5 w-5 text-[#94A3B8]" />
-                            <span className="text-sm text-[#64748B]">Import new leads</span>
-                          </button>
+                          <div className="flex items-start gap-2 rounded-lg border border-[#3B82F6]/20 bg-[#F0F9FF] p-3">
+                            <InfoIcon className="mt-0.5 h-4 w-4 flex-shrink-0 text-[#3B82F6]" />
+                            <p className="text-xs text-[#1E293B]">
+                              To add or remove leads, close this editor and use the campaign detail
+                              view. Lead changes take effect immediately.
+                            </p>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div>
+                            <h3 className="mb-1 text-lg font-semibold text-[#1E293B]">
+                              {isEditMode ? 'Add leads to campaign' : 'Select your leads'}
+                            </h3>
+                            <p className="text-sm text-[#64748B]">
+                              {isEditMode
+                                ? `This campaign currently has ${campaignDetails?.lead_count || 0} leads. Select a list to add more.`
+                                : 'Choose a lead list to target with this campaign.'}
+                            </p>
+                          </div>
+                          {leadListsLoading ? (
+                            <div className="flex items-center justify-center py-8">
+                              <LoadingSpinner />
+                            </div>
+                          ) : leadLists.length === 0 ? (
+                            <div className="py-8 text-center">
+                              <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-[#F8FAFC]">
+                                <ListIcon className="h-6 w-6 text-[#94A3B8]" />
+                              </div>
+                              <p className="mb-2 text-[#64748B]">No lead lists yet</p>
+                              <p className="text-sm text-[#94A3B8]">
+                                Import leads first to create a campaign.
+                              </p>
+                            </div>
+                          ) : (
+                            <div className="space-y-3">
+                              {isEditMode && (
+                                <div className="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
+                                  <div className="flex items-center gap-3">
+                                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#FF6B35]">
+                                      <ListIcon className="h-5 w-5 text-white" />
+                                    </div>
+                                    <div className="flex-1">
+                                      <p className="font-medium text-[#1E293B]">
+                                        Current Campaign Leads
+                                      </p>
+                                      <p className="text-sm text-[#64748B]">
+                                        {campaignDetails?.lead_count || 0} leads already assigned
+                                      </p>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                              <div className="grid gap-3">
+                                {leadLists.map((list) => (
+                                  <button
+                                    key={list.id}
+                                    onClick={() => setSelectedLeadListId(list.id)}
+                                    className={`flex items-center gap-4 rounded-xl border p-4 transition-all ${
+                                      selectedLeadListId === list.id
+                                        ? 'border-[#FF6B35] bg-[#FFF7ED]'
+                                        : 'border-[#E2E8F0] hover:border-[#FF6B35]/30'
+                                    }`}
+                                  >
+                                    <div
+                                      className={`flex h-10 w-10 items-center justify-center rounded-lg ${
+                                        selectedLeadListId === list.id
+                                          ? 'bg-[#FF6B35]'
+                                          : 'bg-[#F8FAFC]'
+                                      }`}
+                                    >
+                                      <ListIcon
+                                        className={`h-5 w-5 ${selectedLeadListId === list.id ? 'text-white' : 'text-[#64748B]'}`}
+                                      />
+                                    </div>
+                                    <div className="flex-1 text-left">
+                                      <p className="font-medium text-[#1E293B]">{list.name}</p>
+                                      <p className="text-sm text-[#64748B]">
+                                        {list.lead_count} leads • {list.enriched_count} enriched
+                                      </p>
+                                    </div>
+                                    {selectedLeadListId === list.id && (
+                                      <CheckCircleIcon className="h-5 w-5 text-[#FF6B35]" />
+                                    )}
+                                  </button>
+                                ))}
+                              </div>
+                              <button
+                                onClick={() => setShowImportLeadsModal(true)}
+                                className="w-full rounded-xl border-2 border-dashed border-[#E2E8F0] p-4 text-center transition-colors hover:border-[#FF6B35]/50 hover:bg-[#FFF7ED]/50"
+                              >
+                                <PlusIcon className="mx-auto mb-1 h-5 w-5 text-[#94A3B8]" />
+                                <span className="text-sm text-[#64748B]">Import new leads</span>
+                              </button>
 
-                          {/* Lead Availability Info */}
-                          {selectedLeadListId && leadAvailability && !availabilityLoading && (
-                            <div className="mt-4 space-y-2">
-                              {leadAvailability.available === 0 ? (
-                                // Critical: No leads available
-                                <div className="flex items-start gap-3 rounded-xl border border-[#EF4444]/20 bg-[#FEF2F2] p-4">
-                                  <WarningIcon className="mt-0.5 h-5 w-5 flex-shrink-0 text-[#EF4444]" />
-                                  <div className="flex-1">
-                                    <p className="text-sm font-bold text-[#991B1B]">
-                                      Cannot Create Campaign: No Available Leads
-                                    </p>
-                                    <p className="mt-1 text-xs text-[#DC2626]">
-                                      All {leadAvailability.total} leads from this list are
-                                      currently assigned to active or paused campaigns. You must
-                                      pause or complete other campaigns to free up leads before
-                                      creating a new campaign with this list.
-                                    </p>
-                                    <p className="mt-2 text-xs font-medium text-[#991B1B]">
-                                      Available: {leadAvailability.available} /{' '}
-                                      {leadAvailability.total} leads
-                                    </p>
-                                  </div>
-                                </div>
-                              ) : leadAvailability.in_active_campaigns > 0 ? (
-                                // Warning: Some leads unavailable
-                                <div className="flex items-start gap-3 rounded-xl border border-[#F59E0B]/20 bg-[#FFFBEB] p-4">
-                                  <WarningIcon className="mt-0.5 h-5 w-5 flex-shrink-0 text-[#F59E0B]" />
-                                  <div className="flex-1">
-                                    <p className="text-sm font-medium text-[#92400E]">
-                                      Lead Availability Warning
-                                    </p>
-                                    <p className="mt-1 text-xs text-[#B45309]">
-                                      {leadAvailability.in_active_campaigns} of{' '}
-                                      {leadAvailability.total} leads are already in active or paused
-                                      campaigns and cannot be reassigned.
-                                    </p>
-                                    <p className="mt-2 text-xs font-medium text-[#92400E]">
-                                      Available: {leadAvailability.available} /{' '}
-                                      {leadAvailability.total} leads
-                                    </p>
-                                  </div>
-                                </div>
-                              ) : (
-                                // Success: All leads available
-                                <div className="flex items-start gap-3 rounded-xl border border-[#22C55E]/20 bg-[#DCFCE7] p-4">
-                                  <CheckIcon className="mt-0.5 h-5 w-5 flex-shrink-0 text-[#22C55E]" />
-                                  <div className="flex-1">
-                                    <p className="text-sm font-medium text-[#166534]">
-                                      All leads available
-                                    </p>
-                                    <p className="mt-1 text-xs text-[#15803D]">
-                                      All {leadAvailability.total} leads from this list are
-                                      available to be assigned to this campaign.
-                                    </p>
-                                  </div>
+                              {/* Lead Availability Info */}
+                              {selectedLeadListId && leadAvailability && !availabilityLoading && (
+                                <div className="mt-4 space-y-2">
+                                  {leadAvailability.available === 0 ? (
+                                    // Critical: No leads available
+                                    <div className="flex items-start gap-3 rounded-xl border border-[#EF4444]/20 bg-[#FEF2F2] p-4">
+                                      <WarningIcon className="mt-0.5 h-5 w-5 flex-shrink-0 text-[#EF4444]" />
+                                      <div className="flex-1">
+                                        <p className="text-sm font-bold text-[#991B1B]">
+                                          Cannot Create Campaign: No Available Leads
+                                        </p>
+                                        <p className="mt-1 text-xs text-[#DC2626]">
+                                          All {leadAvailability.total} leads from this list are
+                                          currently assigned to active or paused campaigns. You must
+                                          pause or complete other campaigns to free up leads before
+                                          creating a new campaign with this list.
+                                        </p>
+                                        <p className="mt-2 text-xs font-medium text-[#991B1B]">
+                                          Available: {leadAvailability.available} /{' '}
+                                          {leadAvailability.total} leads
+                                        </p>
+                                      </div>
+                                    </div>
+                                  ) : leadAvailability.in_active_campaigns > 0 ? (
+                                    // Warning: Some leads unavailable
+                                    <div className="flex items-start gap-3 rounded-xl border border-[#F59E0B]/20 bg-[#FFFBEB] p-4">
+                                      <WarningIcon className="mt-0.5 h-5 w-5 flex-shrink-0 text-[#F59E0B]" />
+                                      <div className="flex-1">
+                                        <p className="text-sm font-medium text-[#92400E]">
+                                          Lead Availability Warning
+                                        </p>
+                                        <p className="mt-1 text-xs text-[#B45309]">
+                                          {leadAvailability.in_active_campaigns} of{' '}
+                                          {leadAvailability.total} leads are already in active or
+                                          paused campaigns and cannot be reassigned.
+                                        </p>
+                                        <p className="mt-2 text-xs font-medium text-[#92400E]">
+                                          Available: {leadAvailability.available} /{' '}
+                                          {leadAvailability.total} leads
+                                        </p>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    // Success: All leads available
+                                    <div className="flex items-start gap-3 rounded-xl border border-[#22C55E]/20 bg-[#DCFCE7] p-4">
+                                      <CheckIcon className="mt-0.5 h-5 w-5 flex-shrink-0 text-[#22C55E]" />
+                                      <div className="flex-1">
+                                        <p className="text-sm font-medium text-[#166534]">
+                                          All leads available
+                                        </p>
+                                        <p className="mt-1 text-xs text-[#15803D]">
+                                          All {leadAvailability.total} leads from this list are
+                                          available to be assigned to this campaign.
+                                        </p>
+                                      </div>
+                                    </div>
+                                  )}
                                 </div>
                               )}
                             </div>
                           )}
-                        </div>
+                        </>
                       )}
                     </motion.div>
                   )}
@@ -1623,41 +1694,63 @@ function CreateCampaignModal({
                         </div>
                       )}
 
-                      {/* Mobile Layout - Stacked */}
-                      <div className="relative flex h-[calc(100vh-200px)] min-h-[500px] flex-col bg-[#FAFBFC] lg:hidden">
-                        {/* Mobile Step Palette - Horizontal scroll */}
-                        <div className="border-b border-[#E2E8F0] bg-white p-3">
-                          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-[#94A3B8]">
-                            Add Steps
-                          </p>
-                          <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-2">
-                            {[
-                              {
-                                type: 'linkedin_connect' as const,
-                                label: 'Connect',
-                                color: '#0A66C2',
-                              },
-                              {
-                                type: 'linkedin_message' as const,
-                                label: 'Message',
-                                color: '#0A66C2',
-                              },
-                              { type: 'email' as const, label: 'Email', color: '#14B8A6' },
-                              { type: 'delay' as const, label: 'Wait', color: '#F59E0B' },
-                              { type: 'condition' as const, label: 'If/Then', color: '#8B5CF6' },
-                            ].map((item) => (
-                              <button
-                                key={item.type}
-                                onClick={() => handleAddStep(item.type)}
-                                className="flex-shrink-0 rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 transition-all hover:border-[#FF6B35]/30"
-                              >
-                                <span className="text-xs font-medium" style={{ color: item.color }}>
-                                  {item.label}
-                                </span>
-                              </button>
-                            ))}
+                      {/* Active campaign info banner */}
+                      {isActiveCampaign && (
+                        <div className="mx-6 mb-4 mt-6 flex items-start gap-2.5 rounded-lg border border-[#3B82F6]/20 bg-[#EFF6FF] p-3">
+                          <InfoIcon className="mt-0.5 h-4 w-4 flex-shrink-0 text-[#3B82F6]" />
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-[#1E40AF]">
+                              Campaign is {editingCampaign?.status}
+                            </p>
+                            <p className="mt-0.5 text-xs text-[#1D4ED8]">
+                              You can edit step content and timing. The sequence structure (adding,
+                              removing, or reordering steps) cannot be changed once a campaign has
+                              been started.
+                            </p>
                           </div>
                         </div>
+                      )}
+
+                      {/* Mobile Layout - Stacked */}
+                      <div className="relative flex h-[calc(100vh-200px)] min-h-[500px] flex-col bg-[#FAFBFC] lg:hidden">
+                        {/* Mobile Step Palette - Horizontal scroll (hidden for active campaigns) */}
+                        {!isActiveCampaign && (
+                          <div className="border-b border-[#E2E8F0] bg-white p-3">
+                            <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-[#94A3B8]">
+                              Add Steps
+                            </p>
+                            <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-2">
+                              {[
+                                {
+                                  type: 'linkedin_connect' as const,
+                                  label: 'Connect',
+                                  color: '#0A66C2',
+                                },
+                                {
+                                  type: 'linkedin_message' as const,
+                                  label: 'Message',
+                                  color: '#0A66C2',
+                                },
+                                { type: 'email' as const, label: 'Email', color: '#14B8A6' },
+                                { type: 'delay' as const, label: 'Wait', color: '#F59E0B' },
+                                { type: 'condition' as const, label: 'If/Then', color: '#8B5CF6' },
+                              ].map((item) => (
+                                <button
+                                  key={item.type}
+                                  onClick={() => handleAddStep(item.type)}
+                                  className="flex-shrink-0 rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 transition-all hover:border-[#FF6B35]/30"
+                                >
+                                  <span
+                                    className="text-xs font-medium"
+                                    style={{ color: item.color }}
+                                  >
+                                    {item.label}
+                                  </span>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
 
                         {/* Mobile Canvas */}
                         <div className="flex-1 overflow-y-auto">
@@ -1667,6 +1760,7 @@ function CreateCampaignModal({
                             onNodeSelect={(node) => setSelectedNodeId(node?.id || null)}
                             selectedNodeId={selectedNodeId}
                             hasInmailCapability={hasInmailCapability}
+                            readonlyStructure={isActiveCampaign}
                           />
                         </div>
 
@@ -1686,6 +1780,7 @@ function CreateCampaignModal({
                                   node={selectedNode}
                                   onUpdate={handleUpdateNode}
                                   onClose={() => setSelectedNodeId(null)}
+                                  readonlyStructure={isActiveCampaign}
                                 />
                               </motion.div>
                             )}
@@ -1694,24 +1789,92 @@ function CreateCampaignModal({
 
                       {/* Desktop Layout - Side by side */}
                       <div className="hidden h-[80vh] max-h-[900px] min-h-[600px] overflow-hidden rounded-lg border border-[#E2E8F0] bg-[#FAFBFC] lg:flex">
-                        {/* Step Palette */}
-                        <StepPalette
-                          onAddStep={handleAddStep}
-                          onApplyTemplate={(nodes) => setSequenceNodes(nodes)}
-                          hasInmailCapability={hasInmailCapability}
-                          selectedNodeId={selectedNodeId}
-                          userTemplates={userTemplates}
-                          onSaveAsTemplate={async (name, description) => {
-                            await saveTemplate.mutateAsync({
-                              name,
-                              description,
-                              nodes: sequenceNodes,
-                            });
-                          }}
-                          onDeleteTemplate={async (id) => {
-                            await deleteTemplate.mutateAsync(id);
-                          }}
-                        />
+                        {/* Step Palette / Edit Guidance Panel */}
+                        {isActiveCampaign ? (
+                          <div className="w-72 flex-shrink-0 overflow-y-auto border-r border-[#E2E8F0] bg-white p-4">
+                            <div className="mb-4">
+                              <h3 className="text-sm font-semibold text-[#1E293B]">
+                                Edit Step Content
+                              </h3>
+                              <p className="mt-1 text-xs text-[#64748B]">
+                                Click any step on the canvas to edit its content.
+                              </p>
+                            </div>
+
+                            <div className="mb-4 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] p-3">
+                              <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-[#64748B]">
+                                What you can edit
+                              </p>
+                              <ul className="space-y-1.5 text-xs text-[#475569]">
+                                <li className="flex items-center gap-2">
+                                  <span className="text-[#22C55E]">&#10003;</span>
+                                  Message text and variables
+                                </li>
+                                <li className="flex items-center gap-2">
+                                  <span className="text-[#22C55E]">&#10003;</span>
+                                  Email subject and body
+                                </li>
+                                <li className="flex items-center gap-2">
+                                  <span className="text-[#22C55E]">&#10003;</span>
+                                  Wait duration (days / hours)
+                                </li>
+                                <li className="flex items-center gap-2">
+                                  <span className="text-[#22C55E]">&#10003;</span>
+                                  Condition type (replied, connected, etc.)
+                                </li>
+                              </ul>
+                            </div>
+
+                            <div className="mb-4 rounded-lg border border-[#F59E0B]/20 bg-[#FFFBEB] p-3">
+                              <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-[#92400E]">
+                                Not editable while active
+                              </p>
+                              <ul className="space-y-1.5 text-xs text-[#92400E]">
+                                <li className="flex items-center gap-2">
+                                  <span>&#10007;</span>
+                                  Adding or removing steps
+                                </li>
+                                <li className="flex items-center gap-2">
+                                  <span>&#10007;</span>
+                                  Reordering steps
+                                </li>
+                                <li className="flex items-center gap-2">
+                                  <span>&#10007;</span>
+                                  Changing branch structure
+                                </li>
+                              </ul>
+                              <p className="mt-2 text-[10px] text-[#B45309]">
+                                Sequence structure cannot be changed once a campaign has been
+                                started.
+                              </p>
+                            </div>
+
+                            <div className="rounded-lg border border-[#3B82F6]/20 bg-[#EFF6FF] p-3">
+                              <p className="text-xs text-[#1D4ED8]">
+                                Changes take effect immediately for leads that haven't reached the
+                                edited step yet. Leads that already passed a step won't be affected.
+                              </p>
+                            </div>
+                          </div>
+                        ) : (
+                          <StepPalette
+                            onAddStep={handleAddStep}
+                            onApplyTemplate={(nodes) => setSequenceNodes(nodes)}
+                            hasInmailCapability={hasInmailCapability}
+                            selectedNodeId={selectedNodeId}
+                            userTemplates={userTemplates}
+                            onSaveAsTemplate={async (name, description) => {
+                              await saveTemplate.mutateAsync({
+                                name,
+                                description,
+                                nodes: sequenceNodes,
+                              });
+                            }}
+                            onDeleteTemplate={async (id) => {
+                              await deleteTemplate.mutateAsync(id);
+                            }}
+                          />
+                        )}
 
                         {/* Main Canvas */}
                         <SequenceCanvas
@@ -1720,6 +1883,7 @@ function CreateCampaignModal({
                           onNodeSelect={(node) => setSelectedNodeId(node?.id || null)}
                           selectedNodeId={selectedNodeId}
                           hasInmailCapability={hasInmailCapability}
+                          readonlyStructure={isActiveCampaign}
                         />
 
                         {/* Node Config Panel */}
@@ -1731,6 +1895,7 @@ function CreateCampaignModal({
                                 node={selectedNode}
                                 onUpdate={handleUpdateNode}
                                 onClose={() => setSelectedNodeId(null)}
+                                readonlyStructure={isActiveCampaign}
                               />
                             )}
                         </AnimatePresence>
@@ -1746,188 +1911,155 @@ function CreateCampaignModal({
                       exit={{ opacity: 0, x: -20 }}
                       className="space-y-4"
                     >
-                      <div>
-                        <h3 className="mb-1 text-lg font-semibold text-[#1E293B]">
-                          Assign senders
-                        </h3>
-                        <p className="text-sm text-[#64748B]">
-                          Select LinkedIn accounts to send from. We'll auto-rotate between them.
-                        </p>
-                      </div>
-
-                      {accountsLoading ? (
-                        <div className="flex items-center justify-center py-8">
-                          <LoadingSpinner />
-                        </div>
-                      ) : linkedInAccounts.length === 0 ? (
-                        <div className="rounded-xl bg-[#F8FAFC] p-4 text-center">
-                          <LinkedInIcon className="mx-auto mb-2 h-8 w-8 text-[#94A3B8]" />
-                          <p className="mb-3 text-sm text-[#64748B]">
-                            No LinkedIn accounts connected yet
-                          </p>
-                          <button className="rounded-lg bg-[#0A66C2] px-4 py-2 text-sm font-medium text-white hover:bg-[#004182]">
-                            Connect LinkedIn Account
-                          </button>
-                        </div>
+                      {isActiveCampaign ? (
+                        <>
+                          <div>
+                            <h3 className="mb-1 text-lg font-semibold text-[#1E293B]">
+                              Campaign Senders
+                            </h3>
+                            <p className="text-sm text-[#64748B]">
+                              Senders are managed from the campaign detail view.
+                            </p>
+                          </div>
+                          <div className="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-5">
+                            <div className="flex items-center gap-4">
+                              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#0A66C2]">
+                                <LinkedInIcon className="h-6 w-6 text-white" />
+                              </div>
+                              <div>
+                                <p className="text-2xl font-bold text-[#1E293B]">
+                                  {campaignDetails?.senders?.length || 0}
+                                </p>
+                                <p className="text-sm text-[#64748B]">senders active</p>
+                              </div>
+                            </div>
+                          </div>
+                          {campaignDetails?.senders && campaignDetails.senders.length > 0 && (
+                            <div className="space-y-2">
+                              {campaignDetails.senders.map((sender) => {
+                                const account = linkedInAccounts.find(
+                                  (a) => a.id === sender.linkedin_account_id
+                                );
+                                return (
+                                  <div
+                                    key={sender.id}
+                                    className="flex items-center gap-3 rounded-xl border border-[#E2E8F0] bg-white p-3"
+                                  >
+                                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-[#0A66C2] to-[#004182]">
+                                      <span className="text-xs font-semibold text-white">
+                                        {account?.name?.charAt(0) || 'S'}
+                                      </span>
+                                    </div>
+                                    <div className="flex-1">
+                                      <p className="text-sm font-medium text-[#1E293B]">
+                                        {account?.name || 'LinkedIn Account'}
+                                      </p>
+                                    </div>
+                                    <span className="rounded-full bg-[#DCFCE7] px-2 py-0.5 text-xs font-medium text-[#166534]">
+                                      Active
+                                    </span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                          <div className="flex items-start gap-2 rounded-lg border border-[#3B82F6]/20 bg-[#F0F9FF] p-3">
+                            <InfoIcon className="mt-0.5 h-4 w-4 flex-shrink-0 text-[#3B82F6]" />
+                            <p className="text-xs text-[#1E293B]">
+                              To add or remove senders, close this editor and use the campaign
+                              detail view. Sender changes take effect immediately.
+                            </p>
+                          </div>
+                        </>
                       ) : (
-                        <div className="space-y-3">
-                          {/* Select All */}
-                          <div className="flex items-center justify-between border-b border-[#E2E8F0] pb-2">
-                            <span className="text-sm text-[#64748B]">
-                              {selectedSenderIds.length} of {linkedInAccounts.length} selected
-                            </span>
-                            <button
-                              onClick={() => {
-                                if (selectedSenderIds.length === linkedInAccounts.length) {
-                                  setSelectedSenderIds([]);
-                                } else {
-                                  setSelectedSenderIds(linkedInAccounts.map((a) => a.id));
-                                }
-                              }}
-                              className="text-sm font-medium text-[#0A66C2] hover:underline"
-                            >
-                              {selectedSenderIds.length === linkedInAccounts.length
-                                ? 'Deselect all'
-                                : 'Select all'}
-                            </button>
+                        <>
+                          <div>
+                            <h3 className="mb-1 text-lg font-semibold text-[#1E293B]">
+                              Assign senders
+                            </h3>
+                            <p className="text-sm text-[#64748B]">
+                              Select LinkedIn accounts to send from. We'll auto-rotate between them.
+                            </p>
                           </div>
 
-                          {/* Account List */}
-                          <div className="max-h-[400px] space-y-2 overflow-y-auto">
-                            {linkedInAccounts.map((account) => {
-                              const isSelected = selectedSenderIds.includes(account.id);
-                              const pairedEmailId = senderEmailMap[account.id];
-                              const hasMissingEmail = hasEmailSteps && isSelected && !pairedEmailId;
-                              return (
-                                <motion.div
-                                  key={account.id}
-                                  className={`rounded-xl border transition-all ${
-                                    isSelected
-                                      ? hasMissingEmail
-                                        ? 'border-[#F59E0B] bg-[#FFFBEB]'
-                                        : 'border-[#0A66C2] bg-[#EFF6FF]'
-                                      : 'border-[#E2E8F0] hover:border-[#0A66C2]/30 hover:bg-[#F8FAFC]'
-                                  }`}
-                                  whileHover={{ scale: 1.01 }}
-                                  whileTap={{ scale: 0.99 }}
+                          {accountsLoading ? (
+                            <div className="flex items-center justify-center py-8">
+                              <LoadingSpinner />
+                            </div>
+                          ) : linkedInAccounts.length === 0 ? (
+                            <div className="rounded-xl bg-[#F8FAFC] p-4 text-center">
+                              <LinkedInIcon className="mx-auto mb-2 h-8 w-8 text-[#94A3B8]" />
+                              <p className="mb-3 text-sm text-[#64748B]">
+                                No LinkedIn accounts connected yet
+                              </p>
+                              <button className="rounded-lg bg-[#0A66C2] px-4 py-2 text-sm font-medium text-white hover:bg-[#004182]">
+                                Connect LinkedIn Account
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="space-y-3">
+                              {/* Select All */}
+                              <div className="flex items-center justify-between border-b border-[#E2E8F0] pb-2">
+                                <span className="text-sm text-[#64748B]">
+                                  {selectedSenderIds.length} of {linkedInAccounts.length} selected
+                                </span>
+                                <button
+                                  onClick={() => {
+                                    if (selectedSenderIds.length === linkedInAccounts.length) {
+                                      setSelectedSenderIds([]);
+                                    } else {
+                                      setSelectedSenderIds(linkedInAccounts.map((a) => a.id));
+                                    }
+                                  }}
+                                  className="text-sm font-medium text-[#0A66C2] hover:underline"
                                 >
-                                  <div
-                                    className="flex cursor-pointer items-center gap-3 p-3"
-                                    onClick={() => {
-                                      if (isSelected) {
-                                        setSelectedSenderIds((ids) =>
-                                          ids.filter((id) => id !== account.id)
-                                        );
-                                      } else {
-                                        setSelectedSenderIds((ids) => [...ids, account.id]);
-                                      }
-                                    }}
-                                  >
-                                    {/* Checkbox */}
-                                    <div
-                                      className={`flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border-2 transition-colors ${
+                                  {selectedSenderIds.length === linkedInAccounts.length
+                                    ? 'Deselect all'
+                                    : 'Select all'}
+                                </button>
+                              </div>
+
+                              {/* Account List */}
+                              <div className="max-h-[400px] space-y-2 overflow-y-auto">
+                                {linkedInAccounts.map((account) => {
+                                  const isSelected = selectedSenderIds.includes(account.id);
+                                  const pairedEmailId = senderEmailMap[account.id];
+                                  const hasMissingEmail =
+                                    hasEmailSteps && isSelected && !pairedEmailId;
+                                  return (
+                                    <motion.div
+                                      key={account.id}
+                                      className={`rounded-xl border transition-all ${
                                         isSelected
-                                          ? 'border-[#0A66C2] bg-[#0A66C2]'
-                                          : 'border-[#D1D5DB]'
+                                          ? hasMissingEmail
+                                            ? 'border-[#F59E0B] bg-[#FFFBEB]'
+                                            : 'border-[#0A66C2] bg-[#EFF6FF]'
+                                          : 'border-[#E2E8F0] hover:border-[#0A66C2]/30 hover:bg-[#F8FAFC]'
                                       }`}
+                                      whileHover={{ scale: 1.01 }}
+                                      whileTap={{ scale: 0.99 }}
                                     >
-                                      {isSelected && (
-                                        <svg
-                                          className="h-3 w-3 text-white"
-                                          fill="none"
-                                          viewBox="0 0 24 24"
-                                          stroke="currentColor"
-                                          strokeWidth={3}
-                                        >
-                                          <path
-                                            strokeLinecap="round"
-                                            strokeLinejoin="round"
-                                            d="M5 13l4 4L19 7"
-                                          />
-                                        </svg>
-                                      )}
-                                    </div>
-
-                                    {/* Avatar */}
-                                    <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#0A66C2] to-[#004182]">
-                                      {account.avatar_url ? (
-                                        <img
-                                          src={account.avatar_url}
-                                          alt={account.name || 'Account'}
-                                          className="h-10 w-10 rounded-full object-cover"
-                                        />
-                                      ) : (
-                                        <span className="text-sm font-semibold text-white">
-                                          {account.name?.charAt(0) || 'U'}
-                                        </span>
-                                      )}
-                                    </div>
-
-                                    {/* Info */}
-                                    <div className="min-w-0 flex-1">
-                                      <p className="truncate font-medium text-[#1E293B]">
-                                        {account.name || 'Unknown'}
-                                      </p>
-                                      <p className="truncate text-sm text-[#64748B]">
-                                        {account.profile_url || 'LinkedIn Account'}
-                                      </p>
-                                    </div>
-
-                                    {/* Status */}
-                                    <div
-                                      className={`flex-shrink-0 rounded-full px-2 py-1 text-xs font-medium ${
-                                        account.status === 'connected'
-                                          ? 'bg-[#DCFCE7] text-[#166534]'
-                                          : account.status === 'warning'
-                                            ? 'bg-[#FEF3C7] text-[#92400E]'
-                                            : 'bg-[#FEE2E2] text-[#DC2626]'
-                                      }`}
-                                    >
-                                      {account.status === 'connected'
-                                        ? 'Connected'
-                                        : account.status === 'warning'
-                                          ? 'Warning'
-                                          : account.status === 'disconnected'
-                                            ? 'Disconnected'
-                                            : 'Banned'}
-                                    </div>
-                                  </div>
-
-                                  {/* Inline email dropdown - shown when selected and has email steps */}
-                                  {hasEmailSteps && isSelected && (
-                                    <div className="border-t border-[#E2E8F0]/50 px-3 pb-3 pt-2">
-                                      <div className="flex items-center gap-2">
-                                        <EmailIcon className="h-4 w-4 flex-shrink-0 text-[#64748B]" />
-                                        <select
-                                          value={pairedEmailId || ''}
-                                          onChange={(e) => {
-                                            e.stopPropagation();
-                                            setSenderEmailMap((prev) => {
-                                              const next = { ...prev };
-                                              if (e.target.value) {
-                                                next[account.id] = e.target.value;
-                                              } else {
-                                                delete next[account.id];
-                                              }
-                                              return next;
-                                            });
-                                          }}
-                                          onClick={(e) => e.stopPropagation()}
-                                          className={`flex-1 rounded-lg border px-2 py-1.5 text-sm focus:outline-none focus:ring-1 ${
-                                            pairedEmailId
-                                              ? 'border-[#22C55E]/30 bg-white text-[#1E293B] focus:border-[#22C55E] focus:ring-[#22C55E]/20'
-                                              : 'border-[#F59E0B]/50 bg-[#FFFBEB] text-[#92400E] focus:border-[#F59E0B] focus:ring-[#F59E0B]/20'
+                                      <div
+                                        className="flex cursor-pointer items-center gap-3 p-3"
+                                        onClick={() => {
+                                          if (isSelected) {
+                                            setSelectedSenderIds((ids) =>
+                                              ids.filter((id) => id !== account.id)
+                                            );
+                                          } else {
+                                            setSelectedSenderIds((ids) => [...ids, account.id]);
+                                          }
+                                        }}
+                                      >
+                                        {/* Checkbox */}
+                                        <div
+                                          className={`flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border-2 transition-colors ${
+                                            isSelected
+                                              ? 'border-[#0A66C2] bg-[#0A66C2]'
+                                              : 'border-[#D1D5DB]'
                                           }`}
                                         >
-                                          <option value="">Select email account...</option>
-                                          {connectedEmailAccounts.map((email) => (
-                                            <option key={email.id} value={email.id}>
-                                              {email.email_address}
-                                            </option>
-                                          ))}
-                                        </select>
-                                        {pairedEmailId ? (
-                                          <div className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-[#22C55E]">
+                                          {isSelected && (
                                             <svg
                                               className="h-3 w-3 text-white"
                                               fill="none"
@@ -1941,43 +2073,143 @@ function CreateCampaignModal({
                                                 d="M5 13l4 4L19 7"
                                               />
                                             </svg>
-                                          </div>
-                                        ) : (
-                                          <div className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-[#F59E0B]">
-                                            <span className="text-xs font-bold text-white">!</span>
-                                          </div>
-                                        )}
+                                          )}
+                                        </div>
+
+                                        {/* Avatar */}
+                                        <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-[#0A66C2] to-[#004182]">
+                                          {account.avatar_url ? (
+                                            <img
+                                              src={account.avatar_url}
+                                              alt={account.name || 'Account'}
+                                              className="h-10 w-10 rounded-full object-cover"
+                                            />
+                                          ) : (
+                                            <span className="text-sm font-semibold text-white">
+                                              {account.name?.charAt(0) || 'U'}
+                                            </span>
+                                          )}
+                                        </div>
+
+                                        {/* Info */}
+                                        <div className="min-w-0 flex-1">
+                                          <p className="truncate font-medium text-[#1E293B]">
+                                            {account.name || 'Unknown'}
+                                          </p>
+                                          <p className="truncate text-sm text-[#64748B]">
+                                            {account.profile_url || 'LinkedIn Account'}
+                                          </p>
+                                        </div>
+
+                                        {/* Status */}
+                                        <div
+                                          className={`flex-shrink-0 rounded-full px-2 py-1 text-xs font-medium ${
+                                            account.status === 'connected'
+                                              ? 'bg-[#DCFCE7] text-[#166534]'
+                                              : account.status === 'warning'
+                                                ? 'bg-[#FEF3C7] text-[#92400E]'
+                                                : 'bg-[#FEE2E2] text-[#DC2626]'
+                                          }`}
+                                        >
+                                          {account.status === 'connected'
+                                            ? 'Connected'
+                                            : account.status === 'warning'
+                                              ? 'Warning'
+                                              : account.status === 'disconnected'
+                                                ? 'Disconnected'
+                                                : 'Banned'}
+                                        </div>
                                       </div>
-                                    </div>
-                                  )}
-                                </motion.div>
-                              );
-                            })}
-                          </div>
 
-                          {/* Info tip */}
-                          <div className="flex items-start gap-2 rounded-lg border border-[#3B82F6]/20 bg-[#F0F9FF] p-3">
-                            <InfoIcon className="mt-0.5 h-4 w-4 flex-shrink-0 text-[#3B82F6]" />
-                            <p className="text-xs text-[#1E293B]">
-                              Selected accounts will auto-rotate to send messages, keeping each
-                              within safe daily limits.
-                            </p>
-                          </div>
+                                      {/* Inline email dropdown - shown when selected and has email steps */}
+                                      {hasEmailSteps && isSelected && (
+                                        <div className="border-t border-[#E2E8F0]/50 px-3 pb-3 pt-2">
+                                          <div className="flex items-center gap-2">
+                                            <EmailIcon className="h-4 w-4 flex-shrink-0 text-[#64748B]" />
+                                            <select
+                                              value={pairedEmailId || ''}
+                                              onChange={(e) => {
+                                                e.stopPropagation();
+                                                setSenderEmailMap((prev) => {
+                                                  const next = { ...prev };
+                                                  if (e.target.value) {
+                                                    next[account.id] = e.target.value;
+                                                  } else {
+                                                    delete next[account.id];
+                                                  }
+                                                  return next;
+                                                });
+                                              }}
+                                              onClick={(e) => e.stopPropagation()}
+                                              className={`flex-1 rounded-lg border px-2 py-1.5 text-sm focus:outline-none focus:ring-1 ${
+                                                pairedEmailId
+                                                  ? 'border-[#22C55E]/30 bg-white text-[#1E293B] focus:border-[#22C55E] focus:ring-[#22C55E]/20'
+                                                  : 'border-[#F59E0B]/50 bg-[#FFFBEB] text-[#92400E] focus:border-[#F59E0B] focus:ring-[#F59E0B]/20'
+                                              }`}
+                                            >
+                                              <option value="">Select email account...</option>
+                                              {connectedEmailAccounts.map((email) => (
+                                                <option key={email.id} value={email.id}>
+                                                  {email.email_address}
+                                                </option>
+                                              ))}
+                                            </select>
+                                            {pairedEmailId ? (
+                                              <div className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-[#22C55E]">
+                                                <svg
+                                                  className="h-3 w-3 text-white"
+                                                  fill="none"
+                                                  viewBox="0 0 24 24"
+                                                  stroke="currentColor"
+                                                  strokeWidth={3}
+                                                >
+                                                  <path
+                                                    strokeLinecap="round"
+                                                    strokeLinejoin="round"
+                                                    d="M5 13l4 4L19 7"
+                                                  />
+                                                </svg>
+                                              </div>
+                                            ) : (
+                                              <div className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-[#F59E0B]">
+                                                <span className="text-xs font-bold text-white">
+                                                  !
+                                                </span>
+                                              </div>
+                                            )}
+                                          </div>
+                                        </div>
+                                      )}
+                                    </motion.div>
+                                  );
+                                })}
+                              </div>
 
-                          {/* Email pairing warning */}
-                          {hasEmailSteps &&
-                            selectedSenderIds.length > 0 &&
-                            !allSendersHaveEmail && (
-                              <div className="flex items-start gap-2 rounded-lg border border-[#F59E0B]/20 bg-[#FFFBEB] p-3">
-                                <WarningIcon className="mt-0.5 h-4 w-4 flex-shrink-0 text-[#F59E0B]" />
-                                <p className="text-xs text-[#92400E]">
-                                  {selectedSenderIds.filter((id) => !senderEmailMap[id]).length}{' '}
-                                  sender(s) have no email account assigned. Assign an email to each
-                                  sender to enable email steps.
+                              {/* Info tip */}
+                              <div className="flex items-start gap-2 rounded-lg border border-[#3B82F6]/20 bg-[#F0F9FF] p-3">
+                                <InfoIcon className="mt-0.5 h-4 w-4 flex-shrink-0 text-[#3B82F6]" />
+                                <p className="text-xs text-[#1E293B]">
+                                  Selected accounts will auto-rotate to send messages, keeping each
+                                  within safe daily limits.
                                 </p>
                               </div>
-                            )}
-                        </div>
+
+                              {/* Email pairing warning */}
+                              {hasEmailSteps &&
+                                selectedSenderIds.length > 0 &&
+                                !allSendersHaveEmail && (
+                                  <div className="flex items-start gap-2 rounded-lg border border-[#F59E0B]/20 bg-[#FFFBEB] p-3">
+                                    <WarningIcon className="mt-0.5 h-4 w-4 flex-shrink-0 text-[#F59E0B]" />
+                                    <p className="text-xs text-[#92400E]">
+                                      {selectedSenderIds.filter((id) => !senderEmailMap[id]).length}{' '}
+                                      sender(s) have no email account assigned. Assign an email to
+                                      each sender to enable email steps.
+                                    </p>
+                                  </div>
+                                )}
+                            </div>
+                          )}
+                        </>
                       )}
                     </motion.div>
                   )}
@@ -1992,10 +2224,12 @@ function CreateCampaignModal({
                     >
                       <div>
                         <h3 className="mb-1 text-lg font-semibold text-[#1E293B]">
-                          Review your campaign
+                          {isActiveCampaign ? 'Review changes' : 'Review your campaign'}
                         </h3>
                         <p className="text-sm text-[#64748B]">
-                          Make sure everything looks good before launching.
+                          {isActiveCampaign
+                            ? 'Review your changes before saving. Changes take effect immediately.'
+                            : 'Make sure everything looks good before launching.'}
                         </p>
                       </div>
 
@@ -2012,7 +2246,9 @@ function CreateCampaignModal({
                               {isEditMode ? 'Leads' : 'Lead List'}
                             </span>
                             <span className="font-medium text-[#1E293B]">
-                              {isEditMode ? (
+                              {isActiveCampaign ? (
+                                <>{campaignDetails?.lead_count || 0} assigned</>
+                              ) : isEditMode ? (
                                 <>
                                   {campaignDetails?.lead_count || 0} current
                                   {selectedLeadListId &&
@@ -2051,7 +2287,9 @@ function CreateCampaignModal({
                           <div className="flex items-center justify-between">
                             <span className="text-sm text-[#64748B]">LinkedIn Senders</span>
                             <span className="font-medium text-[#1E293B]">
-                              {selectedSenderIds.length} selected
+                              {isActiveCampaign
+                                ? `${campaignDetails?.senders?.length || 0} active`
+                                : `${selectedSenderIds.length} selected`}
                             </span>
                           </div>
                           {hasEmailSteps && (
@@ -2068,10 +2306,23 @@ function CreateCampaignModal({
                           )}
                         </div>
 
-                        {!isEditMode &&
-                        selectedLeadListId &&
-                        leadAvailability &&
-                        leadAvailability.available === 0 ? (
+                        {isActiveCampaign ? (
+                          <div className="flex items-start gap-3 rounded-xl border border-[#3B82F6]/20 bg-[#F0F9FF] p-4">
+                            <InfoIcon className="mt-0.5 h-5 w-5 flex-shrink-0 text-[#3B82F6]" />
+                            <div>
+                              <p className="text-sm font-medium text-[#1E40AF]">
+                                Campaign is {editingCampaign?.status}
+                              </p>
+                              <p className="text-xs text-[#3B82F6]">
+                                Save to apply your changes. Updated step content takes effect
+                                immediately for leads that haven't reached the edited steps yet.
+                              </p>
+                            </div>
+                          </div>
+                        ) : !isEditMode &&
+                          selectedLeadListId &&
+                          leadAvailability &&
+                          leadAvailability.available === 0 ? (
                           <div className="flex items-start gap-3 rounded-xl border border-[#EF4444]/20 bg-[#FEF2F2] p-4">
                             <WarningIcon className="mt-0.5 h-5 w-5 flex-shrink-0 text-[#EF4444]" />
                             <div>
@@ -2164,40 +2415,52 @@ function CreateCampaignModal({
                 <div className="flex gap-2">
                   {step === 'review' && (
                     <>
-                      <button
-                        onClick={() => handleSaveWithValidation(false)}
-                        disabled={!campaignName || isSaving}
-                        className="rounded-lg border border-[#E2E8F0] px-6 py-2 font-medium text-[#64748B] hover:bg-[#F8FAFC] disabled:opacity-50"
-                      >
-                        {isSaving ? 'Saving...' : isEditMode ? 'Save Changes' : 'Save as Draft'}
-                      </button>
-                      {selectedSenderIds.length > 0 && allSendersHaveEmail && (
+                      {isActiveCampaign ? (
                         <button
-                          onClick={() => handleSaveWithValidation(true)}
-                          disabled={
-                            !campaignName ||
-                            isSaving ||
-                            (!isEditMode &&
-                              !!selectedLeadListId &&
-                              !!leadAvailability &&
-                              leadAvailability.available === 0)
-                          }
-                          className="rounded-lg bg-[#22C55E] px-6 py-2 font-medium text-white hover:bg-[#16A34A] disabled:opacity-50"
-                          title={
-                            !isEditMode &&
-                            selectedLeadListId &&
-                            leadAvailability &&
-                            leadAvailability.available === 0
-                              ? 'Cannot start: No available leads'
-                              : ''
-                          }
+                          onClick={() => handleSaveWithValidation(false)}
+                          disabled={!campaignName || isSaving}
+                          className="rounded-lg bg-[#FF6B35] px-6 py-2 font-medium text-white hover:bg-[#E85A2A] disabled:opacity-50"
                         >
-                          {isSaving
-                            ? 'Starting...'
-                            : isEditMode
-                              ? 'Save and Start'
-                              : 'Create and Start'}
+                          {isSaving ? 'Saving...' : 'Save Changes'}
                         </button>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => handleSaveWithValidation(false)}
+                            disabled={!campaignName || isSaving}
+                            className="rounded-lg border border-[#E2E8F0] px-6 py-2 font-medium text-[#64748B] hover:bg-[#F8FAFC] disabled:opacity-50"
+                          >
+                            {isSaving ? 'Saving...' : isEditMode ? 'Save Changes' : 'Save as Draft'}
+                          </button>
+                          {selectedSenderIds.length > 0 && allSendersHaveEmail && (
+                            <button
+                              onClick={() => handleSaveWithValidation(true)}
+                              disabled={
+                                !campaignName ||
+                                isSaving ||
+                                (!isEditMode &&
+                                  !!selectedLeadListId &&
+                                  !!leadAvailability &&
+                                  leadAvailability.available === 0)
+                              }
+                              className="rounded-lg bg-[#22C55E] px-6 py-2 font-medium text-white hover:bg-[#16A34A] disabled:opacity-50"
+                              title={
+                                !isEditMode &&
+                                selectedLeadListId &&
+                                leadAvailability &&
+                                leadAvailability.available === 0
+                                  ? 'Cannot start: No available leads'
+                                  : ''
+                              }
+                            >
+                              {isSaving
+                                ? 'Starting...'
+                                : isEditMode
+                                  ? 'Save and Start'
+                                  : 'Create and Start'}
+                            </button>
+                          )}
+                        </>
                       )}
                     </>
                   )}
@@ -2382,23 +2645,23 @@ function CampaignDetailDrawer({
 
             {/* Action Buttons */}
             <div className="mt-4 flex flex-wrap gap-2">
+              {campaign.status !== 'completed' && (
+                <button
+                  onClick={() => onEdit(campaign)}
+                  className="rounded-lg border border-[#FF6B35] px-4 py-2 text-sm font-medium text-[#FF6B35] hover:bg-[#FFF5F2]"
+                >
+                  Edit
+                </button>
+              )}
               {campaign.status === 'draft' && (
-                <>
-                  <button
-                    onClick={() => onEdit(campaign)}
-                    className="rounded-lg border border-[#FF6B35] px-4 py-2 text-sm font-medium text-[#FF6B35] hover:bg-[#FFF5F2]"
-                  >
-                    Edit
-                  </button>
-                  <button
-                    onClick={async () => {
-                      await startCampaign.mutateAsync();
-                    }}
-                    className="rounded-lg bg-[#22C55E] px-4 py-2 text-sm font-medium text-white hover:bg-[#16A34A]"
-                  >
-                    Start Campaign
-                  </button>
-                </>
+                <button
+                  onClick={async () => {
+                    await startCampaign.mutateAsync();
+                  }}
+                  className="rounded-lg bg-[#22C55E] px-4 py-2 text-sm font-medium text-white hover:bg-[#16A34A]"
+                >
+                  Start Campaign
+                </button>
               )}
               {campaign.status === 'active' && (
                 <button
