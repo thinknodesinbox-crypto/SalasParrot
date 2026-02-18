@@ -3007,8 +3007,11 @@ function SequenceStepNode({ step }: { step: { type: string; config: Record<strin
       getDetail: () => {
         const condType = step.config.condition_type;
         if (condType === 'connected') return 'If Connected';
-        if (condType === 'replied') return 'If Replied';
-        if (condType === 'opened') return 'If Opened';
+        if (condType === 'replied' || condType === 'message_replied') return 'If Message Replied';
+        if (condType === 'message_seen') return 'If Message Seen';
+        if (condType === 'email_opened' || condType === 'opened') return 'If Email Opened';
+        if (condType === 'email_link_clicked') return 'If Email Link Clicked';
+        if (condType === 'email_replied') return 'If Email Replied';
         return null;
       },
     },

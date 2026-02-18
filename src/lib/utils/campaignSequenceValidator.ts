@@ -239,34 +239,42 @@ function checkConditionAfterActionWithoutWait(
       });
     }
 
-    // Check: linkedin_message directly followed by condition (replied)
+    // Check: linkedin_message directly followed by condition (message_replied or message_seen)
     if (
       current.type === 'linkedin_message' &&
       next.type === 'condition' &&
-      next.data.condition === 'replied'
+      (next.data.condition === 'message_replied' || next.data.condition === 'message_seen')
     ) {
+      const label = next.data.condition === 'message_replied' ? 'message replied' : 'message seen';
       warnings.push({
         type: 'warning',
         code: 'CONDITION_WITHOUT_WAIT',
-        message: `${prefix}Condition "replied" immediately follows message`,
+        message: `${prefix}Condition "${label}" immediately follows message`,
         suggestion:
-          'Add a delay step (e.g., 1-2 days) between the message and the reply check to give the person time to respond.',
+          'Add a delay step (e.g., 1-2 days) between the message and the condition check to give the person time to respond.',
         nodeIds: [current.id, next.id],
       });
     }
 
-    // Check: email directly followed by condition (opened)
+    // Check: email directly followed by condition (opened, replied, or link clicked)
     if (
       current.type === 'email' &&
       next.type === 'condition' &&
-      next.data.condition === 'email_opened'
+      (next.data.condition === 'email_opened' ||
+        next.data.condition === 'email_replied' ||
+        next.data.condition === 'email_link_clicked')
     ) {
+      const labelMap: Record<string, string> = {
+        email_opened: 'email opened',
+        email_replied: 'email replied',
+        email_link_clicked: 'email link clicked',
+      };
       warnings.push({
         type: 'warning',
         code: 'CONDITION_WITHOUT_WAIT',
-        message: `${prefix}Condition "opened" immediately follows email`,
+        message: `${prefix}Condition "${labelMap[next.data.condition]}" immediately follows email`,
         suggestion:
-          'Add a delay step (e.g., 1-2 days) between the email and the open check to give the person time to read it.',
+          'Add a delay step (e.g., 1-2 days) between the email and the condition check to give the person time to interact.',
         nodeIds: [current.id, next.id],
       });
     }
@@ -361,14 +369,15 @@ function checkConditionWithoutPriorAction(nodes: SequenceNode[]): SequenceWarnin
     const priorNodes = nodes.slice(0, i);
     const conditionType = node.data.condition;
 
-    if (conditionType === 'replied') {
+    if (conditionType === 'message_replied' || conditionType === 'message_seen') {
       const hasMessage = priorNodes.some((n) => n.type === 'linkedin_message');
       if (!hasMessage) {
+        const label = conditionType === 'message_replied' ? 'message replied' : 'message seen';
         warnings.push({
           type: 'warning',
           code: 'REPLY_CONDITION_WITHOUT_MESSAGE',
-          message: 'Condition "replied" has no prior message step',
-          suggestion: 'Add a message step before checking for replies.',
+          message: `Condition "${label}" has no prior message step`,
+          suggestion: 'Add a message step before checking for message interactions.',
           nodeIds: [node.id],
         });
       }
@@ -388,14 +397,23 @@ function checkConditionWithoutPriorAction(nodes: SequenceNode[]): SequenceWarnin
       }
     }
 
-    if (conditionType === 'email_opened') {
+    if (
+      conditionType === 'email_opened' ||
+      conditionType === 'email_link_clicked' ||
+      conditionType === 'email_replied'
+    ) {
       const hasEmail = priorNodes.some((n) => n.type === 'email');
       if (!hasEmail) {
+        const labelMap: Record<string, string> = {
+          email_opened: 'email opened',
+          email_link_clicked: 'email link clicked',
+          email_replied: 'email replied',
+        };
         warnings.push({
           type: 'warning',
-          code: 'OPENED_CONDITION_WITHOUT_EMAIL',
-          message: 'Condition "opened" has no prior email step',
-          suggestion: 'Add an email step before checking if email was opened.',
+          code: 'EMAIL_CONDITION_WITHOUT_EMAIL',
+          message: `Condition "${labelMap[conditionType]}" has no prior email step`,
+          suggestion: 'Add an email step before checking for email interactions.',
           nodeIds: [node.id],
         });
       }

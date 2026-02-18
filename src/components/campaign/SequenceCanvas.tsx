@@ -31,7 +31,13 @@ interface NodeData {
   subject?: string;
   delayDays?: number;
   delayHours?: number;
-  condition?: 'connected' | 'replied' | 'email_opened' | 'email_link_clicked';
+  condition?:
+    | 'connected'
+    | 'message_replied'
+    | 'message_seen'
+    | 'email_opened'
+    | 'email_link_clicked'
+    | 'email_replied';
   trueBranch?: string;
   falseBranch?: string;
 }
@@ -503,9 +509,11 @@ function TreeNode({
       case 'condition': {
         const conditionLabelMap: Record<string, string> = {
           connected: 'If Connected',
-          replied: 'If Replied',
+          message_replied: 'If Message Replied',
+          message_seen: 'If Message Seen',
           email_opened: 'If Email Opened',
-          email_link_clicked: 'If Link Clicked',
+          email_link_clicked: 'If Email Link Clicked',
+          email_replied: 'If Email Replied',
         };
         return conditionLabelMap[node.data.condition || 'connected'] || 'If / Then';
       }
@@ -610,9 +618,11 @@ function ConditionBranches({
 }) {
   const labelMap: Record<string, { trueLabel: string; falseLabel: string }> = {
     connected: { trueLabel: 'Connected', falseLabel: 'Not Connected' },
-    replied: { trueLabel: 'Replied', falseLabel: 'Not Replied' },
+    message_replied: { trueLabel: 'Replied', falseLabel: 'Not Replied' },
+    message_seen: { trueLabel: 'Seen', falseLabel: 'Not Seen' },
     email_opened: { trueLabel: 'Opened', falseLabel: 'Not Opened' },
     email_link_clicked: { trueLabel: 'Clicked', falseLabel: 'Not Clicked' },
+    email_replied: { trueLabel: 'Replied', falseLabel: 'Not Replied' },
   };
   const { trueLabel, falseLabel } = labelMap[conditionType] || labelMap.connected;
 
@@ -1687,9 +1697,11 @@ export function NodeConfigPanel({
               className={`w-full rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-sm focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20 ${readonlyStructure ? 'cursor-not-allowed opacity-60' : ''}`}
             >
               <option value="connected">If Connected</option>
-              <option value="replied">If Replied</option>
+              <option value="message_replied">If Message Replied</option>
+              <option value="message_seen">If Message Seen</option>
               <option value="email_opened">If Email Opened</option>
               <option value="email_link_clicked">If Email Link Clicked</option>
+              <option value="email_replied">If Email Replied</option>
             </select>
             <div className="mt-3 rounded-lg bg-[#F8FAFC] p-3">
               <p className="text-xs text-[#64748B]">
@@ -1698,9 +1710,11 @@ export function NodeConfigPanel({
                   {
                     {
                       connected: 'Connected',
-                      replied: 'Replied',
+                      message_replied: 'Replied',
+                      message_seen: 'Seen',
                       email_opened: 'Opened',
                       email_link_clicked: 'Clicked',
+                      email_replied: 'Replied',
                     }[node.data.condition || 'connected']
                   }
                 </strong>{' '}
@@ -1709,9 +1723,11 @@ export function NodeConfigPanel({
                   {
                     {
                       connected: 'Not Connected',
-                      replied: 'Not Replied',
+                      message_replied: 'Not Replied',
+                      message_seen: 'Not Seen',
                       email_opened: 'Not Opened',
                       email_link_clicked: 'Not Clicked',
+                      email_replied: 'Not Replied',
                     }[node.data.condition || 'connected']
                   }
                 </strong>{' '}

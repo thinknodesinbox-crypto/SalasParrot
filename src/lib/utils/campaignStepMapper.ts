@@ -57,16 +57,24 @@ export function mapNodeDataToConfig(node: SequenceNode): Record<string, unknown>
 
 // Map backend config to frontend node data
 export function mapConfigToNodeData(config: Record<string, unknown>): SequenceNode['data'] {
+  // Normalize legacy condition type: backend renamed "replied" to "message_replied"
+  let condition = config.condition_type as string | undefined;
+  if (condition === 'replied') {
+    condition = 'message_replied';
+  }
+
   return {
     message: config.message as string | undefined,
     subject: config.subject as string | undefined,
     delayDays: config.delay_days as number | undefined,
     delayHours: config.delay_hours as number | undefined,
-    condition: config.condition_type as
+    condition: condition as
       | 'connected'
-      | 'replied'
+      | 'message_replied'
+      | 'message_seen'
       | 'email_opened'
       | 'email_link_clicked'
+      | 'email_replied'
       | undefined,
   };
 }
