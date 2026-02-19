@@ -1637,18 +1637,16 @@ export function NodeConfigPanel({
                 className="w-full resize-none rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
               />
               <div className="mt-2 flex flex-wrap gap-1.5">
-                {['{{first_name}}', '{{last_name}}', '{{company}}', '{{icebreaker}}'].map(
-                  (variable) => (
-                    <button
-                      key={variable}
-                      onMouseDown={(e) => e.preventDefault()}
-                      onClick={() => insertVariable(variable)}
-                      className="rounded bg-[#FFF7ED] px-2 py-1 text-[10px] font-medium text-[#FF6B35] transition-colors hover:bg-[#FFEDD5]"
-                    >
-                      {variable}
-                    </button>
-                  )
-                )}
+                {['{{first_name}}', '{{last_name}}', '{{company}}'].map((variable) => (
+                  <button
+                    key={variable}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onClick={() => insertVariable(variable)}
+                    className="rounded bg-[#FFF7ED] px-2 py-1 text-[10px] font-medium text-[#FF6B35] transition-colors hover:bg-[#FFEDD5]"
+                  >
+                    {variable}
+                  </button>
+                ))}
               </div>
             </div>
             <div className="rounded-lg bg-[#FFF7ED] p-3">
@@ -1680,7 +1678,7 @@ export function NodeConfigPanel({
                 onChange={(html) => onUpdate({ message: html })}
                 placeholder="Hi {{first_name}}..."
                 minHeight="120px"
-                variables={['{{first_name}}', '{{last_name}}', '{{company}}', '{{icebreaker}}']}
+                variables={['{{first_name}}', '{{last_name}}', '{{company}}']}
               />
             </div>
           </>

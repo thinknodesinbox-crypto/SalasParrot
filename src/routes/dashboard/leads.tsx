@@ -1202,9 +1202,11 @@ export function ImportLeadsModal({
   const [step, setStep] = useState<'method' | 'configure' | 'processing' | 'complete'>('method');
   const [listName, setListName] = useState('');
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
-  const [importResult, setImportResult] = useState<{ created: number; skipped: number } | null>(
-    null
-  );
+  const [importResult, setImportResult] = useState<{
+    created: number;
+    skipped: number;
+    errors: string[];
+  } | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const [currentJobId, setCurrentJobId] = useState<string | null>(null);
   const [maxLeads, setMaxLeads] = useState<number | null>(null); // null = all
@@ -1230,6 +1232,7 @@ export function ImportLeadsModal({
         setImportResult({
           created: jobStatus.created_count,
           skipped: jobStatus.skipped_count,
+          errors: [],
         });
         setStep('complete');
         setCurrentJobId(null);
@@ -1602,10 +1605,30 @@ export function ImportLeadsModal({
                   <CheckCircleIcon className="h-10 w-10 text-[#22C55E]" />
                 </motion.div>
                 <h3 className="mb-2 text-xl font-bold text-[#1E293B]">Import Complete!</h3>
-                <p className="mb-8 text-[#64748B]">
+                <p className="mb-4 text-[#64748B]">
                   {importResult?.created || 0} leads imported successfully.
                   {importResult?.skipped ? ` ${importResult.skipped} duplicates skipped.` : ''}
                 </p>
+                {importResult?.errors && importResult.errors.length > 0 && (
+                  <div className="mx-auto mb-6 max-w-md rounded-xl border border-[#F59E0B]/20 bg-[#FFFBEB] p-4 text-left">
+                    <p className="mb-2 text-sm font-medium text-[#92400E]">
+                      {importResult.errors.length} row{importResult.errors.length > 1 ? 's' : ''}{' '}
+                      skipped due to errors:
+                    </p>
+                    <div className="max-h-40 overflow-y-auto text-xs text-[#92400E]">
+                      {importResult.errors.slice(0, 20).map((error, i) => (
+                        <p key={i} className="py-0.5">
+                          {error}
+                        </p>
+                      ))}
+                      {importResult.errors.length > 20 && (
+                        <p className="pt-1 font-medium">
+                          ...and {importResult.errors.length - 20} more
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
                 <button
                   onClick={handleFinish}
                   className="rounded-xl bg-[#FF6B35] px-8 py-3 font-semibold text-white transition-all hover:bg-[#E85A2A]"
@@ -1711,21 +1734,29 @@ function ImportMethodConfig({
         </div>
 
         <div className="rounded-xl bg-[#F8FAFC] p-4">
-          <p className="mb-2 text-sm font-medium text-[#1E293B]">Required columns:</p>
+          <p className="mb-2 text-sm font-medium text-[#1E293B]">Required (at least one):</p>
           <div className="flex flex-wrap gap-2">
             <span className="rounded border bg-white px-2 py-1 text-xs text-[#64748B]">
               linkedin_url
             </span>
             <span className="text-xs text-[#94A3B8]">or</span>
+            <span className="rounded border bg-white px-2 py-1 text-xs text-[#64748B]">email</span>
+            <span className="text-xs text-[#94A3B8]">or</span>
             <span className="rounded border bg-white px-2 py-1 text-xs text-[#64748B]">
               first_name
             </span>
+            <span className="text-xs text-[#94A3B8]">+</span>
             <span className="rounded border bg-white px-2 py-1 text-xs text-[#64748B]">
               last_name
             </span>
-            <span className="rounded border bg-white px-2 py-1 text-xs text-[#64748B]">
-              company
-            </span>
+          </div>
+          <p className="mb-2 mt-3 text-sm font-medium text-[#1E293B]">Optional columns:</p>
+          <div className="flex flex-wrap gap-2">
+            {['company', 'title', 'headline', 'location'].map((col) => (
+              <span key={col} className="rounded border bg-white px-2 py-1 text-xs text-[#94A3B8]">
+                {col}
+              </span>
+            ))}
           </div>
         </div>
 

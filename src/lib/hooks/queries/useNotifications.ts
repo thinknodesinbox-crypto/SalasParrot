@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { api, getAccessToken } from '../../api';
 import type { NotificationListResponse, NotificationSSEEvent } from '../../types';
+import { queryKeys } from '../../queryClient';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL;
 
@@ -130,8 +131,9 @@ export function useNotificationStream(
         setLastNotification(notification);
         onNotification?.(notification);
 
-        // Invalidate queries to refresh notification list and unread count
+        // Invalidate queries to refresh notification list, unread count, and inbox
         queryClient.invalidateQueries({ queryKey: notificationKeys.all });
+        queryClient.invalidateQueries({ queryKey: queryKeys.conversations.all });
       } catch (error) {
         console.error('Failed to parse notification:', error);
       }

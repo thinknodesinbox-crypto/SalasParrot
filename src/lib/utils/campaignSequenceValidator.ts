@@ -536,11 +536,11 @@ function checkEnrichmentBeforeEmail(nodes: SequenceNode[]): SequenceWarning[] {
   if (hasEmailStep && !hasEnrichmentStep) {
     const emailNodes = nodes.filter((n) => n.type === 'email');
     warnings.push({
-      type: 'error',
+      type: 'warning',
       code: 'EMAIL_WITHOUT_ENRICHMENT',
-      message: 'Campaign has email steps but no enrichment step',
+      message: 'No enrichment step before email steps',
       suggestion:
-        'Add an enrichment step before your email steps to find email addresses for your leads. Without enrichment, emails will be skipped for leads without an email address.',
+        "If your leads don't already have email addresses, add an enrichment step to find them. Leads without an email will be skipped during email steps.",
       nodeIds: emailNodes.map((n) => n.id),
     });
   }
