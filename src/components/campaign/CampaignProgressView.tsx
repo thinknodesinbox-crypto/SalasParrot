@@ -37,13 +37,23 @@ export function CampaignProgressView({ campaignId }: CampaignProgressViewProps) 
   // Derive sender limit text for Today card
   const senderLimitText = metrics?.sender_activity?.length
     ? (() => {
-        const totalActions = metrics.sender_activity.reduce(
-          (sum, s) => sum + s.connection_requests_today,
-          0
-        );
-        const totalLimit = metrics.sender_activity.reduce((sum, s) => sum + s.daily_limit, 0);
-        if (totalActions >= totalLimit) return `Daily limit reached (${totalLimit})`;
-        return `${totalLimit - totalActions} remaining today`;
+        const linkedInSenders = metrics.sender_activity.filter((s) => s.channel === 'linkedin');
+        const emailSenders = metrics.sender_activity.filter((s) => s.channel === 'email');
+        const parts: string[] = [];
+
+        if (linkedInSenders.length > 0) {
+          const totalCR = linkedInSenders.reduce((sum, s) => sum + s.connection_requests_today, 0);
+          const totalLimit = linkedInSenders.reduce((sum, s) => sum + s.daily_limit, 0);
+          if (totalCR >= totalLimit) parts.push(`LinkedIn limit reached (${totalLimit})`);
+          else parts.push(`${totalLimit - totalCR} LinkedIn remaining`);
+        }
+        if (emailSenders.length > 0) {
+          const totalEmails = emailSenders.reduce((sum, s) => sum + s.emails_today, 0);
+          const totalLimit = emailSenders.reduce((sum, s) => sum + s.email_daily_limit, 0);
+          if (totalEmails >= totalLimit) parts.push(`Email limit reached (${totalLimit})`);
+          else parts.push(`${totalLimit - totalEmails} emails remaining`);
+        }
+        return parts.join(' · ') || undefined;
       })()
     : undefined;
 
@@ -192,44 +202,91 @@ function StatusBanner({
 
 /* ─── Sender Activity Panel ─── */
 function SenderActivityPanel({ senders }: { senders: SenderActivityItem[] }) {
+  const linkedInSenders = senders.filter((s) => s.channel === 'linkedin');
+  const emailSenders = senders.filter((s) => s.channel === 'email');
+
   return (
     <div className="rounded-xl border border-[#E2E8F0] bg-white p-5">
       <h3 className="mb-3 text-base font-semibold text-[#1E293B]">Sender Activity</h3>
       <div className="space-y-3">
-        {senders.map((sender, index) => {
-          const usage = sender.connection_requests_today;
-          const limit = sender.daily_limit;
-          const percentage = limit > 0 ? Math.min((usage / limit) * 100, 100) : 0;
-          const atLimit = usage >= limit;
-          const nearLimit = percentage >= 80;
+        {linkedInSenders.length > 0 && (
+          <>
+            <p className="text-xs font-medium uppercase tracking-wider text-[#94A3B8]">LinkedIn</p>
+            {linkedInSenders.map((sender, index) => {
+              const usage = sender.connection_requests_today;
+              const limit = sender.daily_limit;
+              const percentage = limit > 0 ? Math.min((usage / limit) * 100, 100) : 0;
+              const atLimit = usage >= limit;
+              const nearLimit = percentage >= 80;
 
-          return (
-            <div key={index} className="space-y-1.5">
-              <div className="flex items-center justify-between text-sm">
-                <span className="font-medium text-[#1E293B]">{sender.name}</span>
-                <span
-                  className={
-                    atLimit
-                      ? 'font-semibold text-[#EF4444]'
-                      : nearLimit
-                        ? 'font-medium text-[#F59E0B]'
-                        : 'text-[#64748B]'
-                  }
-                >
-                  {usage}/{limit} requests today
-                </span>
-              </div>
-              <div className="h-2 w-full overflow-hidden rounded-full bg-[#F1F5F9]">
-                <motion.div
-                  className={`h-full rounded-full ${atLimit ? 'bg-[#EF4444]' : nearLimit ? 'bg-[#F59E0B]' : 'bg-[#3B82F6]'}`}
-                  initial={{ width: 0 }}
-                  animate={{ width: `${percentage}%` }}
-                  transition={{ duration: 0.5 }}
-                />
-              </div>
-            </div>
-          );
-        })}
+              return (
+                <div key={`li-${index}`} className="space-y-1.5">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="font-medium text-[#1E293B]">{sender.name}</span>
+                    <span
+                      className={
+                        atLimit
+                          ? 'font-semibold text-[#EF4444]'
+                          : nearLimit
+                            ? 'font-medium text-[#F59E0B]'
+                            : 'text-[#64748B]'
+                      }
+                    >
+                      {usage}/{limit} requests today
+                    </span>
+                  </div>
+                  <div className="h-2 w-full overflow-hidden rounded-full bg-[#F1F5F9]">
+                    <motion.div
+                      className={`h-full rounded-full ${atLimit ? 'bg-[#EF4444]' : nearLimit ? 'bg-[#F59E0B]' : 'bg-[#3B82F6]'}`}
+                      initial={{ width: 0 }}
+                      animate={{ width: `${percentage}%` }}
+                      transition={{ duration: 0.5 }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </>
+        )}
+        {emailSenders.length > 0 && (
+          <>
+            <p className="text-xs font-medium uppercase tracking-wider text-[#94A3B8]">Email</p>
+            {emailSenders.map((sender, index) => {
+              const usage = sender.emails_today;
+              const limit = sender.email_daily_limit;
+              const percentage = limit > 0 ? Math.min((usage / limit) * 100, 100) : 0;
+              const atLimit = usage >= limit;
+              const nearLimit = percentage >= 80;
+
+              return (
+                <div key={`em-${index}`} className="space-y-1.5">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="font-medium text-[#1E293B]">{sender.name}</span>
+                    <span
+                      className={
+                        atLimit
+                          ? 'font-semibold text-[#EF4444]'
+                          : nearLimit
+                            ? 'font-medium text-[#F59E0B]'
+                            : 'text-[#64748B]'
+                      }
+                    >
+                      {usage}/{limit} emails today
+                    </span>
+                  </div>
+                  <div className="h-2 w-full overflow-hidden rounded-full bg-[#F1F5F9]">
+                    <motion.div
+                      className={`h-full rounded-full ${atLimit ? 'bg-[#EF4444]' : nearLimit ? 'bg-[#F59E0B]' : 'bg-[#8B5CF6]'}`}
+                      initial={{ width: 0 }}
+                      animate={{ width: `${percentage}%` }}
+                      transition={{ duration: 0.5 }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </>
+        )}
       </div>
     </div>
   );

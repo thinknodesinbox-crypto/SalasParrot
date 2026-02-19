@@ -1065,9 +1065,12 @@ export interface AdminSignupTrends {
 
 export interface SenderActivityItem {
   name: string;
+  channel: 'linkedin' | 'email';
   actions_today: number;
   connection_requests_today: number;
   daily_limit: number;
+  emails_today: number;
+  email_daily_limit: number;
 }
 
 export interface CampaignMetrics {
