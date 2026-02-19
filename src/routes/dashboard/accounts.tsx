@@ -536,7 +536,7 @@ function AccountsList({ accounts }: { accounts: LinkedInAccount[] }) {
   // Calculate total daily capacity from daily_limits
   const totalDailyCapacity = accounts.reduce((sum, a) => {
     const limits = a.daily_limits || {};
-    return sum + (limits.connections || 0) + (limits.messages || 0);
+    return sum + (limits.connection_requests || 0) + (limits.messages || 0);
   }, 0);
 
   return (
@@ -560,6 +560,7 @@ function AccountsList({ accounts }: { accounts: LinkedInAccount[] }) {
           value={totalDailyCapacity.toString()}
           icon={<CapacityIcon />}
           color="#FF6B35"
+          subtitle="Connection requests + messages"
         />
         <StatCard
           label="Premium Accounts"
@@ -745,7 +746,7 @@ function AccountCard({
     .join('')
     .slice(0, 2);
   const dailyLimit =
-    (account.daily_limits?.connections || 0) + (account.daily_limits?.messages || 0);
+    (account.daily_limits?.connection_requests || 0) + (account.daily_limits?.messages || 0);
 
   const subscriptionLabels: Record<string, string> = {
     free: 'LinkedIn Classic',
@@ -936,7 +937,7 @@ function AccountRow({
     .join('')
     .slice(0, 2);
   const dailyLimit =
-    (account.daily_limits?.connections || 0) + (account.daily_limits?.messages || 0);
+    (account.daily_limits?.connection_requests || 0) + (account.daily_limits?.messages || 0);
 
   const subscriptionLabels: Record<string, string> = {
     free: 'LinkedIn Classic',
@@ -2604,11 +2605,13 @@ function StatCard({
   value,
   icon,
   color,
+  subtitle,
 }: {
   label: string;
   value: string;
   icon: React.ReactNode;
   color: string;
+  subtitle?: string;
 }) {
   return (
     <div className="rounded-xl border border-[#E2E8F0] bg-white p-4 transition-shadow hover:shadow-md">
@@ -2622,6 +2625,7 @@ function StatCard({
         <div>
           <p className="text-2xl font-bold text-[#1E293B]">{value}</p>
           <p className="text-xs text-[#64748B]">{label}</p>
+          {subtitle && <p className="text-[10px] text-[#94A3B8]">{subtitle}</p>}
         </div>
       </div>
     </div>
