@@ -55,6 +55,7 @@ function OnboardingPage() {
       // If user already has a subscription, partner access, or was invited to a workspace, go to dashboard
       if (
         user.subscription_status === 'active' ||
+        user.subscription_status === 'trialing' ||
         user.partner_access?.is_active ||
         user.has_invited_workspace_access
       ) {
@@ -138,10 +139,10 @@ function OnboardingPage() {
       let checkout_url: string;
 
       if (selectedPlan === 'agency') {
-        // Agency plan - no trial, direct checkout with optional annual billing
+        // Agency plan - $1 trial with optional annual billing
         const result = await createAgencyCheckout.mutateAsync({
           annual: billingPeriod === 'annual',
-          success_url: `${window.location.origin}/dashboard?plan=agency`,
+          success_url: `${window.location.origin}/dashboard?trial=started`,
           cancel_url: `${window.location.origin}/onboarding?checkout=cancelled`,
         });
         checkout_url = result.checkout_url;
@@ -556,18 +557,16 @@ function OnboardingPage() {
                   <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
                   Starting checkout...
                 </span>
-              ) : selectedPlan === 'growth' ? (
-                'Start $1 Trial'
               ) : (
-                `Subscribe to Agency${billingPeriod === 'annual' ? ' (Annual)' : ''}`
+                'Start $1 Trial'
               )}
             </button>
             <p className="mt-3 text-center text-xs text-[#94A3B8]">
               {selectedPlan === 'growth'
                 ? `7-day trial for $1, then $${totalPrice}/month. Cancel anytime.`
                 : billingPeriod === 'annual'
-                  ? 'Billed annually at $8,988. Cancel anytime.'
-                  : '$999/month. Cancel anytime.'}
+                  ? '7-day trial for $1, then $8,988/year. Cancel anytime.'
+                  : '7-day trial for $1, then $999/month. Cancel anytime.'}
             </p>
           </motion.div>
         </div>

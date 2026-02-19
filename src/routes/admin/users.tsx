@@ -20,6 +20,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Eye,
+  AlertTriangle,
 } from 'lucide-react';
 
 export const Route = createFileRoute('/admin/users')({
@@ -33,6 +34,7 @@ function AdminUsersPage() {
   const [statusFilter, setStatusFilter] = useState<string>('');
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
   const [deletingUser, setDeletingUser] = useState<AdminUser | null>(null);
+  const [deleteMode, setDeleteMode] = useState<'soft' | 'permanent'>('soft');
   const { theme } = useAdminTheme();
 
   const isDark = theme === 'dark';
@@ -77,8 +79,12 @@ function AdminUsersPage() {
   const handleDelete = async () => {
     if (!deletingUser) return;
     try {
-      await deleteUser.mutateAsync(deletingUser.id);
+      await deleteUser.mutateAsync({
+        userId: deletingUser.id,
+        permanent: deleteMode === 'permanent',
+      });
       setDeletingUser(null);
+      setDeleteMode('soft');
     } catch {
       // Error handled by mutation
     }
@@ -219,7 +225,14 @@ function AdminUsersPage() {
                   key={user.id}
                   user={user}
                   onEdit={() => setEditingUser(user)}
-                  onDelete={() => setDeletingUser(user)}
+                  onDeactivate={() => {
+                    setDeleteMode('soft');
+                    setDeletingUser(user);
+                  }}
+                  onDeletePermanently={() => {
+                    setDeleteMode('permanent');
+                    setDeletingUser(user);
+                  }}
                   onImpersonate={() => handleImpersonate(user)}
                   isDark={isDark}
                 />
@@ -287,7 +300,11 @@ function AdminUsersPage() {
         {deletingUser && (
           <DeleteConfirmModal
             user={deletingUser}
-            onClose={() => setDeletingUser(null)}
+            permanent={deleteMode === 'permanent'}
+            onClose={() => {
+              setDeletingUser(null);
+              setDeleteMode('soft');
+            }}
             onConfirm={handleDelete}
             isLoading={deleteUser.isPending}
             isDark={isDark}
@@ -301,13 +318,15 @@ function AdminUsersPage() {
 function UserRow({
   user,
   onEdit,
-  onDelete,
+  onDeactivate,
+  onDeletePermanently,
   onImpersonate,
   isDark,
 }: {
   user: AdminUser;
   onEdit: () => void;
-  onDelete: () => void;
+  onDeactivate: () => void;
+  onDeletePermanently: () => void;
   onImpersonate: () => void;
   isDark: boolean;
 }) {
@@ -443,15 +462,27 @@ function UserRow({
                 </button>
                 <button
                   onClick={() => {
-                    onDelete();
+                    onDeactivate();
                     setShowMenu(false);
                   }}
-                  className={`flex w-full items-center gap-2 px-4 py-2 text-sm text-red-400 ${
+                  className={`flex w-full items-center gap-2 px-4 py-2 text-sm text-yellow-500 ${
+                    isDark ? 'hover:bg-white/5' : 'hover:bg-gray-100'
+                  }`}
+                >
+                  <X className="h-4 w-4" />
+                  Deactivate
+                </button>
+                <button
+                  onClick={() => {
+                    onDeletePermanently();
+                    setShowMenu(false);
+                  }}
+                  className={`flex w-full items-center gap-2 px-4 py-2 text-sm text-red-500 ${
                     isDark ? 'hover:bg-white/5' : 'hover:bg-gray-100'
                   }`}
                 >
                   <Trash2 className="h-4 w-4" />
-                  Deactivate
+                  Delete permanently
                 </button>
               </div>
             </>
@@ -669,17 +700,21 @@ function EditUserModal({
 
 function DeleteConfirmModal({
   user,
+  permanent,
   onClose,
   onConfirm,
   isLoading,
   isDark,
 }: {
   user: AdminUser;
+  permanent: boolean;
   onClose: () => void;
   onConfirm: () => void;
   isLoading: boolean;
   isDark: boolean;
 }) {
+  const [confirmText, setConfirmText] = useState('');
+
   return createPortal(
     <motion.div
       initial={{ opacity: 0 }}
@@ -695,14 +730,49 @@ function DeleteConfirmModal({
         onClick={(e) => e.stopPropagation()}
         className={`w-full max-w-sm rounded-xl border p-6 ${isDark ? 'border-white/10 bg-[#111113]' : 'border-gray-200 bg-white'}`}
       >
-        <h2 className={`mb-2 text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
-          Deactivate User
-        </h2>
-        <p className={`mb-6 text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
-          Are you sure you want to deactivate{' '}
-          <strong className={isDark ? 'text-white' : 'text-gray-900'}>{user.email}</strong>? They
-          will no longer be able to access the platform.
-        </p>
+        {permanent ? (
+          <>
+            <div className="mb-4 flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-red-500/10">
+                <AlertTriangle className="h-5 w-5 text-red-500" />
+              </div>
+              <h2 className={`text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+                Delete User Permanently
+              </h2>
+            </div>
+            <p className={`mb-3 text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+              This will permanently delete{' '}
+              <strong className={isDark ? 'text-white' : 'text-gray-900'}>{user.email}</strong> and
+              all their data including leads, campaigns, messages, and connected accounts. This
+              action cannot be undone.
+            </p>
+            <p className={`mb-4 text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+              Type <strong className="text-red-500">DELETE</strong> to confirm:
+            </p>
+            <input
+              type="text"
+              value={confirmText}
+              onChange={(e) => setConfirmText(e.target.value)}
+              placeholder="DELETE"
+              className={`mb-6 h-10 w-full rounded-lg border px-3 text-sm focus:border-red-500 focus:outline-none ${
+                isDark
+                  ? 'border-white/10 bg-white/5 text-white placeholder-gray-500'
+                  : 'border-gray-200 bg-gray-50 text-gray-900 placeholder-gray-400'
+              }`}
+            />
+          </>
+        ) : (
+          <>
+            <h2 className={`mb-2 text-lg font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>
+              Deactivate User
+            </h2>
+            <p className={`mb-6 text-sm ${isDark ? 'text-gray-400' : 'text-gray-600'}`}>
+              Are you sure you want to deactivate{' '}
+              <strong className={isDark ? 'text-white' : 'text-gray-900'}>{user.email}</strong>?
+              They will no longer be able to access the platform. Their data will be preserved.
+            </p>
+          </>
+        )}
 
         <div className="flex justify-end gap-3">
           <button
@@ -717,10 +787,16 @@ function DeleteConfirmModal({
           </button>
           <button
             onClick={onConfirm}
-            disabled={isLoading}
+            disabled={isLoading || (permanent && confirmText !== 'DELETE')}
             className="rounded-lg bg-red-500 px-4 py-2 text-sm font-medium text-white hover:bg-red-600 disabled:opacity-50"
           >
-            {isLoading ? 'Deactivating...' : 'Deactivate'}
+            {isLoading
+              ? permanent
+                ? 'Deleting...'
+                : 'Deactivating...'
+              : permanent
+                ? 'Delete permanently'
+                : 'Deactivate'}
           </button>
         </div>
       </motion.div>

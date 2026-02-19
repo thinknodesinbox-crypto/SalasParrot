@@ -79,8 +79,10 @@ export function useDeleteAdminUser() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (userId: string) => {
-      await api.delete(`/admin/users/${userId}`);
+    mutationFn: async ({ userId, permanent = false }: { userId: string; permanent?: boolean }) => {
+      await api.delete(`/admin/users/${userId}`, {
+        params: permanent ? { permanent: true } : undefined,
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'users'] });
