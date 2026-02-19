@@ -648,8 +648,12 @@ function ActivityFeed({ activity }: { activity: CampaignActivity }) {
     wait: 'Waiting on',
     condition: 'Evaluated condition for',
     email: 'Sent email to',
+    email_followup: 'Sent follow-up email to',
     inmail: 'Sent InMail to',
     enrichment: 'Enriched',
+    email_opened: 'Email opened by',
+    email_link_clicked: 'Email link clicked by',
+    email_reply: 'Received email reply from',
   };
 
   const outcomeIcons: Record<string, { icon: string; color: string }> = {
