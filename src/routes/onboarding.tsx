@@ -32,7 +32,19 @@ function OnboardingPage() {
 
   const [selectedPlan, setSelectedPlan] = useState<'growth' | 'agency'>('growth');
   const [billingPeriod, setBillingPeriod] = useState<'monthly' | 'annual'>('monthly');
-  const [senderCount, setSenderCount] = useState(1);
+  const [senderCount, setSenderCount] = useState(() => {
+    const stored = localStorage.getItem('onboarding_senders');
+    if (stored) {
+      const s = parseInt(stored, 10);
+      if (s > 1 && s <= 20) return s;
+    }
+    return 1;
+  });
+
+  // Clean up after reading — done in useEffect so a double-mount (strict mode) still reads the value
+  useEffect(() => {
+    localStorage.removeItem('onboarding_senders');
+  }, []);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

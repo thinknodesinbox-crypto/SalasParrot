@@ -145,7 +145,14 @@ export function PricingPlans() {
               </div>
 
               {/* CTA */}
-              <Link to={isAuthenticated ? '/dashboard' : '/signup'}>
+              <Link
+                to={isAuthenticated ? '/dashboard' : '/signup'}
+                onClick={() => {
+                  if (!isAuthenticated && senderCount > 1) {
+                    localStorage.setItem('onboarding_senders', String(senderCount));
+                  }
+                }}
+              >
                 <motion.button
                   whileHover={{ scale: 1.01, y: -1 }}
                   whileTap={{ scale: 0.99 }}
