@@ -37,13 +37,17 @@ export const useDashboardStats = (dateRange: string = '7d') => {
 };
 
 // Get dashboard activity chart data
-export const useDashboardChart = (dateRange: string = '7d') => {
+export const useDashboardChart = (
+  dateRange: string = '7d',
+  campaignId?: string,
+  senderId?: string
+) => {
   const workspaceId = useWorkspaceStore((s) => s.currentWorkspaceId);
   return useQuery({
-    queryKey: queryKeys.analytics.dashboardChart(dateRange, workspaceId),
+    queryKey: queryKeys.analytics.dashboardChart(dateRange, workspaceId, campaignId, senderId),
     queryFn: async () => {
       const response = await api.get<ActivityChartData>(
-        `/analytics/dashboard/chart?date_range=${dateRange}${wsParam(workspaceId)}`
+        `/analytics/dashboard/chart?date_range=${dateRange}${wsParam(workspaceId)}${campaignId ? `&campaign_id=${campaignId}` : ''}${senderId ? `&sender_id=${senderId}` : ''}`
       );
       return response.data;
     },
@@ -81,13 +85,17 @@ export const useDashboardCampaigns = () => {
 // ==================== Analytics Page Hooks ====================
 
 // Get analytics overview stats (4 stat cards)
-export const useAnalyticsOverviewStats = (dateRange: string = '30d') => {
+export const useAnalyticsOverviewStats = (
+  dateRange: string = '30d',
+  campaignId?: string,
+  senderId?: string
+) => {
   const workspaceId = useWorkspaceStore((s) => s.currentWorkspaceId);
   return useQuery({
-    queryKey: queryKeys.analytics.overview(dateRange, workspaceId),
+    queryKey: queryKeys.analytics.overview(dateRange, workspaceId, campaignId, senderId),
     queryFn: async () => {
       const response = await api.get<AnalyticsOverviewStats>(
-        `/analytics/overview?date_range=${dateRange}${wsParam(workspaceId)}`
+        `/analytics/overview?date_range=${dateRange}${wsParam(workspaceId)}${campaignId ? `&campaign_id=${campaignId}` : ''}${senderId ? `&sender_id=${senderId}` : ''}`
       );
       return response.data;
     },
@@ -95,13 +103,17 @@ export const useAnalyticsOverviewStats = (dateRange: string = '30d') => {
 };
 
 // Get channel performance (LinkedIn vs Email)
-export const useChannelPerformance = (dateRange: string = '30d') => {
+export const useChannelPerformance = (
+  dateRange: string = '30d',
+  campaignId?: string,
+  senderId?: string
+) => {
   const workspaceId = useWorkspaceStore((s) => s.currentWorkspaceId);
   return useQuery({
-    queryKey: queryKeys.analytics.channelPerformance(dateRange, workspaceId),
+    queryKey: queryKeys.analytics.channelPerformance(dateRange, workspaceId, campaignId, senderId),
     queryFn: async () => {
       const response = await api.get<ChannelPerformance>(
-        `/analytics/channel-performance?date_range=${dateRange}${wsParam(workspaceId)}`
+        `/analytics/channel-performance?date_range=${dateRange}${wsParam(workspaceId)}${campaignId ? `&campaign_id=${campaignId}` : ''}${senderId ? `&sender_id=${senderId}` : ''}`
       );
       return response.data;
     },
@@ -137,13 +149,17 @@ export const useSenderPerformance = (dateRange: string = '30d') => {
 };
 
 // Get reply rate trend
-export const useReplyRateTrend = (dateRange: string = '30d') => {
+export const useReplyRateTrend = (
+  dateRange: string = '30d',
+  campaignId?: string,
+  senderId?: string
+) => {
   const workspaceId = useWorkspaceStore((s) => s.currentWorkspaceId);
   return useQuery({
-    queryKey: queryKeys.analytics.replyRateTrend(dateRange, workspaceId),
+    queryKey: queryKeys.analytics.replyRateTrend(dateRange, workspaceId, campaignId, senderId),
     queryFn: async () => {
       const response = await api.get<ReplyRateTrendPoint[]>(
-        `/analytics/reply-rate-trend?date_range=${dateRange}${wsParam(workspaceId)}`
+        `/analytics/reply-rate-trend?date_range=${dateRange}${wsParam(workspaceId)}${campaignId ? `&campaign_id=${campaignId}` : ''}${senderId ? `&sender_id=${senderId}` : ''}`
       );
       return response.data;
     },

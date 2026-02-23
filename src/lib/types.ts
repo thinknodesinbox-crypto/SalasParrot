@@ -600,6 +600,7 @@ export interface DashboardStats {
   connections_sent: number;
   connections_sent_change: string;
   connections_accepted: number;
+  connections_accepted_change: string;
   acceptance_rate: string;
   messages_sent: number;
   messages_sent_change: string;
@@ -1152,7 +1153,7 @@ export interface CampaignErrors {
   errors: CampaignErrorItem[];
 }
 
-export interface RecentActivityItem {
+export interface CampaignActivityItem {
   lead_id: string;
   lead_name: string | null;
   step_type: string;
@@ -1163,5 +1164,5 @@ export interface RecentActivityItem {
 
 export interface CampaignActivity {
   campaign_id: string;
-  activities: RecentActivityItem[];
+  activities: CampaignActivityItem[];
 }

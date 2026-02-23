@@ -17,14 +17,36 @@ export const Route = createFileRoute('/dashboard/analytics')({
 function AnalyticsPage() {
   const [dateRange, setDateRange] = useState('30d');
   const [activeTab, setActiveTab] = useState<'overview' | 'campaigns' | 'senders'>('overview');
+  const [selectedCampaignId, setSelectedCampaignId] = useState<string | undefined>();
+  const [selectedSenderId, setSelectedSenderId] = useState<string | undefined>();
 
-  // Fetch real data
-  const { data: overviewData, isLoading: overviewLoading } = useAnalyticsOverviewStats(dateRange);
-  const { data: chartData, isLoading: chartLoading } = useDashboardChart(dateRange);
-  const { data: channelData, isLoading: channelLoading } = useChannelPerformance(dateRange);
+  // Derive scope from active tab
+  const campaignId = activeTab === 'campaigns' ? selectedCampaignId : undefined;
+  const senderId = activeTab === 'senders' ? selectedSenderId : undefined;
+
+  // Fetch real data (scoped by campaign/sender when tab is active)
+  const { data: overviewData, isLoading: overviewLoading } = useAnalyticsOverviewStats(
+    dateRange,
+    campaignId,
+    senderId
+  );
+  const { data: chartData, isLoading: chartLoading } = useDashboardChart(
+    dateRange,
+    campaignId,
+    senderId
+  );
+  const { data: channelData, isLoading: channelLoading } = useChannelPerformance(
+    dateRange,
+    campaignId,
+    senderId
+  );
   const { data: campaignsData, isLoading: campaignsLoading } = useTopCampaigns(dateRange, 10);
   const { data: sendersData, isLoading: sendersLoading } = useSenderPerformance(dateRange);
-  const { data: replyTrendData, isLoading: replyTrendLoading } = useReplyRateTrend(dateRange);
+  const { data: replyTrendData, isLoading: replyTrendLoading } = useReplyRateTrend(
+    dateRange,
+    campaignId,
+    senderId
+  );
 
   // Export analytics to CSV
   const handleExport = useCallback(() => {
@@ -187,6 +209,42 @@ function AnalyticsPage() {
         ))}
       </div>
 
+      {/* Scope selector for Campaigns/Senders tabs */}
+      {activeTab === 'campaigns' && campaignsData && campaignsData.length > 0 && (
+        <div className="flex items-center gap-3">
+          <span className="text-sm font-medium text-[#64748B]">Campaign:</span>
+          <select
+            value={selectedCampaignId || ''}
+            onChange={(e) => setSelectedCampaignId(e.target.value || undefined)}
+            className="rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-sm text-[#1E293B] focus:border-[#FF6B35] focus:outline-none focus:ring-1 focus:ring-[#FF6B35]"
+          >
+            <option value="">All Campaigns</option>
+            {campaignsData.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+      {activeTab === 'senders' && sendersData && sendersData.length > 0 && (
+        <div className="flex items-center gap-3">
+          <span className="text-sm font-medium text-[#64748B]">Sender:</span>
+          <select
+            value={selectedSenderId || ''}
+            onChange={(e) => setSelectedSenderId(e.target.value || undefined)}
+            className="rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-sm text-[#1E293B] focus:border-[#FF6B35] focus:outline-none focus:ring-1 focus:ring-[#FF6B35]"
+          >
+            <option value="">All Senders</option>
+            {sendersData.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
       {/* Overview Stats */}
       <div className="grid grid-cols-2 gap-3 md:gap-4 lg:grid-cols-4">
         {overviewLoading
@@ -253,7 +311,7 @@ function AnalyticsPage() {
               </div>
             </div>
           </div>
-          <div className="flex h-48 items-end justify-between gap-2 md:h-64 md:gap-3">
+          <div className="flex h-48 items-end gap-2 overflow-x-auto md:h-64 md:gap-3">
             {chartLoading ? (
               // Loading skeleton
               Array.from({ length: 4 }).map((_, i) => (
@@ -282,7 +340,7 @@ function AnalyticsPage() {
                 const emailHeight = ((chartData.emails?.[i] || 0) / maxVal) * 100;
 
                 return (
-                  <div key={label} className="flex flex-1 flex-col items-center gap-2">
+                  <div key={label} className="flex min-w-[3rem] flex-1 flex-col items-center gap-2">
                     <div className="flex h-36 w-full items-end justify-center gap-0.5 md:h-48 md:gap-1">
                       <motion.div
                         initial={{ height: 0 }}
@@ -507,7 +565,7 @@ function AnalyticsPage() {
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.5 }}
+        transition={{ delay: 0.1 }}
         className="overflow-hidden rounded-xl border border-[#E2E8F0] bg-white"
       >
         <div className="border-b border-[#E2E8F0] px-4 py-4 md:px-6">
@@ -664,7 +722,7 @@ function AnalyticsPage() {
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.6 }}
+        transition={{ delay: 0.1 }}
         className="rounded-xl border border-[#E2E8F0] bg-white p-4 md:p-6"
       >
         <h2 className="mb-4 text-base font-semibold text-[#1E293B] md:mb-6 md:text-lg">

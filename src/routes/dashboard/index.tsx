@@ -61,6 +61,7 @@ function DashboardHome() {
         {
           label: 'Connections Accepted',
           value: statsData.connections_accepted,
+          change: statsData.connections_accepted_change,
           rate: statsData.acceptance_rate,
           color: '#22C55E',
         },
