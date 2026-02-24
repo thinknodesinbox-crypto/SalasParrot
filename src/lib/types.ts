@@ -724,6 +724,7 @@ export type ImportType =
   | 'linkedin_events'
   | 'linkedin_post_reactors'
   | 'linkedin_companies'
+  | 'linkedin_people_search'
   | 'csv'
   | 'paste_urls';
 
@@ -753,6 +754,7 @@ export interface ImportJobStartRequest {
   linkedin_account_id?: string;
   source_url?: string;
   source_data?: string[];
+  search_params?: Record<string, unknown>;
   workspace_id?: string;
   max_leads?: number | null;
 }

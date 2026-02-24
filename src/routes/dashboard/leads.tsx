@@ -37,6 +37,7 @@ type ImportMethod =
   | 'linkedin_post_reactors'
   | 'csv'
   | 'linkedin_companies'
+  | 'linkedin_people_search'
   | 'paste_urls';
 
 const IMPORT_METHODS: {
@@ -50,9 +51,18 @@ const IMPORT_METHODS: {
   enabled?: boolean;
 }[] = [
   {
+    id: 'linkedin_people_search',
+    title: 'People Search',
+    description: 'Search for people directly from the app using keywords and filters',
+    icon: <PeopleSearchIcon />,
+    color: '#0A66C2',
+    category: 'linkedin',
+    enabled: true,
+  },
+  {
     id: 'linkedin_search',
-    title: 'LinkedIn Search',
-    description: 'Search and import leads directly from LinkedIn people search',
+    title: 'LinkedIn Search URL',
+    description: 'Import leads by pasting a LinkedIn search URL from your browser',
     icon: <LinkedInSearchIcon />,
     color: '#0A66C2',
     category: 'linkedin',
@@ -1346,6 +1356,42 @@ export function ImportLeadsModal({
     }
   };
 
+  // For People Search imports (starts background job with search params)
+  const handlePeopleSearchImport = async (searchParams: Record<string, unknown>) => {
+    if (!listName.trim()) {
+      setImportError('Please enter a list name');
+      return;
+    }
+
+    if (!selectedAccountId) {
+      setImportError('Please select a LinkedIn account');
+      return;
+    }
+
+    if (!searchParams.keywords || !(searchParams.keywords as string).trim()) {
+      setImportError('Please enter search keywords');
+      return;
+    }
+
+    setStep('processing');
+    setImportError(null);
+
+    try {
+      const result = await startImportMutation.mutateAsync({
+        list_name: listName.trim(),
+        import_type: 'linkedin_people_search',
+        linkedin_account_id: selectedAccountId,
+        search_params: searchParams,
+        max_leads: maxLeads,
+      });
+      setCurrentJobId(result.job_id);
+      if (result.list_id) setCreatedListId(result.list_id);
+    } catch (error) {
+      setImportError(error instanceof Error ? error.message : 'Failed to start import');
+      setStep('configure');
+    }
+  };
+
   const handleCancelImport = async () => {
     if (currentJobId) {
       try {
@@ -1521,6 +1567,7 @@ export function ImportLeadsModal({
                   setListName={setListName}
                   onCSVImport={handleCSVImport}
                   onLinkedInImport={handleLinkedInImport}
+                  onPeopleSearchImport={handlePeopleSearchImport}
                   importError={importError}
                   linkedInAccounts={linkedInAccounts || []}
                   accountsLoading={accountsLoading}
@@ -1652,6 +1699,7 @@ function ImportMethodConfig({
   setListName,
   onCSVImport,
   onLinkedInImport,
+  onPeopleSearchImport,
   importError,
   linkedInAccounts,
   accountsLoading,
@@ -1665,6 +1713,7 @@ function ImportMethodConfig({
   setListName: (name: string) => void;
   onCSVImport: (file: File) => void;
   onLinkedInImport: (sourceUrl: string, sourceData?: string[]) => void;
+  onPeopleSearchImport: (searchParams: Record<string, unknown>) => void;
   importError?: string | null;
   linkedInAccounts: LinkedInAccount[];
   accountsLoading: boolean;
@@ -1676,10 +1725,209 @@ function ImportMethodConfig({
   const [pastedUrls, setPastedUrls] = useState('');
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [searchUrl, setSearchUrl] = useState('');
+  const [keywords, setKeywords] = useState('');
+  const [networkDistance, setNetworkDistance] = useState<(number | string)[]>([2, 3]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const methodInfo = IMPORT_METHODS.find((m) => m.id === method)!;
   const connectedAccounts = linkedInAccounts.filter((a) => a.status === 'connected');
+  const selectedAccount = linkedInAccounts.find((a) => a.id === selectedAccountId);
+  const isAdvancedAccount =
+    selectedAccount?.subscription_type === 'sales_nav' ||
+    selectedAccount?.subscription_type === 'recruiter';
+
+  // Determine API type based on selected account subscription
+  const getApiType = () => {
+    if (!selectedAccount) return 'classic';
+    switch (selectedAccount.subscription_type) {
+      case 'sales_nav':
+        return 'sales_navigator';
+      case 'recruiter':
+        return 'recruiter';
+      default:
+        return 'classic';
+    }
+  };
+
+  // People Search
+  if (method === 'linkedin_people_search') {
+    const toggleNetworkDistance = (value: number | string) => {
+      setNetworkDistance((prev) =>
+        prev.includes(value) ? prev.filter((d) => d !== value) : [...prev, value]
+      );
+    };
+
+    const handleSearch = () => {
+      const searchParams: Record<string, unknown> = {
+        api: getApiType(),
+        category: 'people',
+        keywords: keywords.trim(),
+        network_distance: networkDistance.filter((d) => typeof d === 'number'),
+      };
+      // Include GROUP for advanced accounts if selected
+      if (networkDistance.includes('GROUP')) {
+        (searchParams.network_distance as (number | string)[]).push('GROUP');
+      }
+      onPeopleSearchImport(searchParams);
+    };
+
+    return (
+      <div className="space-y-5 p-6">
+        {/* Method header */}
+        <div className="flex items-center gap-4 border-b border-[#E2E8F0] pb-4">
+          <div
+            className="flex h-12 w-12 items-center justify-center rounded-xl"
+            style={{ backgroundColor: `${methodInfo.color}15` }}
+          >
+            <div style={{ color: methodInfo.color }}>{methodInfo.icon}</div>
+          </div>
+          <div>
+            <h3 className="font-semibold text-[#1E293B]">{methodInfo.title}</h3>
+            <p className="text-sm text-[#64748B]">{methodInfo.description}</p>
+          </div>
+        </div>
+
+        <div>
+          <label className="mb-2 block text-sm font-medium text-[#1E293B]">List Name</label>
+          <input
+            type="text"
+            value={listName}
+            onChange={(e) => setListName(e.target.value)}
+            placeholder="e.g., Q1 Tech Leaders"
+            className="w-full rounded-xl border border-[#E2E8F0] px-4 py-3 focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+          />
+        </div>
+
+        {/* LinkedIn Account Selector */}
+        <LinkedInAccountSelector
+          accounts={connectedAccounts}
+          loading={accountsLoading}
+          selectedId={selectedAccountId}
+          onSelect={setSelectedAccountId}
+        />
+
+        <div>
+          <label className="mb-2 block text-sm font-medium text-[#1E293B]">Keywords</label>
+          <input
+            type="text"
+            value={keywords}
+            onChange={(e) => setKeywords(e.target.value)}
+            placeholder="e.g., VP of Sales SaaS"
+            className="w-full rounded-xl border border-[#E2E8F0] px-4 py-3 focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+          />
+          <p className="mt-1.5 text-xs text-[#64748B]">
+            Search for people by job title, company, skills, or any keyword
+          </p>
+        </div>
+
+        {/* Network Distance */}
+        <div>
+          <label className="mb-2 block text-sm font-medium text-[#1E293B]">Network Distance</label>
+          <div className="flex flex-wrap items-center gap-2">
+            {[
+              { value: 1, label: '1st' },
+              { value: 2, label: '2nd' },
+              { value: 3, label: '3rd+' },
+            ].map(({ value, label }) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => toggleNetworkDistance(value)}
+                className={`rounded-lg border px-3.5 py-2 text-sm font-medium transition-all ${
+                  networkDistance.includes(value)
+                    ? 'border-[#0A66C2] bg-[#EFF6FF] text-[#0A66C2]'
+                    : 'border-[#E2E8F0] text-[#64748B] hover:border-[#0A66C2]/30 hover:bg-[#F8FAFC]'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+            {isAdvancedAccount && (
+              <button
+                type="button"
+                onClick={() => toggleNetworkDistance('GROUP')}
+                className={`rounded-lg border px-3.5 py-2 text-sm font-medium transition-all ${
+                  networkDistance.includes('GROUP')
+                    ? 'border-[#0A66C2] bg-[#EFF6FF] text-[#0A66C2]'
+                    : 'border-[#E2E8F0] text-[#64748B] hover:border-[#0A66C2]/30 hover:bg-[#F8FAFC]'
+                }`}
+              >
+                Group Members
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Number of Leads selector */}
+        <div>
+          <label className="mb-2 block text-sm font-medium text-[#1E293B]">Number of Leads</label>
+          <div className="flex items-center gap-2">
+            {[25, 50, 100].map((preset) => (
+              <button
+                key={preset}
+                type="button"
+                onClick={() => setMaxLeads(maxLeads === preset ? null : preset)}
+                className={`rounded-lg border px-3.5 py-2 text-sm font-medium transition-all ${
+                  maxLeads === preset
+                    ? 'border-[#FF6B35] bg-[#FFF7ED] text-[#FF6B35]'
+                    : 'border-[#E2E8F0] text-[#64748B] hover:border-[#FF6B35]/30 hover:bg-[#F8FAFC]'
+                }`}
+              >
+                {preset}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => setMaxLeads(null)}
+              className={`rounded-lg border px-3.5 py-2 text-sm font-medium transition-all ${
+                maxLeads === null
+                  ? 'border-[#FF6B35] bg-[#FFF7ED] text-[#FF6B35]'
+                  : 'border-[#E2E8F0] text-[#64748B] hover:border-[#FF6B35]/30 hover:bg-[#F8FAFC]'
+              }`}
+            >
+              All
+            </button>
+            <div className="mx-1 h-5 w-px bg-[#E2E8F0]" />
+            <input
+              type="number"
+              min={1}
+              placeholder="Custom"
+              value={maxLeads !== null && ![25, 50, 100].includes(maxLeads) ? maxLeads : ''}
+              onChange={(e) => {
+                const val = e.target.value ? parseInt(e.target.value, 10) : null;
+                setMaxLeads(val && val > 0 ? val : null);
+              }}
+              className="w-20 rounded-lg border border-[#E2E8F0] px-3 py-2 text-center text-sm focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+            />
+          </div>
+        </div>
+
+        {importError && (
+          <div className="rounded-xl border border-[#EF4444]/20 bg-[#FEF2F2] p-3 text-sm text-[#EF4444]">
+            <pre className="whitespace-pre-wrap font-sans">{importError}</pre>
+          </div>
+        )}
+
+        <button
+          onClick={handleSearch}
+          disabled={!keywords.trim() || !listName.trim() || !selectedAccountId}
+          className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#FF6B35] py-3.5 font-semibold text-white hover:bg-[#E85A2A] disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <svg
+            className="h-4 w-4"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <circle cx="11" cy="11" r="8" />
+            <path d="M21 21l-4.35-4.35" />
+          </svg>
+          Search & Import
+        </button>
+      </div>
+    );
+  }
 
   // CSV import
   if (method === 'csv') {
@@ -2339,6 +2587,17 @@ function LinkedInSmallIcon({ className = 'w-4 h-4' }: { className?: string }) {
   return (
     <svg className={className} fill="currentColor" viewBox="0 0 20 20">
       <path d="M16.338 16.338H13.67V12.16c0-.995-.017-2.277-1.387-2.277-1.39 0-1.601 1.086-1.601 2.207v4.248H8.014v-8.59h2.559v1.174h.037c.356-.675 1.227-1.387 2.526-1.387 2.703 0 3.203 1.778 3.203 4.092v4.711zM5.005 6.575a1.548 1.548 0 11-.003-3.096 1.548 1.548 0 01.003 3.096zm-1.337 9.763H6.34v-8.59H3.667v8.59zM17.668 1H2.328C1.595 1 1 1.581 1 2.298v15.403C1 18.418 1.595 19 2.328 19h15.34c.734 0 1.332-.582 1.332-1.299V2.298C19 1.581 18.402 1 17.668 1z" />
+    </svg>
+  );
+}
+
+function PeopleSearchIcon() {
+  return (
+    <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+      <circle cx="11" cy="8" r="4" />
+      <path d="M6 21v-2a4 4 0 014-4h2" />
+      <circle cx="18" cy="18" r="3" />
+      <path d="M20.2 20.2L22 22" />
     </svg>
   );
 }
