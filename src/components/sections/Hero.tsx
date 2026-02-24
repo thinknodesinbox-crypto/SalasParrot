@@ -1,8 +1,10 @@
 import { motion } from 'framer-motion';
+import { useEffect } from 'react';
 import { Link } from '@tanstack/react-router';
 import { Container, Button } from '@/components/ui';
 import { HeroDemo } from './HeroDemo';
 import { useAuthStore } from '@/lib/auth';
+import { getCalApi } from '@calcom/embed-react';
 
 const fadeInUp = {
   hidden: { opacity: 0, y: 20 },
@@ -22,6 +24,13 @@ const stagger = {
 
 export function Hero() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+
+  useEffect(() => {
+    (async function () {
+      const cal = await getCalApi({ namespace: 'sales-parrot' });
+      cal('ui', { hideEventTypeDetails: true, layout: 'month_view' });
+    })();
+  }, []);
 
   return (
     <section className="bg-gradient-to-b from-white to-[#FFFBEB] py-16 md:py-20 lg:py-24">
@@ -63,12 +72,24 @@ export function Hero() {
           </motion.p>
 
           {/* CTA */}
-          <motion.div variants={fadeInUp} className="mb-4 flex justify-center">
+          <motion.div variants={fadeInUp} className="mb-4 flex items-center justify-center gap-3">
             <Link to={isAuthenticated ? '/dashboard' : '/signup'}>
               <Button variant="primary" size="lg">
                 {isAuthenticated ? 'Go to Dashboard' : 'Get Started'}
               </Button>
             </Link>
+            {!isAuthenticated && (
+              <motion.button
+                whileHover={{ y: -2 }}
+                whileTap={{ scale: 0.98 }}
+                data-cal-namespace="sales-parrot"
+                data-cal-link="akinthinks/sales-parrot"
+                data-cal-config='{"layout":"month_view","useSlotsViewOnSmallScreen":"true"}'
+                className="inline-flex items-center justify-center rounded-lg border-[1.5px] border-[#E2E8F0] bg-transparent px-7 py-3.5 text-base font-semibold text-[#1E293B] transition-all duration-200 hover:border-[#1E293B] hover:bg-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-[#FF6B35] focus:ring-offset-2"
+              >
+                Book a Call
+              </motion.button>
+            )}
           </motion.div>
 
           {/* Supporting text */}
