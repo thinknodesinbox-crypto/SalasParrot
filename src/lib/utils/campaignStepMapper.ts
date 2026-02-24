@@ -11,6 +11,7 @@ export function mapNodeTypeToStepType(nodeType: SequenceNode['type']): StepType 
     email: 'email',
     delay: 'wait',
     condition: 'condition',
+    reply_agent: 'reply_agent',
     end: 'end',
   };
   return mapping[nodeType] ?? null;
@@ -27,6 +28,7 @@ export function mapStepTypeToNodeType(stepType: StepType): SequenceNode['type'] 
     wait: 'delay',
     condition: 'condition',
     email_followup: 'email',
+    reply_agent: 'reply_agent',
     end: 'end',
   };
   return mapping[stepType] ?? null;
@@ -50,6 +52,32 @@ export function mapNodeDataToConfig(node: SequenceNode): Record<string, unknown>
   }
   if (node.data.condition !== undefined) {
     config.condition_type = node.data.condition;
+  }
+
+  // Agent fields
+  if (node.data.agentGoal !== undefined) {
+    config.goal = node.data.agentGoal;
+  }
+  if (node.data.agentTone !== undefined) {
+    config.tone = node.data.agentTone;
+  }
+  if (node.data.agentCompanyName !== undefined) {
+    config.company_name = node.data.agentCompanyName;
+  }
+  if (node.data.agentCompanyContext !== undefined) {
+    config.company_context = node.data.agentCompanyContext;
+  }
+  if (node.data.agentProductDescription !== undefined) {
+    config.product_description = node.data.agentProductDescription;
+  }
+  if (node.data.agentSchedulingLink !== undefined) {
+    config.scheduling_link = node.data.agentSchedulingLink;
+  }
+  if (node.data.agentSenderTitle !== undefined) {
+    config.sender_title = node.data.agentSenderTitle;
+  }
+  if (node.data.agentHumanInTheLoop !== undefined) {
+    config.human_in_the_loop = node.data.agentHumanInTheLoop;
   }
 
   return config;
@@ -76,6 +104,15 @@ export function mapConfigToNodeData(config: Record<string, unknown>): SequenceNo
       | 'email_link_clicked'
       | 'email_replied'
       | undefined,
+    // Agent fields
+    agentGoal: config.goal as string | undefined,
+    agentTone: config.tone as 'professional' | 'friendly' | 'casual' | undefined,
+    agentCompanyName: config.company_name as string | undefined,
+    agentCompanyContext: config.company_context as string | undefined,
+    agentProductDescription: config.product_description as string | undefined,
+    agentSchedulingLink: config.scheduling_link as string | undefined,
+    agentSenderTitle: config.sender_title as string | undefined,
+    agentHumanInTheLoop: config.human_in_the_loop as boolean | undefined,
   };
 }
 

@@ -1,7 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, getErrorMessage } from '../../api';
 import { queryKeys } from '../../queryClient';
-import type { Workspace, WorkspaceMember, WorkspaceRole } from '../../types';
+import type {
+  Workspace,
+  WorkspaceAgentDefaults,
+  WorkspaceMember,
+  WorkspaceRole,
+} from '../../types';
 
 interface CreateWorkspaceData {
   name: string;
@@ -21,6 +26,7 @@ interface UpdateWorkspaceData {
     end: string;
     days: number[];
   };
+  agent_defaults?: WorkspaceAgentDefaults;
 }
 
 interface InviteMemberData {

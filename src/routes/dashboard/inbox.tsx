@@ -350,11 +350,22 @@ function InboxPage() {
                       >
                         {getMessagePreview(conversation)}
                       </p>
-                      {conversation.tags && conversation.tags.length > 0 && (
-                        <span className="mt-1.5 inline-block rounded bg-[#F8FAFC] px-2 py-0.5 text-xs text-[#64748B]">
-                          {conversation.tags[0]}
-                        </span>
-                      )}
+                      <div className="mt-1.5 flex items-center gap-1.5">
+                        {conversation.tags && conversation.tags.length > 0 && (
+                          <span className="inline-block rounded bg-[#F8FAFC] px-2 py-0.5 text-xs text-[#64748B]">
+                            {conversation.tags[0]}
+                          </span>
+                        )}
+                        {conversation.agent_status &&
+                          ['listening', 'analyzing', 'responding'].includes(
+                            conversation.agent_status
+                          ) && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-[#8B5CF6]/10 px-2 py-0.5 text-[10px] font-medium text-[#8B5CF6]">
+                              <span className="h-1.5 w-1.5 rounded-full bg-[#8B5CF6]" />
+                              AI
+                            </span>
+                          )}
+                      </div>
                     </div>
                     {!isRead && (
                       <div className="mt-1.5 h-2.5 w-2.5 flex-shrink-0 rounded-full bg-[#FF6B35]" />
@@ -417,10 +428,100 @@ function InboxPage() {
                       >
                         {selectedConversation.channel === 'linkedin' ? 'LinkedIn' : 'Email'}
                       </span>
+                      {(() => {
+                        const listConv = filteredConversations.find(
+                          (c) => c.id === selectedConversation.id
+                        );
+                        const agentStatus = listConv?.agent_status;
+                        if (
+                          agentStatus &&
+                          [
+                            'listening',
+                            'analyzing',
+                            'responding',
+                            'scheduling',
+                            'booking',
+                          ].includes(agentStatus)
+                        ) {
+                          const statusLabel: Record<string, string> = {
+                            listening: 'Listening',
+                            analyzing: 'Analyzing',
+                            responding: 'Responding',
+                            scheduling: 'Scheduling',
+                            booking: 'Booking',
+                          };
+                          return (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-[#8B5CF6]/10 px-2 py-0.5 text-xs font-medium text-[#8B5CF6]">
+                              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#8B5CF6]" />
+                              AI: {statusLabel[agentStatus] || agentStatus}
+                            </span>
+                          );
+                        }
+                        return null;
+                      })()}
                     </div>
                   </div>
                 </div>
                 <div className="flex flex-shrink-0 items-center gap-1 md:gap-2">
+                  {(() => {
+                    const listConv = filteredConversations.find(
+                      (c) => c.id === selectedConversation.id
+                    );
+                    const agentStatus = listConv?.agent_status;
+                    if (
+                      agentStatus &&
+                      ['listening', 'analyzing', 'responding', 'scheduling', 'booking'].includes(
+                        agentStatus
+                      )
+                    ) {
+                      return (
+                        <button
+                          onClick={async () => {
+                            try {
+                              const token = localStorage.getItem('auth_token');
+                              // Find the agent_conversation id via the list endpoint
+                              const res = await fetch(`/api/v1/agent-conversations?limit=1`, {
+                                headers: {
+                                  Authorization: `Bearer ${token}`,
+                                },
+                              });
+                              if (res.ok) {
+                                const data = await res.json();
+                                const agentConv = data.items?.find(
+                                  (ac: { conversation_id: string }) =>
+                                    ac.conversation_id === selectedConversation.id
+                                );
+                                if (agentConv) {
+                                  await fetch(
+                                    `/api/v1/agent-conversations/${agentConv.id}/deactivate`,
+                                    {
+                                      method: 'POST',
+                                      headers: {
+                                        'Content-Type': 'application/json',
+                                        Authorization: `Bearer ${token}`,
+                                      },
+                                      body: JSON.stringify({
+                                        reason: 'Manually deactivated from inbox',
+                                      }),
+                                    }
+                                  );
+                                  // Refresh conversations
+                                  window.location.reload();
+                                }
+                              }
+                            } catch (err) {
+                              console.error('Failed to deactivate agent:', err);
+                            }
+                          }}
+                          className="rounded-lg border border-[#8B5CF6]/30 px-2.5 py-1.5 text-xs font-medium text-[#8B5CF6] transition-colors hover:bg-[#8B5CF6]/10"
+                          title="Deactivate AI Agent"
+                        >
+                          Deactivate AI
+                        </button>
+                      );
+                    }
+                    return null;
+                  })()}
                   <button
                     className="rounded-lg p-2 text-[#64748B] hover:bg-[#F8FAFC]"
                     title="View Profile"

@@ -443,6 +443,7 @@ function ErrorsPanel({ errors }: { errors: CampaignErrors }) {
     email: 'Email',
     inmail: 'InMail',
     enrichment: 'Enrichment',
+    reply_agent: 'AI Reply Agent',
   };
 
   return (
@@ -651,6 +652,7 @@ function ActivityFeed({ activity }: { activity: CampaignActivity }) {
     email_followup: 'Sent follow-up email to',
     inmail: 'Sent InMail to',
     enrichment: 'Enriched',
+    reply_agent: 'AI agent activated for',
     email_opened: 'Email opened by',
     email_link_clicked: 'Email link clicked by',
     email_reply: 'Received email reply from',

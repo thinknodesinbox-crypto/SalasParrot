@@ -91,6 +91,16 @@ export interface GoogleAuthRequest {
 // Workspace types
 export type WorkspaceRole = 'admin' | 'member';
 
+export interface WorkspaceAgentDefaults {
+  goal?: string;
+  tone?: 'professional' | 'friendly' | 'casual';
+  company_name?: string;
+  company_context?: string;
+  product_description?: string;
+  scheduling_link?: string;
+  sender_title?: string;
+}
+
 export interface Workspace {
   id: string;
   user_id: string;
@@ -99,6 +109,7 @@ export interface Workspace {
   client_name: string | null;
   client_email: string | null;
   working_hours: WorkingHours | null;
+  agent_defaults?: WorkspaceAgentDefaults | null;
   created_at: string;
 }
 
@@ -178,6 +189,7 @@ export type StepType =
   | 'condition'
   | 'email'
   | 'email_followup'
+  | 'reply_agent'
   | 'end';
 
 export interface CampaignStep {
@@ -501,6 +513,7 @@ export interface Conversation {
   lead_name: string | null;
   lead_company: string | null;
   lead_avatar_url: string | null;
+  agent_status?: string | null;
 }
 
 export interface ConversationWithMessages extends Conversation {

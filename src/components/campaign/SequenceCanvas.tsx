@@ -2,7 +2,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useState, useCallback, useRef } from 'react';
 import { SEQUENCE_TEMPLATES } from './sequenceTemplates';
 import { RichTextEditor } from '@/components/ui/RichTextEditor';
-import type { SequenceTemplate } from '@/lib/types';
+import type { SequenceTemplate, WorkspaceAgentDefaults } from '@/lib/types';
 export { SEQUENCE_TEMPLATES } from './sequenceTemplates';
 
 // Types
@@ -18,6 +18,7 @@ export interface SequenceNode {
     | 'delay'
     | 'condition'
     | 'enrichment'
+    | 'reply_agent'
     | 'end';
   data: NodeData;
   position?: { x: number; y: number };
@@ -40,6 +41,15 @@ interface NodeData {
     | 'email_replied';
   trueBranch?: string;
   falseBranch?: string;
+  // Agent fields
+  agentGoal?: string;
+  agentTone?: 'professional' | 'friendly' | 'casual';
+  agentCompanyName?: string;
+  agentCompanyContext?: string;
+  agentProductDescription?: string;
+  agentSchedulingLink?: string;
+  agentSenderTitle?: string;
+  agentHumanInTheLoop?: boolean;
 }
 
 interface SequenceCanvasProps {
@@ -49,6 +59,7 @@ interface SequenceCanvasProps {
   selectedNodeId: string | null;
   hasInmailCapability?: boolean; // Whether any connected account supports InMail
   readonlyStructure?: boolean; // Hides delete buttons, prevents structural changes (for active campaigns)
+  agentDefaults?: WorkspaceAgentDefaults | null; // Workspace-level AI agent defaults
 }
 
 export function SequenceCanvas({
@@ -58,6 +69,7 @@ export function SequenceCanvas({
   selectedNodeId,
   hasInmailCapability = false,
   readonlyStructure = false,
+  agentDefaults,
 }: SequenceCanvasProps) {
   const [zoom, setZoom] = useState(100);
 
@@ -76,7 +88,7 @@ export function SequenceCanvas({
       const newNode: SequenceNode = {
         id: `node-${Date.now()}`,
         type,
-        data: getDefaultNodeData(type),
+        data: getDefaultNodeData(type, agentDefaults),
         parentId: branch ? afterId : undefined, // Only set parentId for branch nodes
         branch,
       };
@@ -155,7 +167,7 @@ export function SequenceCanvas({
         }
       }
     },
-    [nodes, onNodesChange]
+    [nodes, onNodesChange, agentDefaults]
   );
 
   // Insert a node after a specific node within a branch
@@ -167,7 +179,7 @@ export function SequenceCanvas({
       const newNode: SequenceNode = {
         id: `node-${Date.now()}`,
         type,
-        data: getDefaultNodeData(type),
+        data: getDefaultNodeData(type, agentDefaults),
         parentId: afterNode.parentId,
         branch: afterNode.branch,
       };
@@ -196,7 +208,7 @@ export function SequenceCanvas({
 
       onNodesChange(newNodes);
     },
-    [nodes, onNodesChange]
+    [nodes, onNodesChange, agentDefaults]
   );
 
   // Build tree structure from flat nodes
@@ -461,6 +473,17 @@ function InsertButton({
                 label="Enrich Email"
                 onClick={() => {
                   onAdd('enrichment');
+                  setShowMenu(false);
+                }}
+              />
+
+              <div className="my-1 border-t border-[#E2E8F0]" />
+              <p className="px-3 py-1 text-[10px] font-semibold uppercase text-[#94A3B8]">AI</p>
+              <ActionMenuItem
+                icon={<BotIcon className="h-4 w-4" />}
+                label="Reply Agent"
+                onClick={() => {
+                  onAdd('reply_agent');
                   setShowMenu(false);
                 }}
               />
@@ -916,6 +939,17 @@ function BranchEndButtons({
                     setShowMenu(false);
                   }}
                 />
+
+                <div className="my-1 border-t border-[#E2E8F0]" />
+                <p className="px-3 py-1 text-[10px] font-semibold uppercase text-[#94A3B8]">AI</p>
+                <ActionMenuItem
+                  icon={<BotIcon className="h-4 w-4" />}
+                  label="Reply Agent"
+                  onClick={() => {
+                    onAddAction('reply_agent');
+                    setShowMenu(false);
+                  }}
+                />
               </motion.div>
             </>
           )}
@@ -1042,6 +1076,17 @@ function AddActionButton({
                 label="Enrich Email"
                 onClick={() => {
                   onAdd('enrichment');
+                  setShowMenu(false);
+                }}
+              />
+
+              <div className="my-1 border-t border-[#E2E8F0]" />
+              <p className="px-3 py-1 text-[10px] font-semibold uppercase text-[#94A3B8]">AI</p>
+              <ActionMenuItem
+                icon={<BotIcon className="h-4 w-4" />}
+                label="Reply Agent"
+                onClick={() => {
+                  onAdd('reply_agent');
                   setShowMenu(false);
                 }}
               />
@@ -1744,6 +1789,116 @@ export function NodeConfigPanel({
             </p>
           </div>
         )}
+
+        {/* Reply Agent Configuration */}
+        {node.type === 'reply_agent' && (
+          <>
+            <div>
+              <label className="mb-2 block text-sm font-medium text-[#1E293B]">
+                Goal <span className="text-[#EF4444]">*</span>
+              </label>
+              <textarea
+                value={node.data.agentGoal || ''}
+                onChange={(e) => onUpdate({ agentGoal: e.target.value })}
+                placeholder="Book a meeting with the lead"
+                rows={3}
+                className="w-full resize-none rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm focus:border-[#8B5CF6] focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]/20"
+              />
+              <p className="mt-1 text-xs text-[#64748B]">What should the agent achieve?</p>
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-medium text-[#1E293B]">Tone</label>
+              <select
+                value={node.data.agentTone || 'professional'}
+                onChange={(e) =>
+                  onUpdate({
+                    agentTone: e.target.value as 'professional' | 'friendly' | 'casual',
+                  })
+                }
+                className="w-full rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm focus:border-[#8B5CF6] focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]/20"
+              >
+                <option value="professional">Professional</option>
+                <option value="friendly">Friendly</option>
+                <option value="casual">Casual</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-medium text-[#1E293B]">
+                Your Name / Title
+              </label>
+              <input
+                type="text"
+                value={node.data.agentSenderTitle || ''}
+                onChange={(e) => onUpdate({ agentSenderTitle: e.target.value })}
+                placeholder="VP of Sales"
+                className="w-full rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm focus:border-[#8B5CF6] focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]/20"
+              />
+              <p className="mt-1 text-xs text-[#64748B]">Your role/title for the agent to use</p>
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-medium text-[#1E293B]">Company Name</label>
+              <input
+                type="text"
+                value={node.data.agentCompanyName || ''}
+                onChange={(e) => onUpdate({ agentCompanyName: e.target.value })}
+                placeholder="Acme Inc."
+                className="w-full rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm focus:border-[#8B5CF6] focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]/20"
+              />
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-medium text-[#1E293B]">
+                Company Context
+              </label>
+              <textarea
+                value={node.data.agentCompanyContext || ''}
+                onChange={(e) => onUpdate({ agentCompanyContext: e.target.value })}
+                placeholder="We help B2B companies automate their outreach..."
+                rows={2}
+                className="w-full resize-none rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm focus:border-[#8B5CF6] focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]/20"
+              />
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-medium text-[#1E293B]">
+                Product Description
+              </label>
+              <textarea
+                value={node.data.agentProductDescription || ''}
+                onChange={(e) => onUpdate({ agentProductDescription: e.target.value })}
+                placeholder="Our platform combines LinkedIn + Email outreach..."
+                rows={2}
+                className="w-full resize-none rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm focus:border-[#8B5CF6] focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]/20"
+              />
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-medium text-[#1E293B]">
+                Scheduling Link <span className="font-normal text-[#94A3B8]">(optional)</span>
+              </label>
+              <input
+                type="url"
+                value={node.data.agentSchedulingLink || ''}
+                onChange={(e) => onUpdate({ agentSchedulingLink: e.target.value })}
+                placeholder="https://calendly.com/you/30min"
+                className="w-full rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm focus:border-[#8B5CF6] focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]/20"
+              />
+              <p className="mt-1 text-xs text-[#64748B]">
+                Fallback URL if calendar is not connected
+              </p>
+            </div>
+
+            <div className="rounded-lg bg-[#F3E8FF] p-3">
+              <p className="text-xs text-[#7C3AED]">
+                The AI agent will monitor this conversation and respond to incoming messages to
+                achieve the goal above. Connect a calendar account to enable meeting booking.
+              </p>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Footer */}
@@ -1807,6 +1962,11 @@ function getNodeConfig(type: SequenceNode['type']) {
       color: '#A855F7',
       icon: <SearchIcon className="h-4 w-4 text-[#A855F7]" />,
     },
+    reply_agent: {
+      label: 'AI Reply Agent',
+      color: '#8B5CF6',
+      icon: <BotIcon className="h-4 w-4 text-[#8B5CF6]" />,
+    },
     end: {
       label: 'End',
       color: '#64748B',
@@ -1824,18 +1984,49 @@ function getNodeConfig(type: SequenceNode['type']) {
   );
 }
 
-function getDefaultNodeData(type: SequenceNode['type']): NodeData {
+function getDefaultNodeData(
+  type: SequenceNode['type'],
+  agentDefaults?: WorkspaceAgentDefaults | null
+): NodeData {
   switch (type) {
     case 'delay':
       return { delayDays: 0, delayHours: 0 };
     case 'condition':
       return { condition: 'connected' };
+    case 'reply_agent':
+      return {
+        agentGoal: agentDefaults?.goal || '',
+        agentTone: agentDefaults?.tone || 'professional',
+        agentCompanyName: agentDefaults?.company_name || '',
+        agentCompanyContext: agentDefaults?.company_context || '',
+        agentProductDescription: agentDefaults?.product_description || '',
+        agentSchedulingLink: agentDefaults?.scheduling_link || '',
+        agentSenderTitle: agentDefaults?.sender_title || '',
+      };
     default:
       return {};
   }
 }
 
 // Icons
+function BotIcon({ className = 'w-4 h-4' }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={2}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714a2.25 2.25 0 00.659 1.591L19 14.5m-4.75-11.396c.251.023.501.05.75.082M12 3v5.25M8 21h8m-4-4v4m-8-8h16a1 1 0 001-1v-2a1 1 0 00-1-1H4a1 1 0 00-1 1v2a1 1 0 001 1z"
+      />
+    </svg>
+  );
+}
+
 function PlusIcon({ className = 'w-4 h-4' }: { className?: string }) {
   return (
     <svg

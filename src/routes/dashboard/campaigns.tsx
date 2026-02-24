@@ -28,6 +28,7 @@ import {
   useSequenceTemplates,
   useSaveSequenceTemplate,
   useDeleteSequenceTemplate,
+  useWorkspace,
 } from '../../lib/hooks/queries';
 import { useCurrentWorkspace } from '../../lib/workspace';
 import type { Campaign, CampaignStatus } from '../../lib/types';
@@ -818,6 +819,7 @@ function CreateCampaignModal({
 
   // Get current workspace from global store
   const { currentWorkspaceId } = useCurrentWorkspace();
+  const { data: currentWorkspaceData } = useWorkspace(currentWorkspaceId || '');
 
   const selectedNode = sequenceNodes.find((n) => n.id === selectedNodeId) || null;
 
@@ -1764,6 +1766,7 @@ function CreateCampaignModal({
                             selectedNodeId={selectedNodeId}
                             hasInmailCapability={hasInmailCapability}
                             readonlyStructure={isActiveCampaign}
+                            agentDefaults={currentWorkspaceData?.agent_defaults}
                           />
                         </div>
 
@@ -1887,6 +1890,7 @@ function CreateCampaignModal({
                           selectedNodeId={selectedNodeId}
                           hasInmailCapability={hasInmailCapability}
                           readonlyStructure={isActiveCampaign}
+                          agentDefaults={currentWorkspaceData?.agent_defaults}
                         />
 
                         {/* Node Config Panel */}

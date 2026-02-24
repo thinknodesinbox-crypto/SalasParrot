@@ -5,6 +5,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/lib/auth';
 import {
   useWorkspaces,
+  useWorkspace,
   useCreateWorkspace,
   useUpdateWorkspace,
   useWorkspaceMembers,
@@ -105,6 +106,7 @@ type SettingsTab =
   | 'profile'
   | 'workspaces'
   | 'members'
+  | 'ai_agent'
   | 'notifications'
   | 'billing'
   | 'integrations';
@@ -157,6 +159,7 @@ function SettingsPage() {
     { id: 'profile', label: 'Profile Settings', icon: <SettingsIcon /> },
     { id: 'workspaces', label: 'Workspaces', icon: <WorkspaceIcon /> },
     { id: 'members', label: 'Members', icon: <MembersIcon /> },
+    { id: 'ai_agent', label: 'AI Agent', icon: <AIAgentIcon /> },
     { id: 'notifications', label: 'Notifications', icon: <NotificationIcon /> },
     { id: 'billing', label: 'Billing', icon: <BillingIcon /> },
     { id: 'integrations', label: 'Integrations', icon: <IntegrationIcon /> },
@@ -290,6 +293,7 @@ function SettingsPage() {
             {activeTab === 'profile' && <ProfileSettings key="profile" />}
             {activeTab === 'workspaces' && <WorkspaceSettings key="workspaces" />}
             {activeTab === 'members' && <MembersSettings key="members" />}
+            {activeTab === 'ai_agent' && <AIAgentSettings key="ai_agent" />}
             {activeTab === 'notifications' && <NotificationSettings key="notifications" />}
             {activeTab === 'billing' && <BillingSettings key="billing" />}
             {activeTab === 'integrations' && <IntegrationSettings key="integrations" />}
@@ -1755,6 +1759,286 @@ function InviteMemberModal({
       </motion.div>
     </motion.div>,
     document.body
+  );
+}
+
+// ==================== AI AGENT SETTINGS ====================
+function AIAgentSettings() {
+  const { data: workspaces = [], isLoading: isLoadingWorkspaces } = useWorkspaces();
+  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string>('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+
+  // Auto-select first workspace
+  useEffect(() => {
+    if (workspaces.length > 0 && !selectedWorkspaceId) {
+      setSelectedWorkspaceId(workspaces[0].id);
+    }
+  }, [workspaces, selectedWorkspaceId]);
+
+  const { data: workspace } = useWorkspace(selectedWorkspaceId);
+  const updateWorkspace = useUpdateWorkspace(selectedWorkspaceId);
+
+  // Form state — reset when workspace changes
+  const [agentGoal, setAgentGoal] = useState('');
+  const [agentTone, setAgentTone] = useState<'professional' | 'friendly' | 'casual'>(
+    'professional'
+  );
+  const [agentCompanyName, setAgentCompanyName] = useState('');
+  const [agentCompanyContext, setAgentCompanyContext] = useState('');
+  const [agentProductDescription, setAgentProductDescription] = useState('');
+  const [agentSchedulingLink, setAgentSchedulingLink] = useState('');
+  const [agentSenderTitle, setAgentSenderTitle] = useState('');
+
+  // Sync form state when workspace data loads or changes
+  useEffect(() => {
+    if (workspace) {
+      const d = workspace.agent_defaults || {};
+      setAgentGoal(d.goal || '');
+      setAgentTone(d.tone || 'professional');
+      setAgentCompanyName(d.company_name || '');
+      setAgentCompanyContext(d.company_context || '');
+      setAgentProductDescription(d.product_description || '');
+      setAgentSchedulingLink(d.scheduling_link || '');
+      setAgentSenderTitle(d.sender_title || '');
+      setError(null);
+      setSuccess(false);
+    }
+  }, [workspace?.id, workspace?.agent_defaults]);
+
+  const handleSave = async () => {
+    setError(null);
+    setSuccess(false);
+    setIsSaving(true);
+
+    try {
+      await updateWorkspace.mutateAsync({
+        agent_defaults: {
+          goal: agentGoal,
+          tone: agentTone,
+          company_name: agentCompanyName,
+          company_context: agentCompanyContext,
+          product_description: agentProductDescription,
+          scheduling_link: agentSchedulingLink,
+          sender_title: agentSenderTitle,
+        },
+      });
+      setSuccess(true);
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { detail?: string } } };
+      setError(error?.response?.data?.detail || 'Failed to save AI agent defaults');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Auto-dismiss success
+  useEffect(() => {
+    if (success) {
+      const timer = setTimeout(() => setSuccess(false), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [success]);
+
+  if (isLoadingWorkspaces) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex items-center justify-center py-12"
+      >
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#E2E8F0] border-t-[#FF6B35]" />
+      </motion.div>
+    );
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -10 }}
+      className="space-y-6"
+    >
+      <div>
+        <h2 className="text-xl font-bold text-[#1E293B]">AI Agent Defaults</h2>
+        <p className="mt-1 text-sm text-[#64748B]">
+          Set default values for Reply Agent steps in the campaign builder. These pre-populate new
+          steps so you don't have to fill them in every time.
+        </p>
+      </div>
+
+      {/* Workspace Selector */}
+      {workspaces.length > 1 && (
+        <div>
+          <label className="block text-sm font-medium text-[#1E293B]">Workspace</label>
+          <select
+            value={selectedWorkspaceId}
+            onChange={(e) => setSelectedWorkspaceId(e.target.value)}
+            className="mt-2 w-full rounded-lg border border-[#E2E8F0] px-4 py-2.5 text-[#1E293B] focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+          >
+            {workspaces.map((ws) => (
+              <option key={ws.id} value={ws.id}>
+                {ws.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      <div className="rounded-xl border border-[#E2E8F0] bg-white p-6">
+        <div className="space-y-6">
+          {/* Goal */}
+          <div>
+            <label className="block text-sm font-medium text-[#1E293B]">Goal</label>
+            <textarea
+              value={agentGoal}
+              onChange={(e) => setAgentGoal(e.target.value)}
+              placeholder="Book a meeting with the lead"
+              rows={2}
+              className="mt-2 w-full rounded-lg border border-[#E2E8F0] px-4 py-2.5 text-[#1E293B] placeholder:text-[#94A3B8] focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+            />
+            <p className="mt-1 text-xs text-[#64748B]">
+              What should the AI agent try to achieve in reply conversations?
+            </p>
+          </div>
+
+          {/* Tone */}
+          <div>
+            <label className="block text-sm font-medium text-[#1E293B]">Tone</label>
+            <select
+              value={agentTone}
+              onChange={(e) =>
+                setAgentTone(e.target.value as 'professional' | 'friendly' | 'casual')
+              }
+              className="mt-2 w-full rounded-lg border border-[#E2E8F0] px-4 py-2.5 text-[#1E293B] focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+            >
+              <option value="professional">Professional</option>
+              <option value="friendly">Friendly</option>
+              <option value="casual">Casual</option>
+            </select>
+          </div>
+
+          {/* Sender Title */}
+          <div>
+            <label className="block text-sm font-medium text-[#1E293B]">Your Title / Role</label>
+            <input
+              type="text"
+              value={agentSenderTitle}
+              onChange={(e) => setAgentSenderTitle(e.target.value)}
+              placeholder="VP of Sales"
+              className="mt-2 w-full rounded-lg border border-[#E2E8F0] px-4 py-2.5 text-[#1E293B] placeholder:text-[#94A3B8] focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+            />
+            <p className="mt-1 text-xs text-[#64748B]">
+              Your role or job title — the agent will use this to present itself correctly
+            </p>
+          </div>
+
+          {/* Company Name */}
+          <div>
+            <label className="block text-sm font-medium text-[#1E293B]">Company Name</label>
+            <input
+              type="text"
+              value={agentCompanyName}
+              onChange={(e) => setAgentCompanyName(e.target.value)}
+              placeholder="Acme Inc."
+              className="mt-2 w-full rounded-lg border border-[#E2E8F0] px-4 py-2.5 text-[#1E293B] placeholder:text-[#94A3B8] focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+            />
+            <p className="mt-1 text-xs text-[#64748B]">
+              Your company name as the agent should reference it
+            </p>
+          </div>
+
+          {/* Company Context */}
+          <div>
+            <label className="block text-sm font-medium text-[#1E293B]">Company Context</label>
+            <textarea
+              value={agentCompanyContext}
+              onChange={(e) => setAgentCompanyContext(e.target.value)}
+              placeholder="We help B2B companies..."
+              rows={3}
+              className="mt-2 w-full rounded-lg border border-[#E2E8F0] px-4 py-2.5 text-[#1E293B] placeholder:text-[#94A3B8] focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+            />
+            <p className="mt-1 text-xs text-[#64748B]">
+              Brief description of your company for the AI agent
+            </p>
+          </div>
+
+          {/* Product Description */}
+          <div>
+            <label className="block text-sm font-medium text-[#1E293B]">Product Description</label>
+            <textarea
+              value={agentProductDescription}
+              onChange={(e) => setAgentProductDescription(e.target.value)}
+              placeholder="Our platform combines..."
+              rows={3}
+              className="mt-2 w-full rounded-lg border border-[#E2E8F0] px-4 py-2.5 text-[#1E293B] placeholder:text-[#94A3B8] focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+            />
+            <p className="mt-1 text-xs text-[#64748B]">
+              Describe your product or service so the AI can reference it
+            </p>
+          </div>
+
+          {/* Scheduling Link */}
+          <div>
+            <label className="block text-sm font-medium text-[#1E293B]">Scheduling Link</label>
+            <input
+              type="url"
+              value={agentSchedulingLink}
+              onChange={(e) => setAgentSchedulingLink(e.target.value)}
+              placeholder="https://calendly.com/you/30min"
+              className="mt-2 w-full rounded-lg border border-[#E2E8F0] px-4 py-2.5 text-[#1E293B] placeholder:text-[#94A3B8] focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+            />
+            <p className="mt-1 text-xs text-[#64748B]">
+              Calendar link the agent will share when booking meetings
+            </p>
+          </div>
+        </div>
+
+        {/* Error / Success */}
+        {error && (
+          <div className="mt-6 flex items-start gap-3 rounded-xl border border-[#EF4444]/20 bg-[#FEF2F2] p-4">
+            <WarningIcon className="mt-0.5 h-5 w-5 flex-shrink-0 text-[#EF4444]" />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-[#991B1B]">Error</p>
+              <p className="text-xs text-[#DC2626]">{error}</p>
+            </div>
+          </div>
+        )}
+        {success && (
+          <div className="mt-6 flex items-center gap-2 rounded-xl border border-[#86EFAC] bg-[#F0FDF4] p-4">
+            <CheckIcon className="h-5 w-5 text-[#22C55E]" />
+            <p className="text-sm font-medium text-[#166534]">
+              AI agent defaults saved successfully
+            </p>
+          </div>
+        )}
+
+        {/* Save Button */}
+        <div className="mt-6 flex justify-end">
+          <button
+            onClick={handleSave}
+            disabled={isSaving}
+            className="rounded-lg bg-[#FF6B35] px-6 py-2.5 font-medium text-white hover:bg-[#E85A2A] disabled:opacity-50"
+          >
+            {isSaving ? 'Saving...' : 'Save Defaults'}
+          </button>
+        </div>
+      </div>
+
+      {/* Info Box */}
+      <div className="flex items-start gap-3 rounded-xl border border-[#3B82F6]/20 bg-[#EFF6FF] p-4">
+        <InfoIcon className="mt-0.5 h-5 w-5 flex-shrink-0 text-[#3B82F6]" />
+        <div className="flex-1 text-xs text-[#1E3A8A]">
+          <p className="font-medium">How AI Agent defaults work</p>
+          <ul className="mt-2 list-inside list-disc space-y-1">
+            <li>These values pre-populate new Reply Agent steps in the campaign builder</li>
+            <li>You can still override them per-campaign in the step configuration</li>
+            <li>Changes here won't affect existing campaign steps</li>
+          </ul>
+        </div>
+      </div>
+    </motion.div>
   );
 }
 
@@ -4802,6 +5086,24 @@ function IntegrationIcon() {
         strokeLinecap="round"
         strokeLinejoin="round"
         d="M14.25 6.087c0-.355.186-.676.401-.959.221-.29.349-.634.349-1.003 0-1.036-1.007-1.875-2.25-1.875s-2.25.84-2.25 1.875c0 .369.128.713.349 1.003.215.283.401.604.401.959v0a.64.64 0 01-.657.643 48.39 48.39 0 01-4.163-.3c.186 1.613.293 3.25.315 4.907a.656.656 0 01-.658.663v0c-.355 0-.676-.186-.959-.401a1.647 1.647 0 00-1.003-.349c-1.036 0-1.875 1.007-1.875 2.25s.84 2.25 1.875 2.25c.369 0 .713-.128 1.003-.349.283-.215.604-.401.959-.401v0c.31 0 .555.26.532.57a48.039 48.039 0 01-.642 5.056c1.518.19 3.058.309 4.616.354a.64.64 0 00.657-.643v0c0-.355-.186-.676-.401-.959a1.647 1.647 0 01-.349-1.003c0-1.035 1.008-1.875 2.25-1.875 1.243 0 2.25.84 2.25 1.875 0 .369-.128.713-.349 1.003-.215.283-.4.604-.4.959v0c0 .333.277.599.61.58a48.1 48.1 0 005.427-.63 48.05 48.05 0 00.582-4.717.532.532 0 00-.533-.57v0c-.355 0-.676.186-.959.401-.29.221-.634.349-1.003.349-1.035 0-1.875-1.007-1.875-2.25s.84-2.25 1.875-2.25c.37 0 .713.128 1.003.349.283.215.604.401.96.401v0a.656.656 0 00.658-.663 48.422 48.422 0 00-.37-5.36c-1.886.342-3.81.574-5.766.689a.578.578 0 01-.61-.58v0z"
+      />
+    </svg>
+  );
+}
+
+function AIAgentIcon() {
+  return (
+    <svg
+      className="h-5 w-5"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={1.5}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z"
       />
     </svg>
   );
