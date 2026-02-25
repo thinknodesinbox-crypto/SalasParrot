@@ -21,6 +21,7 @@ import {
   useEmailAuthConfig,
   useCalendarAccounts,
   useDeleteCalendarAccount,
+  useConnectCalendarFromEmail,
   useInitCalendarAuth,
 } from '../../lib/hooks/queries';
 import type {
@@ -2930,15 +2931,36 @@ function CalendarAccountsList({ accounts }: { accounts: CalendarAccount[] }) {
 
 function ConnectCalendarModal({ onClose }: { onClose: () => void }) {
   const [isLoading, setIsLoading] = useState<CalendarProvider | null>(null);
+  const [connectingEmailId, setConnectingEmailId] = useState<string | null>(null);
+  const [showNewAuth, setShowNewAuth] = useState(false);
   const [error, setError] = useState('');
   const currentWorkspaceId = useWorkspaceStore((s) => s.currentWorkspaceId);
   const initCalendarAuth = useInitCalendarAuth();
+  const connectFromEmail = useConnectCalendarFromEmail();
+  const { data: emailAccounts } = useEmailAccounts();
+
+  // Email accounts that can share calendar access (Google/Microsoft only, not IMAP)
+  const reusableEmailAccounts = (emailAccounts ?? []).filter(
+    (ea) => ea.provider === 'google' || ea.provider === 'microsoft'
+  );
+
+  const handleConnectFromEmail = async (emailAccountId: string) => {
+    setConnectingEmailId(emailAccountId);
+    setError('');
+    try {
+      await connectFromEmail.mutateAsync(emailAccountId);
+      onClose();
+    } catch (err) {
+      setError(getErrorMessage(err));
+      setConnectingEmailId(null);
+    }
+  };
 
   const handleConnect = async (provider: CalendarProvider) => {
     setIsLoading(provider);
     setError('');
     try {
-      const returnUrl = `${window.location.origin}/dashboard/accounts?status=success&tab=calendar`;
+      const returnUrl = `${window.location.origin}/dashboard/accounts?tab=calendar`;
       const result = await initCalendarAuth.mutateAsync({
         provider,
         workspaceId: currentWorkspaceId ?? undefined,
@@ -2950,6 +2972,8 @@ function ConnectCalendarModal({ onClose }: { onClose: () => void }) {
       setIsLoading(null);
     }
   };
+
+  const showReusable = reusableEmailAccounts.length > 0 && !showNewAuth;
 
   return createPortal(
     <motion.div
@@ -2975,7 +2999,11 @@ function ConnectCalendarModal({ onClose }: { onClose: () => void }) {
               </div>
               <div>
                 <h2 className="text-lg font-semibold text-[#1E293B]">Connect Calendar</h2>
-                <p className="text-sm text-[#64748B]">Choose your calendar provider</p>
+                <p className="text-sm text-[#64748B]">
+                  {showReusable
+                    ? 'Use an existing email account or connect a new one'
+                    : 'Choose your calendar provider'}
+                </p>
               </div>
             </div>
             <button
@@ -2995,69 +3023,128 @@ function ConnectCalendarModal({ onClose }: { onClose: () => void }) {
             </div>
           )}
 
-          <div className="space-y-3">
-            <button
-              onClick={() => handleConnect('google')}
-              disabled={isLoading !== null}
-              className="flex w-full items-center gap-4 rounded-xl border border-[#E2E8F0] p-4 transition-all hover:border-[#14B8A6]/30 hover:bg-[#F0FDFA] disabled:opacity-50"
-            >
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white shadow-sm">
-                <GoogleIcon className="h-6 w-6" />
+          {showReusable ? (
+            <>
+              <p className="mb-3 text-sm text-[#64748B]">
+                Your connected email accounts already have calendar access:
+              </p>
+              <div className="space-y-3">
+                {reusableEmailAccounts.map((ea) => (
+                  <button
+                    key={ea.id}
+                    onClick={() => handleConnectFromEmail(ea.id)}
+                    disabled={connectingEmailId !== null}
+                    className="flex w-full items-center gap-4 rounded-xl border border-[#E2E8F0] p-4 transition-all hover:border-[#14B8A6]/30 hover:bg-[#F0FDFA] disabled:opacity-50"
+                  >
+                    <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white shadow-sm">
+                      {ea.provider === 'google' ? (
+                        <GoogleIcon className="h-6 w-6" />
+                      ) : (
+                        <MicrosoftIcon className="h-6 w-6" />
+                      )}
+                    </div>
+                    <div className="flex-1 text-left">
+                      <p className="font-medium text-[#1E293B]">{ea.email_address}</p>
+                      <p className="text-sm text-[#64748B]">
+                        {ea.provider === 'google' ? 'Google' : 'Microsoft'} Calendar
+                      </p>
+                    </div>
+                    {connectingEmailId === ea.id ? (
+                      <div className="h-5 w-5 animate-spin rounded-full border-2 border-[#14B8A6] border-t-transparent" />
+                    ) : (
+                      <span className="text-sm font-medium text-[#14B8A6]">Use this calendar</span>
+                    )}
+                  </button>
+                ))}
               </div>
-              <div className="flex-1 text-left">
-                <p className="font-medium text-[#1E293B]">Google Calendar</p>
-                <p className="text-sm text-[#64748B]">
-                  Connect your Gmail or Google Workspace calendar
-                </p>
-              </div>
-              {isLoading === 'google' ? (
-                <div className="h-5 w-5 animate-spin rounded-full border-2 border-[#14B8A6] border-t-transparent" />
-              ) : (
-                <svg
-                  className="h-5 w-5 text-[#94A3B8]"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={2}
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                </svg>
-              )}
-            </button>
 
-            <button
-              onClick={() => handleConnect('microsoft')}
-              disabled={isLoading !== null}
-              className="flex w-full items-center gap-4 rounded-xl border border-[#E2E8F0] p-4 transition-all hover:border-[#14B8A6]/30 hover:bg-[#F0FDFA] disabled:opacity-50"
-            >
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white shadow-sm">
-                <MicrosoftIcon className="h-6 w-6" />
-              </div>
-              <div className="flex-1 text-left">
-                <p className="font-medium text-[#1E293B]">Microsoft Outlook</p>
-                <p className="text-sm text-[#64748B]">
-                  Connect your Outlook or Microsoft 365 calendar
-                </p>
-              </div>
-              {isLoading === 'microsoft' ? (
-                <div className="h-5 w-5 animate-spin rounded-full border-2 border-[#14B8A6] border-t-transparent" />
-              ) : (
-                <svg
-                  className="h-5 w-5 text-[#94A3B8]"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                  strokeWidth={2}
+              <div className="mt-4 text-center">
+                <button
+                  onClick={() => setShowNewAuth(true)}
+                  className="text-sm text-[#64748B] underline decoration-[#94A3B8] underline-offset-2 transition-colors hover:text-[#1E293B]"
                 >
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                </svg>
-              )}
-            </button>
-          </div>
+                  Or connect a different account
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="space-y-3">
+                <button
+                  onClick={() => handleConnect('google')}
+                  disabled={isLoading !== null}
+                  className="flex w-full items-center gap-4 rounded-xl border border-[#E2E8F0] p-4 transition-all hover:border-[#14B8A6]/30 hover:bg-[#F0FDFA] disabled:opacity-50"
+                >
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white shadow-sm">
+                    <GoogleIcon className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 text-left">
+                    <p className="font-medium text-[#1E293B]">Google Calendar</p>
+                    <p className="text-sm text-[#64748B]">
+                      Connect your Gmail or Google Workspace calendar
+                    </p>
+                  </div>
+                  {isLoading === 'google' ? (
+                    <div className="h-5 w-5 animate-spin rounded-full border-2 border-[#14B8A6] border-t-transparent" />
+                  ) : (
+                    <svg
+                      className="h-5 w-5 text-[#94A3B8]"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                    </svg>
+                  )}
+                </button>
 
-          <p className="mt-4 text-center text-xs text-[#94A3B8]">
-            You'll be redirected to securely authorize calendar access via OAuth
-          </p>
+                <button
+                  onClick={() => handleConnect('microsoft')}
+                  disabled={isLoading !== null}
+                  className="flex w-full items-center gap-4 rounded-xl border border-[#E2E8F0] p-4 transition-all hover:border-[#14B8A6]/30 hover:bg-[#F0FDFA] disabled:opacity-50"
+                >
+                  <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white shadow-sm">
+                    <MicrosoftIcon className="h-6 w-6" />
+                  </div>
+                  <div className="flex-1 text-left">
+                    <p className="font-medium text-[#1E293B]">Microsoft Outlook</p>
+                    <p className="text-sm text-[#64748B]">
+                      Connect your Outlook or Microsoft 365 calendar
+                    </p>
+                  </div>
+                  {isLoading === 'microsoft' ? (
+                    <div className="h-5 w-5 animate-spin rounded-full border-2 border-[#14B8A6] border-t-transparent" />
+                  ) : (
+                    <svg
+                      className="h-5 w-5 text-[#94A3B8]"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                    </svg>
+                  )}
+                </button>
+              </div>
+
+              <p className="mt-4 text-center text-xs text-[#94A3B8]">
+                You'll be redirected to securely authorize calendar access via OAuth
+              </p>
+
+              {reusableEmailAccounts.length > 0 && (
+                <div className="mt-2 text-center">
+                  <button
+                    onClick={() => setShowNewAuth(false)}
+                    className="text-sm text-[#64748B] underline decoration-[#94A3B8] underline-offset-2 transition-colors hover:text-[#1E293B]"
+                  >
+                    Back to email accounts
+                  </button>
+                </div>
+              )}
+            </>
+          )}
         </div>
       </motion.div>
     </motion.div>,

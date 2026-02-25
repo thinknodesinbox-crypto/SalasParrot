@@ -655,6 +655,25 @@ interface CalendarAuthInitParams {
   returnUrl?: string;
 }
 
+export const useConnectCalendarFromEmail = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (emailAccountId: string) => {
+      const response = await api.post<CalendarAccount>('/calendar-accounts/connect/from-email', {
+        email_account_id: emailAccountId,
+      });
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.calendarAccounts.all });
+    },
+    onError: (error) => {
+      throw new Error(getErrorMessage(error));
+    },
+  });
+};
+
 export const useInitCalendarAuth = () => {
   return useMutation({
     mutationFn: async (params: CalendarAuthInitParams) => {

@@ -86,6 +86,7 @@ export {
   useCalendarAccounts,
   useDeleteCalendarAccount,
   useUpdateCalendarAccount,
+  useConnectCalendarFromEmail,
   useInitCalendarAuth,
 } from './useAccounts';
 
