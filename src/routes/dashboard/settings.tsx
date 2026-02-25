@@ -29,6 +29,9 @@ import {
   useInitMicrosoftOAuth,
   useInitGmailHostedAuth,
   useEmailAuthConfig,
+  useCalendarAccounts,
+  useDeleteCalendarAccount,
+  useInitCalendarAuth,
 } from '@/lib/hooks/queries';
 import { api, getErrorMessage } from '@/lib/api';
 import {
@@ -95,7 +98,14 @@ import {
   useTestSlackConnection,
   useSendTestSlackNotification,
 } from '@/lib/hooks/queries/useSlack';
-import type { CheckpointType, Workspace, LinkedInAccount, BillingOverview } from '@/lib/types';
+import type {
+  CheckpointType,
+  Workspace,
+  LinkedInAccount,
+  BillingOverview,
+  CalendarAccount,
+  CalendarProvider,
+} from '@/lib/types';
 import { useWorkspaceStore } from '@/lib/workspace';
 
 export const Route = createFileRoute('/dashboard/settings')({
@@ -126,12 +136,21 @@ function SettingsPage() {
     const urlParams = new URLSearchParams(window.location.search);
     const status = urlParams.get('status');
     const message = urlParams.get('message');
+    const tab = urlParams.get('tab');
 
     if (status === 'success') {
-      setNotification({ type: 'success', message: 'Email account connected successfully!' });
-      setActiveTab('integrations'); // Switch to integrations tab to show the new account
+      const accountType = tab === 'calendar' ? 'Calendar' : 'Email';
+      setNotification({
+        type: 'success',
+        message: `${accountType} account connected successfully!`,
+      });
+      setActiveTab('integrations');
     } else if (status === 'error') {
-      setNotification({ type: 'error', message: message || 'Failed to connect email account' });
+      const accountType = tab === 'calendar' ? 'calendar' : 'email';
+      setNotification({
+        type: 'error',
+        message: message || `Failed to connect ${accountType} account`,
+      });
       setActiveTab('integrations');
     }
 
@@ -2545,11 +2564,13 @@ function IntegrationSettings() {
   const [showPipedriveModal, setShowPipedriveModal] = useState(false);
   const [showCloseModal, setShowCloseModal] = useState(false);
   const [showSlackModal, setShowSlackModal] = useState(false);
+  const [showCalendarModal, setShowCalendarModal] = useState(false);
   const [editingLinkedInAccount, setEditingLinkedInAccount] = useState<LinkedInAccount | null>(
     null
   );
   const { data: emailAccounts = [], isLoading: emailsLoading } = useEmailAccounts();
   const { data: linkedInAccounts = [], isLoading: linkedInLoading } = useLinkedInAccounts();
+  const { data: calendarAccounts = [], isLoading: calendarLoading } = useCalendarAccounts();
   const { data: webhooksData } = useWebhooks();
   const { data: apiKeysData } = useAPIKeys();
   const { data: hubspotStatus } = useHubSpotStatus();
@@ -2731,6 +2752,49 @@ function IntegrationSettings() {
         )}
       </div>
 
+      {/* Calendar Accounts */}
+      <div className="rounded-xl border border-[#E2E8F0] bg-white p-6">
+        <div className="mb-6 flex items-center justify-between">
+          <div>
+            <h3 className="font-semibold text-[#1E293B]">Calendar Accounts</h3>
+            <p className="mt-1 text-sm text-[#64748B]">
+              Connect your calendar for availability checking and meeting booking
+            </p>
+          </div>
+          <button
+            onClick={() => setShowCalendarModal(true)}
+            className="flex items-center gap-2 rounded-lg bg-[#14B8A6] px-4 py-2.5 font-medium text-white transition-colors hover:bg-[#0D9488]"
+          >
+            <PlusIcon />
+            Connect Calendar
+          </button>
+        </div>
+
+        {/* Connected Calendar Accounts */}
+        {calendarLoading ? (
+          <div className="flex items-center justify-center py-6">
+            <div className="h-6 w-6 animate-spin rounded-full border-2 border-[#14B8A6] border-t-transparent" />
+          </div>
+        ) : calendarAccounts.length > 0 ? (
+          <div className="space-y-3">
+            {calendarAccounts.map((account) => (
+              <SettingsCalendarAccountRow key={account.id} account={account} />
+            ))}
+          </div>
+        ) : (
+          /* Empty State */
+          <div className="rounded-xl border-2 border-dashed border-[#E2E8F0] p-6 text-center">
+            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-[#F8FAFC]">
+              <CalendarIcon />
+            </div>
+            <p className="text-sm text-[#64748B]">No calendar accounts connected yet</p>
+            <p className="mt-1 text-xs text-[#94A3B8]">
+              Connect a calendar to enable availability checking
+            </p>
+          </div>
+        )}
+      </div>
+
       {/* CRM Integrations */}
       <div className="rounded-xl border border-[#E2E8F0] bg-white p-6">
         <div className="mb-6">
@@ -2893,7 +2957,237 @@ function IntegrationSettings() {
       <AnimatePresence>
         {showSlackModal && <SlackManagementModal onClose={() => setShowSlackModal(false)} />}
       </AnimatePresence>
+
+      {/* Calendar Connection Modal */}
+      <AnimatePresence>
+        {showCalendarModal && (
+          <SettingsConnectCalendarModal onClose={() => setShowCalendarModal(false)} />
+        )}
+      </AnimatePresence>
     </motion.div>
+  );
+}
+
+function SettingsCalendarAccountRow({ account }: { account: CalendarAccount }) {
+  const deleteAccount = useDeleteCalendarAccount();
+  const [showConfirm, setShowConfirm] = useState(false);
+
+  const handleDelete = async () => {
+    await deleteAccount.mutateAsync(account.id);
+    setShowConfirm(false);
+  };
+
+  return (
+    <>
+      <div className="flex items-center justify-between rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
+        <div className="flex items-center gap-4">
+          <div
+            className={`flex h-10 w-10 items-center justify-center rounded-lg ${
+              account.provider === 'google' ? 'bg-[#EA4335]/10' : 'bg-[#00A4EF]/10'
+            }`}
+          >
+            {account.provider === 'google' ? (
+              <GoogleIcon className="h-6 w-6" />
+            ) : (
+              <MicrosoftIcon className="h-6 w-6" />
+            )}
+          </div>
+          <div>
+            <p className="font-medium text-[#1E293B]">{account.email_address}</p>
+            <p className="text-sm text-[#64748B]">
+              {account.provider === 'google' ? 'Google' : 'Microsoft'} -{' '}
+              {account.status === 'connected' ? 'Connected' : 'Disconnected'}
+            </p>
+          </div>
+        </div>
+        <button
+          onClick={() => setShowConfirm(true)}
+          className="rounded-lg px-3 py-1.5 text-sm font-medium text-[#EF4444] transition-colors hover:bg-[#FEF2F2]"
+        >
+          Disconnect
+        </button>
+      </div>
+
+      <AnimatePresence>
+        {showConfirm &&
+          createPortal(
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+              onClick={() => setShowConfirm(false)}
+            >
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"
+              >
+                <h3 className="text-lg font-semibold text-[#1E293B]">Disconnect Calendar</h3>
+                <p className="mt-2 text-sm text-[#64748B]">
+                  Are you sure you want to disconnect{' '}
+                  <span className="font-medium text-[#1E293B]">{account.email_address}</span>?
+                </p>
+                <div className="mt-6 flex gap-3">
+                  <button
+                    onClick={() => setShowConfirm(false)}
+                    className="flex-1 rounded-lg border border-[#E2E8F0] px-4 py-2.5 font-medium text-[#64748B] hover:bg-[#F8FAFC]"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleDelete}
+                    disabled={deleteAccount.isPending}
+                    className="flex-1 rounded-lg bg-[#EF4444] px-4 py-2.5 font-medium text-white transition-colors hover:bg-[#DC2626] disabled:opacity-50"
+                  >
+                    {deleteAccount.isPending ? 'Disconnecting...' : 'Disconnect'}
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>,
+            document.body
+          )}
+      </AnimatePresence>
+    </>
+  );
+}
+
+function SettingsConnectCalendarModal({ onClose }: { onClose: () => void }) {
+  const [isLoading, setIsLoading] = useState<CalendarProvider | null>(null);
+  const [error, setError] = useState('');
+  const currentWorkspaceId = useWorkspaceStore((s) => s.currentWorkspaceId);
+  const initCalendarAuth = useInitCalendarAuth();
+
+  const handleConnect = async (provider: CalendarProvider) => {
+    setIsLoading(provider);
+    setError('');
+    try {
+      const returnUrl = `${window.location.origin}/dashboard/settings?status=success&tab=calendar`;
+      const result = await initCalendarAuth.mutateAsync({
+        provider,
+        workspaceId: currentWorkspaceId ?? undefined,
+        returnUrl,
+      });
+      window.location.href = result.url;
+    } catch (err) {
+      setError(getErrorMessage(err));
+      setIsLoading(null);
+    }
+  };
+
+  return createPortal(
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        onClick={(e: React.MouseEvent) => e.stopPropagation()}
+        className="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl"
+      >
+        {/* Header */}
+        <div className="border-b border-[#E2E8F0] bg-gradient-to-r from-[#F0FDFA] to-[#ECFDF5] px-6 py-5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#14B8A6]/10">
+                <CalendarIcon />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold text-[#1E293B]">Connect Calendar</h2>
+                <p className="text-sm text-[#64748B]">Choose your calendar provider</p>
+              </div>
+            </div>
+            <button
+              onClick={onClose}
+              className="rounded-lg p-2 text-[#64748B] transition-colors hover:bg-[#E2E8F0]"
+            >
+              <CloseIcon />
+            </button>
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="p-6">
+          {error && (
+            <div className="mb-4 rounded-lg border border-[#FECACA] bg-[#FEF2F2] p-3 text-sm text-[#DC2626]">
+              {error}
+            </div>
+          )}
+
+          <div className="space-y-3">
+            <button
+              onClick={() => handleConnect('google')}
+              disabled={isLoading !== null}
+              className="flex w-full items-center gap-4 rounded-xl border border-[#E2E8F0] p-4 transition-all hover:border-[#14B8A6]/30 hover:bg-[#F0FDFA] disabled:opacity-50"
+            >
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white shadow-sm">
+                <GoogleIcon className="h-6 w-6" />
+              </div>
+              <div className="flex-1 text-left">
+                <p className="font-medium text-[#1E293B]">Google Calendar</p>
+                <p className="text-sm text-[#64748B]">
+                  Connect your Gmail or Google Workspace calendar
+                </p>
+              </div>
+              {isLoading === 'google' ? (
+                <div className="h-5 w-5 animate-spin rounded-full border-2 border-[#14B8A6] border-t-transparent" />
+              ) : (
+                <svg
+                  className="h-5 w-5 text-[#94A3B8]"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                </svg>
+              )}
+            </button>
+
+            <button
+              onClick={() => handleConnect('microsoft')}
+              disabled={isLoading !== null}
+              className="flex w-full items-center gap-4 rounded-xl border border-[#E2E8F0] p-4 transition-all hover:border-[#14B8A6]/30 hover:bg-[#F0FDFA] disabled:opacity-50"
+            >
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white shadow-sm">
+                <MicrosoftIcon className="h-6 w-6" />
+              </div>
+              <div className="flex-1 text-left">
+                <p className="font-medium text-[#1E293B]">Microsoft Outlook</p>
+                <p className="text-sm text-[#64748B]">
+                  Connect your Outlook or Microsoft 365 calendar
+                </p>
+              </div>
+              {isLoading === 'microsoft' ? (
+                <div className="h-5 w-5 animate-spin rounded-full border-2 border-[#14B8A6] border-t-transparent" />
+              ) : (
+                <svg
+                  className="h-5 w-5 text-[#94A3B8]"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                </svg>
+              )}
+            </button>
+          </div>
+
+          <p className="mt-4 text-center text-xs text-[#94A3B8]">
+            You'll be redirected to securely authorize calendar access via OAuth
+          </p>
+        </div>
+      </motion.div>
+    </motion.div>,
+    document.body
   );
 }
 
@@ -5363,6 +5657,40 @@ function CalendarIcon() {
         strokeLinejoin="round"
         d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5"
       />
+    </svg>
+  );
+}
+
+function GoogleIcon({ className = 'w-6 h-6' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24">
+      <path
+        fill="#EA4335"
+        d="M5.266 9.765A7.077 7.077 0 0 1 12 4.909c1.69 0 3.218.6 4.418 1.582L19.91 3C17.782 1.145 15.055 0 12 0 7.27 0 3.198 2.698 1.24 6.65l4.026 3.115Z"
+      />
+      <path
+        fill="#34A853"
+        d="M16.04 18.013c-1.09.703-2.474 1.078-4.04 1.078a7.077 7.077 0 0 1-6.723-4.823l-4.04 3.067A11.965 11.965 0 0 0 12 24c2.933 0 5.735-1.043 7.834-3l-3.793-2.987Z"
+      />
+      <path
+        fill="#4A90E2"
+        d="M19.834 21c2.195-2.048 3.62-5.096 3.62-9 0-.71-.109-1.473-.272-2.182H12v4.637h6.436c-.317 1.559-1.17 2.766-2.395 3.558L19.834 21Z"
+      />
+      <path
+        fill="#FBBC05"
+        d="M5.277 14.268A7.12 7.12 0 0 1 4.909 12c0-.782.125-1.533.357-2.235L1.24 6.65A11.934 11.934 0 0 0 0 12c0 1.92.445 3.73 1.237 5.335l4.04-3.067Z"
+      />
+    </svg>
+  );
+}
+
+function MicrosoftIcon({ className = 'w-6 h-6' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 23 23">
+      <path fill="#f35325" d="M1 1h10v10H1z" />
+      <path fill="#81bc06" d="M12 1h10v10H12z" />
+      <path fill="#05a6f0" d="M1 12h10v10H1z" />
+      <path fill="#ffba08" d="M12 12h10v10H12z" />
     </svg>
   );
 }

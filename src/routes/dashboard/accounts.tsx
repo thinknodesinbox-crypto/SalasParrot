@@ -19,8 +19,18 @@ import {
   useInitMicrosoftOAuth,
   useInitGmailHostedAuth,
   useEmailAuthConfig,
+  useCalendarAccounts,
+  useDeleteCalendarAccount,
+  useInitCalendarAuth,
 } from '../../lib/hooks/queries';
-import type { LinkedInAccount, EmailAccount, CheckpointType, SyncMode } from '../../lib/types';
+import type {
+  LinkedInAccount,
+  EmailAccount,
+  CalendarAccount,
+  CalendarProvider,
+  CheckpointType,
+  SyncMode,
+} from '../../lib/types';
 import { getErrorMessage } from '../../lib/api';
 import { useWorkspaceStore } from '../../lib/workspace';
 
@@ -28,12 +38,13 @@ export const Route = createFileRoute('/dashboard/accounts')({
   component: AccountsPage,
 });
 
-type AccountTab = 'linkedin' | 'email';
+type AccountTab = 'linkedin' | 'email' | 'calendar';
 
 function AccountsPage() {
   const [activeTab, setActiveTab] = useState<AccountTab>('linkedin');
   const [showConnectLinkedInModal, setShowConnectLinkedInModal] = useState(false);
   const [showConnectEmailModal, setShowConnectEmailModal] = useState(false);
+  const [showConnectCalendarModal, setShowConnectCalendarModal] = useState(false);
   const [notification, setNotification] = useState<{
     type: 'success' | 'error';
     message: string;
@@ -44,13 +55,27 @@ function AccountsPage() {
     const urlParams = new URLSearchParams(window.location.search);
     const status = urlParams.get('status');
     const message = urlParams.get('message');
+    const tab = urlParams.get('tab');
 
     if (status === 'success') {
-      setNotification({ type: 'success', message: 'Email account connected successfully!' });
-      setActiveTab('email'); // Switch to email tab to show the new account
+      if (tab === 'calendar') {
+        setNotification({ type: 'success', message: 'Calendar account connected successfully!' });
+        setActiveTab('calendar');
+      } else {
+        setNotification({ type: 'success', message: 'Email account connected successfully!' });
+        setActiveTab('email');
+      }
     } else if (status === 'error') {
-      setNotification({ type: 'error', message: message || 'Failed to connect email account' });
-      setActiveTab('email');
+      if (tab === 'calendar') {
+        setNotification({
+          type: 'error',
+          message: message || 'Failed to connect calendar account',
+        });
+        setActiveTab('calendar');
+      } else {
+        setNotification({ type: 'error', message: message || 'Failed to connect email account' });
+        setActiveTab('email');
+      }
     }
 
     // Clear URL params without page reload
@@ -82,9 +107,27 @@ function AccountsPage() {
     refetch: refetchEmail,
   } = useEmailAccounts();
 
-  const isLoading = activeTab === 'linkedin' ? linkedInLoading : emailLoading;
-  const error = activeTab === 'linkedin' ? linkedInError : emailError;
-  const refetch = activeTab === 'linkedin' ? refetchLinkedIn : refetchEmail;
+  const {
+    data: calendarAccounts = [],
+    isLoading: calendarLoading,
+    error: calendarError,
+    refetch: refetchCalendar,
+  } = useCalendarAccounts();
+
+  const isLoading =
+    activeTab === 'linkedin'
+      ? linkedInLoading
+      : activeTab === 'email'
+        ? emailLoading
+        : calendarLoading;
+  const error =
+    activeTab === 'linkedin' ? linkedInError : activeTab === 'email' ? emailError : calendarError;
+  const refetch =
+    activeTab === 'linkedin'
+      ? refetchLinkedIn
+      : activeTab === 'email'
+        ? refetchEmail
+        : refetchCalendar;
 
   if (isLoading) {
     return (
@@ -156,23 +199,34 @@ function AccountsPage() {
           <div>
             <h1 className="text-xl font-bold text-[#1E293B] md:text-2xl">Sender Accounts</h1>
             <p className="mt-1 text-sm text-[#64748B] md:text-base">
-              Connect and manage your LinkedIn and email senders
+              Connect and manage your LinkedIn, email, and calendar accounts
             </p>
           </div>
           <button
             onClick={() =>
               activeTab === 'linkedin'
                 ? setShowConnectLinkedInModal(true)
-                : setShowConnectEmailModal(true)
+                : activeTab === 'email'
+                  ? setShowConnectEmailModal(true)
+                  : setShowConnectCalendarModal(true)
             }
             className={`flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2.5 font-medium text-white transition-colors sm:w-auto ${
               activeTab === 'linkedin'
                 ? 'bg-[#0A66C2] hover:bg-[#004182]'
-                : 'bg-[#FF6B35] hover:bg-[#E65A2C]'
+                : activeTab === 'email'
+                  ? 'bg-[#FF6B35] hover:bg-[#E65A2C]'
+                  : 'bg-[#14B8A6] hover:bg-[#0D9488]'
             }`}
           >
-            {activeTab === 'linkedin' ? <LinkedInIcon /> : <EmailIcon />}
-            Connect {activeTab === 'linkedin' ? 'LinkedIn' : 'Email'}
+            {activeTab === 'linkedin' ? (
+              <LinkedInIcon />
+            ) : activeTab === 'email' ? (
+              <EmailIcon />
+            ) : (
+              <CalendarIcon />
+            )}
+            Connect{' '}
+            {activeTab === 'linkedin' ? 'LinkedIn' : activeTab === 'email' ? 'Email' : 'Calendar'}
           </button>
         </div>
 
@@ -200,6 +254,17 @@ function AccountsPage() {
             <EmailIcon className="h-4 w-4" />
             Email ({emailAccounts.length})
           </button>
+          <button
+            onClick={() => setActiveTab('calendar')}
+            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+              activeTab === 'calendar'
+                ? 'border-b-2 border-[#14B8A6] text-[#14B8A6]'
+                : 'text-[#64748B] hover:text-[#1E293B]'
+            }`}
+          >
+            <CalendarIcon className="h-4 w-4" />
+            Calendar ({calendarAccounts.length})
+          </button>
         </div>
       </div>
 
@@ -210,28 +275,44 @@ function AccountsPage() {
         className={`flex items-start gap-3 rounded-xl border p-4 ${
           activeTab === 'linkedin'
             ? 'border-[#3B82F6]/20 bg-gradient-to-r from-[#EFF6FF] to-[#F0F9FF]'
-            : 'border-[#FF6B35]/20 bg-gradient-to-r from-[#FFF7ED] to-[#FFFBEB]'
+            : activeTab === 'email'
+              ? 'border-[#FF6B35]/20 bg-gradient-to-r from-[#FFF7ED] to-[#FFFBEB]'
+              : 'border-[#14B8A6]/20 bg-gradient-to-r from-[#F0FDFA] to-[#ECFDF5]'
         }`}
       >
         <div
           className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl ${
-            activeTab === 'linkedin' ? 'bg-[#3B82F6]/10' : 'bg-[#FF6B35]/10'
+            activeTab === 'linkedin'
+              ? 'bg-[#3B82F6]/10'
+              : activeTab === 'email'
+                ? 'bg-[#FF6B35]/10'
+                : 'bg-[#14B8A6]/10'
           }`}
         >
           <InfoIcon
-            className={`h-5 w-5 ${activeTab === 'linkedin' ? 'text-[#3B82F6]' : 'text-[#FF6B35]'}`}
+            className={`h-5 w-5 ${
+              activeTab === 'linkedin'
+                ? 'text-[#3B82F6]'
+                : activeTab === 'email'
+                  ? 'text-[#FF6B35]'
+                  : 'text-[#14B8A6]'
+            }`}
           />
         </div>
         <div>
           <p className="text-sm font-medium text-[#1E293B]">
             {activeTab === 'linkedin'
               ? 'LinkedIn accounts become "senders" when assigned to campaigns'
-              : 'Email accounts enable follow-up emails in your campaigns'}
+              : activeTab === 'email'
+                ? 'Email accounts enable follow-up emails in your campaigns'
+                : 'Calendar accounts let the reply agent check your availability and book meetings'}
           </p>
           <p className="mt-1 text-sm text-[#64748B]">
             {activeTab === 'linkedin'
               ? 'Connect multiple accounts to scale your outreach while each account stays within safe daily limits.'
-              : 'Connect your email accounts to send personalized follow-ups when LinkedIn connections are not accepted.'}
+              : activeTab === 'email'
+                ? 'Connect your email accounts to send personalized follow-ups when LinkedIn connections are not accepted.'
+                : 'Connect your Google or Microsoft calendar so meetings can be scheduled automatically when leads are interested.'}
           </p>
         </div>
       </motion.div>
@@ -251,7 +332,7 @@ function AccountsPage() {
               <AccountsList accounts={linkedInAccounts} />
             )}
           </motion.div>
-        ) : (
+        ) : activeTab === 'email' ? (
           <motion.div
             key="email"
             initial={{ opacity: 0, x: -20 }}
@@ -264,6 +345,19 @@ function AccountsPage() {
               <EmailAccountsList accounts={emailAccounts} />
             )}
           </motion.div>
+        ) : (
+          <motion.div
+            key="calendar"
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 20 }}
+          >
+            {calendarAccounts.length === 0 ? (
+              <CalendarEmptyState onConnect={() => setShowConnectCalendarModal(true)} />
+            ) : (
+              <CalendarAccountsList accounts={calendarAccounts} />
+            )}
+          </motion.div>
         )}
       </AnimatePresence>
 
@@ -274,6 +368,9 @@ function AccountsPage() {
         )}
         {showConnectEmailModal && (
           <ConnectEmailModal onClose={() => setShowConnectEmailModal(false)} />
+        )}
+        {showConnectCalendarModal && (
+          <ConnectCalendarModal onClose={() => setShowConnectCalendarModal(false)} />
         )}
       </AnimatePresence>
     </div>
@@ -2632,7 +2729,361 @@ function StatCard({
   );
 }
 
+// ==================== Calendar Account Components ====================
+
+function CalendarEmptyState({ onConnect }: { onConnect: () => void }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="rounded-xl border border-[#E2E8F0] bg-white p-8 md:p-12"
+    >
+      <div className="mx-auto max-w-lg text-center">
+        <div className="relative mx-auto mb-8 h-40 w-40">
+          <div className="absolute inset-0 animate-pulse rounded-full bg-gradient-to-br from-[#F0FDFA] to-[#CCFBF1]" />
+          <div className="absolute inset-6 rounded-full bg-white shadow-inner" />
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-[#E2E8F0] bg-white shadow-lg">
+              <CalendarIcon className="h-8 w-8 text-[#14B8A6]" />
+            </div>
+          </div>
+          <motion.div
+            animate={{ scale: [1, 1.1, 1], rotate: [0, 5, -5, 0] }}
+            transition={{ duration: 3, repeat: Infinity }}
+            className="absolute -right-2 bottom-4 flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-[#14B8A6] to-[#0D9488] shadow-lg"
+          >
+            <LinkIcon className="h-6 w-6 text-white" />
+          </motion.div>
+        </div>
+
+        <h2 className="mb-3 text-2xl font-bold text-[#1E293B]">No calendar accounts connected</h2>
+        <p className="mb-8 text-lg text-[#64748B]">
+          Connect your Google or Microsoft calendar so the reply agent can check availability and
+          book meetings automatically.
+        </p>
+
+        <button
+          onClick={onConnect}
+          className="inline-flex items-center gap-3 rounded-xl bg-[#14B8A6] px-8 py-4 font-semibold text-white shadow-[0_4px_14px_rgba(20,184,166,0.35)] transition-all hover:-translate-y-0.5 hover:bg-[#0D9488] hover:shadow-[0_6px_20px_rgba(20,184,166,0.4)]"
+        >
+          <CalendarIcon className="h-5 w-5" />
+          Connect Your First Calendar
+        </button>
+
+        <div className="mt-10 flex items-center justify-center gap-6 text-sm text-[#64748B]">
+          <div className="flex items-center gap-2">
+            <ShieldCheckIcon className="h-4 w-4 text-[#22C55E]" />
+            <span>Secure OAuth</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <ClockIcon className="h-4 w-4 text-[#3B82F6]" />
+            <span>Real-time Availability</span>
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+function CalendarAccountsList({ accounts }: { accounts: CalendarAccount[] }) {
+  const deleteAccount = useDeleteCalendarAccount();
+  const [disconnectModal, setDisconnectModal] = useState<{
+    open: boolean;
+    accountId: string;
+    accountEmail: string;
+  }>({
+    open: false,
+    accountId: '',
+    accountEmail: '',
+  });
+
+  const handleDeleteClick = (accountId: string, accountEmail: string) => {
+    setDisconnectModal({ open: true, accountId, accountEmail });
+  };
+
+  const closeModal = () => {
+    setDisconnectModal({ open: false, accountId: '', accountEmail: '' });
+  };
+
+  const handleConfirmDelete = async () => {
+    await deleteAccount.mutateAsync(disconnectModal.accountId);
+    closeModal();
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Stats Overview */}
+      <div className="grid grid-cols-2 gap-3 md:gap-4 lg:grid-cols-3">
+        <StatCard
+          label="Total Accounts"
+          value={accounts.length.toString()}
+          icon={<CalendarIcon className="h-5 w-5" />}
+          color="#14B8A6"
+        />
+        <StatCard
+          label="Active"
+          value={accounts.filter((a) => a.status === 'connected').length.toString()}
+          icon={<ActiveIcon />}
+          color="#22C55E"
+        />
+        <StatCard
+          label="Google / Microsoft"
+          value={`${accounts.filter((a) => a.provider === 'google').length} / ${accounts.filter((a) => a.provider === 'microsoft').length}`}
+          icon={<SentTodayIcon />}
+          color="#8B5CF6"
+        />
+      </div>
+
+      {/* Accounts List */}
+      <div className="rounded-xl border border-[#E2E8F0] bg-white">
+        <div className="divide-y divide-[#E2E8F0]">
+          {accounts.map((account) => (
+            <div key={account.id} className="flex items-center justify-between p-4">
+              <div className="flex items-center gap-4">
+                <div
+                  className={`flex h-10 w-10 items-center justify-center rounded-lg ${
+                    account.provider === 'google' ? 'bg-[#EA4335]/10' : 'bg-[#00A4EF]/10'
+                  }`}
+                >
+                  {account.provider === 'google' ? (
+                    <GoogleIcon className="h-5 w-5" />
+                  ) : (
+                    <MicrosoftIcon className="h-5 w-5" />
+                  )}
+                </div>
+                <div>
+                  <p className="font-medium text-[#1E293B]">{account.email_address}</p>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm capitalize text-[#64748B]">{account.provider}</span>
+                    <span className="text-[#E2E8F0]">&middot;</span>
+                    <span
+                      className={`inline-flex items-center gap-1 text-sm ${
+                        account.status === 'connected' ? 'text-[#22C55E]' : 'text-[#EF4444]'
+                      }`}
+                    >
+                      <span
+                        className={`h-1.5 w-1.5 rounded-full ${
+                          account.status === 'connected' ? 'bg-[#22C55E]' : 'bg-[#EF4444]'
+                        }`}
+                      />
+                      {account.status === 'connected' ? 'Connected' : 'Disconnected'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={() => handleDeleteClick(account.id, account.email_address)}
+                className="rounded-lg px-3 py-1.5 text-sm font-medium text-[#EF4444] transition-colors hover:bg-[#FEF2F2]"
+              >
+                Disconnect
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Disconnect confirmation modal */}
+      <AnimatePresence>
+        {disconnectModal.open && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[200] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+            onClick={closeModal}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl"
+            >
+              <h3 className="text-lg font-semibold text-[#1E293B]">Disconnect Calendar</h3>
+              <p className="mt-2 text-sm text-[#64748B]">
+                Are you sure you want to disconnect{' '}
+                <span className="font-medium text-[#1E293B]">{disconnectModal.accountEmail}</span>?
+                The reply agent will no longer be able to check availability for this calendar.
+              </p>
+              <div className="mt-6 flex gap-3">
+                <button
+                  onClick={closeModal}
+                  className="flex-1 rounded-lg border border-[#E2E8F0] px-4 py-2.5 font-medium text-[#64748B] hover:bg-[#F8FAFC]"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleConfirmDelete}
+                  disabled={deleteAccount.isPending}
+                  className="flex-1 rounded-lg bg-[#EF4444] px-4 py-2.5 font-medium text-white transition-colors hover:bg-[#DC2626] disabled:opacity-50"
+                >
+                  {deleteAccount.isPending ? 'Disconnecting...' : 'Disconnect'}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function ConnectCalendarModal({ onClose }: { onClose: () => void }) {
+  const [isLoading, setIsLoading] = useState<CalendarProvider | null>(null);
+  const [error, setError] = useState('');
+  const currentWorkspaceId = useWorkspaceStore((s) => s.currentWorkspaceId);
+  const initCalendarAuth = useInitCalendarAuth();
+
+  const handleConnect = async (provider: CalendarProvider) => {
+    setIsLoading(provider);
+    setError('');
+    try {
+      const returnUrl = `${window.location.origin}/dashboard/accounts?status=success&tab=calendar`;
+      const result = await initCalendarAuth.mutateAsync({
+        provider,
+        workspaceId: currentWorkspaceId ?? undefined,
+        returnUrl,
+      });
+      window.location.href = result.url;
+    } catch (err) {
+      setError(getErrorMessage(err));
+      setIsLoading(null);
+    }
+  };
+
+  return createPortal(
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl"
+      >
+        {/* Header */}
+        <div className="border-b border-[#E2E8F0] bg-gradient-to-r from-[#F0FDFA] to-[#ECFDF5] px-6 py-5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#14B8A6]/10">
+                <CalendarIcon className="h-5 w-5 text-[#14B8A6]" />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold text-[#1E293B]">Connect Calendar</h2>
+                <p className="text-sm text-[#64748B]">Choose your calendar provider</p>
+              </div>
+            </div>
+            <button
+              onClick={onClose}
+              className="rounded-lg p-2 text-[#64748B] transition-colors hover:bg-[#E2E8F0]"
+            >
+              <CloseIcon />
+            </button>
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="p-6">
+          {error && (
+            <div className="mb-4 rounded-lg border border-[#FECACA] bg-[#FEF2F2] p-3 text-sm text-[#DC2626]">
+              {error}
+            </div>
+          )}
+
+          <div className="space-y-3">
+            <button
+              onClick={() => handleConnect('google')}
+              disabled={isLoading !== null}
+              className="flex w-full items-center gap-4 rounded-xl border border-[#E2E8F0] p-4 transition-all hover:border-[#14B8A6]/30 hover:bg-[#F0FDFA] disabled:opacity-50"
+            >
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white shadow-sm">
+                <GoogleIcon className="h-6 w-6" />
+              </div>
+              <div className="flex-1 text-left">
+                <p className="font-medium text-[#1E293B]">Google Calendar</p>
+                <p className="text-sm text-[#64748B]">
+                  Connect your Gmail or Google Workspace calendar
+                </p>
+              </div>
+              {isLoading === 'google' ? (
+                <div className="h-5 w-5 animate-spin rounded-full border-2 border-[#14B8A6] border-t-transparent" />
+              ) : (
+                <svg
+                  className="h-5 w-5 text-[#94A3B8]"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                </svg>
+              )}
+            </button>
+
+            <button
+              onClick={() => handleConnect('microsoft')}
+              disabled={isLoading !== null}
+              className="flex w-full items-center gap-4 rounded-xl border border-[#E2E8F0] p-4 transition-all hover:border-[#14B8A6]/30 hover:bg-[#F0FDFA] disabled:opacity-50"
+            >
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white shadow-sm">
+                <MicrosoftIcon className="h-6 w-6" />
+              </div>
+              <div className="flex-1 text-left">
+                <p className="font-medium text-[#1E293B]">Microsoft Outlook</p>
+                <p className="text-sm text-[#64748B]">
+                  Connect your Outlook or Microsoft 365 calendar
+                </p>
+              </div>
+              {isLoading === 'microsoft' ? (
+                <div className="h-5 w-5 animate-spin rounded-full border-2 border-[#14B8A6] border-t-transparent" />
+              ) : (
+                <svg
+                  className="h-5 w-5 text-[#94A3B8]"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                </svg>
+              )}
+            </button>
+          </div>
+
+          <p className="mt-4 text-center text-xs text-[#94A3B8]">
+            You'll be redirected to securely authorize calendar access via OAuth
+          </p>
+        </div>
+      </motion.div>
+    </motion.div>,
+    document.body
+  );
+}
+
 // Icons
+function CalendarIcon({ className = 'w-5 h-5' }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={2}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5"
+      />
+    </svg>
+  );
+}
+
 function LinkedInIcon({ className = 'w-5 h-5' }: { className?: string }) {
   return (
     <svg className={className} fill="currentColor" viewBox="0 0 20 20">

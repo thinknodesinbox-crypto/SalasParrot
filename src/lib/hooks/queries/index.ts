@@ -82,6 +82,11 @@ export {
   useInitGoogleOAuth,
   useInitMicrosoftOAuth,
   useInitGmailHostedAuth,
+  // Calendar Accounts
+  useCalendarAccounts,
+  useDeleteCalendarAccount,
+  useUpdateCalendarAccount,
+  useInitCalendarAuth,
 } from './useAccounts';
 
 // Auth

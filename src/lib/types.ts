@@ -473,6 +473,24 @@ export interface EmailAuthErrorResponse {
 
 export type EmailAuthResponse = EmailAuthSuccessResponse | EmailAuthErrorResponse;
 
+// Calendar types
+export type CalendarProvider = 'google' | 'microsoft';
+export type CalendarStatus = 'connected' | 'disconnected';
+
+export interface CalendarAccount {
+  id: string;
+  user_id: string;
+  workspace_id: string | null;
+  unipile_account_id: string;
+  email_address: string;
+  provider: CalendarProvider;
+  display_name: string | null;
+  calendar_id: string | null;
+  scheduling_link: string | null;
+  status: CalendarStatus;
+  created_at: string;
+}
+
 // Inbox types
 export type Channel = 'linkedin' | 'email';
 export type ConversationStatus = 'open' | 'snoozed' | 'closed';

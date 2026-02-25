@@ -76,6 +76,13 @@ export const queryKeys = {
     detail: (id: string) => ['email-accounts', 'detail', id] as const,
   },
 
+  // Calendar Accounts
+  calendarAccounts: {
+    all: ['calendar-accounts'] as const,
+    list: (filters?: unknown) => ['calendar-accounts', 'list', filters] as const,
+    detail: (id: string) => ['calendar-accounts', 'detail', id] as const,
+  },
+
   // Inbox
   conversations: {
     all: ['conversations'] as const,

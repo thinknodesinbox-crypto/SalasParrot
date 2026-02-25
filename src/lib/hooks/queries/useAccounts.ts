@@ -5,6 +5,7 @@ import { useWorkspaceStore } from '../../workspace';
 import type {
   LinkedInAccount,
   EmailAccount,
+  CalendarAccount,
   LinkedInConnectCredentialsRequest,
   LinkedInConnectCookieRequest,
   LinkedInSolveCheckpointRequest,
@@ -13,6 +14,7 @@ import type {
   EmailConnectGoogleRequest,
   EmailConnectMicrosoftRequest,
   EmailAuthResponse,
+  CalendarProvider,
   SyncMode,
 } from '../../types';
 
@@ -578,6 +580,89 @@ export const useInitMicrosoftOAuth = () => {
       if (params?.syncMode) searchParams.append('sync_mode', params.syncMode);
       const response = await api.get<OAuthInitResponse>(
         `/email-accounts/oauth/microsoft/init?${searchParams}`
+      );
+      return response.data;
+    },
+    onError: (error) => {
+      throw new Error(getErrorMessage(error));
+    },
+  });
+};
+
+// Calendar Accounts
+
+export const useCalendarAccounts = (filters?: AccountFilters) => {
+  const currentWorkspaceId = useWorkspaceStore((s) => s.currentWorkspaceId);
+  const workspaceId = filters?.workspace_id ?? currentWorkspaceId ?? undefined;
+
+  return useQuery({
+    queryKey: queryKeys.calendarAccounts.list(
+      workspaceId ? { workspace_id: workspaceId } : undefined
+    ),
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (workspaceId) params.append('workspace_id', workspaceId);
+
+      const response = await api.get<CalendarAccount[]>(`/calendar-accounts?${params}`);
+      return response.data;
+    },
+  });
+};
+
+export const useDeleteCalendarAccount = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (accountId: string) => {
+      await api.delete(`/calendar-accounts/${accountId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.calendarAccounts.all });
+    },
+    onError: (error) => {
+      throw new Error(getErrorMessage(error));
+    },
+  });
+};
+
+interface UpdateCalendarAccountData {
+  display_name?: string;
+  calendar_id?: string;
+  scheduling_link?: string;
+}
+
+export const useUpdateCalendarAccount = (accountId: string) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: UpdateCalendarAccountData) => {
+      const response = await api.patch<CalendarAccount>(`/calendar-accounts/${accountId}`, data);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.calendarAccounts.detail(accountId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.calendarAccounts.all });
+    },
+    onError: (error) => {
+      throw new Error(getErrorMessage(error));
+    },
+  });
+};
+
+interface CalendarAuthInitParams {
+  provider: CalendarProvider;
+  workspaceId?: string;
+  returnUrl?: string;
+}
+
+export const useInitCalendarAuth = () => {
+  return useMutation({
+    mutationFn: async (params: CalendarAuthInitParams) => {
+      const searchParams = new URLSearchParams();
+      if (params.workspaceId) searchParams.append('workspace_id', params.workspaceId);
+      if (params.returnUrl) searchParams.append('return_url', params.returnUrl);
+      const response = await api.get<OAuthInitResponse>(
+        `/calendar-accounts/connect/${params.provider}/auth-link?${searchParams}`
       );
       return response.data;
     },
