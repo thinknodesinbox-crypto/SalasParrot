@@ -49,7 +49,7 @@ import {
   type SequenceWarning,
   type ValidationContext,
 } from '@/lib/utils/campaignSequenceValidator';
-import { showSuccessToast } from '@/lib/toast';
+import { showSuccessToast, showErrorToast } from '@/lib/toast';
 import { queryKeys } from '@/lib/queryClient';
 
 type CampaignsSearch = {
@@ -2564,9 +2564,42 @@ function CampaignDetailDrawer({
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [cloneName, setCloneName] = useState('');
 
+  const updateCampaign = useUpdateCampaign(campaign.id);
+  const { data: linkedInAccounts = [] } = useLinkedInAccounts();
   const steps = campaignDetails?.steps || [];
   const senders = campaignDetails?.senders || [];
   const leadCount = campaignDetails?.lead_count || 0;
+
+  // Compute max daily connection limit from sender account subscription types
+  const CONNECTION_LIMITS: Record<string, number> = {
+    free: 20,
+    premium: 25,
+    sales_nav: 25,
+    recruiter: 25,
+  };
+  const maxDailyLimit =
+    senders.reduce((max, sender) => {
+      const account = linkedInAccounts.find((a) => a.id === sender.linkedin_account_id);
+      const subType = account?.subscription_type || 'free';
+      const customLimit = account?.daily_limits?.connection_requests;
+      const accountLimit = customLimit ?? CONNECTION_LIMITS[subType] ?? 20;
+      return Math.max(max, accountLimit);
+    }, 0) || CONNECTION_LIMITS.free;
+
+  // Local state for daily connection limit input
+  const [dailyLimitInput, setDailyLimitInput] = useState<string>('');
+  const [dailyLimitDirty, setDailyLimitDirty] = useState(false);
+
+  // Sync daily limit input with campaign data
+  useEffect(() => {
+    if (campaignDetails && !dailyLimitDirty) {
+      setDailyLimitInput(
+        campaignDetails.daily_connection_limit != null
+          ? String(campaignDetails.daily_connection_limit)
+          : ''
+      );
+    }
+  }, [campaignDetails, dailyLimitDirty]);
 
   const statusColors: Record<string, { bg: string; text: string; dot: string }> = {
     draft: { bg: 'bg-[#F8FAFC]', text: 'text-[#64748B]', dot: 'bg-[#94A3B8]' },
@@ -2767,6 +2800,117 @@ function CampaignDetailDrawer({
           {/* Content */}
           <div className="flex-1 overflow-y-auto p-6">
             <div className="space-y-6">
+              {/* Campaign Controls - only for active/paused campaigns */}
+              {(campaign.status === 'active' || campaign.status === 'paused') && (
+                <div>
+                  <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-[#64748B]">
+                    Campaign Controls
+                  </h3>
+                  <div className="space-y-4 rounded-lg border border-[#E2E8F0] bg-white p-4">
+                    {/* Pause New Outreach Toggle */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-[#1E293B]">Pause New Outreach</p>
+                        <p className="text-xs text-[#64748B]">
+                          Stop sending to new leads. Leads already in the sequence will continue.
+                        </p>
+                      </div>
+                      <button
+                        onClick={async () => {
+                          const newValue = !(campaignDetails?.pause_new_sends ?? false);
+                          await updateCampaign.mutateAsync({ pause_new_sends: newValue });
+                        }}
+                        disabled={updateCampaign.isPending}
+                        className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20 ${
+                          campaignDetails?.pause_new_sends ? 'bg-[#F59E0B]' : 'bg-[#E2E8F0]'
+                        }`}
+                      >
+                        <span
+                          className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
+                            campaignDetails?.pause_new_sends ? 'translate-x-5' : 'translate-x-0'
+                          }`}
+                        />
+                      </button>
+                    </div>
+
+                    {campaignDetails?.pause_new_sends && (
+                      <div className="rounded-md bg-[#FFFBEB] px-3 py-2 text-xs text-[#92400E]">
+                        New outreach is paused. New leads are held in place and will resume when you
+                        turn this off.
+                      </div>
+                    )}
+
+                    {/* Daily Connection Limit */}
+                    <div className="border-t border-[#F1F5F9] pt-4">
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-[#1E293B]">
+                            Daily Connection Limit
+                          </p>
+                          <p className="text-xs text-[#64748B]">
+                            Max connection requests per day for this campaign (max {maxDailyLimit}).
+                            Leave empty for no cap.
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            min="1"
+                            max={maxDailyLimit}
+                            placeholder={String(maxDailyLimit)}
+                            value={dailyLimitInput}
+                            onChange={(e) => {
+                              const raw = e.target.value;
+                              if (raw === '') {
+                                setDailyLimitInput('');
+                              } else {
+                                const num = parseInt(raw, 10);
+                                setDailyLimitInput(
+                                  String(isNaN(num) ? '' : Math.min(num, maxDailyLimit))
+                                );
+                              }
+                              setDailyLimitDirty(true);
+                            }}
+                            onBlur={async () => {
+                              const val = dailyLimitInput.trim();
+                              const newLimit = val === '' ? null : parseInt(val, 10);
+                              const currentLimit = campaignDetails?.daily_connection_limit ?? null;
+                              if (
+                                newLimit !== currentLimit &&
+                                (newLimit === null || (newLimit > 0 && !isNaN(newLimit)))
+                              ) {
+                                try {
+                                  await updateCampaign.mutateAsync({
+                                    daily_connection_limit: newLimit,
+                                  });
+                                } catch (err) {
+                                  const axiosErr = err as { message?: string };
+                                  showErrorToast(
+                                    'Invalid limit',
+                                    axiosErr?.message || 'Failed to update limit'
+                                  );
+                                  setDailyLimitInput(
+                                    currentLimit != null ? String(currentLimit) : ''
+                                  );
+                                }
+                              }
+                              setDailyLimitDirty(false);
+                            }}
+                            onKeyDown={async (e) => {
+                              if (e.key === 'Enter') {
+                                (e.target as HTMLInputElement).blur();
+                              }
+                            }}
+                            className="w-20 rounded-lg border border-[#E2E8F0] px-2 py-1.5 text-center text-sm focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+                          />
+                          <span className="text-xs text-[#94A3B8]">/day</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Steps Section - Visual Tree */}
               <div>
                 <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-[#64748B]">

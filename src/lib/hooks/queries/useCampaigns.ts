@@ -25,6 +25,8 @@ interface CreateCampaignData {
 
 interface UpdateCampaignData {
   name?: string;
+  pause_new_sends?: boolean;
+  daily_connection_limit?: number | null;
 }
 
 interface CreateStepData {

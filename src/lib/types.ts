@@ -220,6 +220,8 @@ export interface Campaign {
   status: CampaignStatus;
   created_by: string | null;
   temporal_workflow_id: string | null;
+  pause_new_sends: boolean;
+  daily_connection_limit: number | null;
   created_at: string;
   updated_at: string;
 }
