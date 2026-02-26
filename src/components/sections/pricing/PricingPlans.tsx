@@ -5,31 +5,11 @@ import { Link } from '@tanstack/react-router';
 import { useAuthStore } from '@/lib/auth';
 import { getCalApi } from '@calcom/embed-react';
 
-// Volume pricing tiers
-const volumePricing = [
-  { min: 1, max: 1, price: 79 },
-  { min: 2, max: 4, price: 69 },
-  { min: 5, max: 9, price: 62 },
-  { min: 10, max: 50, price: 59 },
-];
-
-function getPricePerSender(senders: number): number {
-  const tier = volumePricing.find((t) => senders >= t.min && senders <= t.max);
-  return tier?.price ?? 59;
-}
-
-function getDiscount(senders: number): number {
-  if (senders === 1) return 0;
-  if (senders <= 4) return 13;
-  if (senders <= 9) return 22;
-  return 25;
-}
+const PRICE_PER_SENDER = 99;
 
 export function PricingPlans() {
   const [senderCount, setSenderCount] = useState(1);
-  const pricePerSender = getPricePerSender(senderCount);
-  const totalPrice = pricePerSender * senderCount;
-  const discount = getDiscount(senderCount);
+  const totalPrice = PRICE_PER_SENDER * senderCount;
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
   useEffect(() => {
@@ -77,22 +57,11 @@ export function PricingPlans() {
               <div className="mb-4 sm:mb-6">
                 <div className="flex items-baseline gap-2">
                   <span className="text-4xl font-bold text-[#1E293B] sm:text-5xl">
-                    ${pricePerSender}
+                    ${PRICE_PER_SENDER}
                   </span>
                   <span className="text-base text-[#64748B] sm:text-lg">/month</span>
                 </div>
                 <p className="mt-1 text-sm text-[#94A3B8]">per sender</p>
-                {discount > 0 && (
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-[#14B8A6]/10 px-3 py-1.5"
-                  >
-                    <span className="text-xs font-semibold text-[#14B8A6]">
-                      {discount}% volume discount applied
-                    </span>
-                  </motion.div>
-                )}
               </div>
 
               {/* Sender slider */}
@@ -244,7 +213,7 @@ export function PricingPlans() {
                   <span className="text-4xl font-bold text-[#1E293B] sm:text-5xl">$999</span>
                   <span className="text-base text-[#64748B] sm:text-lg">/month</span>
                 </div>
-                <p className="mt-1 text-sm text-[#94A3B8]">50 senders included</p>
+                <p className="mt-1 text-sm text-[#94A3B8]">30 senders included</p>
                 <div className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-[#FF6B35]/10 px-3 py-1.5">
                   <span className="text-xs font-semibold text-[#FF6B35]">
                     Annual: $749/mo (save 25%)
@@ -291,7 +260,7 @@ export function PricingPlans() {
                   title="SCALE"
                   color="orange"
                   items={[
-                    '50 LinkedIn senders included',
+                    '30 LinkedIn senders included',
                     'Sender rotation across campaigns',
                     'Add more senders at $20/mo each',
                   ]}
@@ -321,7 +290,7 @@ export function PricingPlans() {
           </motion.div>
         </div>
 
-        {/* Volume pricing note */}
+        {/* Agency recommendation note */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -330,7 +299,7 @@ export function PricingPlans() {
           className="mt-12 text-center"
         >
           <p className="text-sm text-[#64748B]">
-            Need 15+ senders? Agency plan is better value at $20/sender.
+            Need 11+ senders? Agency plan is better value at $33/sender.
           </p>
         </motion.div>
       </Container>

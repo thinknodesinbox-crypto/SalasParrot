@@ -108,9 +108,6 @@ export const useUpdateCampaign = (campaignId: string) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.campaigns.detail(campaignId) });
       queryClient.invalidateQueries({ queryKey: queryKeys.campaigns.all });
     },
-    onError: (error) => {
-      throw new Error(getErrorMessage(error));
-    },
   });
 };
 

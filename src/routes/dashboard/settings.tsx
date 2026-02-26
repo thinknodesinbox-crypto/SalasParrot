@@ -775,18 +775,7 @@ function CreateWorkspaceModal({ onClose }: { onClose: () => void }) {
   );
 }
 
-// Volume pricing tiers (same as pricing page)
-const volumePricing = [
-  { min: 1, max: 1, price: 79 },
-  { min: 2, max: 4, price: 69 },
-  { min: 5, max: 9, price: 62 },
-  { min: 10, max: 50, price: 59 },
-];
-
-function getPricePerSender(senders: number): number {
-  const tier = volumePricing.find((t) => senders >= t.min && senders <= t.max);
-  return tier?.price ?? 59;
-}
+const PRICE_PER_SENDER = 99;
 
 function BuySeatsModal({
   billingData,
@@ -811,21 +800,19 @@ function BuySeatsModal({
   const hasActiveSubscription = billingData.subscription?.status === 'active';
 
   // Calculate price impact
-  const currentMonthlyCost = billingData.monthly_cost;
   let newMonthlyCost: number;
   let additionalCost: number;
 
   if (isAgency) {
-    // Agency: $20/month per extra sender
+    // Agency: $20/month per extra sender beyond 30 included
     const currentExtraSenders = billingData.extra_senders;
     const newExtraSenders = currentExtraSenders + additionalSeats;
     newMonthlyCost = 999 + newExtraSenders * 20;
     additionalCost = additionalSeats * 20;
   } else {
-    // Growth: Volume pricing applies to total senders
-    const newPricePerSender = getPricePerSender(newTotalSeats);
-    newMonthlyCost = newTotalSeats * newPricePerSender;
-    additionalCost = newMonthlyCost - currentMonthlyCost;
+    // Growth: Flat $99/sender
+    newMonthlyCost = newTotalSeats * PRICE_PER_SENDER;
+    additionalCost = additionalSeats * PRICE_PER_SENDER;
   }
 
   const handlePurchase = async () => {
@@ -2287,11 +2274,6 @@ function BillingSettings() {
                     ? 'Trial'
                     : billing?.subscription?.status || 'Inactive'}
               </span>
-              {billing?.volume_discount && billing.volume_discount > 0 && (
-                <span className="rounded-full bg-[#14B8A6]/10 px-2.5 py-1 text-xs font-medium text-[#14B8A6]">
-                  {billing.volume_discount}% discount
-                </span>
-              )}
             </div>
             <p className="mt-2 text-sm text-[#64748B]">
               {billing?.linkedin_accounts_connected || 0} of {billing?.sender_count || 0} senders
@@ -2491,7 +2473,7 @@ function BillingSettings() {
         {billing?.recommend_agency && billing?.plan === 'growth' && (
           <div className="mt-4 rounded-lg border border-[#FF6B35]/20 bg-[#FF6B35]/5 p-3">
             <p className="text-sm text-[#FF6B35]">
-              Tip: With {billing.sender_count}+ senders, the Agency plan ($999/mo for 50 senders)
+              Tip: With {billing.sender_count}+ senders, the Agency plan ($999/mo for 30 senders)
               may save you money.
             </p>
           </div>

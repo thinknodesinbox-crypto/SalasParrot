@@ -15,7 +15,7 @@ const faqs = [
   {
     question: 'How does the $1 trial work?',
     answer:
-      "You get 7 days of full access to test everything. We charge $1 to verify your card and filter out tire-kickers. After 7 days, you're automatically billed $79/month (Growth) or $999/month (Agency). Cancel anytime during the trial — no charge beyond the $1.",
+      "You get 7 days of full access to test everything. We charge $1 to verify your card and filter out tire-kickers. After 7 days, you're automatically billed $99/month per sender (Growth) or $999/month (Agency). Cancel anytime during the trial — no charge beyond the $1.",
   },
   {
     question: 'Is my LinkedIn account safe?',
@@ -44,8 +44,7 @@ const faqs = [
   },
   {
     question: 'Do you offer annual billing?',
-    answer:
-      'Yes. Agency annual is $749/month (25% savings). Growth annual is 20% off your tier price.',
+    answer: 'Yes. Agency annual is $749/month (25% savings).',
   },
   {
     question: "I'm switching from HeyReach. Can you help migrate?",

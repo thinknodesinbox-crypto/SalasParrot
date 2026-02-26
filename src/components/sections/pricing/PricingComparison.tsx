@@ -53,7 +53,7 @@ export function PricingComparison() {
                       <ChartIcon className="h-4 w-4 text-[#14B8A6] sm:h-5 sm:w-5" />
                     </div>
                     <div>
-                      <h3 className="text-base font-bold text-[#1E293B] sm:text-lg">10 Senders</h3>
+                      <h3 className="text-base font-bold text-[#1E293B] sm:text-lg">3 Senders</h3>
                       <p className="text-xs text-[#64748B] sm:text-sm">Growth teams</p>
                     </div>
                   </div>
@@ -72,7 +72,7 @@ export function PricingComparison() {
                         </div>
                         <span className="text-sm text-[#64748B]">HeyReach Growth</span>
                       </div>
-                      <span className="text-sm font-medium text-[#64748B]">$590</span>
+                      <span className="text-sm font-medium text-[#64748B]">$207</span>
                     </div>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
@@ -95,7 +95,7 @@ export function PricingComparison() {
                   </div>
                   <div className="mt-4 flex items-center justify-between border-t border-[#E2E8F0] pt-4">
                     <span className="text-sm font-medium text-[#64748B]">Total monthly cost</span>
-                    <span className="text-lg font-bold text-[#94A3B8] line-through">$786/mo</span>
+                    <span className="text-lg font-bold text-[#94A3B8] line-through">$403/mo</span>
                   </div>
                 </div>
 
@@ -111,22 +111,8 @@ export function PricingComparison() {
                       </span>
                     </div>
                     <span className="text-xl font-bold text-[#1E293B] sm:text-2xl">
-                      $590<span className="text-xs font-normal text-[#64748B] sm:text-sm">/mo</span>
+                      $297<span className="text-xs font-normal text-[#64748B] sm:text-sm">/mo</span>
                     </span>
-                  </div>
-
-                  {/* Savings */}
-                  <div className="rounded-xl bg-gradient-to-r from-[#F0FDFA] to-[#F0FDF4] p-3 sm:p-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="mb-0.5 text-xs text-[#64748B] sm:mb-1 sm:text-sm">You save</p>
-                        <p className="text-lg font-bold text-[#14B8A6] sm:text-xl">$196/mo</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="mb-0.5 text-xs text-[#64748B] sm:mb-1 sm:text-sm">Annually</p>
-                        <p className="text-lg font-bold text-[#14B8A6] sm:text-xl">$2,352</p>
-                      </div>
-                    </div>
                   </div>
                 </div>
               </div>
@@ -156,7 +142,7 @@ export function PricingComparison() {
                       <BuildingIcon className="h-5 w-5 text-[#FF6B35]" />
                     </div>
                     <div>
-                      <h3 className="text-lg font-bold text-[#1E293B]">50 Senders</h3>
+                      <h3 className="text-lg font-bold text-[#1E293B]">30 Senders</h3>
                       <p className="text-sm text-[#64748B]">Agencies & teams</p>
                     </div>
                   </div>

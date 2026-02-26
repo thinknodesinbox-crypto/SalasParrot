@@ -566,7 +566,6 @@ export interface BillingOverview {
   sender_count: number;
   monthly_cost: number;
   price_per_sender: number;
-  volume_discount: number;
   included_senders: number;
   extra_senders: number;
   linkedin_accounts_connected: number;

@@ -11,18 +11,7 @@ export const Route = createFileRoute('/onboarding')({
   component: OnboardingPage,
 });
 
-// Volume pricing tiers
-const volumePricing = [
-  { min: 1, max: 1, price: 79 },
-  { min: 2, max: 4, price: 69 },
-  { min: 5, max: 9, price: 62 },
-  { min: 10, max: 50, price: 59 },
-];
-
-function getPricePerSender(senders: number): number {
-  const tier = volumePricing.find((t) => senders >= t.min && senders <= t.max);
-  return tier?.price ?? 59;
-}
+const PRICE_PER_SENDER = 99;
 
 function OnboardingPage() {
   const navigate = useNavigate();
@@ -195,8 +184,7 @@ function OnboardingPage() {
     );
   }
 
-  const pricePerSender = getPricePerSender(senderCount);
-  const totalPrice = pricePerSender * senderCount;
+  const totalPrice = PRICE_PER_SENDER * senderCount;
 
   return (
     <div className="min-h-screen bg-[#FFFBEB]">
@@ -480,7 +468,7 @@ function OnboardingPage() {
                   {/* Price */}
                   <div className="flex items-baseline justify-between">
                     <div>
-                      <span className="text-3xl font-bold text-[#1E293B]">${pricePerSender}</span>
+                      <span className="text-3xl font-bold text-[#1E293B]">${PRICE_PER_SENDER}</span>
                       <span className="text-[#64748B]">/mo per sender</span>
                     </div>
                     <div className="text-right">
@@ -531,7 +519,7 @@ function OnboardingPage() {
                       <>
                         <span className="text-3xl font-bold text-[#1E293B]">$999</span>
                         <span className="text-[#64748B]">/month</span>
-                        <p className="mt-1 text-sm text-[#94A3B8]">50 senders included</p>
+                        <p className="mt-1 text-sm text-[#94A3B8]">30 senders included</p>
                       </>
                     )}
                   </div>
@@ -544,7 +532,7 @@ function OnboardingPage() {
                     </li>
                     <li className="flex items-center gap-2">
                       <Check className="h-4 w-4 text-[#FF6B35]" />
-                      50 LinkedIn senders included
+                      30 LinkedIn senders included
                     </li>
                     <li className="flex items-center gap-2">
                       <Check className="h-4 w-4 text-[#FF6B35]" />
@@ -578,7 +566,7 @@ function OnboardingPage() {
                 ? `7-day trial for $1, then $${totalPrice}/month. Cancel anytime.`
                 : billingPeriod === 'annual'
                   ? '7-day trial for $1, then $8,988/year. Cancel anytime.'
-                  : '7-day trial for $1, then $999/month. Cancel anytime.'}
+                  : '7-day trial for $1, then $999/month (30 senders). Cancel anytime.'}
             </p>
           </motion.div>
         </div>
