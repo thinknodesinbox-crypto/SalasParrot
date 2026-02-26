@@ -2896,8 +2896,7 @@ function CampaignDetailDrawer({
                               await updateCampaign.mutateAsync({
                                 daily_connection_limit: newLimit,
                               });
-                              // Reset so useEffect re-syncs from server
-                              setControlsInitialized(false);
+                              showSuccessToast('Saved', 'Daily connection limit updated');
                             } catch (err) {
                               const axiosErr = err as { message?: string };
                               showErrorToast(
