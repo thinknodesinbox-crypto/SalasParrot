@@ -1814,7 +1814,7 @@ function AIAgentSettings() {
       setError(null);
       setSuccess(false);
     }
-  }, [workspace?.id, workspace?.agent_defaults]);
+  }, [workspace]);
 
   const handleSave = async () => {
     setError(null);
