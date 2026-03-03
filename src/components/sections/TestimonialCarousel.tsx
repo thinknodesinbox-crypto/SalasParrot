@@ -72,26 +72,6 @@ const testimonials: Testimonial[] = [
     avatar: '/images/testimonials/anthony_harris.webp',
     logo: '/images/testimonials/obsidian_partners.webp',
   },
-  {
-    id: '7',
-    name: 'Samuel A',
-    title: 'Director of Sales',
-    company: 'KP',
-    headline: '4 LinkedIn accounts, 6 months, zero restrictions.',
-    body: 'After getting flagged on another tool, I was paranoid. SalesParrot\u2019s proxy setup and daily limits just work. All four accounts still clean. Haven\u2019t thought about it once.',
-    avatar: '/images/testimonials/john_dukes.webp',
-    logo: '/images/testimonials/kingdom_printers.webp',
-  },
-  {
-    id: '8',
-    name: 'Jennifer Moore',
-    title: 'Head of Growth',
-    company: 'Prism',
-    headline: 'The only tool that didn\u2019t stop at sending.',
-    body: 'We\u2019ve tried every outreach platform out there. They all send messages and wish you luck. SalesParrot actually handles the replies and books the meeting. That\u2019s the difference.',
-    avatar: '/images/testimonials/jennifer_moore.webp',
-    logo: '/images/testimonials/meridian_solutions.webp',
-  },
 ];
 
 function TestimonialCard({ testimonial }: { testimonial: Testimonial }) {
