@@ -79,6 +79,9 @@ export function mapNodeDataToConfig(node: SequenceNode): Record<string, unknown>
   if (node.data.agentHumanInTheLoop !== undefined) {
     config.human_in_the_loop = node.data.agentHumanInTheLoop;
   }
+  if (node.data.agentCustomInstructions !== undefined) {
+    config.custom_instructions = node.data.agentCustomInstructions;
+  }
 
   return config;
 }
@@ -113,6 +116,7 @@ export function mapConfigToNodeData(config: Record<string, unknown>): SequenceNo
     agentSchedulingLink: config.scheduling_link as string | undefined,
     agentSenderTitle: config.sender_title as string | undefined,
     agentHumanInTheLoop: config.human_in_the_loop as boolean | undefined,
+    agentCustomInstructions: config.custom_instructions as string | undefined,
   };
 }
 

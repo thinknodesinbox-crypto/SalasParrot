@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, getErrorMessage } from '../../api';
 import { queryKeys } from '../../queryClient';
+import { useWorkspaceStore } from '../../workspace';
 import type {
   Lead,
   LeadList,
@@ -70,11 +71,14 @@ interface ImportResult {
 
 // Lead Lists hooks
 export const useLeadLists = (filters?: LeadListFilters) => {
+  const currentWorkspaceId = useWorkspaceStore((s) => s.currentWorkspaceId);
+  const workspaceId = filters?.workspace_id ?? currentWorkspaceId ?? undefined;
+
   return useQuery({
     queryKey: queryKeys.leadLists.list(filters),
     queryFn: async () => {
       const params = new URLSearchParams();
-      if (filters?.workspace_id) params.append('workspace_id', filters.workspace_id);
+      if (workspaceId) params.append('workspace_id', workspaceId);
 
       const response = await api.get<LeadListsResponse>(`/leads/lists?${params}`);
       return response.data;
@@ -181,11 +185,14 @@ export const useImportLeadsFromCSV = () => {
 
 // List leads
 export const useLeads = (filters?: LeadFilters) => {
+  const currentWorkspaceId = useWorkspaceStore((s) => s.currentWorkspaceId);
+  const workspaceId = filters?.workspace_id ?? currentWorkspaceId ?? undefined;
+
   return useQuery({
     queryKey: queryKeys.leads.list(filters),
     queryFn: async () => {
       const params = new URLSearchParams();
-      if (filters?.workspace_id) params.append('workspace_id', filters.workspace_id);
+      if (workspaceId) params.append('workspace_id', workspaceId);
       if (filters?.campaign_id) params.append('campaign_id', filters.campaign_id);
       if (filters?.list_id) params.append('list_id', filters.list_id);
       if (filters?.status) params.append('status', filters.status);

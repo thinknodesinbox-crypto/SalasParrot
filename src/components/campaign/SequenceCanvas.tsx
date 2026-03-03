@@ -50,6 +50,7 @@ interface NodeData {
   agentSchedulingLink?: string;
   agentSenderTitle?: string;
   agentHumanInTheLoop?: boolean;
+  agentCustomInstructions?: string;
 }
 
 interface SequenceCanvasProps {
@@ -1891,6 +1892,25 @@ export function NodeConfigPanel({
               </p>
             </div>
 
+            <div>
+              <label className="mb-2 block text-sm font-medium text-[#1E293B]">
+                Custom Instructions <span className="font-normal text-[#94A3B8]">(optional)</span>
+              </label>
+              <textarea
+                value={node.data.agentCustomInstructions || ''}
+                onChange={(e) => onUpdate({ agentCustomInstructions: e.target.value })}
+                placeholder={`Examples:
+- If asked about pricing, say "Let me loop in our team" and hand off.
+- Always mention our free trial when the lead shows interest.
+- Never discuss competitors by name.`}
+                rows={4}
+                className="w-full resize-none rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm focus:border-[#8B5CF6] focus:outline-none focus:ring-2 focus:ring-[#8B5CF6]/20"
+              />
+              <p className="mt-1 text-xs text-[#64748B]">
+                Rules for specific situations — overrides workspace defaults for this step
+              </p>
+            </div>
+
             <div className="rounded-lg bg-[#F3E8FF] p-3">
               <p className="text-xs text-[#7C3AED]">
                 The AI agent will monitor this conversation and respond to incoming messages to
@@ -2002,6 +2022,7 @@ function getDefaultNodeData(
         agentProductDescription: agentDefaults?.product_description || '',
         agentSchedulingLink: agentDefaults?.scheduling_link || '',
         agentSenderTitle: agentDefaults?.sender_title || '',
+        agentCustomInstructions: agentDefaults?.custom_instructions || '',
       };
     default:
       return {};

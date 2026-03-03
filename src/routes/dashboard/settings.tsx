@@ -1797,6 +1797,7 @@ function AIAgentSettings() {
   const [agentProductDescription, setAgentProductDescription] = useState('');
   const [agentSchedulingLink, setAgentSchedulingLink] = useState('');
   const [agentSenderTitle, setAgentSenderTitle] = useState('');
+  const [agentCustomInstructions, setAgentCustomInstructions] = useState('');
 
   // Sync form state when workspace data loads or changes
   useEffect(() => {
@@ -1809,6 +1810,7 @@ function AIAgentSettings() {
       setAgentProductDescription(d.product_description || '');
       setAgentSchedulingLink(d.scheduling_link || '');
       setAgentSenderTitle(d.sender_title || '');
+      setAgentCustomInstructions(d.custom_instructions || '');
       setError(null);
       setSuccess(false);
     }
@@ -1829,6 +1831,7 @@ function AIAgentSettings() {
           product_description: agentProductDescription,
           scheduling_link: agentSchedulingLink,
           sender_title: agentSenderTitle,
+          custom_instructions: agentCustomInstructions,
         },
       });
       setSuccess(true);
@@ -1998,6 +2001,23 @@ function AIAgentSettings() {
             />
             <p className="mt-1 text-xs text-[#64748B]">
               Calendar link the agent will share when booking meetings
+            </p>
+          </div>
+
+          {/* Custom Instructions */}
+          <div>
+            <label className="block text-sm font-medium text-[#1E293B]">Custom Instructions</label>
+            <textarea
+              value={agentCustomInstructions}
+              onChange={(e) => setAgentCustomInstructions(e.target.value)}
+              placeholder={`Examples:\n- If a lead asks about pricing, say "Let me connect you with our sales team" and hand off.\n- Always mention our free trial when a lead shows interest.\n- Never discuss competitors by name.`}
+              rows={6}
+              className="mt-2 w-full rounded-lg border border-[#E2E8F0] px-4 py-2.5 text-[#1E293B] placeholder:text-[#94A3B8] focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+            />
+            <p className="mt-1 text-xs text-[#64748B]">
+              Tell the agent exactly how to handle specific situations — e.g. how to respond to
+              pricing questions, objections, or particular topics. These instructions take effect
+              alongside the goal and tone above.
             </p>
           </div>
         </div>

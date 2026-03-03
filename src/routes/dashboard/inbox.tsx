@@ -672,7 +672,15 @@ function InboxPage() {
                               <span className="text-xs text-[#94A3B8]">
                                 {formatRelativeTime(msg.sent_at || msg.created_at)}
                               </span>
-                              <LinkedInIcon className="h-3 w-3 text-[#0A66C2]" />
+                              {isOutbound && msg.read_at && (
+                                <span
+                                  className="flex items-center"
+                                  title={`Read ${formatRelativeTime(msg.read_at)}`}
+                                >
+                                  <ReadReceiptIcon className="h-4 w-4 text-[#0A66C2]" />
+                                </span>
+                              )}
+                              {!isOutbound && <LinkedInIcon className="h-3 w-3 text-[#0A66C2]" />}
                             </div>
                           </div>
                         </motion.div>
@@ -968,6 +976,27 @@ function ClearIcon({ className = 'w-4 h-4' }: { className?: string }) {
       strokeWidth={2}
     >
       <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+    </svg>
+  );
+}
+
+function ReadReceiptIcon({ className = 'w-4 h-4' }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none">
+      <path
+        d="M9 12l2 2 4-4"
+        stroke="currentColor"
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M5 12l2 2 4-4"
+        stroke="currentColor"
+        strokeWidth={2}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }

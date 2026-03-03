@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api, getErrorMessage } from '../../api';
 import { queryKeys } from '../../queryClient';
+import { useWorkspaceStore } from '../../workspace';
 import type {
   Campaign,
   CampaignWithDetails,
@@ -50,11 +51,14 @@ interface CreateSenderData {
 
 // List campaigns
 export const useCampaigns = (filters?: CampaignFilters) => {
+  const currentWorkspaceId = useWorkspaceStore((s) => s.currentWorkspaceId);
+  const workspaceId = filters?.workspace_id ?? currentWorkspaceId ?? undefined;
+
   return useQuery({
     queryKey: queryKeys.campaigns.list(filters),
     queryFn: async () => {
       const params = new URLSearchParams();
-      if (filters?.workspace_id) params.append('workspace_id', filters.workspace_id);
+      if (workspaceId) params.append('workspace_id', workspaceId);
       if (filters?.status) params.append('status_filter', filters.status);
       if (filters?.limit) params.append('limit', filters.limit.toString());
       if (filters?.offset) params.append('offset', filters.offset.toString());
