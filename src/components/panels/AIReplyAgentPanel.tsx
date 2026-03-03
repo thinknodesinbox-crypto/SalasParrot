@@ -409,7 +409,7 @@ function LeadBubble({ name, text }: { name: string; text: string }) {
     <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 8 }}>
       <div style={{ position: 'relative', flexShrink: 0 }}>
         <img
-          src="/images/avatars/emily-zhang.png"
+          src="/images/avatars/emily-zhang.webp"
           alt={name}
           style={{
             width: 28,

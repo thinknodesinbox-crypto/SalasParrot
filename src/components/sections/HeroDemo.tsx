@@ -13,7 +13,7 @@ export function HeroDemo() {
     <div
       className="relative w-full overflow-hidden rounded-[24px] md:rounded-[32px]"
       style={{
-        backgroundImage: 'url(/images/hero-mesh-bg.png)',
+        backgroundImage: 'url(/images/hero-mesh-bg.webp)',
         backgroundSize: 'cover',
         backgroundPosition: 'center',
         boxShadow:

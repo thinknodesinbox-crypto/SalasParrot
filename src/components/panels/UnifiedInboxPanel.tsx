@@ -17,7 +17,7 @@ const initialMessages: Message[] = [
   {
     id: '1',
     name: 'Emily Zhang',
-    avatar: '/images/avatars/emily-zhang.png',
+    avatar: '/images/avatars/emily-zhang.webp',
     platform: 'linkedin',
     preview: "Let's schedule a call. I'm a startup founder.",
     fullMessage:
@@ -28,7 +28,7 @@ const initialMessages: Message[] = [
   {
     id: '2',
     name: 'Michael Torres',
-    avatar: '/images/avatars/michael-torres.png',
+    avatar: '/images/avatars/michael-torres.webp',
     platform: 'email',
     preview: 'Free Thursday for a quick chat?',
     fullMessage:
@@ -39,7 +39,7 @@ const initialMessages: Message[] = [
   {
     id: '3',
     name: 'Jessica Patel',
-    avatar: '/images/avatars/jessica-patel.png',
+    avatar: '/images/avatars/jessica-patel.webp',
     platform: 'linkedin',
     preview: 'Interested! Send more info on pricing.',
     fullMessage:

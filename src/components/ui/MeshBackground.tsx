@@ -10,7 +10,7 @@ export function MeshBackground({ children, className, variant = 'feature' }: Mes
       className={`mesh-background mesh-background--${variant} ${className || ''}`}
       style={{
         backgroundImage: `
-          url(/images/hero-mesh-bg.png),
+          url(/images/hero-mesh-bg.webp),
           radial-gradient(ellipse 70% 70% at 0% 50%, rgba(20, 184, 166, 0.9) 0%, transparent 60%),
           radial-gradient(ellipse 60% 60% at 30% 30%, rgba(167, 139, 250, 0.85) 0%, transparent 55%),
           radial-gradient(ellipse 70% 70% at 100% 30%, rgba(167, 139, 250, 0.7) 0%, transparent 50%),

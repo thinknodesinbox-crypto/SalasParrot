@@ -15,7 +15,7 @@ const initialSenders: Sender[] = [
   {
     id: '1',
     name: 'Alex Morgan',
-    avatar: '/images/avatars/alex-morgan.png',
+    avatar: '/images/avatars/alex-morgan.webp',
     status: 'active',
     emailsSent: 147,
     connections: 89,
@@ -24,7 +24,7 @@ const initialSenders: Sender[] = [
   {
     id: '2',
     name: 'Jordan Lee',
-    avatar: '/images/avatars/jordan-lee.png',
+    avatar: '/images/avatars/jordan-lee.webp',
     status: 'active',
     emailsSent: 203,
     connections: 156,
@@ -33,7 +33,7 @@ const initialSenders: Sender[] = [
   {
     id: '3',
     name: 'Taylor Kim',
-    avatar: '/images/avatars/taylor-kim.png',
+    avatar: '/images/avatars/taylor-kim.webp',
     status: 'active',
     emailsSent: 98,
     connections: 67,
