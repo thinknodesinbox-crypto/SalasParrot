@@ -7,10 +7,10 @@ export function PricingComparison() {
       <Container>
         {/* Header */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0.3, y: 6 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
-          transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+          transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
           className="mb-10 text-center sm:mb-16"
         >
           <h2 className="mb-3 text-2xl font-bold text-[#1E293B] sm:mb-4 sm:text-3xl md:text-4xl">
@@ -19,17 +19,17 @@ export function PricingComparison() {
           <p className="mx-auto max-w-2xl px-4 text-base text-[#64748B] sm:px-0 sm:text-lg">
             Most teams use HeyReach + Instantly + an enrichment tool.
             <br className="hidden md:block" />
-            We combine all three.
+            We combine all three, plus an AI agent that books meetings.
           </p>
         </motion.div>
 
         {/* Cost Comparison Cards */}
         <div className="mt-12 sm:mt-20">
           <motion.p
-            initial={{ opacity: 0 }}
+            initial={{ opacity: 0.5 }}
             whileInView={{ opacity: 1 }}
             viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
+            transition={{ duration: 0.3 }}
             className="mb-6 text-center text-xs font-medium uppercase tracking-wider text-[#64748B] sm:mb-8 sm:text-sm"
           >
             Real cost comparison
@@ -38,10 +38,10 @@ export function PricingComparison() {
           <div className="mx-auto grid max-w-5xl gap-6 sm:gap-8 md:grid-cols-2">
             {/* Growth Plan Comparison */}
             <motion.div
-              initial={{ opacity: 0, y: 30 }}
+              initial={{ opacity: 0.2, y: 8 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
-              transition={{ duration: 0.6, delay: 0.1 }}
+              transition={{ duration: 0.4, delay: 0.1 }}
               className="relative"
             >
               {/* Card */}
@@ -65,37 +65,14 @@ export function PricingComparison() {
                     Their stack
                   </p>
                   <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#E2E8F0] bg-white">
-                          <span className="text-xs font-bold text-[#64748B]">HR</span>
-                        </div>
-                        <span className="text-sm text-[#64748B]">HeyReach Growth</span>
-                      </div>
-                      <span className="text-sm font-medium text-[#64748B]">$207</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#E2E8F0] bg-white">
-                          <span className="text-xs font-bold text-[#64748B]">IN</span>
-                        </div>
-                        <span className="text-sm text-[#64748B]">Instantly</span>
-                      </div>
-                      <span className="text-sm font-medium text-[#64748B]">$97</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#E2E8F0] bg-white">
-                          <span className="text-xs font-bold text-[#64748B]">AP</span>
-                        </div>
-                        <span className="text-sm text-[#64748B]">Enrichment tool</span>
-                      </div>
-                      <span className="text-sm font-medium text-[#64748B]">$99</span>
-                    </div>
+                    <CompetitorLineItem label="HR" name="HeyReach Growth" price="$207" />
+                    <CompetitorLineItem label="IN" name="Instantly" price="$97" />
+                    <CompetitorLineItem label="AP" name="Enrichment tool" price="$99" />
+                    <CompetitorLineItem label="AI" name="AI SDR / VA for replies" price="$300+" />
                   </div>
                   <div className="mt-4 flex items-center justify-between border-t border-[#E2E8F0] pt-4">
                     <span className="text-sm font-medium text-[#64748B]">Total monthly cost</span>
-                    <span className="text-lg font-bold text-[#94A3B8] line-through">$403/mo</span>
+                    <span className="text-lg font-bold text-[#94A3B8] line-through">$703/mo</span>
                   </div>
                 </div>
 
@@ -120,10 +97,10 @@ export function PricingComparison() {
 
             {/* Agency Plan Comparison */}
             <motion.div
-              initial={{ opacity: 0, y: 30 }}
+              initial={{ opacity: 0.2, y: 8 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
-              transition={{ duration: 0.6, delay: 0.2 }}
+              transition={{ duration: 0.4, delay: 0.2 }}
               className="relative"
             >
               {/* Popular badge */}
@@ -143,7 +120,7 @@ export function PricingComparison() {
                     </div>
                     <div>
                       <h3 className="text-lg font-bold text-[#1E293B]">30 Senders</h3>
-                      <p className="text-sm text-[#64748B]">Agencies & teams</p>
+                      <p className="text-sm text-[#64748B]">Agencies &amp; teams</p>
                     </div>
                   </div>
                 </div>
@@ -154,37 +131,14 @@ export function PricingComparison() {
                     Their stack
                   </p>
                   <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#E2E8F0] bg-white">
-                          <span className="text-xs font-bold text-[#64748B]">HR</span>
-                        </div>
-                        <span className="text-sm text-[#64748B]">HeyReach Agency</span>
-                      </div>
-                      <span className="text-sm font-medium text-[#64748B]">$999</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#E2E8F0] bg-white">
-                          <span className="text-xs font-bold text-[#64748B]">IN</span>
-                        </div>
-                        <span className="text-sm text-[#64748B]">Instantly</span>
-                      </div>
-                      <span className="text-sm font-medium text-[#64748B]">$97</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#E2E8F0] bg-white">
-                          <span className="text-xs font-bold text-[#64748B]">AP</span>
-                        </div>
-                        <span className="text-sm text-[#64748B]">Enrichment tool</span>
-                      </div>
-                      <span className="text-sm font-medium text-[#64748B]">$99</span>
-                    </div>
+                    <CompetitorLineItem label="HR" name="HeyReach Agency" price="$999" />
+                    <CompetitorLineItem label="IN" name="Instantly" price="$97" />
+                    <CompetitorLineItem label="AP" name="Enrichment tool" price="$99" />
+                    <CompetitorLineItem label="AI" name="AI SDR / VA for replies" price="$300+" />
                   </div>
                   <div className="mt-4 flex items-center justify-between border-t border-[#FFE4D6] pt-4">
                     <span className="text-sm font-medium text-[#64748B]">Total monthly cost</span>
-                    <span className="text-lg font-bold text-[#94A3B8] line-through">$1,195/mo</span>
+                    <span className="text-lg font-bold text-[#94A3B8] line-through">$1,495/mo</span>
                   </div>
                 </div>
 
@@ -207,11 +161,11 @@ export function PricingComparison() {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="mb-1 text-sm text-[#64748B]">You save</p>
-                        <p className="text-xl font-bold text-[#FF6B35]">$196/mo</p>
+                        <p className="text-xl font-bold text-[#FF6B35]">$496/mo</p>
                       </div>
                       <div className="text-right">
                         <p className="mb-1 text-sm text-[#64748B]">Annually</p>
-                        <p className="text-xl font-bold text-[#FF6B35]">$2,352</p>
+                        <p className="text-xl font-bold text-[#FF6B35]">$5,952</p>
                       </div>
                     </div>
                   </div>
@@ -222,17 +176,41 @@ export function PricingComparison() {
 
           {/* Bottom note */}
           <motion.p
-            initial={{ opacity: 0 }}
+            initial={{ opacity: 0.5 }}
             whileInView={{ opacity: 1 }}
             viewport={{ once: true }}
-            transition={{ duration: 0.5, delay: 0.4 }}
+            transition={{ duration: 0.3, delay: 0.2 }}
             className="mt-8 text-center text-sm text-[#94A3B8]"
           >
-            Prices based on publicly available information as of January 2026
+            Prices based on publicly available information as of March 2026
           </motion.p>
         </div>
       </Container>
     </section>
+  );
+}
+
+/* ── Sub-components ── */
+
+function CompetitorLineItem({
+  label,
+  name,
+  price,
+}: {
+  label: string;
+  name: string;
+  price: string;
+}) {
+  return (
+    <div className="flex items-center justify-between">
+      <div className="flex items-center gap-3">
+        <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-[#E2E8F0] bg-white">
+          <span className="text-xs font-bold text-[#64748B]">{label}</span>
+        </div>
+        <span className="text-sm text-[#64748B]">{name}</span>
+      </div>
+      <span className="text-sm font-medium text-[#64748B]">{price}</span>
+    </div>
   );
 }
 

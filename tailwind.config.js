@@ -76,6 +76,20 @@ export default {
         'md': '0 4px 12px rgba(30, 41, 59, 0.08)',
         'lg': '0 8px 24px rgba(30, 41, 59, 0.12)',
       },
+      keyframes: {
+        'scroll-left': {
+          '0%': { transform: 'translateX(0)' },
+          '100%': { transform: 'translateX(-33.333%)' },
+        },
+        'scroll-right': {
+          '0%': { transform: 'translateX(-33.333%)' },
+          '100%': { transform: 'translateX(0)' },
+        },
+      },
+      animation: {
+        'scroll-left': 'scroll-left 20s linear infinite',
+        'scroll-right': 'scroll-right 20s linear infinite',
+      },
     },
   },
   plugins: [],

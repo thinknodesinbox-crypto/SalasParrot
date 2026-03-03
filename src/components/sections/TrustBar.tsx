@@ -14,10 +14,10 @@ export function TrustBar() {
       <div className="mx-auto max-w-6xl px-4 sm:px-6">
         <motion.p
           className="mb-6 text-center text-[13px] font-medium tracking-wide text-slate-400 sm:mb-8 sm:text-[14px] md:mb-10 md:text-[15px]"
-          initial={{ opacity: 0 }}
+          initial={{ opacity: 0.5 }}
           whileInView={{ opacity: 1 }}
           viewport={{ once: true }}
-          transition={{ duration: 0.5 }}
+          transition={{ duration: 0.3 }}
         >
           Integrates with tools you already use
         </motion.p>
@@ -28,12 +28,12 @@ export function TrustBar() {
               key={item.name}
               className="flex scale-[0.65] items-center justify-center sm:scale-[0.8] md:scale-100"
               style={{ width: item.width, height: item.height }}
-              initial={{ opacity: 0, y: 10 }}
+              initial={{ opacity: 0.3, y: 4 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{
-                duration: 0.4,
-                delay: index * 0.08,
+                duration: 0.3,
+                delay: index * 0.05,
                 ease: [0.22, 1, 0.36, 1],
               }}
             >

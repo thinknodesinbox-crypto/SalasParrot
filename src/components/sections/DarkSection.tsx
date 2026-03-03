@@ -4,18 +4,18 @@ import { Container } from '@/components/ui';
 const steps = [
   {
     number: '1',
-    title: 'Import leads',
-    description: 'From Sales Navigator or CSV',
+    title: 'Import your prospects',
+    description: 'From Sales Navigator or CSV. Emails found automatically.',
   },
   {
     number: '2',
-    title: 'Launch sequence',
-    description: 'LinkedIn + Email runs automatically',
+    title: 'Launch your sequence',
+    description: 'LinkedIn outreach and email follow-ups run on autopilot with smart branching.',
   },
   {
     number: '3',
-    title: 'Get replies',
-    description: 'All conversations in one inbox',
+    title: 'AI handles replies and books',
+    description: 'Responses get managed, meetings land on your calendar.',
   },
 ];
 
@@ -24,10 +24,10 @@ export function DarkSection() {
     <section className="bg-[#1E293B] py-16 md:py-20">
       <Container>
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0.3, y: 6 }}
           whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: '-100px' }}
-          transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+          viewport={{ once: true, margin: '-200px' }}
+          transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
           className="mb-12 text-center"
         >
           <h2 className="text-[24px] font-bold leading-tight tracking-[-0.01em] text-white sm:text-[28px] md:text-[36px]">
@@ -41,12 +41,12 @@ export function DarkSection() {
             {steps.map((step, index) => (
               <motion.div
                 key={step.number}
-                initial={{ opacity: 0, y: 20 }}
+                initial={{ opacity: 0.25, y: 6 }}
                 whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: '-100px' }}
+                viewport={{ once: true, margin: '-200px' }}
                 transition={{
-                  duration: 0.6,
-                  delay: index * 0.15,
+                  duration: 0.4,
+                  delay: index * 0.1,
                   ease: [0.22, 1, 0.36, 1],
                 }}
                 className="flex items-center"

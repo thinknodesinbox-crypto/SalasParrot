@@ -6,26 +6,31 @@ const faqs = [
   {
     question: 'How does the free trial work?',
     answer:
-      "Get full access to all features for 7 days, completely free. No restrictions, no hidden limits. If you decide SalesParrot isn't for you, cancel anytime before the trial ends.",
+      "Get full access to all features for 7 days, completely free. No restrictions, no hidden limits. If SalesParrot isn't for you, cancel anytime before the trial ends.",
   },
   {
     question: 'Are my LinkedIn accounts safe?',
     answer:
-      'Yes. Country-matched IPs, smart daily limits, and human-like activity patterns keep your accounts protected.',
+      "Yes. Each account gets a dedicated proxy, human-like sending patterns, and smart daily limits that adjust to your account's age and activity. Accounts have been running 6+ months without a single restriction.",
+  },
+  {
+    question: 'How does the AI Reply Agent work?',
+    answer:
+      'When a prospect replies on LinkedIn or email, our AI reads the message, understands their intent, and responds in your tone. It can answer questions, handle objections, and book meetings by checking your calendar in real time. You can jump in at any point.',
   },
   {
     question: 'How does email enrichment work?',
     answer:
-      'Import leads with LinkedIn URLs — we find verified business emails automatically using multiple data providers.',
+      'Import leads from Sales Navigator or CSV. We find and verify emails in the background. Included in every plan, no credits, no per-email charges.',
   },
   {
     question: 'What integrations do you support?',
     answer:
-      'Clay, HubSpot, Salesforce, Pipedrive, Zapier, webhooks, and full API access on all plans.',
+      'SalesParrot integrates with HubSpot, Salesforce, Pipedrive, Clay, Zapier, and more. Connect your existing CRM and workflow tools in minutes.',
   },
   {
     question: 'Can I cancel anytime?',
-    answer: 'Yes. Cancel from your dashboard in one click. No contracts, no cancellation fees.',
+    answer: 'Yes. Cancel your subscription at any time. No contracts, no cancellation fees.',
   },
 ];
 
@@ -44,10 +49,10 @@ function FAQItem({
 }) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={{ opacity: 0.4, y: 4 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
-      transition={{ duration: 0.4, delay: index * 0.08, ease: [0.22, 1, 0.36, 1] }}
+      transition={{ duration: 0.3, delay: index * 0.04, ease: [0.22, 1, 0.36, 1] }}
       className="border-t border-[#E2E8F0] first:border-t-0"
     >
       <button
@@ -87,10 +92,10 @@ export function FAQ() {
     <section className="bg-white py-16 md:py-20">
       <Container>
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0.3, y: 6 }}
           whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: '-100px' }}
-          transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+          viewport={{ once: true, margin: '-200px' }}
+          transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
           className="mb-12 text-center"
         >
           <h2 className="text-[24px] font-bold leading-tight tracking-[-0.01em] text-[#1E293B] sm:text-[28px] md:text-[36px]">
@@ -99,10 +104,10 @@ export function FAQ() {
         </motion.div>
 
         <motion.div
-          initial={{ opacity: 0 }}
+          initial={{ opacity: 0.5 }}
           whileInView={{ opacity: 1 }}
           viewport={{ once: true }}
-          transition={{ duration: 0.6, delay: 0.15 }}
+          transition={{ duration: 0.35, delay: 0.08 }}
           className="mx-auto max-w-[680px]"
         >
           {faqs.map((faq, index) => (

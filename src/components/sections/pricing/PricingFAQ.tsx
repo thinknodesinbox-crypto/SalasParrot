@@ -5,51 +5,58 @@ import { Container } from '@/components/ui';
 const faqs = [
   {
     question: 'What does "unlimited" actually mean?',
-    answer: `We don't charge per action, per email, or per enrichment. You get unlimited LinkedIn actions (we auto-apply safe daily limits to protect your account — typically 80-100 connections/day), unlimited email sending through your connected mailbox, and unlimited email enrichment with no credits. Your price is your price — no hidden usage fees.`,
+    answer:
+      "We don't charge per action, per email, or per enrichment. You get unlimited LinkedIn actions (we auto-apply safe daily limits to protect your account, typically 80-100 connections/day), unlimited email sending through your connected mailbox, and unlimited email enrichment with no credits. Your price is your price. No hidden usage fees.",
   },
   {
     question: 'What\'s a "sender"?',
     answer:
-      'A sender is one connected LinkedIn account. If you have 3 SDRs doing outreach, you need 3 senders. Each sender gets their own dedicated proxy to keep your accounts safe.',
+      'A sender is one LinkedIn account connected to SalesParrot. Each sender gets its own dedicated proxy, safe daily limits, and can run campaigns independently. On Growth, you choose how many senders you need. On Agency, 30 are included.',
   },
   {
     question: 'How does the $1 trial work?',
     answer:
-      "You get 7 days of full access to test everything. We charge $1 to verify your card and filter out tire-kickers. After 7 days, you're automatically billed $99/month per sender (Growth) or $999/month (Agency). Cancel anytime during the trial — no charge beyond the $1.",
+      "Pay $1 and get full access to all Growth features for 7 days. No restrictions. If SalesParrot isn't for you, cancel before the trial ends and you won't be charged again.",
   },
   {
     question: 'Is my LinkedIn account safe?',
     answer:
-      "Yes. We use dedicated residential proxies (one per account), smart sending limits, and human-like delays. We stay well within LinkedIn's limits. Thousands of users run campaigns daily without issues.",
+      "Yes. Each account gets a dedicated residential proxy, human-like sending patterns, and smart daily limits that adjust to your account's age and activity. Accounts have been running 6+ months without a single restriction.",
+  },
+  {
+    question: 'Is the AI Reply Agent included?',
+    answer:
+      'Yes. The AI Reply Agent is included in every plan at no extra cost. It reads replies, detects intent, responds in your tone, and books meetings by checking your calendar. No add-on fees, no usage limits.',
   },
   {
     question: 'How does email enrichment work?',
     answer:
-      'When you import leads from LinkedIn, we automatically find their business email addresses in the background. No extra steps, no credits to buy. Found emails are verified before we show them to you.',
+      'Import leads from Sales Navigator or CSV. We find and verify business emails automatically in the background. Included in every plan. No credits, no per-email charges.',
   },
   {
     question: 'Can I connect my own email?',
     answer:
-      "Yes. Connect Gmail, Outlook, or any SMTP server. Emails send from your actual mailbox — we don't use shared sending infrastructure.",
+      'Yes. Connect Gmail, Outlook, or any SMTP provider. Your emails send from your own mailbox for maximum deliverability.',
   },
   {
     question: "What's included in the Agency whitelabel?",
     answer:
-      'Your logo, your colors, your custom domain (e.g., outreach.youragency.com). Your clients never see our brand. Full white-label experience.',
+      'Full whitelabel branding. Your logo, your colors, your domain. Client-facing dashboards and reporting under your brand. Your clients never see SalesParrot.',
   },
   {
     question: 'Can I switch from Growth to Agency?',
     answer:
-      "Yes, anytime. Just upgrade in your dashboard. We'll prorate your existing subscription.",
+      'Yes. Upgrade anytime from your dashboard. Your campaigns, data, and settings transfer automatically.',
   },
   {
     question: 'Do you offer annual billing?',
-    answer: 'Yes. Agency annual is $749/month (25% savings).',
+    answer:
+      'Yes. Annual billing on the Agency plan saves 25% ($749/mo instead of $999/mo). Growth plan is monthly only.',
   },
   {
     question: "I'm switching from HeyReach. Can you help migrate?",
     answer:
-      "Yes. Agency plan includes migration assistance. We'll help you move your accounts, campaigns, and data. Book a demo to discuss.",
+      "Yes. Agency plan includes dedicated migration assistance. We'll help move your campaigns, sender accounts, and data. Most migrations complete within 24 hours.",
   },
 ];
 
@@ -68,10 +75,10 @@ function FAQItem({
 }) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20 }}
+      initial={{ opacity: 0.4, y: 4 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
-      transition={{ duration: 0.4, delay: index * 0.05, ease: [0.22, 1, 0.36, 1] }}
+      transition={{ duration: 0.3, delay: index * 0.04, ease: [0.22, 1, 0.36, 1] }}
       className="border-b border-[#E2E8F0] last:border-b-0"
     >
       <button
@@ -113,10 +120,10 @@ export function PricingFAQ() {
     <section className="bg-[#F8FAFC] py-20 md:py-28">
       <Container>
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0.3, y: 6 }}
           whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true, margin: '-100px' }}
-          transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+          viewport={{ once: true, margin: '-200px' }}
+          transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
           className="mb-12 text-center"
         >
           <h2 className="text-3xl font-bold leading-tight tracking-[-0.01em] text-[#1E293B] md:text-4xl">
@@ -125,10 +132,10 @@ export function PricingFAQ() {
         </motion.div>
 
         <motion.div
-          initial={{ opacity: 0 }}
+          initial={{ opacity: 0.5 }}
           whileInView={{ opacity: 1 }}
           viewport={{ once: true }}
-          transition={{ duration: 0.6, delay: 0.15 }}
+          transition={{ duration: 0.35, delay: 0.08 }}
           className="mx-auto max-w-[720px] rounded-2xl border border-[#E2E8F0] bg-white px-6 shadow-sm md:px-8"
         >
           {faqs.map((faq, index) => (

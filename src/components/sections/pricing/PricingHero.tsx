@@ -57,9 +57,9 @@ export function PricingHero() {
             transition={{ duration: 0.6, delay: 0.2, ease: [0.22, 1, 0.36, 1] }}
             className="mx-auto max-w-2xl px-4 text-base leading-relaxed text-[#64748B] sm:px-0 sm:text-lg md:text-xl"
           >
-            LinkedIn + Email + Enrichment in one platform.
+            LinkedIn + Email + Enrichment + AI Reply Agent. All in one platform.
             <br className="hidden md:block" />
-            No per-action limits. No hidden fees. No extra tools needed.
+            No per-action limits. No credits. No extra tools.
           </motion.p>
         </motion.div>
       </Container>

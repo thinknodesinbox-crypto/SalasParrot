@@ -47,7 +47,7 @@ export function PricingCTA() {
                 transition={{ duration: 0.6, delay: 0.1 }}
                 className="mb-4 text-3xl font-bold leading-tight tracking-[-0.02em] text-[#1E293B] md:text-4xl"
               >
-                Ready to simplify your stack?
+                Ready to stop paying for 3 tools?
               </motion.h2>
 
               <motion.p
@@ -57,7 +57,7 @@ export function PricingCTA() {
                 transition={{ duration: 0.6, delay: 0.2 }}
                 className="mx-auto mb-10 max-w-lg text-lg text-[#64748B]"
               >
-                LinkedIn + Email + Enrichment. One tool. One price.
+                LinkedIn, email, enrichment, and AI reply handling. One tool. One price.
               </motion.p>
 
               {/* CTA Buttons */}
