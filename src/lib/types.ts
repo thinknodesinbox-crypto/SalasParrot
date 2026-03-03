@@ -99,6 +99,7 @@ export interface WorkspaceAgentDefaults {
   product_description?: string;
   scheduling_link?: string;
   sender_title?: string;
+  custom_instructions?: string;
 }
 
 export interface Workspace {
