@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+import { useSimulationStore } from '@/lib/simulationStore';
 
 /* ── Inject keyframe styles once ── */
 const STYLE_ID = 'ai-agent-flow-keyframes';
@@ -509,25 +510,16 @@ function TypingDots() {
 }
 
 function CounterFooter() {
-  const [r, setR] = useState(0);
-  const [m, setM] = useState(0);
-  useEffect(() => {
-    const dur = 700,
-      steps = 10,
-      iv = dur / steps;
-    let i = 0;
-    const t = setInterval(() => {
-      i++;
-      setR(Math.min(Math.round((i / steps) * 4), 4));
-      setM(Math.min(Math.round((i / steps) * 3), 3));
-      if (i >= steps) clearInterval(t);
-    }, iv);
-    return () => clearInterval(t);
-  }, []);
+  const tick = useSimulationStore((state) => state.tick);
+
+  // Calculate stats based on tick, clamped to realistic demo maxes
+  const replies = useMemo(() => Math.min(Math.floor(tick / 2), 4), [tick]);
+  const meetings = useMemo(() => Math.min(Math.floor(tick / 3), 3), [tick]);
+
   return (
     <span style={{ fontSize: 12, fontWeight: 600, color: '#64748B' }}>
-      <span style={{ color: '#14B8A6', fontWeight: 700 }}>{r}</span> replies handled ·{' '}
-      <span style={{ color: '#16A34A', fontWeight: 700 }}>{m}</span> meetings booked
+      <span style={{ color: '#14B8A6', fontWeight: 700 }}>{replies}</span> replies handled ·{' '}
+      <span style={{ color: '#16A34A', fontWeight: 700 }}>{meetings}</span> meetings booked
     </span>
   );
 }

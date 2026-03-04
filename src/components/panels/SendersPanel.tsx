@@ -1,5 +1,6 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState, useEffect } from 'react';
+import { useSimulationStore } from '@/lib/simulationStore';
 
 interface Sender {
   id: string;
@@ -52,26 +53,26 @@ export function SendersPanel({ onSenderHover, variant = 'hero' }: SendersPanelPr
   const [activeSenderId, setActiveSenderId] = useState<string | null>(null);
   const [sendingId, setSendingId] = useState<string | null>(null);
 
-  // Simulate live activity - increment stats periodically
-  // Only restart interval when sender count changes, not on every stat update
+  const tick = useSimulationStore((state) => state.tick);
+
+  // Simulate live activity - increment stats periodically based on global tick
   useEffect(() => {
-    const interval = setInterval(() => {
+    // Every 3 ticks
+    if (tick > 0 && tick % 3 === 0) {
       const randomSenderIndex = Math.floor(Math.random() * senders.length);
       const randomSender = senders[randomSenderIndex];
 
       setSendingId(randomSender.id);
 
-      setTimeout(() => {
+      const timeoutId = setTimeout(() => {
         setSenders((prev) =>
           prev.map((s, i) => (i === randomSenderIndex ? { ...s, emailsSent: s.emailsSent + 1 } : s))
         );
         setSendingId(null);
       }, 800);
-    }, 3000);
-
-    return () => clearInterval(interval);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [senders.length]);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [tick, senders.length]);
 
   const handleSenderClick = (senderId: string) => {
     setActiveSenderId(activeSenderId === senderId ? null : senderId);

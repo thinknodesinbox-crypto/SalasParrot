@@ -7,7 +7,8 @@ import { Feature } from '@/components/sections/Feature';
 import { DarkSection } from '@/components/sections/DarkSection';
 import { FinalCTA } from '@/components/sections/FinalCTA';
 import { FAQ } from '@/components/sections/FAQ';
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
+import { startGlobalSimulation, stopGlobalSimulation } from '@/lib/simulationStore';
 
 const SequenceBuilderPanel = lazy(() =>
   import('@/components/panels/SequenceBuilderPanel').then((m) => ({
@@ -40,6 +41,11 @@ export const Route = createFileRoute('/')({
 });
 
 function HomePage() {
+  useEffect(() => {
+    startGlobalSimulation();
+    return () => stopGlobalSimulation();
+  }, []);
+
   return (
     <>
       <Hero />

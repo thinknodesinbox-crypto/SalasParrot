@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
 import { useState, useEffect } from 'react';
+import { useSimulationStore } from '@/lib/simulationStore';
 
 interface SequenceBuilderPanelProps {
   onEmailNodeHover?: (isHovered: boolean) => void;
@@ -29,18 +30,18 @@ export function SequenceBuilderPanel({
     sendEmail: { sent: 298, delivered: 276, replied: 67 },
   });
 
-  // Increment stats periodically
+  const tick = useSimulationStore((state) => state.tick);
+
+  // Increment stats periodically based on global tick
   useEffect(() => {
-    const interval = setInterval(() => {
+    if (tick > 0 && tick % 4 === 0) {
       setStats((prev) => ({
         ...prev,
         campaignStart: { ...prev.campaignStart, sent: prev.campaignStart.sent + 1 },
         connectionRequest: { ...prev.connectionRequest, sent: prev.connectionRequest.sent + 1 },
       }));
-    }, 4000);
-
-    return () => clearInterval(interval);
-  }, []);
+    }
+  }, [tick]);
 
   return (
     <motion.div

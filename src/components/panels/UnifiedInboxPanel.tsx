@@ -1,5 +1,6 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState, useEffect } from 'react';
+import { useSimulationStore } from '@/lib/simulationStore';
 
 interface Message {
   id: string;
@@ -50,7 +51,7 @@ const initialMessages: Message[] = [
   {
     id: '4',
     name: 'David Okonkwo',
-    avatar: '/images/avatars/david-okonkwo.png',
+    avatar: '/images/avatars/david-okonkwo.webp',
     platform: 'email',
     preview: "Thanks for reaching out. Let's connect.",
     fullMessage:
@@ -61,7 +62,7 @@ const initialMessages: Message[] = [
   {
     id: '5',
     name: 'Sophie Martin',
-    avatar: '/images/avatars/sophie-martin.png',
+    avatar: '/images/avatars/sophie-martin.webp',
     platform: 'linkedin',
     preview: 'Sounds promising. Do you have case studies?',
     fullMessage:
@@ -85,19 +86,20 @@ export function UnifiedInboxPanel({ variant = 'hero' }: UnifiedInboxPanelProps) 
   const [replySent, setReplySent] = useState<string | null>(null);
   const [typingMessageId, setTypingMessageId] = useState<string | null>(null);
 
-  // Simulate someone typing
+  const tick = useSimulationStore((state) => state.tick);
+
+  // Simulate someone typing based on global tick
   useEffect(() => {
-    const interval = setInterval(() => {
+    // Every 8 seconds (ticks)
+    if (tick > 0 && tick % 8 === 0) {
       const unreadMessages = messages.filter((m) => !m.isRead);
       if (unreadMessages.length > 0) {
         const randomIndex = Math.floor(Math.random() * unreadMessages.length);
         setTypingMessageId(unreadMessages[randomIndex].id);
         setTimeout(() => setTypingMessageId(null), 2000);
       }
-    }, 8000);
-
-    return () => clearInterval(interval);
-  }, [messages]);
+    }
+  }, [tick, messages]);
 
   const unreadCount = messages.filter((m) => !m.isRead).length;
 

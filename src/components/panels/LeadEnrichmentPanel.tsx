@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
 import { useState, useEffect } from 'react';
+import { useSimulationStore } from '@/lib/simulationStore';
 
 interface Lead {
   id: string;
@@ -62,9 +63,11 @@ export function LeadEnrichmentPanel({ variant: _variant = 'feature' }: LeadEnric
   const [leads, setLeads] = useState(initialLeads);
   const [hoveredLead, setHoveredLead] = useState<string | null>(null);
 
-  // Simulate finding email after 3 seconds
+  const tick = useSimulationStore((state) => state.tick);
+
+  // Simulate finding email at tick #3
   useEffect(() => {
-    const timer = setTimeout(() => {
+    if (tick === 3) {
       setLeads((prev) =>
         prev.map((lead) =>
           lead.id === '3'
@@ -72,9 +75,8 @@ export function LeadEnrichmentPanel({ variant: _variant = 'feature' }: LeadEnric
             : lead
         )
       );
-    }, 3000);
-    return () => clearTimeout(timer);
-  }, []);
+    }
+  }, [tick]);
 
   const foundCount = leads.filter((l) => l.status === 'found').length;
 
