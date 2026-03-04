@@ -40,7 +40,8 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const queryClient = useQueryClient();
 
   // Workspace context
-  const { currentWorkspace, currentWorkspaceId, setCurrentWorkspace } = useWorkspaceStore();
+  const { currentWorkspace, currentWorkspaceId, setCurrentWorkspace, clearCurrentWorkspace } =
+    useWorkspaceStore();
   const { data: workspaces = [] } = useWorkspaces();
   const hasHydrated = useWorkspaceHydrated();
 
@@ -74,7 +75,16 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     : user?.email?.[0]?.toUpperCase() || '?';
 
   const handleLogout = () => {
+    // Clear all cached queries
+    queryClient.clear();
+
+    // Clear workspace state
+    clearCurrentWorkspace();
+
+    // Clear auth state and tokens
     logout();
+
+    // Navigate to login
     navigate({ to: '/login' });
   };
 

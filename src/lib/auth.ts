@@ -114,6 +114,14 @@ export const useAuthStore = create<AuthState>()(
 
       logout: () => {
         clearTokens();
+
+        // Clear any onboarding state
+        localStorage.removeItem('onboarding_senders');
+
+        // Clear Zustand persisted stores
+        localStorage.removeItem('auth-storage');
+        localStorage.removeItem('workspace-storage');
+
         set({
           user: null,
           isAuthenticated: false,
