@@ -143,23 +143,23 @@ export function AIReplyAgentPanel({ variant = 'feature' }: { variant?: 'hero' | 
       ([e]) => {
         if (e.isIntersecting && !played.current) {
           played.current = true;
-          const m = window.innerWidth < 768 ? 0.7 : 1;
-          setStep(0); // Lead message
-          setTimeout(() => setStep(1), 1200 * m); // Checking calendar...
-          setTimeout(() => setStep(2), 2200 * m); // 3 slots found
-          setTimeout(() => setStep(3), 3000 * m); // Typing dots
-          setTimeout(() => setStep(3.5), 3800 * m); // AI suggests times
-          setTimeout(() => setStep(4), 4800 * m); // Lead confirms
-          setTimeout(() => setStep(5), 5800 * m); // Booking on calendar...
-          setTimeout(() => setStep(5.5), 6600 * m); // Calendar invite sent
-          setTimeout(() => setStep(6), 7200 * m); // Typing dots
-          setTimeout(() => setStep(6.5), 7700 * m); // AI confirms
-          setTimeout(() => setStep(7), 8500 * m); // Meeting booked badge
-          setTimeout(() => setStep(8), 9000 * m); // Summary rows
-          setTimeout(() => setStep(9), 9800 * m); // Counter
+          const m = window.innerWidth < 768 ? 0.6 : 0.85; // Slightly faster overall
+          setStep(0); // Lead message (Instant)
+          setTimeout(() => setStep(1), 600 * m); // Checking calendar... (Was 1200)
+          setTimeout(() => setStep(2), 1400 * m); // 3 slots found (Was 2200)
+          setTimeout(() => setStep(3), 2000 * m); // Typing dots (Was 3000)
+          setTimeout(() => setStep(3.5), 2600 * m); // AI suggests times (Was 3800)
+          setTimeout(() => setStep(4), 3600 * m); // Lead confirms (Was 4800)
+          setTimeout(() => setStep(5), 4400 * m); // Booking on calendar... (Was 5800)
+          setTimeout(() => setStep(5.5), 5000 * m); // Calendar invite sent (Was 6600)
+          setTimeout(() => setStep(6), 5600 * m); // Typing dots (Was 7200)
+          setTimeout(() => setStep(6.5), 6000 * m); // AI confirms (Was 7700)
+          setTimeout(() => setStep(7), 6800 * m); // Meeting booked badge (Was 8500)
+          setTimeout(() => setStep(8), 7400 * m); // Summary rows (Was 9000)
+          setTimeout(() => setStep(9), 8000 * m); // Counter (Was 9800)
         }
       },
-      { threshold: 0.3 }
+      { threshold: 0.1 } // Start sooner (Was 0.3)
     );
     obs.observe(el);
     return () => obs.disconnect();
