@@ -1,8 +1,9 @@
 import { motion } from 'framer-motion';
 import { useEffect } from 'react';
+import { lazy, Suspense } from 'react';
 import { Link } from '@tanstack/react-router';
 import { Container, Button } from '@/components/ui';
-import { HeroDemo } from './HeroDemo';
+const HeroDemo = lazy(() => import('./HeroDemo').then((m) => ({ default: m.HeroDemo })));
 import { useAuthStore } from '@/lib/auth';
 import { getCalApi } from '@calcom/embed-react';
 
@@ -115,7 +116,13 @@ export function Hero() {
             }}
             className="w-full max-w-[1100px]"
           >
-            <HeroDemo />
+            <Suspense
+              fallback={
+                <div className="h-[400px] w-full animate-pulse rounded-[32px] bg-slate-100/50 backdrop-blur-sm md:h-[600px] lg:h-[700px]" />
+              }
+            >
+              <HeroDemo />
+            </Suspense>
           </motion.div>
         </motion.div>
       </Container>
