@@ -3,22 +3,15 @@ import { useState, useEffect } from 'react';
 import { SendersPanel } from '../panels/SendersPanel';
 import { SequenceBuilderPanel } from '../panels/SequenceBuilderPanel';
 import { UnifiedInboxPanel } from '../panels/UnifiedInboxPanel';
+import { MeshBackground } from '../ui/MeshBackground';
+
 export function HeroDemo() {
   const [highlightEmails, setHighlightEmails] = useState(false);
   const [, setActiveSender] = useState<string | null>(null);
   const [hoveredPanel, setHoveredPanel] = useState<string | null>(null);
 
   return (
-    <div
-      className="relative w-full overflow-hidden rounded-[24px] md:rounded-[32px]"
-      style={{
-        backgroundImage: 'url(/images/hero-mesh-bg.webp)',
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        boxShadow:
-          '0 50px 100px -20px rgba(30, 41, 59, 0.12), 0 30px 60px -30px rgba(30, 41, 59, 0.15)',
-      }}
-    >
+    <MeshBackground variant="hero" className="!m-0 w-full !max-w-none !p-0 !shadow-none">
       {/* Desktop Layout */}
       <div className="relative hidden w-full lg:block" style={{ height: '700px' }}>
         {/* Panel 1: SENDERS PANEL - Top Left */}
@@ -181,7 +174,7 @@ export function HeroDemo() {
       <div className="flex flex-col items-center px-4 py-6 md:hidden">
         <MobileSequenceFlow />
       </div>
-    </div>
+    </MeshBackground>
   );
 }
 
