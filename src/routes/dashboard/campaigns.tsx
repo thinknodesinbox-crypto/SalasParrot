@@ -2472,55 +2472,62 @@ function CreateCampaignModal({
                     </>
                   )}
                   {step !== 'review' && (
-                    <button
-                      onClick={() => {
-                        // Validate lead availability before moving forward from leads step
-                        if (
-                          step === 'leads' &&
-                          selectedLeadListId &&
-                          leadAvailability &&
-                          leadAvailability.available === 0
-                        ) {
-                          setError(
-                            `Cannot continue: All ${leadAvailability.total} leads from this list are already assigned to active campaigns. Please select a different list or pause the active campaign to free up leads.`
-                          );
-                          return;
-                        }
-
-                        // Validate sequence before moving forward from sequence step
-                        if (step === 'sequence') {
-                          const validation = validateSequence();
-                          if (!validation.valid) {
-                            setError(validation.errors.join('\n'));
+                    <>
+                      {step === 'sequence' && (
+                        <button
+                          onClick={() => handleSaveWithValidation(false)}
+                          disabled={!campaignName || isSaving}
+                          className="rounded-lg border border-[#E2E8F0] px-6 py-2 font-medium text-[#64748B] hover:bg-[#F8FAFC] disabled:opacity-50"
+                          title="Save your progress and come back to finish later"
+                        >
+                          {isSaving ? 'Saving...' : 'Save as Draft'}
+                        </button>
+                      )}
+                      <button
+                        onClick={() => {
+                          // Validate lead availability before moving forward from leads step
+                          if (
+                            step === 'leads' &&
+                            selectedLeadListId &&
+                            leadAvailability &&
+                            leadAvailability.available === 0
+                          ) {
+                            setError(
+                              `Cannot continue: All ${leadAvailability.total} leads from this list are already assigned to active campaigns. Please select a different list or pause the active campaign to free up leads.`
+                            );
                             return;
                           }
-                        }
 
-                        const steps: Array<'name' | 'leads' | 'sequence' | 'senders' | 'review'> = [
-                          'name',
-                          'leads',
-                          'sequence',
-                          'senders',
-                          'review',
-                        ];
-                        const currentIndex = steps.indexOf(step);
-                        setStep(steps[currentIndex + 1]);
-                      }}
-                      disabled={
-                        !campaignName || // Campaign name is required at all steps
-                        (step === 'name' &&
-                          (!campaignName || (!isEditMode && !currentWorkspaceId))) || // Workspace required for new campaigns
-                        (step === 'leads' &&
-                          selectedLeadListId &&
-                          leadAvailability &&
-                          leadAvailability.available === 0) || // Block if no available leads
-                        (step === 'sequence' && !isSequenceValid) || // Block if sequence has validation errors
-                        isSaving
-                      }
-                      className="rounded-lg bg-[#FF6B35] px-6 py-2 font-medium text-white hover:bg-[#E85A2A] disabled:opacity-50"
-                    >
-                      Continue
-                    </button>
+                          // Validate sequence before moving forward from sequence step
+                          if (step === 'sequence') {
+                            const validation = validateSequence();
+                            if (!validation.valid) {
+                              setError(validation.errors.join('\n'));
+                              return;
+                            }
+                          }
+
+                          const steps: Array<'name' | 'leads' | 'sequence' | 'senders' | 'review'> =
+                            ['name', 'leads', 'sequence', 'senders', 'review'];
+                          const currentIndex = steps.indexOf(step);
+                          setStep(steps[currentIndex + 1]);
+                        }}
+                        disabled={
+                          !campaignName || // Campaign name is required at all steps
+                          (step === 'name' &&
+                            (!campaignName || (!isEditMode && !currentWorkspaceId))) || // Workspace required for new campaigns
+                          (step === 'leads' &&
+                            selectedLeadListId &&
+                            leadAvailability &&
+                            leadAvailability.available === 0) || // Block if no available leads
+                          (step === 'sequence' && !isSequenceValid) || // Block if sequence has validation errors
+                          isSaving
+                        }
+                        className="rounded-lg bg-[#FF6B35] px-6 py-2 font-medium text-white hover:bg-[#E85A2A] disabled:opacity-50"
+                      >
+                        Continue
+                      </button>
+                    </>
                   )}
                 </div>
               </div>
@@ -2916,7 +2923,7 @@ function CampaignDetailDrawer({
                 </div>
               )}
 
-              {/* Steps Section - Visual Tree */}
+              {/* Steps Section - Tree View */}
               <div>
                 <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-[#64748B]">
                   Sequence ({steps.filter((s) => s.type !== 'end').length} steps)
@@ -2926,61 +2933,39 @@ function CampaignDetailDrawer({
                     No steps configured yet
                   </div>
                 ) : (
-                  <div className="rounded-lg border border-[#E2E8F0] bg-[#FAFBFC] p-6">
-                    <div className="flex flex-col items-center">
-                      {/* Campaign Start */}
-                      <div className="flex items-center gap-2 text-[#1E293B]">
-                        <svg
-                          className="h-5 w-5 text-[#22C55E]"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                          strokeWidth={2}
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5"
-                          />
-                        </svg>
-                        <span className="font-medium">Campaign Start</span>
+                  (() => {
+                    // Reconstruct SequenceNode[] from raw API steps (same logic as editor)
+                    const readonlyNodes: SequenceNode[] = [
+                      { id: 'start', type: 'start', data: {} },
+                    ];
+                    const sortedSteps = [...steps].sort((a, b) => a.order - b.order);
+                    const branchInfo = reconstructBranchInfo(sortedSteps);
+                    sortedSteps.forEach((s) => {
+                      const mappedType = mapStepTypeToNodeType(s.type);
+                      if (!mappedType) return;
+                      const branchData = branchInfo.get(s.id);
+                      readonlyNodes.push({
+                        id: s.id,
+                        type: mappedType,
+                        data: mapConfigToNodeData(s.config || {}),
+                        parentId: branchData?.parentId,
+                        branch: branchData?.branch,
+                      });
+                    });
+                    readonlyNodes.push({ id: 'end', type: 'end', data: {} });
+
+                    return (
+                      <div className="overflow-auto rounded-lg border border-[#E2E8F0] bg-[#FAFBFC]">
+                        <SequenceCanvas
+                          nodes={readonlyNodes}
+                          onNodesChange={() => {}}
+                          onNodeSelect={() => {}}
+                          selectedNodeId={null}
+                          readonlyStructure={true}
+                        />
                       </div>
-
-                      {/* Steps - filter out end steps (they are branch terminators) */}
-                      {steps
-                        .filter((s) => s.type !== 'end')
-                        .map((step) => (
-                          <div key={step.id} className="flex flex-col items-center">
-                            {/* Connector Line */}
-                            <div className="h-6 w-0.5 bg-[#CBD5E1]" />
-
-                            {/* Step Node */}
-                            <SequenceStepNode step={step} />
-                          </div>
-                        ))}
-
-                      {/* End connector */}
-                      <div className="h-6 w-0.5 bg-[#CBD5E1]" />
-
-                      {/* Campaign End */}
-                      <div className="flex items-center gap-2 rounded-full border-2 border-[#E2E8F0] bg-white px-4 py-2">
-                        <svg
-                          className="h-4 w-4 text-[#64748B]"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          stroke="currentColor"
-                          strokeWidth={2}
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                          />
-                        </svg>
-                        <span className="text-sm font-medium text-[#64748B]">End</span>
-                      </div>
-                    </div>
-                  </div>
+                    );
+                  })()
                 )}
               </div>
 
@@ -3042,201 +3027,6 @@ function CampaignDetailDrawer({
       </motion.div>
     </motion.div>,
     document.body
-  );
-}
-
-// Step node component for visual sequence display
-function SequenceStepNode({ step }: { step: { type: string; config: Record<string, unknown> } }) {
-  const stepConfigs: Record<
-    string,
-    { label: string; color: string; icon: React.ReactNode; getDetail?: () => string | null }
-  > = {
-    profile_view: {
-      label: 'View Profile',
-      color: '#0A66C2',
-      icon: (
-        <svg
-          className="h-4 w-4"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={2}
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-          />
-        </svg>
-      ),
-    },
-    follow: {
-      label: 'Follow',
-      color: '#0A66C2',
-      icon: (
-        <svg
-          className="h-4 w-4"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={2}
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"
-          />
-        </svg>
-      ),
-    },
-    connection_request: {
-      label: 'Connect',
-      color: '#0A66C2',
-      icon: <LinkedInIcon className="h-4 w-4" />,
-      getDetail: () =>
-        step.config.message ? String(step.config.message).slice(0, 50) + '...' : null,
-    },
-    message: {
-      label: 'Message',
-      color: '#0A66C2',
-      icon: (
-        <svg
-          className="h-4 w-4"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={2}
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
-          />
-        </svg>
-      ),
-      getDetail: () =>
-        step.config.message ? String(step.config.message).slice(0, 50) + '...' : null,
-    },
-    wait: {
-      label: 'Wait',
-      color: '#F59E0B',
-      icon: (
-        <svg
-          className="h-4 w-4"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={2}
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-          />
-        </svg>
-      ),
-      getDetail: () => {
-        const days = Number(step.config.delay_days) || 0;
-        const hours = Number(step.config.delay_hours) || 0;
-        if (days === 0 && hours === 0) return null;
-        const parts = [];
-        if (days > 0) parts.push(`${days} day${days > 1 ? 's' : ''}`);
-        if (hours > 0) parts.push(`${hours} hour${hours > 1 ? 's' : ''}`);
-        return parts.join(' ');
-      },
-    },
-    condition: {
-      label: 'Condition',
-      color: '#8B5CF6',
-      icon: (
-        <svg
-          className="h-4 w-4"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={2}
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
-        </svg>
-      ),
-      getDetail: () => {
-        const condType = step.config.condition_type;
-        if (condType === 'connected') return 'If Connected';
-        if (condType === 'replied' || condType === 'message_replied') return 'If Message Replied';
-        if (condType === 'message_seen') return 'If Message Seen';
-        if (condType === 'email_opened' || condType === 'opened') return 'If Email Opened';
-        if (condType === 'email_link_clicked') return 'If Email Link Clicked';
-        if (condType === 'email_replied') return 'If Email Replied';
-        return null;
-      },
-    },
-    email: {
-      label: 'Email',
-      color: '#14B8A6',
-      icon: <EmailIcon className="h-4 w-4" />,
-      getDetail: () =>
-        step.config.subject ? String(step.config.subject).slice(0, 50) + '...' : null,
-    },
-    inmail: {
-      label: 'InMail',
-      color: '#0A66C2',
-      icon: <EmailIcon className="h-4 w-4" />,
-      getDetail: () =>
-        step.config.subject ? String(step.config.subject).slice(0, 50) + '...' : null,
-    },
-    like_post: {
-      label: 'Like Post',
-      color: '#0A66C2',
-      icon: (
-        <svg
-          className="h-4 w-4"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={2}
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5"
-          />
-        </svg>
-      ),
-    },
-  };
-
-  const config = stepConfigs[step.type] || {
-    label: step.type.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase()),
-    color: '#64748B',
-    icon: (
-      <svg
-        className="h-4 w-4"
-        fill="none"
-        viewBox="0 0 24 24"
-        stroke="currentColor"
-        strokeWidth={2}
-      >
-        <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-      </svg>
-    ),
-  };
-
-  const detail = config.getDetail?.();
-
-  return (
-    <div className="inline-flex flex-col items-center gap-1">
-      <div className="inline-flex items-center gap-2 rounded-full border-2 border-[#E2E8F0] bg-white px-4 py-2.5">
-        <div
-          className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full"
-          style={{ backgroundColor: `${config.color}15`, color: config.color }}
-        >
-          {config.icon}
-        </div>
-        <span className="whitespace-nowrap text-sm font-medium text-[#1E293B]">{config.label}</span>
-      </div>
-      {detail && <p className="max-w-[200px] truncate text-xs text-[#64748B]">{detail}</p>}
-    </div>
   );
 }
 
