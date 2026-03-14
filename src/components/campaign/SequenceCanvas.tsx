@@ -194,14 +194,10 @@ export function SequenceCanvas({
         const conditionIndex = afterIndex + 1;
         for (let i = conditionIndex + 1; i < newNodes.length; i++) {
           const n = newNodes[i];
-          if (
-            n.parentId === afterNode.parentId &&
-            n.branch === afterNode.branch &&
-            n.type !== 'end'
-          ) {
+          if (n.parentId === afterNode.parentId && n.branch === afterNode.branch) {
             n.parentId = newNode.id;
             n.branch = 'true';
-          } else if (n.parentId === afterNode.parentId && n.branch === afterNode.branch) {
+          } else {
             break;
           }
         }

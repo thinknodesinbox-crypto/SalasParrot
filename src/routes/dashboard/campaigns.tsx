@@ -356,6 +356,23 @@ function EmptyState({
   );
 }
 
+function isRateLimitedToday(campaign: Campaign): boolean {
+  if (!campaign.rate_limited_date || !campaign.rate_limited_actions?.length) return false;
+  const today = new Date().toISOString().slice(0, 10);
+  return campaign.rate_limited_date === today;
+}
+
+function getRateLimitLabel(actions: string[]): string {
+  const labels: Record<string, string> = {
+    connection_request: 'Connections',
+    message: 'Messages',
+    inmail: 'InMails',
+    profile_view: 'Profile Views',
+    email: 'Emails',
+  };
+  return actions.map((a) => labels[a] ?? a).join(', ');
+}
+
 function CampaignsList({
   campaigns,
   onSelect,
@@ -451,6 +468,12 @@ function CampaignCard({
       <div className="mb-3 flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <p className="truncate font-medium text-[#1E293B]">{campaign.name}</p>
+          {isRateLimitedToday(campaign) && (
+            <p className="mt-1 inline-flex items-center gap-1 rounded-md bg-[#FFF7ED] px-2 py-0.5 text-xs font-medium text-[#C2410C]">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#F97316]" />
+              Rate limited: {getRateLimitLabel(campaign.rate_limited_actions)}
+            </p>
+          )}
           <p className="mt-0.5 truncate text-sm text-[#64748B]">
             Created {new Date(campaign.created_at).toLocaleDateString()}
           </p>
@@ -608,6 +631,12 @@ function CampaignRow({
       <td className="px-6 py-4">
         <div>
           <p className="font-medium text-[#1E293B]">{campaign.name}</p>
+          {isRateLimitedToday(campaign) && (
+            <span className="mt-1 inline-flex items-center gap-1 rounded-md bg-[#FFF7ED] px-2 py-0.5 text-xs font-medium text-[#C2410C]">
+              <span className="h-1.5 w-1.5 rounded-full bg-[#F97316]" />
+              Rate limited: {getRateLimitLabel(campaign.rate_limited_actions)}
+            </span>
+          )}
           <p className="text-sm text-[#64748B]">ID: {campaign.id.slice(0, 8)}...</p>
         </div>
       </td>
