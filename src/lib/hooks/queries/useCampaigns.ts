@@ -170,6 +170,25 @@ export const usePauseCampaign = (campaignId: string) => {
   });
 };
 
+// Stop campaign
+export const useStopCampaign = (campaignId: string) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async () => {
+      const response = await api.post<Campaign>(`/campaigns/${campaignId}/stop`);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.campaigns.detail(campaignId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.campaigns.all });
+    },
+    onError: (error) => {
+      throw new Error(getErrorMessage(error));
+    },
+  });
+};
+
 // Resume campaign
 export const useResumeCampaign = (campaignId: string) => {
   const queryClient = useQueryClient();

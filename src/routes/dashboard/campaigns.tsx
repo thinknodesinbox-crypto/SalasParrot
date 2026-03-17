@@ -19,6 +19,7 @@ import {
   useDeleteCampaign,
   useStartCampaign,
   usePauseCampaign,
+  useStopCampaign,
   useResumeCampaign,
   useCloneCampaign,
   useLeadLists,
@@ -423,6 +424,7 @@ function CampaignCard({
   const deleteCampaign = useDeleteCampaign();
   const startCampaign = useStartCampaign(campaign.id);
   const pauseCampaign = usePauseCampaign(campaign.id);
+  const stopCampaign = useStopCampaign(campaign.id);
   const resumeCampaign = useResumeCampaign(campaign.id);
 
   const statusColors: Record<string, { bg: string; text: string; dot: string }> = {
@@ -521,6 +523,17 @@ function CampaignCard({
                         Pause Campaign
                       </button>
                     )}
+                    {(campaign.status === 'active' || campaign.status === 'paused') && (
+                      <button
+                        onClick={async () => {
+                          setMenuOpen(false);
+                          await stopCampaign.mutateAsync();
+                        }}
+                        className="w-full px-4 py-2 text-left text-sm text-[#EF4444] hover:bg-[#FEF2F2]"
+                      >
+                        Stop Campaign
+                      </button>
+                    )}
                     {campaign.status === 'paused' && (
                       <button
                         onClick={async () => {
@@ -580,6 +593,7 @@ function CampaignRow({
   const deleteCampaign = useDeleteCampaign();
   const startCampaign = useStartCampaign(campaign.id);
   const pauseCampaign = usePauseCampaign(campaign.id);
+  const stopCampaign = useStopCampaign(campaign.id);
   const resumeCampaign = useResumeCampaign(campaign.id);
 
   const statusColors: Record<string, { bg: string; text: string; dot: string }> = {
@@ -587,6 +601,7 @@ function CampaignRow({
     active: { bg: 'bg-[#F0FDF4]', text: 'text-[#22C55E]', dot: 'bg-[#22C55E]' },
     paused: { bg: 'bg-[#FFFBEB]', text: 'text-[#F59E0B]', dot: 'bg-[#F59E0B]' },
     completed: { bg: 'bg-[#EFF6FF]', text: 'text-[#3B82F6]', dot: 'bg-[#3B82F6]' },
+    stopped: { bg: 'bg-[#FEF2F2]', text: 'text-[#EF4444]', dot: 'bg-[#EF4444]' },
   };
 
   const status = statusColors[campaign.status] || statusColors.draft;
@@ -649,7 +664,7 @@ function CampaignRow({
                   >
                     View Details
                   </button>
-                  {campaign.status !== 'completed' && (
+                  {campaign.status !== 'completed' && campaign.status !== 'stopped' && (
                     <button
                       onClick={() => {
                         onEdit(campaign);
@@ -691,6 +706,17 @@ function CampaignRow({
                       className="w-full px-4 py-2 text-left text-sm text-[#22C55E] hover:bg-[#F0FDF4]"
                     >
                       Resume Campaign
+                    </button>
+                  )}
+                  {(campaign.status === 'active' || campaign.status === 'paused') && (
+                    <button
+                      onClick={async () => {
+                        setMenuOpen(false);
+                        await stopCampaign.mutateAsync();
+                      }}
+                      className="w-full px-4 py-2 text-left text-sm text-[#EF4444] hover:bg-[#FEF2F2]"
+                    >
+                      Stop Campaign
                     </button>
                   )}
                   <button

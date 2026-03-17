@@ -7,6 +7,7 @@ export {
   useDeleteCampaign,
   useStartCampaign,
   usePauseCampaign,
+  useStopCampaign,
   useResumeCampaign,
   useCloneCampaign,
   useCampaignSteps,

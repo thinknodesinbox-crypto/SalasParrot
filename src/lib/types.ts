@@ -180,7 +180,7 @@ export interface CreateInvitationRequest {
 }
 
 // Campaign types
-export type CampaignStatus = 'draft' | 'active' | 'paused' | 'completed';
+export type CampaignStatus = 'draft' | 'active' | 'paused' | 'completed' | 'stopped';
 export type StepType =
   | 'connection_request'
   | 'message'
@@ -667,7 +667,7 @@ export interface RecentActivityItem {
 export interface ActiveCampaignItem {
   id: string;
   name: string;
-  status: 'active' | 'paused';
+  status: 'active' | 'paused' | 'stopped';
   progress: number;
   leads: number;
   sent: number;
