@@ -1850,12 +1850,6 @@ export function NodeConfigPanel({
                 from the lead's profile.
               </p>
             </div>
-            <div className="rounded-lg bg-[#EFF6FF] p-3">
-              <p className="text-xs text-[#1D4ED8]">
-                A <strong>Profile View</strong> step earlier in the sequence is recommended to
-                ensure the lead's profile ID is resolved before liking posts.
-              </p>
-            </div>
           </>
         )}
 
