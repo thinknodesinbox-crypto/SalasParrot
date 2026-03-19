@@ -14,6 +14,7 @@ export interface SequenceNode {
     | 'linkedin_message'
     | 'linkedin_inmail'
     | 'linkedin_view'
+    | 'linkedin_like'
     | 'email'
     | 'delay'
     | 'condition'
@@ -32,6 +33,7 @@ interface NodeData {
   subject?: string;
   delayDays?: number;
   delayHours?: number;
+  postsToLike?: number;
   condition?:
     | 'connected'
     | 'message_replied'
@@ -432,6 +434,14 @@ function InsertButton({
                   setShowMenu(false);
                 }}
               />
+              <ActionMenuItem
+                icon={<ThumbsUpIcon className="h-4 w-4" />}
+                label="Like Post"
+                onClick={() => {
+                  onAdd('linkedin_like');
+                  setShowMenu(false);
+                }}
+              />
 
               <div className="my-1 border-t border-[#E2E8F0]" />
               <p className="px-3 py-1 text-[10px] font-semibold uppercase text-[#94A3B8]">Email</p>
@@ -554,6 +564,10 @@ function TreeNode({
         return 'Message';
       case 'linkedin_inmail':
         return 'InMail';
+      case 'linkedin_like': {
+        const n = node.data.postsToLike || 1;
+        return `Like Post${n > 1 ? `s (${n})` : ''}`;
+      }
       case 'email':
         return 'Email';
       case 'enrichment':
@@ -891,6 +905,14 @@ function BranchEndButtons({
                     setShowMenu(false);
                   }}
                 />
+                <ActionMenuItem
+                  icon={<ThumbsUpIcon className="h-4 w-4" />}
+                  label="Like Post"
+                  onClick={() => {
+                    onAddAction('linkedin_like');
+                    setShowMenu(false);
+                  }}
+                />
 
                 <div className="my-1 border-t border-[#E2E8F0]" />
                 <p className="px-3 py-1 text-[10px] font-semibold uppercase text-[#94A3B8]">
@@ -1035,6 +1057,14 @@ function AddActionButton({
                   setShowMenu(false);
                 }}
               />
+              <ActionMenuItem
+                icon={<ThumbsUpIcon className="h-4 w-4" />}
+                label="Like Post"
+                onClick={() => {
+                  onAdd('linkedin_like');
+                  setShowMenu(false);
+                }}
+              />
 
               <div className="my-1 border-t border-[#E2E8F0]" />
               <p className="px-3 py-1 text-[10px] font-semibold uppercase text-[#94A3B8]">Email</p>
@@ -1165,6 +1195,11 @@ export function StepPalette({
         type: 'linkedin_view',
         label: 'View Profile',
         icon: <EyeIcon className="h-4 w-4" />,
+      },
+      {
+        type: 'linkedin_like' as const,
+        label: 'Like Post',
+        icon: <ThumbsUpIcon className="h-4 w-4" />,
       },
     ];
 
@@ -1787,6 +1822,43 @@ export function NodeConfigPanel({
           </div>
         )}
 
+        {/* Like Post Configuration */}
+        {node.type === 'linkedin_like' && (
+          <>
+            <div>
+              <label className="mb-2 block text-sm font-medium text-[#1E293B]">Posts to Like</label>
+              <div className="flex gap-2">
+                {[1, 2, 3, 4, 5].map((n) => (
+                  <button
+                    key={n}
+                    onClick={() => onUpdate({ postsToLike: n })}
+                    className={`flex h-9 w-9 items-center justify-center rounded-lg border text-sm font-medium transition-colors ${
+                      (node.data.postsToLike || 1) === n
+                        ? 'border-[#0A66C2] bg-[#0A66C2] text-white'
+                        : 'border-[#E2E8F0] text-[#1E293B] hover:border-[#0A66C2]/40'
+                    }`}
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-2 text-xs text-[#64748B]">
+                Likes the{' '}
+                {(node.data.postsToLike || 1) === 1
+                  ? 'most recent post'
+                  : `${node.data.postsToLike} most recent posts`}{' '}
+                from the lead's profile.
+              </p>
+            </div>
+            <div className="rounded-lg bg-[#EFF6FF] p-3">
+              <p className="text-xs text-[#1D4ED8]">
+                A <strong>Profile View</strong> step earlier in the sequence is recommended to
+                ensure the lead's profile ID is resolved before liking posts.
+              </p>
+            </div>
+          </>
+        )}
+
         {/* Reply Agent Configuration */}
         {node.type === 'reply_agent' && (
           <>
@@ -1958,6 +2030,11 @@ function getNodeConfig(type: SequenceNode['type']) {
       color: '#0A66C2',
       icon: <EyeIcon className="h-4 w-4 text-[#0A66C2]" />,
     },
+    linkedin_like: {
+      label: 'Like Post',
+      color: '#0A66C2',
+      icon: <ThumbsUpIcon className="h-4 w-4 text-[#0A66C2]" />,
+    },
     email: {
       label: 'Send Email',
       color: '#14B8A6',
@@ -2009,6 +2086,8 @@ function getDefaultNodeData(
       return { delayDays: 0, delayHours: 0 };
     case 'condition':
       return { condition: 'connected' };
+    case 'linkedin_like':
+      return { postsToLike: 1 };
     case 'reply_agent':
       return {
         agentGoal: agentDefaults?.goal || '',
@@ -2319,6 +2398,24 @@ function ChevronIcon({ className = 'w-4 h-4' }: { className?: string }) {
       strokeWidth={2}
     >
       <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+    </svg>
+  );
+}
+
+function ThumbsUpIcon({ className = 'w-4 h-4' }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={2}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5"
+      />
     </svg>
   );
 }

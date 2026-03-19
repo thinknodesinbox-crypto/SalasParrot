@@ -8,6 +8,7 @@ export function mapNodeTypeToStepType(nodeType: SequenceNode['type']): StepType 
     linkedin_message: 'message',
     linkedin_inmail: 'inmail',
     linkedin_view: 'profile_view',
+    linkedin_like: 'like_post',
     email: 'email',
     delay: 'wait',
     condition: 'condition',
@@ -24,6 +25,7 @@ export function mapStepTypeToNodeType(stepType: StepType): SequenceNode['type'] 
     message: 'linkedin_message',
     inmail: 'linkedin_inmail',
     profile_view: 'linkedin_view',
+    like_post: 'linkedin_like',
     email: 'email',
     wait: 'delay',
     condition: 'condition',
@@ -52,6 +54,9 @@ export function mapNodeDataToConfig(node: SequenceNode): Record<string, unknown>
   }
   if (node.data.condition !== undefined) {
     config.condition_type = node.data.condition;
+  }
+  if (node.data.postsToLike !== undefined) {
+    config.posts_to_like = node.data.postsToLike;
   }
 
   // Agent fields
@@ -99,6 +104,7 @@ export function mapConfigToNodeData(config: Record<string, unknown>): SequenceNo
     subject: config.subject as string | undefined,
     delayDays: config.delay_days as number | undefined,
     delayHours: config.delay_hours as number | undefined,
+    postsToLike: config.posts_to_like as number | undefined,
     condition: condition as
       | 'connected'
       | 'message_replied'

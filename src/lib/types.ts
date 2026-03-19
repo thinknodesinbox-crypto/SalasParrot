@@ -186,6 +186,7 @@ export type StepType =
   | 'message'
   | 'inmail'
   | 'profile_view'
+  | 'like_post'
   | 'wait'
   | 'condition'
   | 'email'
