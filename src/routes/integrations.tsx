@@ -323,13 +323,13 @@ function IntegrationsPage() {
             <p className="mb-8 text-[#64748B]">
               {isAuthenticated
                 ? 'Head to your settings to configure integrations.'
-                : 'Start your free trial and connect your tools in minutes.'}
+                : 'Get started and connect your tools in minutes.'}
             </p>
             <Link
               to={isAuthenticated ? '/dashboard/settings' : '/signup'}
               className="inline-flex items-center justify-center rounded-xl bg-[#FF6B35] px-8 py-3 font-semibold text-white transition-colors hover:bg-[#E85A2A]"
             >
-              {isAuthenticated ? 'Go to Settings' : 'Start Free Trial'}
+              {isAuthenticated ? 'Go to Settings' : 'Get Started'}
             </Link>
           </div>
         </Container>

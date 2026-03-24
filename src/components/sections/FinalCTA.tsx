@@ -31,7 +31,7 @@ export function FinalCTA() {
 
           {!isAuthenticated && (
             <p className="mt-3 text-xs font-medium text-[#64748B] sm:mt-4 sm:text-[14px]">
-              No credit card. Cancel anytime.
+              Cancel anytime.
             </p>
           )}
         </motion.div>
