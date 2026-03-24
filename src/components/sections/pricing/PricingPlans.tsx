@@ -218,12 +218,12 @@ export function PricingPlans() {
                   whileTap={{ scale: 0.99 }}
                   className="w-full rounded-xl bg-[#14B8A6] px-6 py-4 font-semibold text-white shadow-[0_4px_14px_rgba(20,184,166,0.25)] transition-all duration-200 hover:bg-[#0D9488] hover:shadow-[0_6px_20px_rgba(20,184,166,0.35)]"
                 >
-                  {isAuthenticated ? 'Go to Dashboard' : 'Start $1 Trial'}
+                  {isAuthenticated ? 'Go to Dashboard' : 'Get Started'}
                 </motion.button>
               </Link>
               {!isAuthenticated && (
                 <p className="mt-3 text-center text-xs text-[#94A3B8]">
-                  7-day full access. Cancel anytime.
+                  Pay monthly. Cancel anytime.
                 </p>
               )}
 

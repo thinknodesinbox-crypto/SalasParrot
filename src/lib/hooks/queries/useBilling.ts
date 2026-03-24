@@ -5,7 +5,6 @@ import type {
   BillingOverview,
   Invoice,
   PricingInfo,
-  TrialCheckoutRequest,
   GrowthCheckoutRequest,
   AgencyCheckoutRequest,
   UpdateGrowthSendersRequest,
@@ -43,22 +42,6 @@ export const useInvoices = (limit: number = 10) => {
     queryFn: async () => {
       const response = await api.get<Invoice[]>(`/billing/invoices?limit=${limit}`);
       return response.data;
-    },
-  });
-};
-
-// =============================================================================
-// Trial Checkout
-// =============================================================================
-
-export const useCreateTrialCheckout = () => {
-  return useMutation({
-    mutationFn: async (data: TrialCheckoutRequest = {}) => {
-      const response = await api.post<{ checkout_url: string }>('/billing/trial/checkout', data);
-      return response.data;
-    },
-    onError: (error) => {
-      throw new Error(getErrorMessage(error));
     },
   });
 };

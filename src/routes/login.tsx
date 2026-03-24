@@ -95,7 +95,7 @@ function LoginPage() {
                 to="/signup"
                 className="font-semibold text-[#FF6B35] transition-colors hover:text-[#E85A2A]"
               >
-                Start your $1 trial
+                Sign up
               </Link>
             </p>
           </motion.div>

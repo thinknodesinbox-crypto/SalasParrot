@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuthStore } from '@/lib/auth';
-import { useCreateTrialCheckout, useCreateAgencyCheckout } from '@/lib/hooks/queries/useBilling';
+import { useCreateGrowthCheckout, useCreateAgencyCheckout } from '@/lib/hooks/queries/useBilling';
 import { api, getErrorMessage } from '@/lib/api';
 import type { PartnerCodeValidation } from '@/lib/types';
 import { Check, Gift, CreditCard, Sparkles } from 'lucide-react';
@@ -44,7 +44,7 @@ function OnboardingPage() {
   const [codeValidation, setCodeValidation] = useState<PartnerCodeValidation | null>(null);
   const [isRedeemingCode, setIsRedeemingCode] = useState(false);
 
-  const createTrialCheckout = useCreateTrialCheckout();
+  const createGrowthCheckout = useCreateGrowthCheckout();
   const createAgencyCheckout = useCreateAgencyCheckout();
 
   // Redirect if admin, has subscription, or was invited to a workspace
@@ -56,7 +56,6 @@ function OnboardingPage() {
       // If user already has a subscription, partner access, or was invited to a workspace, go to dashboard
       if (
         user.subscription_status === 'active' ||
-        user.subscription_status === 'trialing' ||
         user.partner_access?.is_active ||
         user.has_invited_workspace_access
       ) {
@@ -140,18 +139,16 @@ function OnboardingPage() {
       let checkout_url: string;
 
       if (selectedPlan === 'agency') {
-        // Agency plan - $1 trial with optional annual billing
         const result = await createAgencyCheckout.mutateAsync({
           annual: billingPeriod === 'annual',
-          success_url: `${window.location.origin}/dashboard?trial=started`,
+          success_url: `${window.location.origin}/dashboard?billing=success`,
           cancel_url: `${window.location.origin}/onboarding?checkout=cancelled`,
         });
         checkout_url = result.checkout_url;
       } else {
-        // Growth plan - with $1 trial
-        const result = await createTrialCheckout.mutateAsync({
+        const result = await createGrowthCheckout.mutateAsync({
           sender_count: senderCount,
-          success_url: `${window.location.origin}/dashboard?trial=started`,
+          success_url: `${window.location.origin}/dashboard?billing=success`,
           cancel_url: `${window.location.origin}/onboarding?checkout=cancelled`,
         });
         checkout_url = result.checkout_url;
@@ -171,7 +168,7 @@ function OnboardingPage() {
     const params = new URLSearchParams(window.location.search);
     const checkout = params.get('checkout');
     if (checkout === 'cancelled') {
-      setError('Checkout was cancelled. Please try again to start your trial.');
+      setError('Checkout was cancelled. Please try again.');
       window.history.replaceState({}, '', '/onboarding');
     }
   }, []);
@@ -203,7 +200,7 @@ function OnboardingPage() {
             Choose how you want to get started
           </h1>
           <p className="text-lg text-[#64748B]">
-            Start with a $1 trial or use a partner code for free access
+            Subscribe now or use a partner code for free access
           </p>
         </motion.div>
 
@@ -353,8 +350,8 @@ function OnboardingPage() {
                 <CreditCard className="h-6 w-6 text-[#FF6B35]" />
               </div>
               <div>
-                <h2 className="text-xl font-bold text-[#1E293B]">Start Your $1 Trial</h2>
-                <p className="text-sm text-[#64748B]">7 days full access, cancel anytime</p>
+                <h2 className="text-xl font-bold text-[#1E293B]">Get Started</h2>
+                <p className="text-sm text-[#64748B]">Pay monthly, cancel anytime</p>
               </div>
             </div>
 
@@ -558,15 +555,15 @@ function OnboardingPage() {
                   Starting checkout...
                 </span>
               ) : (
-                'Start $1 Trial'
+                'Subscribe Now'
               )}
             </button>
             <p className="mt-3 text-center text-xs text-[#94A3B8]">
               {selectedPlan === 'growth'
-                ? `7-day trial for $1, then $${totalPrice}/month. Cancel anytime.`
+                ? `$${totalPrice}/month. Cancel anytime.`
                 : billingPeriod === 'annual'
-                  ? '7-day trial for $1, then $8,988/year. Cancel anytime.'
-                  : '7-day trial for $1, then $999/month (30 senders). Cancel anytime.'}
+                  ? '$8,988/year. Cancel anytime.'
+                  : '$999/month (30 senders included). Cancel anytime.'}
             </p>
           </motion.div>
         </div>

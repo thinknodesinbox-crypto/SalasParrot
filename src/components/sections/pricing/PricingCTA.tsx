@@ -74,7 +74,7 @@ export function PricingCTA() {
                     whileTap={{ scale: 0.98 }}
                     className="rounded-xl bg-[#FF6B35] px-8 py-4 font-semibold text-white shadow-[0_4px_14px_rgba(255,107,53,0.3)] transition-all duration-200 hover:bg-[#E85A2A] hover:shadow-[0_6px_20px_rgba(255,107,53,0.4)]"
                   >
-                    {isAuthenticated ? 'Go to Dashboard' : 'Start $1 Trial'}
+                    {isAuthenticated ? 'Go to Dashboard' : 'Get Started'}
                   </motion.button>
                 </Link>
                 <motion.button

@@ -14,9 +14,9 @@ const faqs = [
       'A sender is one LinkedIn account connected to SalesParrot. Each sender gets its own dedicated proxy, safe daily limits, and can run campaigns independently. On Growth, you choose how many senders you need. On Agency, 30 are included.',
   },
   {
-    question: 'How does the $1 trial work?',
+    question: 'Can I cancel anytime?',
     answer:
-      "Pay $1 and get full access to all Growth features for 7 days. No restrictions. If SalesParrot isn't for you, cancel before the trial ends and you won't be charged again.",
+      'Yes. Cancel your subscription at any time from your billing settings. No contracts, no cancellation fees.',
   },
   {
     question: 'Is my LinkedIn account safe?',

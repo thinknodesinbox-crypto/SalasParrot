@@ -602,12 +602,6 @@ export interface PricingInfo {
 }
 
 // Checkout requests
-export interface TrialCheckoutRequest {
-  sender_count?: number;
-  success_url?: string;
-  cancel_url?: string;
-}
-
 export interface GrowthCheckoutRequest {
   sender_count: number;
   success_url?: string;

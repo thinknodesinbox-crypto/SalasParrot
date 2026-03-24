@@ -158,9 +158,9 @@ function SignupPage() {
             </motion.div>
 
             <h2 className="mb-4 text-[32px] font-bold leading-tight tracking-[-0.02em] text-[#1E293B]">
-              Start your
+              Scale your
               <br />
-              <span className="text-[#14B8A6]">7-day trial</span> for $1
+              <span className="text-[#14B8A6]">LinkedIn outreach</span>
             </h2>
 
             <p className="mb-10 text-[15px] leading-relaxed text-[#64748B]">
@@ -437,7 +437,7 @@ function SignupPage() {
 
             {/* Trial info */}
             <p className="text-center text-xs text-[#94A3B8]">
-              7-day trial for $1. Cancel anytime.
+              Cancel anytime. No long-term contracts.
             </p>
           </motion.form>
         </div>

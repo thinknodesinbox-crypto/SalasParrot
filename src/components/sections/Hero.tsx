@@ -99,7 +99,7 @@ export function Hero() {
               variants={fadeInUp}
               className="mb-10 text-xs font-medium text-[#64748B] sm:mb-16 sm:text-[14px]"
             >
-              7-day trial. Cancel anytime.
+              Cancel anytime.
             </motion.p>
           )}
           {isAuthenticated && <div className="mb-10 sm:mb-16" />}

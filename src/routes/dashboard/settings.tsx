@@ -2283,16 +2283,12 @@ function BillingSettings() {
                 className={`rounded-full px-2.5 py-1 text-xs font-medium ${
                   billing?.subscription?.status === 'active'
                     ? 'bg-[#FF6B35] text-white'
-                    : billing?.subscription?.status === 'trialing'
-                      ? 'bg-[#3B82F6] text-white'
-                      : 'bg-[#64748B] text-white'
+                    : 'bg-[#64748B] text-white'
                 }`}
               >
                 {billing?.subscription?.status === 'active'
                   ? 'Active'
-                  : billing?.subscription?.status === 'trialing'
-                    ? 'Trial'
-                    : billing?.subscription?.status || 'Inactive'}
+                  : billing?.subscription?.status || 'Inactive'}
               </span>
             </div>
             <p className="mt-2 text-sm text-[#64748B]">

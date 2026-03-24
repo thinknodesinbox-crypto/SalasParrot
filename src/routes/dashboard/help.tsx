@@ -1085,9 +1085,9 @@ interface Category {
 
 const faqs = [
   {
-    question: 'How does the $1 trial work?',
+    question: 'Can I cancel my subscription?',
     answer:
-      "Your $1 trial gives you full access to all features for 7 days. After the trial, you'll be charged based on your selected plan. You can cancel anytime during the trial period.",
+      'Yes. You can cancel your subscription at any time from the Billing tab in Settings. Your access remains active until the end of the current billing period.',
   },
   {
     question: 'Is my LinkedIn account safe?',

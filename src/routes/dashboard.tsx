@@ -18,7 +18,7 @@ function DashboardPage() {
   // Sync subscription status after Stripe checkout redirect
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get('trial') === 'started') {
+    if (params.get('billing') === 'success') {
       setIsSyncing(true);
       // Remove query param to avoid re-syncing on refresh
       window.history.replaceState({}, '', window.location.pathname);
@@ -29,11 +29,10 @@ function DashboardPage() {
     }
   }, [fetchUser]);
 
-  // Check if user has valid access (admin, active subscription, trial, partner access, or invited to a workspace)
+  // Check if user has valid access (admin, active subscription, partner access, or invited to a workspace)
   const hasValidAccess =
     user?.is_admin ||
     user?.subscription_status === 'active' ||
-    user?.subscription_status === 'trialing' ||
     user?.partner_access?.is_active ||
     user?.has_invited_workspace_access;
 

@@ -23,10 +23,10 @@ function DashboardHome() {
   // Show toast when trial is started (check URL params)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const trial = params.get('trial');
+    const billing = params.get('billing');
     const partnerCode = params.get('partner');
-    if (trial === 'started') {
-      toast.success('Welcome! Your 7-day trial has started. Enjoy full access to all features.', {
+    if (billing === 'success') {
+      toast.success('Welcome! Your subscription is now active.', {
         duration: 5000,
         icon: '🎉',
       });

@@ -4,11 +4,6 @@ import { Container } from '@/components/ui';
 
 const faqs = [
   {
-    question: 'How does the free trial work?',
-    answer:
-      "Get full access to all features for 7 days, completely free. No restrictions, no hidden limits. If SalesParrot isn't for you, cancel anytime before the trial ends.",
-  },
-  {
     question: 'Are my LinkedIn accounts safe?',
     answer:
       "Yes. Each account gets a dedicated proxy, human-like sending patterns, and smart daily limits that adjust to your account's age and activity. Accounts have been running 6+ months without a single restriction.",
