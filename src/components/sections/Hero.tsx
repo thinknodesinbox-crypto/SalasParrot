@@ -60,7 +60,7 @@ export function Hero() {
             <span className="block">Your AI sales employee</span>
             <span className="mt-1.5 block sm:mt-2">
               Always{' '}
-              <span className="relative inline-flex min-w-[2.9ch] justify-start text-left">
+              <span className="relative inline-flex w-[5.9ch] justify-start text-left align-baseline">
                 <AnimatePresence mode="wait">
                   <motion.span
                     key={rotatingWords[wordIndex]}
