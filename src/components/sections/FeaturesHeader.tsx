@@ -21,7 +21,11 @@ export function FeaturesHeader() {
           viewport={{ once: true }}
           transition={{ duration: 0.4, delay: 0.05 }}
         >
-          The only outreach tool that handles the whole conversation.
+          The only AI employee that
+          <br />
+          gets better at selling
+          <br />
+          every single day.
         </motion.h2>
 
         <motion.p
@@ -31,8 +35,9 @@ export function FeaturesHeader() {
           viewport={{ once: true }}
           transition={{ duration: 0.4, delay: 0.08 }}
         >
-          From connection request to booked meeting. LinkedIn, email, and AI replies in one
-          platform.
+          From first email to booked meeting. Across email, LinkedIn, and every channel to come. One
+          central brain, learning from every conversation across every channel to perform better on
+          all of them.
         </motion.p>
       </div>
     </section>

@@ -4,7 +4,6 @@ import { TrustBar } from '@/components/sections/TrustBar';
 import { TestimonialCarousel } from '@/components/sections/TestimonialCarousel';
 import { FeaturesHeader } from '@/components/sections/FeaturesHeader';
 import { Feature } from '@/components/sections/Feature';
-import { DarkSection } from '@/components/sections/DarkSection';
 import { FinalCTA } from '@/components/sections/FinalCTA';
 import { FAQ } from '@/components/sections/FAQ';
 import { lazy, Suspense, useEffect } from 'react';
@@ -102,9 +101,6 @@ function HomePage() {
           panel={<AIReplyAgentPanel variant="feature" />}
         />
       </Suspense>
-
-      <DarkSection />
-
       <FinalCTA />
 
       <FAQ />
