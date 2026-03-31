@@ -4,7 +4,6 @@ import { TrustBar } from '@/components/sections/TrustBar';
 import { TestimonialCarousel } from '@/components/sections/TestimonialCarousel';
 import { FeaturesHeader } from '@/components/sections/FeaturesHeader';
 import { Feature } from '@/components/sections/Feature';
-import { DarkSection } from '@/components/sections/DarkSection';
 import { FinalCTA } from '@/components/sections/FinalCTA';
 import { FAQ } from '@/components/sections/FAQ';
 import { lazy, Suspense, useEffect } from 'react';
@@ -59,8 +58,8 @@ function HomePage() {
       <Suspense fallback={<PanelLoading />}>
         {/* Feature 1 - White background, image right */}
         <Feature
-          headline="One sequence. LinkedIn first. Email when they don't connect."
-          body="Connection requests, messages, and profile views run on LinkedIn. Prospects who don't accept get followed up by email automatically. No one falls through."
+          headline="Email. LinkedIn. Both. Your AI employee works every angle."
+          body="You set the strategy. Your AI sales employee executes it across every channel, adapts to each prospect, and never lets one slip through."
           imagePosition="right"
           background="white"
           panel={<SequenceBuilderPanel variant="feature" />}
@@ -102,9 +101,6 @@ function HomePage() {
           panel={<AIReplyAgentPanel variant="feature" />}
         />
       </Suspense>
-
-      <DarkSection />
-
       <FinalCTA />
 
       <FAQ />

@@ -1,5 +1,5 @@
-import { motion } from 'framer-motion';
-import { useEffect } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { useEffect, useState } from 'react';
 import { lazy, Suspense } from 'react';
 import { Link } from '@tanstack/react-router';
 import { Container, Button } from '@/components/ui';
@@ -25,12 +25,22 @@ const stagger = {
 
 export function Hero() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const rotatingWords = ['working', 'learning'];
+  const [wordIndex, setWordIndex] = useState(0);
 
   useEffect(() => {
     (async function () {
       const cal = await getCalApi({ namespace: 'sales-parrot' });
       cal('ui', { hideEventTypeDetails: true, layout: 'month_view' });
     })();
+  }, []);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      setWordIndex((current) => (current + 1) % rotatingWords.length);
+    }, 2400);
+
+    return () => window.clearInterval(interval);
   }, []);
 
   return (
@@ -45,31 +55,49 @@ export function Hero() {
           {/* Headline - ONE line only on desktop */}
           <motion.h1
             variants={fadeInUp}
-            className="mb-4 px-4 text-center text-[32px] font-bold leading-[1.1] tracking-[-0.03em] text-[#1E293B] sm:mb-6 sm:px-0 sm:text-[44px] md:text-[52px] lg:text-[64px]"
+            className="mb-4 max-w-[340px] px-3 text-center text-[34px] font-bold leading-[0.98] tracking-[-0.045em] text-[#1E293B] sm:mb-5 sm:max-w-[620px] sm:px-0 sm:text-[46px] sm:leading-[0.98] md:max-w-[760px] md:text-[58px] lg:max-w-[920px] lg:text-[68px]"
           >
-            LinkedIn outreach that books the meeting for you.
+            <span className="block">Your AI sales employee</span>
+            <span className="mt-1.5 block sm:mt-2">
+              Always{' '}
+              <span className="relative inline-flex w-[5.9ch] justify-start text-left align-baseline">
+                <AnimatePresence mode="wait">
+                  <motion.span
+                    key={rotatingWords[wordIndex]}
+                    initial={{ opacity: 0, y: 16, filter: 'blur(6px)' }}
+                    animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                    exit={{ opacity: 0, y: -16, filter: 'blur(6px)' }}
+                    transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+                    className="inline-block"
+                  >
+                    {rotatingWords[wordIndex]}
+                  </motion.span>
+                </AnimatePresence>
+              </span>
+            </span>
           </motion.h1>
 
           {/* Subheadline with colored pills */}
           <motion.p
             variants={fadeInUp}
-            className="mb-6 max-w-[640px] px-4 text-center text-base font-medium leading-[1.7] text-[#475569] sm:mb-8 sm:px-0 sm:text-[18px] sm:leading-[1.9]"
+            className="mb-6 max-w-[352px] px-4 text-center text-[15px] font-medium leading-[1.74] text-[#475569] sm:mb-8 sm:max-w-[700px] sm:px-0 sm:text-[18px] sm:leading-[1.82]"
           >
-            Automated{' '}
+            Handles your{' '}
             <span
               className="inline whitespace-nowrap rounded-full px-2.5 py-0.5 font-semibold"
               style={{ backgroundColor: 'rgba(20, 184, 166, 0.15)', color: '#0D9488' }}
             >
-              LinkedIn sequences
+              email outreach
             </span>{' '}
-            with{' '}
+            and{' '}
             <span
               className="inline whitespace-nowrap rounded-full px-2.5 py-0.5 font-semibold"
               style={{ backgroundColor: 'rgba(255, 107, 53, 0.15)', color: '#EA580C' }}
             >
-              email follow-ups
-            </span>{' '}
-            and an AI agent that handles replies and books your meetings. All in one platform.
+              LinkedIn sequences
+            </span>
+            , replies to every prospect in your voice, and fills your calendar with meetings while
+            you sleep.
           </motion.p>
 
           {/* CTA */}
@@ -95,12 +123,12 @@ export function Hero() {
 
           {/* Supporting text */}
           {!isAuthenticated && (
-            <motion.p
+            <motion.div
               variants={fadeInUp}
               className="mb-10 text-xs font-medium text-[#64748B] sm:mb-16 sm:text-[14px]"
             >
-              Cancel anytime.
-            </motion.p>
+              <p>Most customers get their first prospect reply within 72 hours of going live.</p>
+            </motion.div>
           )}
           {isAuthenticated && <div className="mb-10 sm:mb-16" />}
 
