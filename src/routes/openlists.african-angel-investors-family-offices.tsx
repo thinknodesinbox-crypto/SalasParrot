@@ -16,6 +16,10 @@ type OpenListLead = {
   primary_focus_source_url: string;
   current_company_or_firm: string;
   company_website: string;
+  company_source: string;
+  notes: string;
+  public_contact_email_source_url: string;
+  website_type: string;
 };
 
 const DATASET_URL = '/openlists/african-angel-investors-family-offices.csv';
@@ -33,9 +37,13 @@ const FIELD_ORDER: Array<keyof OpenListLead> = [
   'geographic_investment_focus',
   'linkedin_profile_url',
   'public_contact_email',
+  'public_contact_email_source_url',
   'primary_focus_source_url',
   'current_company_or_firm',
   'company_website',
+  'company_source',
+  'website_type',
+  'notes',
 ];
 
 function serializeCsvValue(value: string): string {
@@ -48,7 +56,9 @@ function serializeCsvValue(value: string): string {
 
 function toCsv(rows: OpenListLead[]): string {
   const header = FIELD_ORDER.join(',');
-  const body = rows.map((row) => FIELD_ORDER.map((field) => serializeCsvValue(row[field] ?? '')).join(','));
+  const body = rows.map((row) =>
+    FIELD_ORDER.map((field) => serializeCsvValue(row[field] ?? '')).join(',')
+  );
   return [header, ...body].join('\n');
 }
 
@@ -89,27 +99,6 @@ function getEstimatedCheckSize(stageFocus: string): string {
   return 'Not disclosed';
 }
 
-function getInvestorContext(lead: OpenListLead): string {
-  const focus = lead.investment_focus
-    .split(',')
-    .map((item) => item.trim())
-    .filter(Boolean)
-    .slice(0, 2)
-    .join(', ');
-  const regions = lead.geographic_investment_focus
-    .split(',')
-    .map((item) => item.trim())
-    .filter(Boolean)
-    .slice(0, 2)
-    .join(', ');
-  const contextParts = [
-    lead.base_classification || 'Unresolved classification',
-    regions ? `Region: ${regions}` : ``,
-    focus ? `Focus: ${focus}` : ``,
-  ].filter(Boolean);
-  return contextParts.join(' | ');
-}
-
 export const Route = createFileRoute('/openlists/african-angel-investors-family-offices')({
   component: OpenListsPage,
 });
@@ -118,21 +107,24 @@ function OpenListsPage() {
   const [rows, setRows] = useState<OpenListLead[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [classification, setClassification] = useState<'all' | 'africa' | 'diaspora' | 'unresolved'>(
-    'all'
-  );
+  const [classification, setClassification] = useState<
+    'all' | 'africa' | 'diaspora' | 'unresolved'
+  >('all');
   const [countryFilter, setCountryFilter] = useState('all');
   const [contactFilter, setContactFilter] = useState<'all' | 'linkedin' | 'email' | 'both'>('all');
   const [stageFilter, setStageFilter] = useState('all');
   const [focusFilter, setFocusFilter] = useState('all');
-  const [regionFilter, setRegionFilter] = useState('all');
+  const [regionFilters, setRegionFilters] = useState<string[]>([]);
   const [sortBy, setSortBy] = useState<
     'name_asc' | 'name_desc' | 'country_asc' | 'newest_contact' | 'email_first'
   >('email_first');
   const [currentPage, setCurrentPage] = useState(1);
   const [copiedEmail, setCopiedEmail] = useState('');
   const [mobileView, setMobileView] = useState<'cards' | 'list'>('list');
-  const [selectedOpenList, setSelectedOpenList] = useState('african_angel_investors_family_offices');
+  const [selectedOpenList, setSelectedOpenList] = useState(
+    'african_angel_investors_family_offices'
+  );
+  const [isRegionFilterExpanded, setIsRegionFilterExpanded] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -152,6 +144,10 @@ function OpenListsPage() {
         primary_focus_source_url: record.primary_focus_source_url ?? '',
         current_company_or_firm: record.current_company_or_firm ?? '',
         company_website: record.company_website ?? '',
+        company_source: record.company_source ?? '',
+        notes: record.notes ?? '',
+        public_contact_email_source_url: record.public_contact_email_source_url ?? '',
+        website_type: record.website_type ?? '',
       }));
       setRows(normalizedRows);
       setLoading(false);
@@ -227,7 +223,9 @@ function OpenListsPage() {
         return false;
       }
 
-      const hasLinkedIn = Boolean(row.linkedin_profile_url && row.linkedin_profile_url.trim() !== '');
+      const hasLinkedIn = Boolean(
+        row.linkedin_profile_url && row.linkedin_profile_url.trim() !== ''
+      );
       const hasEmail = Boolean(row.public_contact_email && row.public_contact_email.trim() !== '');
 
       if (contactFilter === 'linkedin' && !hasLinkedIn) {
@@ -240,7 +238,10 @@ function OpenListsPage() {
         return false;
       }
 
-      if (stageFilter !== 'all' && !row.stage_focus.toLowerCase().includes(stageFilter.toLowerCase())) {
+      if (
+        stageFilter !== 'all' &&
+        !row.stage_focus.toLowerCase().includes(stageFilter.toLowerCase())
+      ) {
         return false;
       }
 
@@ -251,11 +252,17 @@ function OpenListsPage() {
         return false;
       }
 
-      if (
-        regionFilter !== 'all' &&
-        !row.geographic_investment_focus.toLowerCase().includes(regionFilter.toLowerCase())
-      ) {
-        return false;
+      if (regionFilters.length > 0) {
+        const rowRegions = (row.geographic_investment_focus || '')
+          .split(',')
+          .map((region) => region.trim())
+          .filter(Boolean);
+        const hasMatchingRegion = regionFilters.some((selectedRegion) =>
+          rowRegions.includes(selectedRegion)
+        );
+        if (!hasMatchingRegion) {
+          return false;
+        }
       }
 
       return true;
@@ -286,7 +293,17 @@ function OpenListsPage() {
       }
       return a.name.localeCompare(b.name);
     });
-  }, [classification, contactFilter, countryFilter, focusFilter, regionFilter, rows, search, sortBy, stageFilter]);
+  }, [
+    classification,
+    contactFilter,
+    countryFilter,
+    focusFilter,
+    regionFilters,
+    rows,
+    search,
+    sortBy,
+    stageFilter,
+  ]);
 
   const pageCount = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
   const safePage = Math.min(currentPage, pageCount);
@@ -294,10 +311,21 @@ function OpenListsPage() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, classification, countryFilter, contactFilter, stageFilter, focusFilter, regionFilter, sortBy]);
+  }, [
+    search,
+    classification,
+    countryFilter,
+    contactFilter,
+    stageFilter,
+    focusFilter,
+    regionFilters,
+    sortBy,
+  ]);
 
   const hasLinkedInCount = useMemo(
-    () => rows.filter((row) => row.linkedin_profile_url && row.linkedin_profile_url.trim() !== '').length,
+    () =>
+      rows.filter((row) => row.linkedin_profile_url && row.linkedin_profile_url.trim() !== '')
+        .length,
     [rows]
   );
 
@@ -331,8 +359,16 @@ function OpenListsPage() {
     setContactFilter('all');
     setStageFilter('all');
     setFocusFilter('all');
-    setRegionFilter('all');
+    setRegionFilters([]);
     setSortBy('email_first');
+  };
+
+  const toggleRegionFilter = (region: string) => {
+    setRegionFilters((current) =>
+      current.includes(region)
+        ? current.filter((selectedRegion) => selectedRegion !== region)
+        : [...current, region]
+    );
   };
 
   return (
@@ -340,7 +376,7 @@ function OpenListsPage() {
       <Container>
         <div className="relative mb-4 overflow-hidden rounded-2xl border border-[#DDE5EE] bg-[linear-gradient(180deg,#FFFFFF_0%,#F7FBFF_100%)] p-4 shadow-[0_14px_40px_rgba(15,23,42,0.09)] sm:p-6">
           <div className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-[#F97316]/15 blur-3xl" />
-          <div className="pointer-events-none absolute -left-24 bottom-0 h-52 w-52 rounded-full bg-[#0EA5E9]/14 blur-3xl" />
+          <div className="bg-[#0EA5E9]/14 pointer-events-none absolute -left-24 bottom-0 h-52 w-52 rounded-full blur-3xl" />
 
           <div className="relative z-10">
             <div className="mx-auto max-w-4xl text-center">
@@ -350,6 +386,37 @@ function OpenListsPage() {
               <h1 className="mt-3 text-[32px] font-semibold leading-[1.05] tracking-[-0.03em] text-[#0F172A] sm:text-[46px]">
                 Welcome to Open Lists by SalesParrot
               </h1>
+              <p className="mx-auto mt-3 max-w-3xl text-sm leading-relaxed text-[#475569] sm:text-base">
+                Open Lists is a{' '}
+                <span
+                  className="inline whitespace-nowrap rounded-full px-2.5 py-0.5 font-semibold"
+                  style={{ backgroundColor: 'rgba(20, 184, 166, 0.15)', color: '#0D9488' }}
+                >
+                  free library
+                </span>{' '}
+                of{' '}
+                <span
+                  className="inline whitespace-nowrap rounded-full px-2.5 py-0.5 font-semibold"
+                  style={{ backgroundColor: 'rgba(14, 165, 233, 0.14)', color: '#0369A1' }}
+                >
+                  highly researched niche lists
+                </span>{' '}
+                built to be{' '}
+                <span
+                  className="inline whitespace-nowrap rounded-full px-2.5 py-0.5 font-semibold"
+                  style={{ backgroundColor: 'rgba(255, 107, 53, 0.15)', color: '#EA580C' }}
+                >
+                  instantly accessible
+                </span>{' '}
+                and{' '}
+                <span
+                  className="inline whitespace-nowrap rounded-full px-2.5 py-0.5 font-semibold"
+                  style={{ backgroundColor: 'rgba(251, 146, 60, 0.14)', color: '#C2410C' }}
+                >
+                  free to download
+                </span>
+                .
+              </p>
 
               <div className="mx-auto mt-4 w-full max-w-[620px]">
                 <label
@@ -382,20 +449,25 @@ function OpenListsPage() {
                   Founder insight
                 </p>
               </div>
-
             </div>
           </div>
 
           <div className="relative z-10 mt-4 grid gap-2 sm:grid-cols-2">
             <div className="rounded-xl border border-[#E2E8F0] bg-white p-3.5">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#64748B]">Total leads</p>
-              <p className="mt-0.5 text-[30px] font-bold leading-none text-[#0F172A]">{rows.length}</p>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#64748B]">
+                Total leads
+              </p>
+              <p className="mt-0.5 text-[30px] font-bold leading-none text-[#0F172A]">
+                {rows.length}
+              </p>
             </div>
             <div className="rounded-xl border border-[#E2E8F0] bg-white p-3.5">
               <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#64748B]">
                 LinkedIn available
               </p>
-              <p className="mt-0.5 text-[30px] font-bold leading-none text-[#0F172A]">{hasLinkedInCount}</p>
+              <p className="mt-0.5 text-[30px] font-bold leading-none text-[#0F172A]">
+                {hasLinkedInCount}
+              </p>
             </div>
           </div>
         </div>
@@ -433,7 +505,7 @@ function OpenListsPage() {
                 </select>
               </div>
 
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-6">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
                 <select
                   value={classification}
                   onChange={(event) =>
@@ -501,18 +573,76 @@ function OpenListsPage() {
                   ))}
                 </select>
 
-                <select
-                  value={regionFilter}
-                  onChange={(event) => setRegionFilter(event.target.value)}
-                  className="w-full rounded-lg border border-[#CBD5E1] px-3 py-2 text-sm text-[#0F172A] outline-none"
-                >
-                  <option value="all">All region tags</option>
-                  {regionOptions.map((region) => (
-                    <option key={region} value={region}>
-                      {region}
-                    </option>
-                  ))}
-                </select>
+              </div>
+
+              <div className="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[#64748B]">
+                    Region tags (multi-select)
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsRegionFilterExpanded((current) => !current)}
+                      className="rounded-md border border-[#CBD5E1] bg-white px-2 py-1 text-xs font-semibold text-[#334155] transition-colors hover:bg-[#F1F5F9]"
+                    >
+                      {isRegionFilterExpanded ? 'Collapse' : 'Choose regions'}
+                    </button>
+                    {regionFilters.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setRegionFilters([])}
+                        className="rounded-md border border-[#CBD5E1] bg-white px-2 py-1 text-xs font-semibold text-[#334155] transition-colors hover:bg-[#F1F5F9]"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {!isRegionFilterExpanded && regionFilters.length === 0 && (
+                  <p className="mt-2 text-xs text-[#64748B]">
+                    No region selected. Click "Choose regions" to filter by one or more regions.
+                  </p>
+                )}
+
+                {regionFilters.length > 0 && (
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                    <span className="text-xs font-medium text-[#64748B]">Selected:</span>
+                    {regionFilters.map((region) => (
+                      <button
+                        key={`selected-${region}`}
+                        type="button"
+                        onClick={() => toggleRegionFilter(region)}
+                        className="rounded-full border border-[#BAE6FD] bg-[#EFF6FF] px-2 py-0.5 text-xs font-semibold text-[#0369A1]"
+                      >
+                        {region} ×
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {isRegionFilterExpanded && (
+                  <div className="mt-2 flex max-h-40 flex-wrap gap-2 overflow-auto pr-1">
+                    {regionOptions.map((region) => {
+                      const selected = regionFilters.includes(region);
+                      return (
+                        <button
+                          type="button"
+                          key={region}
+                          onClick={() => toggleRegionFilter(region)}
+                          className={`rounded-full border px-2.5 py-1 text-xs font-semibold transition-colors ${
+                            selected
+                              ? 'border-[#0EA5E9] bg-[#E0F2FE] text-[#0C4A6E]'
+                              : 'border-[#CBD5E1] bg-white text-[#334155] hover:bg-[#F1F5F9]'
+                          }`}
+                        >
+                          {region}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -553,7 +683,7 @@ function OpenListsPage() {
                     to="/openlists/pricing"
                     className="w-full rounded-xl bg-[#FF6B35] px-4 py-2.5 text-center text-sm font-semibold text-white shadow-[0_8px_24px_rgba(255,107,53,0.3)] transition-colors hover:bg-[#E85A2A] sm:w-auto"
                   >
-                    Launch outreach in SalesParrot
+                    Launch outreach using SalesParrot
                   </Link>
                   <button
                     onClick={exportFilteredCsv}
@@ -570,14 +700,14 @@ function OpenListsPage() {
                   </a>
                 </div>
                 <p className="mt-2 text-sm font-medium leading-relaxed text-[#F97316]">
-                  Turn this open list into pipeline: fetch non-public emails, personalize messages,
-                  and automate outreach.
+                  SalesParrot finds non-public investor emails, personalizes outreach in your voice,
+                  and auto-follows up to book meetings with these investors.
                 </p>
               </div>
             </div>
           </div>
 
-          <div className="overflow-auto hidden md:block">
+          <div className="hidden overflow-auto md:block">
             <table className="w-full min-w-[1120px]">
               <thead className="bg-[#F8FAFC]">
                 <tr>
@@ -597,7 +727,7 @@ function OpenListsPage() {
                     Stage
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.08em] text-[#64748B]">
-                    Check + Context
+                    Check Size
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.08em] text-[#64748B]">
                     Contact
@@ -628,9 +758,11 @@ function OpenListsPage() {
                       className="border-t border-[#F1F5F9]"
                     >
                       <td className="px-4 py-3 align-top">
-                        <p className="font-semibold text-[#0F172A]">{lead.name || "Unknown"}</p>
+                        <p className="font-semibold text-[#0F172A]">{lead.name || 'Unknown'}</p>
                         {lead.current_company_or_firm && (
-                          <p className="mt-1 text-xs text-[#64748B]">{lead.current_company_or_firm}</p>
+                          <p className="mt-1 text-xs text-[#64748B]">
+                            {lead.current_company_or_firm}
+                          </p>
                         )}
                       </td>
                       <td className="px-4 py-3 align-top text-sm text-[#334155]">
@@ -661,7 +793,6 @@ function OpenListsPage() {
                           <span className="inline-flex w-fit rounded-full border border-[#FED7AA] bg-[#FFF7ED] px-2 py-0.5 text-xs font-semibold text-[#C2410C]">
                             Est. check: {getEstimatedCheckSize(lead.stage_focus || '')}
                           </span>
-                          <span className="text-xs text-[#64748B]">{getInvestorContext(lead)}</span>
                         </div>
                       </td>
                       <td className="px-4 py-3 align-top text-sm">
@@ -689,13 +820,14 @@ function OpenListsPage() {
                 No records match your filters.
               </div>
             )}
-            {!loading && mobileView === 'cards' &&
+            {!loading &&
+              mobileView === 'cards' &&
               pagedRows.map((lead, index) => (
                 <article
                   key={`${lead.name}-${lead.linkedin_profile_url}-${index}-mobile`}
                   className="rounded-xl border border-[#E2E8F0] bg-white p-4"
                 >
-                  <p className="text-base font-semibold text-[#0F172A]">{lead.name || "Unknown"}</p>
+                  <p className="text-base font-semibold text-[#0F172A]">{lead.name || 'Unknown'}</p>
                   {lead.current_company_or_firm && (
                     <p className="mt-1 text-xs text-[#64748B]">{lead.current_company_or_firm}</p>
                   )}
@@ -714,23 +846,28 @@ function OpenListsPage() {
                   <p className="mt-3 text-xs font-semibold uppercase tracking-[0.08em] text-[#64748B]">
                     Investment Focus
                   </p>
-                  <p className="mt-1 text-sm text-[#334155]">{lead.investment_focus || "Not specified"}</p>
+                  <p className="mt-1 text-sm text-[#334155]">
+                    {lead.investment_focus || 'Not specified'}
+                  </p>
                   <p className="mt-2 text-xs font-semibold uppercase tracking-[0.08em] text-[#64748B]">
                     Region Focus
                   </p>
                   <p className="mt-1 text-sm text-[#334155]">
                     {lead.geographic_investment_focus || 'Not specified'}
                   </p>
-                  <p className="mt-3 text-xs font-semibold uppercase tracking-[0.08em] text-[#64748B]">Stage</p>
-                  <p className="mt-1 text-sm text-[#334155]">{lead.stage_focus || "Not specified"}</p>
                   <p className="mt-3 text-xs font-semibold uppercase tracking-[0.08em] text-[#64748B]">
-                    Check + Context
+                    Stage
                   </p>
-                  <div className="mt-1 space-y-1.5">
+                  <p className="mt-1 text-sm text-[#334155]">
+                    {lead.stage_focus || 'Not specified'}
+                  </p>
+                  <p className="mt-3 text-xs font-semibold uppercase tracking-[0.08em] text-[#64748B]">
+                    Check Size
+                  </p>
+                  <div className="mt-1">
                     <span className="inline-flex rounded-full border border-[#FED7AA] bg-[#FFF7ED] px-2 py-0.5 text-xs font-semibold text-[#C2410C]">
                       Est. check: {getEstimatedCheckSize(lead.stage_focus || '')}
                     </span>
-                    <p className="text-sm text-[#334155]">{getInvestorContext(lead)}</p>
                   </div>
                   <div className="mt-4 border-t border-[#F1F5F9] pt-3">
                     <ContactBlock lead={lead} copiedEmail={copiedEmail} onCopyEmail={copyEmail} />
@@ -794,13 +931,15 @@ function MobileListRows({
           className="grid grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)_auto] items-start gap-2 border-b border-[#F1F5F9] px-3 py-2.5 last:border-b-0"
         >
           <div className="min-w-0">
-            <p className="break-words text-sm font-semibold text-[#0F172A]">{lead.name || "Unknown"}</p>
+            <p className="break-words text-sm font-semibold text-[#0F172A]">
+              {lead.name || 'Unknown'}
+            </p>
             {lead.current_company_or_firm && (
               <p className="mt-0.5 break-words text-[11px] text-[#64748B]">
                 {lead.current_company_or_firm}
               </p>
             )}
-            <p className="mt-0.5 text-[11px] text-[#64748B]">{lead.base_country || "N/A"}</p>
+            <p className="mt-0.5 text-[11px] text-[#64748B]">{lead.base_country || 'N/A'}</p>
             <p className="mt-0.5 text-[11px] text-[#64748B]">
               Check (est.): {getEstimatedCheckSize(lead.stage_focus || '')}
             </p>
