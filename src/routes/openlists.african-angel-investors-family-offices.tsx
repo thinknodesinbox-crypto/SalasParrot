@@ -62,14 +62,44 @@ function toCsv(rows: OpenListLead[]): string {
   return [header, ...body].join('\n');
 }
 
-function getClassificationTone(classification: string): string {
-  if (classification === 'Africa-based') {
-    return 'bg-[#DCFCE7] text-[#166534] border-[#86EFAC]';
+type ClassificationBucket = 'africa' | 'diaspora' | 'unresolved';
+
+function getClassificationBucket(classification: string): ClassificationBucket {
+  const normalized = (classification || '').trim().toLowerCase();
+  if (normalized === 'africa-based' || normalized.includes('africa-based')) {
+    return 'africa';
   }
-  if (classification.startsWith('Diaspora')) {
-    return 'bg-[#FEF3C7] text-[#92400E] border-[#FCD34D]';
+  if (normalized.includes('diaspora') || normalized.includes('outside africa')) {
+    return 'diaspora';
   }
-  return 'bg-[#F1F5F9] text-[#475569] border-[#CBD5E1]';
+  return 'unresolved';
+}
+
+function getClassificationMeta(classification: string): {
+  label: string;
+  description: string;
+  tone: string;
+} {
+  const bucket = getClassificationBucket(classification);
+  if (bucket === 'africa') {
+    return {
+      label: 'Africa-based',
+      description: 'Primary base location is in an African country.',
+      tone: 'bg-[#DCFCE7] text-[#166534] border-[#86EFAC]',
+    };
+  }
+  if (bucket === 'diaspora') {
+    return {
+      label: 'Global / diaspora (Africa-focused)',
+      description: 'Based outside Africa, but actively invests in African markets or founders.',
+      tone: 'bg-[#FEF3C7] text-[#92400E] border-[#FCD34D]',
+    };
+  }
+  return {
+    label: 'Base not publicly verified',
+    description: 'Reliable public base location could not be confirmed yet.',
+    tone: 'bg-[#F1F5F9] text-[#475569] border-[#CBD5E1]',
+  };
 }
 
 function getEstimatedCheckSize(stageFocus: string): string {
@@ -209,14 +239,11 @@ function OpenListsPage() {
         return false;
       }
 
-      if (classification === 'africa') {
-        return row.base_classification === 'Africa-based';
-      }
-      if (classification === 'diaspora') {
-        return row.base_classification.startsWith('Diaspora');
-      }
-      if (classification === 'unresolved') {
-        return row.base_classification === 'Unresolved';
+      if (
+        classification !== 'all' &&
+        getClassificationBucket(row.base_classification) !== classification
+      ) {
+        return false;
       }
 
       if (countryFilter !== 'all' && row.base_country !== countryFilter) {
@@ -432,21 +459,26 @@ function OpenListsPage() {
                   className="w-full rounded-xl border border-[#CBD5E1] bg-white px-3.5 py-3 text-base font-semibold text-[#0F172A] outline-none focus:border-[#14B8A6]"
                 >
                   <option value="african_angel_investors_family_offices">
-                    African Angel Investors and Family Offices
+                    African and Africa-Focused Angel Investors and Family Offices (Global)
                   </option>
                   <option value="more_open_lists_coming" disabled>
                     More open-lists to be added
                   </option>
                 </select>
+                <p className="mt-2 text-center text-sm leading-relaxed text-[#475569]">
+                  Includes Africa-based investors and diaspora investors who back startups in the
+                  US, Europe, Africa, and other global markets.
+                </p>
               </div>
 
               <div className="mx-auto mt-3 max-w-2xl rounded-xl border border-[#E6EEF7] bg-white/80 px-4 py-3">
                 <p className="text-center text-sm italic leading-relaxed text-[#334155]">
-                  "Reaching out to angels and family offices builds stronger early conviction than
-                  broad, unfocused fundraising."
+                  "The right angel investors during a crucial building time can be a lot more
+                  beneficial than going through the arduous process of diligence with VCs in the
+                  same amount of time. You can close angels in a few days. VCs can take months"
                 </p>
                 <p className="mt-1 text-center text-xs font-semibold uppercase tracking-[0.08em] text-[#64748B]">
-                  Founder insight
+                  ENI MAJ
                 </p>
               </div>
             </div>
@@ -515,10 +547,10 @@ function OpenListsPage() {
                   }
                   className="w-full rounded-lg border border-[#CBD5E1] px-3 py-2 text-sm text-[#0F172A] outline-none"
                 >
-                  <option value="all">All classifications</option>
+                  <option value="all">All base categories</option>
                   <option value="africa">Africa-based</option>
-                  <option value="diaspora">Diaspora / outside Africa</option>
-                  <option value="unresolved">Unresolved</option>
+                  <option value="diaspora">Global / diaspora (Africa-focused)</option>
+                  <option value="unresolved">Base not publicly verified</option>
                 </select>
 
                 <select
@@ -573,6 +605,30 @@ function OpenListsPage() {
                   ))}
                 </select>
 
+              </div>
+
+              <div className="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[#64748B]">
+                  Base category definitions
+                </p>
+                <div className="mt-2 grid gap-2 sm:grid-cols-3">
+                  {[
+                    getClassificationMeta('Africa-based'),
+                    getClassificationMeta('Diaspora / outside Africa'),
+                    getClassificationMeta('Unresolved'),
+                  ].map((item) => (
+                    <div key={item.label} className="rounded-lg border border-[#E2E8F0] bg-white p-2.5">
+                      <span
+                        className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold ${item.tone}`}
+                      >
+                        {item.label}
+                      </span>
+                      <p className="mt-1.5 text-xs leading-relaxed text-[#475569]">
+                        {item.description}
+                      </p>
+                    </div>
+                  ))}
+                </div>
               </div>
 
               <div className="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-3">
@@ -718,7 +774,7 @@ function OpenListsPage() {
                     Base
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.08em] text-[#64748B]">
-                    Classification
+                    Base category
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.08em] text-[#64748B]">
                     Focus
@@ -769,13 +825,17 @@ function OpenListsPage() {
                         {lead.base_location || lead.base_country || 'Not specified'}
                       </td>
                       <td className="px-4 py-3 align-top">
-                        <span
-                          className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${getClassificationTone(
-                            lead.base_classification
-                          )}`}
-                        >
-                          {lead.base_classification || 'Unresolved'}
-                        </span>
+                        {(() => {
+                          const classificationMeta = getClassificationMeta(lead.base_classification);
+                          return (
+                            <span
+                              className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${classificationMeta.tone}`}
+                              title={classificationMeta.description}
+                            >
+                              {classificationMeta.label}
+                            </span>
+                          );
+                        })()}
                       </td>
                       <td className="px-4 py-3 align-top text-sm text-[#334155]">
                         <div className="flex flex-col gap-1.5">
@@ -832,13 +892,17 @@ function OpenListsPage() {
                     <p className="mt-1 text-xs text-[#64748B]">{lead.current_company_or_firm}</p>
                   )}
                   <div className="mt-3 flex flex-wrap items-center gap-2">
-                    <span
-                      className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${getClassificationTone(
-                        lead.base_classification
-                      )}`}
-                    >
-                      {lead.base_classification || 'Unresolved'}
-                    </span>
+                    {(() => {
+                      const classificationMeta = getClassificationMeta(lead.base_classification);
+                      return (
+                        <span
+                          className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${classificationMeta.tone}`}
+                          title={classificationMeta.description}
+                        >
+                          {classificationMeta.label}
+                        </span>
+                      );
+                    })()}
                     <span className="text-xs text-[#64748B]">
                       {lead.base_location || lead.base_country || 'Not specified'}
                     </span>
