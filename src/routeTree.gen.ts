@@ -13,6 +13,7 @@ import { Route as TermsRouteImport } from './routes/terms'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as PricingRouteImport } from './routes/pricing'
+import { Route as OpenlistsRouteImport } from './routes/openlists'
 import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as IntegrationsRouteImport } from './routes/integrations'
@@ -24,6 +25,8 @@ import { Route as AboutRouteImport } from './routes/about'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as DashboardIndexRouteImport } from './routes/dashboard/index'
 import { Route as AdminIndexRouteImport } from './routes/admin/index'
+import { Route as OpenlistsPricingRouteImport } from './routes/openlists.pricing'
+import { Route as OpenlistsAfricanAngelInvestorsFamilyOfficesRouteImport } from './routes/openlists.african-angel-investors-family-offices'
 import { Route as DocsApiRouteImport } from './routes/docs.api'
 import { Route as DashboardSettingsRouteImport } from './routes/dashboard/settings'
 import { Route as DashboardNotificationsRouteImport } from './routes/dashboard/notifications'
@@ -55,6 +58,11 @@ const PrivacyRoute = PrivacyRouteImport.update({
 const PricingRoute = PricingRouteImport.update({
   id: '/pricing',
   path: '/pricing',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OpenlistsRoute = OpenlistsRouteImport.update({
+  id: '/openlists',
+  path: '/openlists',
   getParentRoute: () => rootRouteImport,
 } as any)
 const OnboardingRoute = OnboardingRouteImport.update({
@@ -112,6 +120,17 @@ const AdminIndexRoute = AdminIndexRouteImport.update({
   path: '/',
   getParentRoute: () => AdminRoute,
 } as any)
+const OpenlistsPricingRoute = OpenlistsPricingRouteImport.update({
+  id: '/pricing',
+  path: '/pricing',
+  getParentRoute: () => OpenlistsRoute,
+} as any)
+const OpenlistsAfricanAngelInvestorsFamilyOfficesRoute =
+  OpenlistsAfricanAngelInvestorsFamilyOfficesRouteImport.update({
+    id: '/african-angel-investors-family-offices',
+    path: '/african-angel-investors-family-offices',
+    getParentRoute: () => OpenlistsRoute,
+  } as any)
 const DocsApiRoute = DocsApiRouteImport.update({
   id: '/docs/api',
   path: '/docs/api',
@@ -183,6 +202,7 @@ export interface FileRoutesByFullPath {
   '/integrations': typeof IntegrationsRoute
   '/login': typeof LoginRoute
   '/onboarding': typeof OnboardingRoute
+  '/openlists': typeof OpenlistsRouteWithChildren
   '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
   '/signup': typeof SignupRoute
@@ -199,6 +219,8 @@ export interface FileRoutesByFullPath {
   '/dashboard/notifications': typeof DashboardNotificationsRoute
   '/dashboard/settings': typeof DashboardSettingsRoute
   '/docs/api': typeof DocsApiRoute
+  '/openlists/african-angel-investors-family-offices': typeof OpenlistsAfricanAngelInvestorsFamilyOfficesRoute
+  '/openlists/pricing': typeof OpenlistsPricingRoute
   '/admin/': typeof AdminIndexRoute
   '/dashboard/': typeof DashboardIndexRoute
 }
@@ -210,6 +232,7 @@ export interface FileRoutesByTo {
   '/integrations': typeof IntegrationsRoute
   '/login': typeof LoginRoute
   '/onboarding': typeof OnboardingRoute
+  '/openlists': typeof OpenlistsRouteWithChildren
   '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
   '/signup': typeof SignupRoute
@@ -226,6 +249,8 @@ export interface FileRoutesByTo {
   '/dashboard/notifications': typeof DashboardNotificationsRoute
   '/dashboard/settings': typeof DashboardSettingsRoute
   '/docs/api': typeof DocsApiRoute
+  '/openlists/african-angel-investors-family-offices': typeof OpenlistsAfricanAngelInvestorsFamilyOfficesRoute
+  '/openlists/pricing': typeof OpenlistsPricingRoute
   '/admin': typeof AdminIndexRoute
   '/dashboard': typeof DashboardIndexRoute
 }
@@ -240,6 +265,7 @@ export interface FileRoutesById {
   '/integrations': typeof IntegrationsRoute
   '/login': typeof LoginRoute
   '/onboarding': typeof OnboardingRoute
+  '/openlists': typeof OpenlistsRouteWithChildren
   '/pricing': typeof PricingRoute
   '/privacy': typeof PrivacyRoute
   '/signup': typeof SignupRoute
@@ -256,6 +282,8 @@ export interface FileRoutesById {
   '/dashboard/notifications': typeof DashboardNotificationsRoute
   '/dashboard/settings': typeof DashboardSettingsRoute
   '/docs/api': typeof DocsApiRoute
+  '/openlists/african-angel-investors-family-offices': typeof OpenlistsAfricanAngelInvestorsFamilyOfficesRoute
+  '/openlists/pricing': typeof OpenlistsPricingRoute
   '/admin/': typeof AdminIndexRoute
   '/dashboard/': typeof DashboardIndexRoute
 }
@@ -271,6 +299,7 @@ export interface FileRouteTypes {
     | '/integrations'
     | '/login'
     | '/onboarding'
+    | '/openlists'
     | '/pricing'
     | '/privacy'
     | '/signup'
@@ -287,6 +316,8 @@ export interface FileRouteTypes {
     | '/dashboard/notifications'
     | '/dashboard/settings'
     | '/docs/api'
+    | '/openlists/african-angel-investors-family-offices'
+    | '/openlists/pricing'
     | '/admin/'
     | '/dashboard/'
   fileRoutesByTo: FileRoutesByTo
@@ -298,6 +329,7 @@ export interface FileRouteTypes {
     | '/integrations'
     | '/login'
     | '/onboarding'
+    | '/openlists'
     | '/pricing'
     | '/privacy'
     | '/signup'
@@ -314,6 +346,8 @@ export interface FileRouteTypes {
     | '/dashboard/notifications'
     | '/dashboard/settings'
     | '/docs/api'
+    | '/openlists/african-angel-investors-family-offices'
+    | '/openlists/pricing'
     | '/admin'
     | '/dashboard'
   id:
@@ -327,6 +361,7 @@ export interface FileRouteTypes {
     | '/integrations'
     | '/login'
     | '/onboarding'
+    | '/openlists'
     | '/pricing'
     | '/privacy'
     | '/signup'
@@ -343,6 +378,8 @@ export interface FileRouteTypes {
     | '/dashboard/notifications'
     | '/dashboard/settings'
     | '/docs/api'
+    | '/openlists/african-angel-investors-family-offices'
+    | '/openlists/pricing'
     | '/admin/'
     | '/dashboard/'
   fileRoutesById: FileRoutesById
@@ -357,6 +394,7 @@ export interface RootRouteChildren {
   IntegrationsRoute: typeof IntegrationsRoute
   LoginRoute: typeof LoginRoute
   OnboardingRoute: typeof OnboardingRoute
+  OpenlistsRoute: typeof OpenlistsRouteWithChildren
   PricingRoute: typeof PricingRoute
   PrivacyRoute: typeof PrivacyRoute
   SignupRoute: typeof SignupRoute
@@ -393,6 +431,13 @@ declare module '@tanstack/react-router' {
       path: '/pricing'
       fullPath: '/pricing'
       preLoaderRoute: typeof PricingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/openlists': {
+      id: '/openlists'
+      path: '/openlists'
+      fullPath: '/openlists'
+      preLoaderRoute: typeof OpenlistsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/onboarding': {
@@ -471,6 +516,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/'
       preLoaderRoute: typeof AdminIndexRouteImport
       parentRoute: typeof AdminRoute
+    }
+    '/openlists/pricing': {
+      id: '/openlists/pricing'
+      path: '/pricing'
+      fullPath: '/openlists/pricing'
+      preLoaderRoute: typeof OpenlistsPricingRouteImport
+      parentRoute: typeof OpenlistsRoute
+    }
+    '/openlists/african-angel-investors-family-offices': {
+      id: '/openlists/african-angel-investors-family-offices'
+      path: '/african-angel-investors-family-offices'
+      fullPath: '/openlists/african-angel-investors-family-offices'
+      preLoaderRoute: typeof OpenlistsAfricanAngelInvestorsFamilyOfficesRouteImport
+      parentRoute: typeof OpenlistsRoute
     }
     '/docs/api': {
       id: '/docs/api'
@@ -601,6 +660,21 @@ const DashboardRouteWithChildren = DashboardRoute._addFileChildren(
   DashboardRouteChildren,
 )
 
+interface OpenlistsRouteChildren {
+  OpenlistsAfricanAngelInvestorsFamilyOfficesRoute: typeof OpenlistsAfricanAngelInvestorsFamilyOfficesRoute
+  OpenlistsPricingRoute: typeof OpenlistsPricingRoute
+}
+
+const OpenlistsRouteChildren: OpenlistsRouteChildren = {
+  OpenlistsAfricanAngelInvestorsFamilyOfficesRoute:
+    OpenlistsAfricanAngelInvestorsFamilyOfficesRoute,
+  OpenlistsPricingRoute: OpenlistsPricingRoute,
+}
+
+const OpenlistsRouteWithChildren = OpenlistsRoute._addFileChildren(
+  OpenlistsRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AboutRoute: AboutRoute,
@@ -611,6 +685,7 @@ const rootRouteChildren: RootRouteChildren = {
   IntegrationsRoute: IntegrationsRoute,
   LoginRoute: LoginRoute,
   OnboardingRoute: OnboardingRoute,
+  OpenlistsRoute: OpenlistsRouteWithChildren,
   PricingRoute: PricingRoute,
   PrivacyRoute: PrivacyRoute,
   SignupRoute: SignupRoute,

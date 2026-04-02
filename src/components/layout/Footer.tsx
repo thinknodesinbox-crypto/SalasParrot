@@ -6,6 +6,7 @@ const footerLinks = {
     title: 'Product',
     links: [
       { label: 'Features', href: '/#features' },
+      { label: 'Open Lists', href: '/openlists' },
       { label: 'Pricing', href: '/pricing' },
       { label: 'Integrations', href: '/integrations' },
     ],
