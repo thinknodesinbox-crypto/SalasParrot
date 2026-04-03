@@ -473,16 +473,6 @@ function OpenListsPage() {
             </div>
           </div>
 
-          <div className="relative z-10 mt-4">
-            <div className="rounded-xl border border-[#E2E8F0] bg-white p-3.5">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#64748B]">
-                Total leads
-              </p>
-              <p className="mt-0.5 text-[30px] font-bold leading-none text-[#0F172A]">
-                {rows.length}
-              </p>
-            </div>
-          </div>
         </div>
 
         <div className="rounded-2xl border border-[#E2E8F0] bg-white shadow-[0_10px_34px_rgba(15,23,42,0.06)]">
