@@ -75,33 +75,6 @@ function getClassificationBucket(classification: string): ClassificationBucket {
   return 'unresolved';
 }
 
-function getClassificationMeta(classification: string): {
-  label: string;
-  description: string;
-  tone: string;
-} {
-  const bucket = getClassificationBucket(classification);
-  if (bucket === 'africa') {
-    return {
-      label: 'Africa-based',
-      description: 'Primary base location is in an African country.',
-      tone: 'bg-[#DCFCE7] text-[#166534] border-[#86EFAC]',
-    };
-  }
-  if (bucket === 'diaspora') {
-    return {
-      label: 'Global / diaspora (Africa-focused)',
-      description: 'Based outside Africa, but actively invests in African markets or founders.',
-      tone: 'bg-[#FEF3C7] text-[#92400E] border-[#FCD34D]',
-    };
-  }
-  return {
-    label: 'Base not publicly verified',
-    description: 'Reliable public base location could not be confirmed yet.',
-    tone: 'bg-[#F1F5F9] text-[#475569] border-[#CBD5E1]',
-  };
-}
-
 function getEstimatedCheckSize(stageFocus: string): string {
   const stage = stageFocus.toLowerCase();
   const hasPreSeed = stage.includes('pre-seed') || stage.includes('pre seed');
@@ -465,10 +438,6 @@ function OpenListsPage() {
                     More open-lists to be added
                   </option>
                 </select>
-                <p className="mt-2 text-center text-sm leading-relaxed text-[#475569]">
-                  Includes Africa-based investors and diaspora investors who back startups in the
-                  US, Europe, Africa, and other global markets.
-                </p>
               </div>
 
               <div className="mx-auto mt-3 max-w-2xl rounded-xl border border-[#E6EEF7] bg-white/80 px-4 py-3">
@@ -556,8 +525,8 @@ function OpenListsPage() {
                 >
                   <option value="all">All base categories</option>
                   <option value="africa">Africa-based</option>
-                  <option value="diaspora">Global / diaspora (Africa-focused)</option>
-                  <option value="unresolved">Base not publicly verified</option>
+                  <option value="diaspora">Global / diaspora</option>
+                  <option value="unresolved">Base unverified</option>
                 </select>
 
                 <select
@@ -615,27 +584,10 @@ function OpenListsPage() {
               </div>
 
               <div className="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-3">
-                <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[#64748B]">
-                  Base category definitions
+                <p className="text-sm leading-relaxed text-[#475569]">
+                  This list includes Africa-based, African diaspora, and non-African but
+                  Africa-focused angel investors and family offices.
                 </p>
-                <div className="mt-2 grid gap-2 sm:grid-cols-3">
-                  {[
-                    getClassificationMeta('Africa-based'),
-                    getClassificationMeta('Diaspora / outside Africa'),
-                    getClassificationMeta('Unresolved'),
-                  ].map((item) => (
-                    <div key={item.label} className="rounded-lg border border-[#E2E8F0] bg-white p-2.5">
-                      <span
-                        className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold ${item.tone}`}
-                      >
-                        {item.label}
-                      </span>
-                      <p className="mt-1.5 text-xs leading-relaxed text-[#475569]">
-                        {item.description}
-                      </p>
-                    </div>
-                  ))}
-                </div>
               </div>
 
               <div className="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-3">
@@ -771,7 +723,7 @@ function OpenListsPage() {
           </div>
 
           <div className="hidden overflow-auto md:block">
-            <table className="w-full min-w-[1120px]">
+            <table className="w-full min-w-[1020px]">
               <thead className="bg-[#F8FAFC]">
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.08em] text-[#64748B]">
@@ -779,9 +731,6 @@ function OpenListsPage() {
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.08em] text-[#64748B]">
                     Base
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.08em] text-[#64748B]">
-                    Base category
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.08em] text-[#64748B]">
                     Focus
@@ -800,7 +749,7 @@ function OpenListsPage() {
               <tbody>
                 {loading && (
                   <tr>
-                    <td colSpan={7} className="px-4 py-10 text-center text-sm text-[#64748B]">
+                    <td colSpan={6} className="px-4 py-10 text-center text-sm text-[#64748B]">
                       Loading open list...
                     </td>
                   </tr>
@@ -808,7 +757,7 @@ function OpenListsPage() {
 
                 {!loading && pagedRows.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="px-4 py-10 text-center text-sm text-[#64748B]">
+                    <td colSpan={6} className="px-4 py-10 text-center text-sm text-[#64748B]">
                       No records match your filters.
                     </td>
                   </tr>
@@ -831,24 +780,11 @@ function OpenListsPage() {
                       <td className="px-4 py-3 align-top text-sm text-[#334155]">
                         {lead.base_location || lead.base_country || 'Not specified'}
                       </td>
-                      <td className="px-4 py-3 align-top">
-                        {(() => {
-                          const classificationMeta = getClassificationMeta(lead.base_classification);
-                          return (
-                            <span
-                              className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${classificationMeta.tone}`}
-                              title={classificationMeta.description}
-                            >
-                              {classificationMeta.label}
-                            </span>
-                          );
-                        })()}
-                      </td>
                       <td className="px-4 py-3 align-top text-sm text-[#334155]">
                         <div className="flex flex-col gap-1.5">
                           <span>{lead.investment_focus || 'Not specified'}</span>
                           <span className="text-xs text-[#64748B]">
-                            Region: {lead.geographic_investment_focus || 'Not specified'}
+                            Geo: {lead.geographic_investment_focus || 'Not specified'}
                           </span>
                         </div>
                       </td>
@@ -857,8 +793,8 @@ function OpenListsPage() {
                       </td>
                       <td className="px-4 py-3 align-top text-sm text-[#334155]">
                         <div className="flex flex-col gap-1.5">
-                          <span className="inline-flex w-fit rounded-full border border-[#FED7AA] bg-[#FFF7ED] px-2 py-0.5 text-xs font-semibold text-[#C2410C]">
-                            Est. check: {getEstimatedCheckSize(lead.stage_focus || '')}
+                          <span className="inline-flex w-fit whitespace-nowrap rounded-full border border-[#FED7AA] bg-[#FFF7ED] px-2 py-0.5 text-xs font-semibold text-[#C2410C]">
+                            Est. check {getEstimatedCheckSize(lead.stage_focus || '')}
                           </span>
                         </div>
                       </td>
@@ -899,17 +835,6 @@ function OpenListsPage() {
                     <p className="mt-1 text-xs text-[#64748B]">{lead.current_company_or_firm}</p>
                   )}
                   <div className="mt-3 flex flex-wrap items-center gap-2">
-                    {(() => {
-                      const classificationMeta = getClassificationMeta(lead.base_classification);
-                      return (
-                        <span
-                          className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${classificationMeta.tone}`}
-                          title={classificationMeta.description}
-                        >
-                          {classificationMeta.label}
-                        </span>
-                      );
-                    })()}
                     <span className="text-xs text-[#64748B]">
                       {lead.base_location || lead.base_country || 'Not specified'}
                     </span>
@@ -936,8 +861,8 @@ function OpenListsPage() {
                     Check Size
                   </p>
                   <div className="mt-1">
-                    <span className="inline-flex rounded-full border border-[#FED7AA] bg-[#FFF7ED] px-2 py-0.5 text-xs font-semibold text-[#C2410C]">
-                      Est. check: {getEstimatedCheckSize(lead.stage_focus || '')}
+                    <span className="inline-flex whitespace-nowrap rounded-full border border-[#FED7AA] bg-[#FFF7ED] px-2 py-0.5 text-xs font-semibold text-[#C2410C]">
+                      Est. check {getEstimatedCheckSize(lead.stage_focus || '')}
                     </span>
                   </div>
                   <div className="mt-4 border-t border-[#F1F5F9] pt-3">
