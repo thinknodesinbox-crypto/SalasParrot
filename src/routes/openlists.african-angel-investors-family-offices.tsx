@@ -675,67 +675,67 @@ function OpenListsPage() {
                   Africa-focused angel investors and family offices.
                 </p>
               </div>
+              </div>
+            </div>
 
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-sm font-medium text-[#64748B]">
-                  Showing {filteredRows.length} record{filteredRows.length === 1 ? '' : 's'}
-                </p>
-                <div className="flex flex-wrap items-center gap-2">
-                  <div className="inline-flex rounded-md border border-[#CBD5E1] bg-white p-0.5 md:hidden">
-                    <button
-                      onClick={() => setMobileView('list')}
-                      className={`rounded px-2.5 py-1 text-xs font-semibold transition-colors ${
-                        mobileView === 'list' ? 'bg-[#0F172A] text-white' : 'text-[#334155]'
-                      }`}
-                    >
-                      List
-                    </button>
-                    <button
-                      onClick={() => setMobileView('cards')}
-                      className={`rounded px-2.5 py-1 text-xs font-semibold transition-colors ${
-                        mobileView === 'cards' ? 'bg-[#0F172A] text-white' : 'text-[#334155]'
-                      }`}
-                    >
-                      Cards
-                    </button>
-                  </div>
+            <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm font-medium text-[#64748B]">
+                Showing {filteredRows.length} record{filteredRows.length === 1 ? '' : 's'}
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="inline-flex rounded-md border border-[#CBD5E1] bg-white p-0.5 md:hidden">
                   <button
-                    onClick={resetFilters}
-                    className="inline-flex w-fit rounded-md border border-[#CBD5E1] px-3 py-1.5 text-sm font-semibold text-[#334155] transition-colors hover:bg-[#F8FAFC]"
+                    onClick={() => setMobileView('list')}
+                    className={`rounded px-2.5 py-1 text-xs font-semibold transition-colors ${
+                      mobileView === 'list' ? 'bg-[#0F172A] text-white' : 'text-[#334155]'
+                    }`}
                   >
-                    Reset filters
+                    List
+                  </button>
+                  <button
+                    onClick={() => setMobileView('cards')}
+                    className={`rounded px-2.5 py-1 text-xs font-semibold transition-colors ${
+                      mobileView === 'cards' ? 'bg-[#0F172A] text-white' : 'text-[#334155]'
+                    }`}
+                  >
+                    Cards
                   </button>
                 </div>
+                <button
+                  onClick={resetFilters}
+                  className="inline-flex w-fit rounded-md border border-[#CBD5E1] px-3 py-1.5 text-sm font-semibold text-[#334155] transition-colors hover:bg-[#F8FAFC]"
+                >
+                  Reset filters
+                </button>
               </div>
+            </div>
 
-              <div className="mt-1 border-t border-[#E2E8F0] pt-3">
-                <div className="flex flex-wrap gap-2.5">
-                  <Link
-                    to="/openlists/pricing"
-                    className="w-full rounded-xl bg-[#FF6B35] px-4 py-2.5 text-center text-sm font-semibold text-white shadow-[0_8px_24px_rgba(255,107,53,0.3)] transition-colors hover:bg-[#E85A2A] sm:w-auto"
-                  >
-                    Launch outreach using SalesParrot
-                  </Link>
-                  <button
-                    onClick={exportFilteredCsv}
-                    className="w-full rounded-xl border border-[#CBD5E1] bg-white px-4 py-2.5 text-sm font-semibold text-[#1E293B] transition-colors hover:border-[#94A3B8] hover:bg-[#F8FAFC] sm:w-auto"
-                  >
-                    Export filtered CSV
-                  </button>
-                  <a
-                    href={DATASET_URL}
-                    download
-                    className="w-full rounded-xl border border-[#CBD5E1] bg-white px-4 py-2.5 text-center text-sm font-semibold text-[#1E293B] transition-colors hover:border-[#94A3B8] hover:bg-[#F8FAFC] sm:w-auto"
-                  >
-                    Download full CSV
-                  </a>
-                </div>
-                <p className="mt-2 text-sm font-medium leading-relaxed text-[#F97316]">
-                  SalesParrot finds non-public investor emails, personalizes outreach in your voice,
-                  and auto-follows up to book meetings with these investors.
-                </p>
+            <div className="mt-2 border-t border-[#E2E8F0] pt-3">
+              <div className="flex flex-wrap items-center gap-2 overflow-x-auto pb-1">
+                <Link
+                  to="/openlists/pricing"
+                  className="inline-flex whitespace-nowrap rounded-xl bg-[#FF6B35] px-4 py-2 text-sm font-semibold text-white shadow-[0_8px_24px_rgba(255,107,53,0.3)] transition-colors hover:bg-[#E85A2A]"
+                >
+                  Launch outreach using SalesParrot
+                </Link>
+                <button
+                  onClick={exportFilteredCsv}
+                  className="inline-flex whitespace-nowrap rounded-xl border border-[#CBD5E1] bg-white px-4 py-2 text-sm font-semibold text-[#1E293B] transition-colors hover:border-[#94A3B8] hover:bg-[#F8FAFC]"
+                >
+                  Export filtered CSV
+                </button>
+                <a
+                  href={DATASET_URL}
+                  download
+                  className="inline-flex whitespace-nowrap rounded-xl border border-[#CBD5E1] bg-white px-4 py-2 text-sm font-semibold text-[#1E293B] transition-colors hover:border-[#94A3B8] hover:bg-[#F8FAFC]"
+                >
+                  Download full CSV
+                </a>
               </div>
-              </div>
+              <p className="mt-2 text-sm font-medium leading-relaxed text-[#F97316]">
+                SalesParrot finds non-public investor emails, personalizes outreach in your voice,
+                and auto-follows up to book meetings with these investors.
+              </p>
             </div>
           </div>
 
