@@ -128,6 +128,7 @@ function OpenListsPage() {
     'african_angel_investors_family_offices'
   );
   const [isRegionFilterExpanded, setIsRegionFilterExpanded] = useState(false);
+  const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -322,11 +323,16 @@ function OpenListsPage() {
     sortBy,
   ]);
 
-  const hasLinkedInCount = useMemo(
+  const hasActiveFilters = useMemo(
     () =>
-      rows.filter((row) => row.linkedin_profile_url && row.linkedin_profile_url.trim() !== '')
-        .length,
-    [rows]
+      search.trim().length > 0 ||
+      classification !== 'all' ||
+      countryFilter !== 'all' ||
+      contactFilter !== 'all' ||
+      stageFilter !== 'all' ||
+      focusFilter !== 'all' ||
+      regionFilters.length > 0,
+    [search, classification, countryFilter, contactFilter, stageFilter, focusFilter, regionFilters]
   );
 
   const exportFilteredCsv = () => {
@@ -360,6 +366,7 @@ function OpenListsPage() {
     setStageFilter('all');
     setFocusFilter('all');
     setRegionFilters([]);
+    setIsRegionFilterExpanded(false);
     setSortBy('email_first');
   };
 
@@ -466,7 +473,7 @@ function OpenListsPage() {
             </div>
           </div>
 
-          <div className="relative z-10 mt-4 grid gap-2 sm:grid-cols-2">
+          <div className="relative z-10 mt-4">
             <div className="rounded-xl border border-[#E2E8F0] bg-white p-3.5">
               <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#64748B]">
                 Total leads
@@ -475,20 +482,33 @@ function OpenListsPage() {
                 {rows.length}
               </p>
             </div>
-            <div className="rounded-xl border border-[#E2E8F0] bg-white p-3.5">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#64748B]">
-                LinkedIn available
-              </p>
-              <p className="mt-0.5 text-[30px] font-bold leading-none text-[#0F172A]">
-                {hasLinkedInCount}
-              </p>
-            </div>
           </div>
         </div>
 
         <div className="rounded-2xl border border-[#E2E8F0] bg-white shadow-[0_10px_34px_rgba(15,23,42,0.06)]">
           <div className="border-b border-[#E2E8F0] p-4 sm:p-5">
-            <div className="flex flex-col gap-3">
+            <div className="mb-3 flex items-center justify-between gap-2 md:hidden">
+              <button
+                type="button"
+                onClick={() => setIsMobileFiltersOpen((current) => !current)}
+                className="rounded-lg border border-[#CBD5E1] bg-white px-3 py-1.5 text-sm font-semibold text-[#334155] transition-colors hover:bg-[#F8FAFC]"
+              >
+                {isMobileFiltersOpen ? 'Hide filters' : 'Show filters'}
+              </button>
+              <div className="flex items-center gap-2">
+                {hasActiveFilters && (
+                  <span className="rounded-full border border-[#BAE6FD] bg-[#EFF6FF] px-2 py-0.5 text-[11px] font-semibold text-[#0369A1]">
+                    Active filters
+                  </span>
+                )}
+                <span className="text-xs font-medium text-[#64748B]">
+                  {filteredRows.length} results
+                </span>
+              </div>
+            </div>
+
+            <div className={`${isMobileFiltersOpen ? 'block' : 'hidden'} md:block`}>
+              <div className="flex flex-col gap-3">
               <div className="flex w-full flex-col gap-3 sm:flex-row">
                 <input
                   type="text"
@@ -724,6 +744,7 @@ function OpenListsPage() {
                   SalesParrot finds non-public investor emails, personalizes outreach in your voice,
                   and auto-follows up to book meetings with these investors.
                 </p>
+              </div>
               </div>
             </div>
           </div>
