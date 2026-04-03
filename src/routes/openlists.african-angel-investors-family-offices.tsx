@@ -440,22 +440,28 @@ function OpenListsPage() {
                 </select>
               </div>
 
-              <div className="mx-auto mt-3 max-w-2xl rounded-xl border border-[#E6EEF7] bg-white/80 px-4 py-3">
-                <p className="text-center text-sm italic leading-relaxed text-[#334155]">
-                  "The right angel investors during a crucial building time can be a lot more
-                  beneficial than going through the arduous process of diligence with VCs in the
-                  same amount of time. You can close angels in a few days. VCs can take months"
-                </p>
-                <p className="mt-1 text-center text-xs font-semibold uppercase tracking-[0.08em] text-[#64748B]">
-                  <a
-                    href="https://www.linkedin.com/in/enim/"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-[#0369A1] underline decoration-[#93C5FD] underline-offset-2 transition-colors hover:text-[#075985]"
-                  >
-                    ENI MAJ
-                  </a>
-                </p>
+              <div className="relative mx-auto mt-3 w-full max-w-2xl overflow-hidden rounded-[24px] border border-[#D8B98A] bg-[linear-gradient(180deg,#FFF8E8_0%,#F6E7CC_52%,#EFD9B1_100%)] px-5 py-4 shadow-[0_12px_30px_rgba(120,74,24,0.18)]">
+                <div className="pointer-events-none absolute left-0 top-0 h-2 w-full bg-[linear-gradient(90deg,#C58D45_0%,#E8C17B_50%,#C58D45_100%)] opacity-70" />
+                <div className="pointer-events-none absolute bottom-0 left-0 h-2 w-full bg-[linear-gradient(90deg,#C58D45_0%,#E8C17B_50%,#C58D45_100%)] opacity-60" />
+                <div className="pointer-events-none absolute -left-4 top-1/2 h-8 w-8 -translate-y-1/2 rounded-full border border-[#C89854] bg-[#F1DEBA]/90" />
+                <div className="pointer-events-none absolute -right-4 top-1/2 h-8 w-8 -translate-y-1/2 rounded-full border border-[#C89854] bg-[#F1DEBA]/90" />
+                <div className="relative z-10 rounded-xl border border-[#E4CC9F]/80 bg-white/25 px-4 py-3">
+                  <p className="text-center text-sm italic leading-relaxed text-[#5B3A17] sm:text-[15px]">
+                    "The right angel investors during a crucial building time can be a lot more
+                    beneficial than going through the arduous process of diligence with VCs in the
+                    same amount of time. You can close angels in a few days. VCs can take months"
+                  </p>
+                  <p className="mt-2 text-center text-[11px] font-semibold uppercase tracking-[0.11em] text-[#7C4A1C]">
+                    <a
+                      href="https://www.linkedin.com/in/enim/"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="underline decoration-[#C89854] underline-offset-2 transition-colors hover:text-[#5B3A17]"
+                    >
+                      ENI MAJ
+                    </a>
+                  </p>
+                </div>
               </div>
             </div>
           </div>
@@ -584,13 +590,6 @@ function OpenListsPage() {
               </div>
 
               <div className="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-3">
-                <p className="text-sm leading-relaxed text-[#475569]">
-                  This list includes Africa-based, African diaspora, and non-African but
-                  Africa-focused angel investors and family offices.
-                </p>
-              </div>
-
-              <div className="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="text-xs font-semibold uppercase tracking-[0.08em] text-[#64748B]">
                     Region tags (multi-select)
@@ -658,6 +657,13 @@ function OpenListsPage() {
                     })}
                   </div>
                 )}
+              </div>
+
+              <div className="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-3">
+                <p className="text-sm leading-relaxed text-[#475569]">
+                  This list includes Africa-based, African diaspora, and non-African but
+                  Africa-focused angel investors and family offices.
+                </p>
               </div>
 
               <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
