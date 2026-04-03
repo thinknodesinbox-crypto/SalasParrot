@@ -478,7 +478,14 @@ function OpenListsPage() {
                   same amount of time. You can close angels in a few days. VCs can take months"
                 </p>
                 <p className="mt-1 text-center text-xs font-semibold uppercase tracking-[0.08em] text-[#64748B]">
-                  ENI MAJ
+                  <a
+                    href="https://www.linkedin.com/in/enim/"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[#0369A1] underline decoration-[#93C5FD] underline-offset-2 transition-colors hover:text-[#075985]"
+                  >
+                    ENI MAJ
+                  </a>
                 </p>
               </div>
             </div>
