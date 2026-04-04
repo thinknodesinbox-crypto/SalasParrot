@@ -153,38 +153,38 @@ function SignupPage() {
             >
               <span className="h-2 w-2 animate-pulse rounded-full bg-[#22C55E]" />
               <span className="text-sm font-medium text-[#1E293B]">
-                3,500+ teams scaling their outreach
+                3,500+ teams growing with SalesParrot
               </span>
             </motion.div>
 
             <h2 className="mb-4 text-[32px] font-bold leading-tight tracking-[-0.02em] text-[#1E293B]">
-              Scale your
+              Hire your
               <br />
-              <span className="text-[#14B8A6]">LinkedIn outreach</span>
+              <span className="text-[#14B8A6]">AI sales + marketing employee</span>
             </h2>
 
             <p className="mb-10 text-[15px] leading-relaxed text-[#64748B]">
-              Full access to everything. Cancel anytime.
+              Launch campaigns, handle replies, and book meetings from one system.
               <br />
-              No hidden fees, no surprises.
+              Set the strategy once. SalesParrot runs the work every day.
             </p>
 
             {/* Benefits list */}
             <div className="space-y-5">
               <BenefitItem
                 icon="check"
-                title="Unlimited LinkedIn actions"
-                description="Connection requests, messages, profile views"
+                title="Runs outreach across email and LinkedIn"
+                description="Executes multichannel campaigns without leads falling through"
               />
               <BenefitItem
                 icon="check"
-                title="Unlimited email sending"
-                description="Connect Gmail, Outlook, or SMTP"
+                title="Replies like your best rep"
+                description="Adapts to each prospect, handles follow-ups, and keeps momentum"
               />
               <BenefitItem
                 icon="check"
-                title="Unlimited enrichment"
-                description="Auto-find verified business emails"
+                title="Turns interest into booked meetings"
+                description="Finds contact data, qualifies leads, and fills your calendar"
               />
             </div>
           </motion.div>
