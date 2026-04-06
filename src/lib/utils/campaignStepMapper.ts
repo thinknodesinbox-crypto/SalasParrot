@@ -58,6 +58,19 @@ export function mapNodeDataToConfig(node: SequenceNode): Record<string, unknown>
   if (node.data.postsToLike !== undefined) {
     config.posts_to_like = node.data.postsToLike;
   }
+  if (node.data.personalizationEnabled !== undefined) {
+    config.personalization = {
+      enabled: node.data.personalizationEnabled,
+      mode: node.data.personalizationMode ?? 'first_line',
+      providers:
+        node.data.personalizationProviders && node.data.personalizationProviders.length > 0
+          ? node.data.personalizationProviders
+          : ['linkedin_profile'],
+      refresh_policy: node.data.personalizationRefreshPolicy ?? 'if_missing',
+      fallback_behavior:
+        node.data.personalizationFallbackBehavior ?? 'send_without_personalization',
+    };
+  }
 
   // Agent fields
   if (node.data.agentGoal !== undefined) {
@@ -98,6 +111,7 @@ export function mapConfigToNodeData(config: Record<string, unknown>): SequenceNo
   if (condition === 'replied') {
     condition = 'message_replied';
   }
+  const personalization = (config.personalization as Record<string, unknown> | undefined) ?? {};
 
   return {
     message: config.message as string | undefined,
@@ -105,6 +119,20 @@ export function mapConfigToNodeData(config: Record<string, unknown>): SequenceNo
     delayDays: config.delay_days as number | undefined,
     delayHours: config.delay_hours as number | undefined,
     postsToLike: config.posts_to_like as number | undefined,
+    personalizationEnabled: personalization.enabled as boolean | undefined,
+    personalizationMode: personalization.mode as 'none' | 'first_line' | 'full_message' | undefined,
+    personalizationProviders: personalization.providers as
+      | Array<'linkedin_profile' | 'openai_web_search'>
+      | undefined,
+    personalizationRefreshPolicy: personalization.refresh_policy as
+      | 'if_missing'
+      | 'if_stale'
+      | 'always'
+      | undefined,
+    personalizationFallbackBehavior: personalization.fallback_behavior as
+      | 'send_without_personalization'
+      | 'fail_step'
+      | undefined,
     condition: condition as
       | 'connected'
       | 'message_replied'

@@ -206,6 +206,11 @@ export interface CampaignStep {
   created_at: string;
 }
 
+export type PersonalizationMode = 'none' | 'first_line' | 'full_message';
+export type PersonalizationProvider = 'linkedin_profile' | 'openai_web_search';
+export type PersonalizationRefreshPolicy = 'if_missing' | 'if_stale' | 'always';
+export type PersonalizationFallbackBehavior = 'send_without_personalization' | 'fail_step';
+
 export interface CampaignSender {
   id: string;
   campaign_id: string;
@@ -300,7 +305,6 @@ export interface Lead {
   email: string | null;
   avatar_url: string | null;
   profile_data: Record<string, unknown> | null;
-  ai_icebreaker: string | null;
   status: LeadStatus;
   tags: string[] | null;
   enrichment_status: EnrichmentStatus;
