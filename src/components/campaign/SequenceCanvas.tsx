@@ -3,10 +3,8 @@ import { useState, useCallback, useRef } from 'react';
 import { SEQUENCE_TEMPLATES } from './sequenceTemplates';
 import { RichTextEditor } from '@/components/ui/RichTextEditor';
 import type {
-  PersonalizationFallbackBehavior,
   PersonalizationMode,
   PersonalizationProvider,
-  PersonalizationRefreshPolicy,
   SequenceTemplate,
   WorkspaceAgentDefaults,
 } from '@/lib/types';
@@ -41,11 +39,8 @@ interface NodeData {
   delayDays?: number;
   delayHours?: number;
   postsToLike?: number;
-  personalizationEnabled?: boolean;
   personalizationMode?: PersonalizationMode;
   personalizationProviders?: PersonalizationProvider[];
-  personalizationRefreshPolicy?: PersonalizationRefreshPolicy;
-  personalizationFallbackBehavior?: PersonalizationFallbackBehavior;
   condition?:
     | 'connected'
     | 'message_replied'
@@ -1574,6 +1569,21 @@ export function NodeConfigPanel({
 }) {
   const nodeConfig = getNodeConfig(node.type);
   const messageRef = useRef<HTMLTextAreaElement>(null);
+  const messageUsesAiPersonalization = (node.data.message || '').includes('{{aiPersonalization}}');
+  const updateMessage = (message: string) => {
+    onUpdate({
+      message,
+      ...(message.includes('{{aiPersonalization}}')
+        ? {
+            personalizationMode:
+              node.data.personalizationMode || ('first_line' as PersonalizationMode),
+            personalizationProviders:
+              node.data.personalizationProviders ||
+              (['linkedin_profile'] as PersonalizationProvider[]),
+          }
+        : {}),
+    });
+  };
 
   const insertVariable = (variable: string) => {
     const textarea = messageRef.current;
@@ -1582,7 +1592,7 @@ export function NodeConfigPanel({
       const start = textarea.selectionStart;
       const end = textarea.selectionEnd;
       const newMessage = currentMessage.slice(0, start) + variable + currentMessage.slice(end);
-      onUpdate({ message: newMessage });
+      updateMessage(newMessage);
       // Restore cursor position after the inserted variable
       requestAnimationFrame(() => {
         textarea.focus();
@@ -1590,7 +1600,7 @@ export function NodeConfigPanel({
         textarea.setSelectionRange(cursorPos, cursorPos);
       });
     } else {
-      onUpdate({ message: currentMessage + variable });
+      updateMessage(currentMessage + variable);
     }
   };
 
@@ -1606,7 +1616,7 @@ export function NodeConfigPanel({
 
   const renderPersonalizationControls = (channelLabel: string) => (
     <div className="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-3">
-      <div className="mb-3 flex items-start justify-between gap-3">
+      <div className="mb-3">
         <div>
           <p className="text-sm font-medium text-[#1E293B]">AI Personalization</p>
           <p className="mt-1 text-xs text-[#64748B]">
@@ -1614,31 +1624,9 @@ export function NodeConfigPanel({
             web research.
           </p>
         </div>
-        <label className="flex items-center gap-2 text-xs font-medium text-[#475569]">
-          <input
-            type="checkbox"
-            checked={node.data.personalizationEnabled ?? false}
-            onChange={(e) =>
-              onUpdate({
-                personalizationEnabled: e.target.checked,
-                personalizationMode:
-                  node.data.personalizationMode || ('first_line' as PersonalizationMode),
-                personalizationProviders:
-                  node.data.personalizationProviders ||
-                  (['linkedin_profile'] as PersonalizationProvider[]),
-                personalizationRefreshPolicy:
-                  node.data.personalizationRefreshPolicy || 'if_missing',
-                personalizationFallbackBehavior:
-                  node.data.personalizationFallbackBehavior || 'send_without_personalization',
-              })
-            }
-            className="h-4 w-4 rounded border-[#CBD5E1] text-[#FF6B35] focus:ring-[#FF6B35]"
-          />
-          Enable
-        </label>
       </div>
 
-      {node.data.personalizationEnabled && (
+      {messageUsesAiPersonalization && (
         <div className="space-y-3">
           <div>
             <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-[#64748B]">
@@ -1683,53 +1671,15 @@ export function NodeConfigPanel({
                   }
                   className="h-4 w-4 rounded border-[#CBD5E1] text-[#FF6B35] focus:ring-[#FF6B35]"
                 />
-                OpenAI web search
+                Web search
               </label>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-[#64748B]">
-                Refresh
-              </label>
-              <select
-                value={node.data.personalizationRefreshPolicy || 'if_missing'}
-                onChange={(e) =>
-                  onUpdate({
-                    personalizationRefreshPolicy: e.target.value as PersonalizationRefreshPolicy,
-                  })
-                }
-                className="w-full rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-sm focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
-              >
-                <option value="if_missing">If missing</option>
-                <option value="if_stale">If stale</option>
-                <option value="always">Always refresh</option>
-              </select>
-            </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-[#64748B]">
-                If it fails
-              </label>
-              <select
-                value={node.data.personalizationFallbackBehavior || 'send_without_personalization'}
-                onChange={(e) =>
-                  onUpdate({
-                    personalizationFallbackBehavior: e.target
-                      .value as PersonalizationFallbackBehavior,
-                  })
-                }
-                className="w-full rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-sm focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
-              >
-                <option value="send_without_personalization">Send without personalization</option>
-                <option value="fail_step">Fail step</option>
-              </select>
             </div>
           </div>
 
           <p className="text-xs text-[#64748B]">
             Use <span className="font-medium text-[#1E293B]">{'{{aiPersonalization}}'}</span> to
-            place the generated opener exactly where you want it.
+            place the generated opener exactly where you want it. If no personalization is
+            available, the message will still send normally.
           </p>
         </div>
       )}
@@ -1831,7 +1781,7 @@ export function NodeConfigPanel({
             <textarea
               ref={messageRef}
               value={node.data.message || ''}
-              onChange={(e) => onUpdate({ message: e.target.value })}
+              onChange={(e) => updateMessage(e.target.value)}
               placeholder="Hi {{first_name}}, I noticed..."
               rows={4}
               className="w-full resize-none rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
@@ -1870,7 +1820,7 @@ export function NodeConfigPanel({
               <textarea
                 ref={messageRef}
                 value={node.data.message || ''}
-                onChange={(e) => onUpdate({ message: e.target.value })}
+                onChange={(e) => updateMessage(e.target.value)}
                 placeholder="Hi {{first_name}}..."
                 rows={6}
                 className="w-full resize-none rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
@@ -1915,7 +1865,7 @@ export function NodeConfigPanel({
               <label className="mb-2 block text-sm font-medium text-[#1E293B]">Email Body</label>
               <RichTextEditor
                 content={node.data.message || ''}
-                onChange={(html) => onUpdate({ message: html })}
+                onChange={(html) => updateMessage(html)}
                 placeholder="Hi {{first_name}}..."
                 minHeight="120px"
                 variables={[...PERSONALIZATION_VARIABLES]}

@@ -39,6 +39,8 @@ export function mapStepTypeToNodeType(stepType: StepType): SequenceNode['type'] 
 // Map frontend node data to backend config
 export function mapNodeDataToConfig(node: SequenceNode): Record<string, unknown> {
   const config: Record<string, unknown> = {};
+  const messageUsesAiPersonalization =
+    typeof node.data.message === 'string' && node.data.message.includes('{{aiPersonalization}}');
 
   if (node.data.message !== undefined) {
     config.message = node.data.message;
@@ -58,17 +60,14 @@ export function mapNodeDataToConfig(node: SequenceNode): Record<string, unknown>
   if (node.data.postsToLike !== undefined) {
     config.posts_to_like = node.data.postsToLike;
   }
-  if (node.data.personalizationEnabled !== undefined) {
+  if (messageUsesAiPersonalization) {
     config.personalization = {
-      enabled: node.data.personalizationEnabled,
+      enabled: true,
       mode: node.data.personalizationMode ?? 'first_line',
       providers:
         node.data.personalizationProviders && node.data.personalizationProviders.length > 0
           ? node.data.personalizationProviders
           : ['linkedin_profile'],
-      refresh_policy: node.data.personalizationRefreshPolicy ?? 'if_missing',
-      fallback_behavior:
-        node.data.personalizationFallbackBehavior ?? 'send_without_personalization',
     };
   }
 
@@ -119,19 +118,9 @@ export function mapConfigToNodeData(config: Record<string, unknown>): SequenceNo
     delayDays: config.delay_days as number | undefined,
     delayHours: config.delay_hours as number | undefined,
     postsToLike: config.posts_to_like as number | undefined,
-    personalizationEnabled: personalization.enabled as boolean | undefined,
     personalizationMode: personalization.mode as 'none' | 'first_line' | 'full_message' | undefined,
     personalizationProviders: personalization.providers as
       | Array<'linkedin_profile' | 'openai_web_search'>
-      | undefined,
-    personalizationRefreshPolicy: personalization.refresh_policy as
-      | 'if_missing'
-      | 'if_stale'
-      | 'always'
-      | undefined,
-    personalizationFallbackBehavior: personalization.fallback_behavior as
-      | 'send_without_personalization'
-      | 'fail_step'
       | undefined,
     condition: condition as
       | 'connected'
