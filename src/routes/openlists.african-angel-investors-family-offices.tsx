@@ -62,14 +62,17 @@ function toCsv(rows: OpenListLead[]): string {
   return [header, ...body].join('\n');
 }
 
-function getClassificationTone(classification: string): string {
-  if (classification === 'Africa-based') {
-    return 'bg-[#DCFCE7] text-[#166534] border-[#86EFAC]';
+type ClassificationBucket = 'africa' | 'diaspora' | 'unresolved';
+
+function getClassificationBucket(classification: string): ClassificationBucket {
+  const normalized = (classification || '').trim().toLowerCase();
+  if (normalized === 'africa-based' || normalized.includes('africa-based')) {
+    return 'africa';
   }
-  if (classification.startsWith('Diaspora')) {
-    return 'bg-[#FEF3C7] text-[#92400E] border-[#FCD34D]';
+  if (normalized.includes('diaspora') || normalized.includes('outside africa')) {
+    return 'diaspora';
   }
-  return 'bg-[#F1F5F9] text-[#475569] border-[#CBD5E1]';
+  return 'unresolved';
 }
 
 function getEstimatedCheckSize(stageFocus: string): string {
@@ -125,6 +128,7 @@ function OpenListsPage() {
     'african_angel_investors_family_offices'
   );
   const [isRegionFilterExpanded, setIsRegionFilterExpanded] = useState(false);
+  const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -209,14 +213,11 @@ function OpenListsPage() {
         return false;
       }
 
-      if (classification === 'africa') {
-        return row.base_classification === 'Africa-based';
-      }
-      if (classification === 'diaspora') {
-        return row.base_classification.startsWith('Diaspora');
-      }
-      if (classification === 'unresolved') {
-        return row.base_classification === 'Unresolved';
+      if (
+        classification !== 'all' &&
+        getClassificationBucket(row.base_classification) !== classification
+      ) {
+        return false;
       }
 
       if (countryFilter !== 'all' && row.base_country !== countryFilter) {
@@ -322,11 +323,16 @@ function OpenListsPage() {
     sortBy,
   ]);
 
-  const hasLinkedInCount = useMemo(
+  const hasActiveFilters = useMemo(
     () =>
-      rows.filter((row) => row.linkedin_profile_url && row.linkedin_profile_url.trim() !== '')
-        .length,
-    [rows]
+      search.trim().length > 0 ||
+      classification !== 'all' ||
+      countryFilter !== 'all' ||
+      contactFilter !== 'all' ||
+      stageFilter !== 'all' ||
+      focusFilter !== 'all' ||
+      regionFilters.length > 0,
+    [search, classification, countryFilter, contactFilter, stageFilter, focusFilter, regionFilters]
   );
 
   const exportFilteredCsv = () => {
@@ -360,6 +366,7 @@ function OpenListsPage() {
     setStageFilter('all');
     setFocusFilter('all');
     setRegionFilters([]);
+    setIsRegionFilterExpanded(false);
     setSortBy('email_first');
   };
 
@@ -432,7 +439,7 @@ function OpenListsPage() {
                   className="w-full rounded-xl border border-[#CBD5E1] bg-white px-3.5 py-3 text-base font-semibold text-[#0F172A] outline-none focus:border-[#14B8A6]"
                 >
                   <option value="african_angel_investors_family_offices">
-                    African Angel Investors and Family Offices
+                    African and Africa-Focused Angel Investors and Family Offices (Global)
                   </option>
                   <option value="more_open_lists_coming" disabled>
                     More open-lists to be added
@@ -440,41 +447,58 @@ function OpenListsPage() {
                 </select>
               </div>
 
-              <div className="mx-auto mt-3 max-w-2xl rounded-xl border border-[#E6EEF7] bg-white/80 px-4 py-3">
-                <p className="text-center text-sm italic leading-relaxed text-[#334155]">
-                  "Reaching out to angels and family offices builds stronger early conviction than
-                  broad, unfocused fundraising."
-                </p>
-                <p className="mt-1 text-center text-xs font-semibold uppercase tracking-[0.08em] text-[#64748B]">
-                  Founder insight
-                </p>
+              <div className="relative mx-auto mt-3 w-full max-w-2xl overflow-hidden rounded-[24px] border border-[#D8B98A] bg-[linear-gradient(180deg,#FFF8E8_0%,#F6E7CC_52%,#EFD9B1_100%)] px-5 py-4 shadow-[0_12px_30px_rgba(120,74,24,0.18)]">
+                <div className="pointer-events-none absolute left-0 top-0 h-2 w-full bg-[linear-gradient(90deg,#C58D45_0%,#E8C17B_50%,#C58D45_100%)] opacity-70" />
+                <div className="pointer-events-none absolute bottom-0 left-0 h-2 w-full bg-[linear-gradient(90deg,#C58D45_0%,#E8C17B_50%,#C58D45_100%)] opacity-60" />
+                <div className="pointer-events-none absolute -left-4 top-1/2 h-8 w-8 -translate-y-1/2 rounded-full border border-[#C89854] bg-[#F1DEBA]/90" />
+                <div className="pointer-events-none absolute -right-4 top-1/2 h-8 w-8 -translate-y-1/2 rounded-full border border-[#C89854] bg-[#F1DEBA]/90" />
+                <div className="relative z-10 rounded-xl border border-[#E4CC9F]/80 bg-white/25 px-4 py-3">
+                  <p className="text-center text-sm italic leading-relaxed text-[#5B3A17] sm:text-[15px]">
+                    "The right angel investors during a crucial building time can be a lot more
+                    beneficial than going through the arduous process of diligence with VCs in the
+                    same amount of time. You can close angels in a few days. VCs can take months"
+                  </p>
+                  <p className="mt-2 text-center text-[11px] font-semibold uppercase tracking-[0.11em] text-[#7C4A1C]">
+                    <a
+                      href="https://www.linkedin.com/in/enim/"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="underline decoration-[#C89854] underline-offset-2 transition-colors hover:text-[#5B3A17]"
+                    >
+                      ENI MAJ
+                    </a>
+                  </p>
+                </div>
               </div>
             </div>
           </div>
 
-          <div className="relative z-10 mt-4 grid gap-2 sm:grid-cols-2">
-            <div className="rounded-xl border border-[#E2E8F0] bg-white p-3.5">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#64748B]">
-                Total leads
-              </p>
-              <p className="mt-0.5 text-[30px] font-bold leading-none text-[#0F172A]">
-                {rows.length}
-              </p>
-            </div>
-            <div className="rounded-xl border border-[#E2E8F0] bg-white p-3.5">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#64748B]">
-                LinkedIn available
-              </p>
-              <p className="mt-0.5 text-[30px] font-bold leading-none text-[#0F172A]">
-                {hasLinkedInCount}
-              </p>
-            </div>
-          </div>
         </div>
 
         <div className="rounded-2xl border border-[#E2E8F0] bg-white shadow-[0_10px_34px_rgba(15,23,42,0.06)]">
           <div className="border-b border-[#E2E8F0] p-4 sm:p-5">
-            <div className="flex flex-col gap-3">
+            <div className="mb-3 flex items-center justify-between gap-2 md:hidden">
+              <button
+                type="button"
+                onClick={() => setIsMobileFiltersOpen((current) => !current)}
+                className="rounded-lg border border-[#CBD5E1] bg-white px-3 py-1.5 text-sm font-semibold text-[#334155] transition-colors hover:bg-[#F8FAFC]"
+              >
+                {isMobileFiltersOpen ? 'Hide filters' : 'Show filters'}
+              </button>
+              <div className="flex items-center gap-2">
+                {hasActiveFilters && (
+                  <span className="rounded-full border border-[#BAE6FD] bg-[#EFF6FF] px-2 py-0.5 text-[11px] font-semibold text-[#0369A1]">
+                    Active filters
+                  </span>
+                )}
+                <span className="text-xs font-medium text-[#64748B]">
+                  {filteredRows.length} results
+                </span>
+              </div>
+            </div>
+
+            <div className={`${isMobileFiltersOpen ? 'block' : 'hidden'} md:block`}>
+              <div className="flex flex-col gap-3">
               <div className="flex w-full flex-col gap-3 sm:flex-row">
                 <input
                   type="text"
@@ -515,10 +539,10 @@ function OpenListsPage() {
                   }
                   className="w-full rounded-lg border border-[#CBD5E1] px-3 py-2 text-sm text-[#0F172A] outline-none"
                 >
-                  <option value="all">All classifications</option>
+                  <option value="all">All base categories</option>
                   <option value="africa">Africa-based</option>
-                  <option value="diaspora">Diaspora / outside Africa</option>
-                  <option value="unresolved">Unresolved</option>
+                  <option value="diaspora">Global / diaspora</option>
+                  <option value="unresolved">Base unverified</option>
                 </select>
 
                 <select
@@ -645,70 +669,78 @@ function OpenListsPage() {
                 )}
               </div>
 
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-sm font-medium text-[#64748B]">
-                  Showing {filteredRows.length} record{filteredRows.length === 1 ? '' : 's'}
+              <div className="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-3">
+                <p className="text-sm leading-relaxed text-[#475569]">
+                  This list includes Africa-based, African diaspora, and non-African but
+                  Africa-focused angel investors and family offices.
                 </p>
-                <div className="flex flex-wrap items-center gap-2">
-                  <div className="inline-flex rounded-md border border-[#CBD5E1] bg-white p-0.5 md:hidden">
-                    <button
-                      onClick={() => setMobileView('list')}
-                      className={`rounded px-2.5 py-1 text-xs font-semibold transition-colors ${
-                        mobileView === 'list' ? 'bg-[#0F172A] text-white' : 'text-[#334155]'
-                      }`}
-                    >
-                      List
-                    </button>
-                    <button
-                      onClick={() => setMobileView('cards')}
-                      className={`rounded px-2.5 py-1 text-xs font-semibold transition-colors ${
-                        mobileView === 'cards' ? 'bg-[#0F172A] text-white' : 'text-[#334155]'
-                      }`}
-                    >
-                      Cards
-                    </button>
-                  </div>
-                  <button
-                    onClick={resetFilters}
-                    className="inline-flex w-fit rounded-md border border-[#CBD5E1] px-3 py-1.5 text-sm font-semibold text-[#334155] transition-colors hover:bg-[#F8FAFC]"
-                  >
-                    Reset filters
-                  </button>
-                </div>
               </div>
+              </div>
+            </div>
 
-              <div className="mt-1 border-t border-[#E2E8F0] pt-3">
-                <div className="flex flex-wrap gap-2.5">
-                  <Link
-                    to="/openlists/pricing"
-                    className="w-full rounded-xl bg-[#FF6B35] px-4 py-2.5 text-center text-sm font-semibold text-white shadow-[0_8px_24px_rgba(255,107,53,0.3)] transition-colors hover:bg-[#E85A2A] sm:w-auto"
-                  >
-                    Launch outreach using SalesParrot
-                  </Link>
+            <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm font-medium text-[#64748B]">
+                Showing {filteredRows.length} record{filteredRows.length === 1 ? '' : 's'}
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="inline-flex rounded-md border border-[#CBD5E1] bg-white p-0.5 md:hidden">
                   <button
-                    onClick={exportFilteredCsv}
-                    className="w-full rounded-xl border border-[#CBD5E1] bg-white px-4 py-2.5 text-sm font-semibold text-[#1E293B] transition-colors hover:border-[#94A3B8] hover:bg-[#F8FAFC] sm:w-auto"
+                    onClick={() => setMobileView('list')}
+                    className={`rounded px-2.5 py-1 text-xs font-semibold transition-colors ${
+                      mobileView === 'list' ? 'bg-[#0F172A] text-white' : 'text-[#334155]'
+                    }`}
                   >
-                    Export filtered CSV
+                    List
                   </button>
-                  <a
-                    href={DATASET_URL}
-                    download
-                    className="w-full rounded-xl border border-[#CBD5E1] bg-white px-4 py-2.5 text-center text-sm font-semibold text-[#1E293B] transition-colors hover:border-[#94A3B8] hover:bg-[#F8FAFC] sm:w-auto"
+                  <button
+                    onClick={() => setMobileView('cards')}
+                    className={`rounded px-2.5 py-1 text-xs font-semibold transition-colors ${
+                      mobileView === 'cards' ? 'bg-[#0F172A] text-white' : 'text-[#334155]'
+                    }`}
                   >
-                    Download full CSV
-                  </a>
+                    Cards
+                  </button>
                 </div>
-                <p className="mt-2 text-sm font-medium leading-relaxed text-[#F97316]">
-                  SalesParrot finds non-public investor emails, personalizes outreach in your voice,
-                  and auto-follows up to book meetings with these investors.
-                </p>
+                <button
+                  onClick={resetFilters}
+                  className="inline-flex w-fit rounded-md border border-[#CBD5E1] px-3 py-1.5 text-sm font-semibold text-[#334155] transition-colors hover:bg-[#F8FAFC]"
+                >
+                  Reset filters
+                </button>
               </div>
+            </div>
+
+            <div className="mt-2 border-t border-[#E2E8F0] pt-3">
+              <div className="flex flex-wrap items-center gap-2 overflow-x-auto pb-1">
+                <Link
+                  to="/openlists/pricing"
+                  className="inline-flex whitespace-nowrap rounded-xl bg-[#FF6B35] px-4 py-2 text-sm font-semibold text-white shadow-[0_8px_24px_rgba(255,107,53,0.3)] transition-colors hover:bg-[#E85A2A]"
+                >
+                  Launch outreach using SalesParrot
+                </Link>
+                <button
+                  onClick={exportFilteredCsv}
+                  className="inline-flex whitespace-nowrap rounded-xl border border-[#CBD5E1] bg-white px-4 py-2 text-sm font-semibold text-[#1E293B] transition-colors hover:border-[#94A3B8] hover:bg-[#F8FAFC]"
+                >
+                  Export filtered CSV
+                </button>
+                <a
+                  href={DATASET_URL}
+                  download
+                  className="inline-flex whitespace-nowrap rounded-xl border border-[#CBD5E1] bg-white px-4 py-2 text-sm font-semibold text-[#1E293B] transition-colors hover:border-[#94A3B8] hover:bg-[#F8FAFC]"
+                >
+                  Download full CSV
+                </a>
+              </div>
+              <p className="mt-2 text-sm font-medium leading-relaxed text-[#F97316]">
+                SalesParrot finds non-public investor emails, personalizes outreach in your voice,
+                and auto-follows up to book meetings with these investors.
+              </p>
             </div>
           </div>
 
           <div className="hidden overflow-auto md:block">
-            <table className="w-full min-w-[1120px]">
+            <table className="w-full min-w-[1020px]">
               <thead className="bg-[#F8FAFC]">
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.08em] text-[#64748B]">
@@ -716,9 +748,6 @@ function OpenListsPage() {
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.08em] text-[#64748B]">
                     Base
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.08em] text-[#64748B]">
-                    Classification
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.08em] text-[#64748B]">
                     Focus
@@ -737,7 +766,7 @@ function OpenListsPage() {
               <tbody>
                 {loading && (
                   <tr>
-                    <td colSpan={7} className="px-4 py-10 text-center text-sm text-[#64748B]">
+                    <td colSpan={6} className="px-4 py-10 text-center text-sm text-[#64748B]">
                       Loading open list...
                     </td>
                   </tr>
@@ -745,7 +774,7 @@ function OpenListsPage() {
 
                 {!loading && pagedRows.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="px-4 py-10 text-center text-sm text-[#64748B]">
+                    <td colSpan={6} className="px-4 py-10 text-center text-sm text-[#64748B]">
                       No records match your filters.
                     </td>
                   </tr>
@@ -768,20 +797,11 @@ function OpenListsPage() {
                       <td className="px-4 py-3 align-top text-sm text-[#334155]">
                         {lead.base_location || lead.base_country || 'Not specified'}
                       </td>
-                      <td className="px-4 py-3 align-top">
-                        <span
-                          className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${getClassificationTone(
-                            lead.base_classification
-                          )}`}
-                        >
-                          {lead.base_classification || 'Unresolved'}
-                        </span>
-                      </td>
                       <td className="px-4 py-3 align-top text-sm text-[#334155]">
                         <div className="flex flex-col gap-1.5">
                           <span>{lead.investment_focus || 'Not specified'}</span>
                           <span className="text-xs text-[#64748B]">
-                            Region: {lead.geographic_investment_focus || 'Not specified'}
+                            Geo: {lead.geographic_investment_focus || 'Not specified'}
                           </span>
                         </div>
                       </td>
@@ -790,8 +810,8 @@ function OpenListsPage() {
                       </td>
                       <td className="px-4 py-3 align-top text-sm text-[#334155]">
                         <div className="flex flex-col gap-1.5">
-                          <span className="inline-flex w-fit rounded-full border border-[#FED7AA] bg-[#FFF7ED] px-2 py-0.5 text-xs font-semibold text-[#C2410C]">
-                            Est. check: {getEstimatedCheckSize(lead.stage_focus || '')}
+                          <span className="inline-flex w-fit whitespace-nowrap rounded-full border border-[#FED7AA] bg-[#FFF7ED] px-2 py-0.5 text-xs font-semibold text-[#C2410C]">
+                            Est. check {getEstimatedCheckSize(lead.stage_focus || '')}
                           </span>
                         </div>
                       </td>
@@ -832,13 +852,6 @@ function OpenListsPage() {
                     <p className="mt-1 text-xs text-[#64748B]">{lead.current_company_or_firm}</p>
                   )}
                   <div className="mt-3 flex flex-wrap items-center gap-2">
-                    <span
-                      className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${getClassificationTone(
-                        lead.base_classification
-                      )}`}
-                    >
-                      {lead.base_classification || 'Unresolved'}
-                    </span>
                     <span className="text-xs text-[#64748B]">
                       {lead.base_location || lead.base_country || 'Not specified'}
                     </span>
@@ -865,8 +878,8 @@ function OpenListsPage() {
                     Check Size
                   </p>
                   <div className="mt-1">
-                    <span className="inline-flex rounded-full border border-[#FED7AA] bg-[#FFF7ED] px-2 py-0.5 text-xs font-semibold text-[#C2410C]">
-                      Est. check: {getEstimatedCheckSize(lead.stage_focus || '')}
+                    <span className="inline-flex whitespace-nowrap rounded-full border border-[#FED7AA] bg-[#FFF7ED] px-2 py-0.5 text-xs font-semibold text-[#C2410C]">
+                      Est. check {getEstimatedCheckSize(lead.stage_focus || '')}
                     </span>
                   </div>
                   <div className="mt-4 border-t border-[#F1F5F9] pt-3">
