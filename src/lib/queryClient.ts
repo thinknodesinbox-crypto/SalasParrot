@@ -76,6 +76,16 @@ export const queryKeys = {
     detail: (id: string) => ['email-accounts', 'detail', id] as const,
   },
 
+  // Email Marketing
+  emailMarketing: {
+    all: ['email-marketing'] as const,
+    lists: (workspaceId?: string) => ['email-marketing', 'lists', workspaceId] as const,
+    templates: (workspaceId?: string) => ['email-marketing', 'templates', workspaceId] as const,
+    broadcasts: (workspaceId?: string) => ['email-marketing', 'broadcasts', workspaceId] as const,
+    broadcastMetrics: (broadcastId: string) =>
+      ['email-marketing', 'broadcasts', broadcastId, 'metrics'] as const,
+  },
+
   // Calendar Accounts
   calendarAccounts: {
     all: ['calendar-accounts'] as const,

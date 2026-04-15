@@ -24,6 +24,26 @@ export {
 } from './useCampaigns';
 export type { LeadAvailability } from './useCampaigns';
 
+// Email Marketing
+export {
+  useMarketingLists,
+  useMarketingTemplates,
+  useMarketingBroadcasts,
+  useCreateMarketingList,
+  useCreateMarketingTemplate,
+  useImportMarketingContactsCSV,
+  useCreateMarketingBroadcast,
+  useSendMarketingBroadcast,
+  useMarketingBroadcastMetrics,
+} from './useEmailMarketing';
+export type {
+  MarketingList,
+  MarketingTemplate,
+  MarketingContactCsvImportResponse,
+  MarketingBroadcast,
+  MarketingBroadcastMetrics,
+} from './useEmailMarketing';
+
 // Lead Lists
 export {
   useLeadLists,
