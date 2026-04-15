@@ -29,6 +29,7 @@ export {
   useMarketingLists,
   useMarketingTemplates,
   useMarketingBroadcasts,
+  useMarketingListContacts,
   useCreateMarketingList,
   useCreateMarketingTemplate,
   useImportMarketingContactsCSV,
@@ -39,6 +40,7 @@ export {
 export type {
   MarketingList,
   MarketingTemplate,
+  MarketingListContact,
   MarketingContactCsvImportResponse,
   MarketingBroadcast,
   MarketingBroadcastMetrics,

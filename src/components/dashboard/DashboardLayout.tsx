@@ -17,9 +17,12 @@ const navigation = [
   { name: 'Accounts', href: '/dashboard/accounts', icon: 'accounts' },
   { name: 'Leads', href: '/dashboard/leads', icon: 'leads' },
   { name: 'Campaigns', href: '/dashboard/campaigns', icon: 'campaigns' },
-  { name: 'Email Marketing', href: '/dashboard/email-marketing', icon: 'emailMarketing' },
   { name: 'Inbox', href: '/dashboard/inbox', icon: 'inbox' },
   { name: 'Analytics', href: '/dashboard/analytics', icon: 'analytics' },
+];
+
+const featureNavigation = [
+  { name: 'Email Marketing', href: '/dashboard/email-marketing', icon: 'emailMarketing' },
 ];
 
 const bottomNavigation = [
@@ -163,6 +166,21 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           })}
         </nav>
 
+        {/* Feature Navigation */}
+        <div className="space-y-1 border-t border-[#E2E8F0] px-3 py-4">
+          {featureNavigation.map((item) => {
+            const isActive = currentPath === item.href || currentPath.startsWith(item.href);
+            return (
+              <NavItem
+                key={item.name}
+                item={item}
+                isActive={isActive}
+                collapsed={sidebarCollapsed}
+              />
+            );
+          })}
+        </div>
+
         {/* Bottom Navigation */}
         <div className="space-y-1 border-t border-[#E2E8F0] px-3 py-4">
           {bottomNavigation.map((item) => {
@@ -253,6 +271,16 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                 );
               })}
             </nav>
+
+            {/* Feature Navigation */}
+            <div className="space-y-1 border-t border-[#E2E8F0] px-3 py-4">
+              {featureNavigation.map((item) => {
+                const isActive = currentPath === item.href || currentPath.startsWith(item.href);
+                return (
+                  <NavItem key={item.name} item={item} isActive={isActive} collapsed={false} />
+                );
+              })}
+            </div>
 
             {/* Bottom Navigation */}
             <div className="space-y-1 border-t border-[#E2E8F0] px-3 py-4">

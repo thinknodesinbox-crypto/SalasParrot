@@ -21,6 +21,28 @@ interface MarketingListsResponse {
   total: number;
 }
 
+export interface MarketingListContact {
+  contact_id: string;
+  email: string;
+  first_name: string | null;
+  last_name: string | null;
+  timezone: string | null;
+  source: string;
+  contact_status: string;
+  membership_status: string;
+  subscribed_at: string | null;
+  unsubscribed_at: string | null;
+  created_at: string;
+  attributes: Record<string, string>;
+}
+
+interface MarketingListContactsResponse {
+  contacts: MarketingListContact[];
+  total: number;
+  page: number;
+  page_size: number;
+}
+
 export interface MarketingContactCsvImportResponse {
   list_id: string;
   created_contacts: number;
@@ -101,6 +123,13 @@ interface ImportMarketingContactsCSVData {
   list_name?: string;
 }
 
+interface ListContactsParams {
+  q?: string;
+  membership_status?: string;
+  page?: number;
+  page_size?: number;
+}
+
 interface CreateMarketingBroadcastData {
   workspace_id: string;
   list_id: string;
@@ -162,6 +191,36 @@ export const useCreateMarketingList = () => {
     onError: (error) => {
       throw new Error(getErrorMessage(error));
     },
+  });
+};
+
+export const useMarketingListContacts = (listId?: string, params?: ListContactsParams) => {
+  const normalizedParams = {
+    q: params?.q || undefined,
+    membership_status: params?.membership_status || undefined,
+    page: params?.page ?? 1,
+    page_size: params?.page_size ?? 25,
+  };
+
+  return useQuery({
+    queryKey: queryKeys.emailMarketing.listContacts(listId || '', normalizedParams),
+    queryFn: async () => {
+      if (!listId) {
+        return { contacts: [], total: 0, page: 1, page_size: normalizedParams.page_size };
+      }
+      const searchParams = new URLSearchParams();
+      if (normalizedParams.q) searchParams.append('q', normalizedParams.q);
+      if (normalizedParams.membership_status) {
+        searchParams.append('membership_status', normalizedParams.membership_status);
+      }
+      searchParams.append('page', String(normalizedParams.page));
+      searchParams.append('page_size', String(normalizedParams.page_size));
+      const response = await api.get<MarketingListContactsResponse>(
+        `/email-marketing/lists/${listId}/contacts?${searchParams.toString()}`
+      );
+      return response.data;
+    },
+    enabled: !!listId,
   });
 };
 

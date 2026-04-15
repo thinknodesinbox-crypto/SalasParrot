@@ -80,6 +80,10 @@ export const queryKeys = {
   emailMarketing: {
     all: ['email-marketing'] as const,
     lists: (workspaceId?: string) => ['email-marketing', 'lists', workspaceId] as const,
+    listContacts: (
+      listId: string,
+      params?: { q?: string; membership_status?: string; page?: number; page_size?: number }
+    ) => ['email-marketing', 'list-contacts', listId, params] as const,
     templates: (workspaceId?: string) => ['email-marketing', 'templates', workspaceId] as const,
     broadcasts: (workspaceId?: string) => ['email-marketing', 'broadcasts', workspaceId] as const,
     broadcastMetrics: (broadcastId: string) =>
