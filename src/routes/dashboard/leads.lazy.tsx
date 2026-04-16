@@ -1407,6 +1407,15 @@ export function ImportLeadsModal({
     !!currentJobId && step === 'processing',
     2000 // Poll every 2 seconds
   );
+  const isSearchFlow =
+    selectedMethod !== null &&
+    selectedMethod !== 'csv' &&
+    step === 'processing' &&
+    Boolean(currentJobId || selectedMethod === 'linkedin_people_search');
+  const searchStatusLabel =
+    (jobStatus?.processed_count || 0) > 0 || (jobStatus?.progress || 0) > 10
+      ? 'Fetching results...'
+      : 'Searching...';
 
   // Handle job completion
   useEffect(() => {
@@ -1613,7 +1622,9 @@ export function ImportLeadsModal({
                   : step === 'configure'
                     ? IMPORT_METHODS.find((m) => m.id === selectedMethod)?.title
                     : step === 'processing'
-                      ? 'Importing...'
+                      ? isSearchFlow
+                        ? searchStatusLabel
+                        : 'Importing...'
                       : 'Import Complete'}
               </h2>
               {step === 'method' && (
@@ -1765,11 +1776,19 @@ export function ImportLeadsModal({
                   transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
                   className="mx-auto mb-6 h-16 w-16 rounded-full border-4 border-[#E2E8F0] border-t-[#FF6B35]"
                 />
-                <h3 className="mb-2 text-lg font-semibold text-[#1E293B]">
-                  Importing your leads...
-                </h3>
+                <motion.h3
+                  animate={{ opacity: [0.55, 1, 0.55] }}
+                  transition={{ duration: 1.4, repeat: Infinity, ease: 'easeInOut' }}
+                  className="mb-2 text-lg font-semibold text-[#1E293B]"
+                >
+                  {isSearchFlow ? searchStatusLabel : 'Importing your leads...'}
+                </motion.h3>
                 <p className="mb-4 text-[#64748B]">
-                  This may take a moment depending on list size.
+                  {isSearchFlow
+                    ? (jobStatus?.processed_count || 0) > 0
+                      ? 'Parrot is pulling matching profiles and preparing the results for your list.'
+                      : 'Parrot is actively searching LinkedIn and gathering matching profiles.'
+                    : 'This may take a moment depending on list size.'}
                 </p>
 
                 {/* Progress info */}
@@ -1785,14 +1804,24 @@ export function ImportLeadsModal({
                       />
                     </div>
                     <div className="flex justify-between text-sm text-[#64748B]">
-                      <span>{jobStatus.processed_count} processed</span>
+                      <span>
+                        {isSearchFlow
+                          ? `${jobStatus.processed_count} results examined`
+                          : `${jobStatus.processed_count} processed`}
+                      </span>
                       <span>{Math.round(jobStatus.progress)}%</span>
                     </div>
                     <div className="mt-2 text-sm">
-                      <span className="text-[#22C55E]">{jobStatus.created_count} created</span>
+                      <span className="text-[#22C55E]">
+                        {isSearchFlow
+                          ? `${jobStatus.created_count} ready for import`
+                          : `${jobStatus.created_count} created`}
+                      </span>
                       {jobStatus.skipped_count > 0 && (
                         <span className="ml-3 text-[#94A3B8]">
-                          {jobStatus.skipped_count} skipped
+                          {isSearchFlow
+                            ? `${jobStatus.skipped_count} filtered out`
+                            : `${jobStatus.skipped_count} skipped`}
                         </span>
                       )}
                     </div>
@@ -2159,7 +2188,7 @@ function ImportMethodConfig({
             <circle cx="11" cy="11" r="8" />
             <path d="M21 21l-4.35-4.35" />
           </svg>
-          Search & Import
+          Search Leads
         </button>
       </div>
     );
