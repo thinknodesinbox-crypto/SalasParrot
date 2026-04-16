@@ -40,6 +40,184 @@ type ImportMethod =
   | 'linkedin_people_search'
   | 'paste_urls';
 
+type LeadCoreField =
+  | 'linkedin_url'
+  | 'email'
+  | 'first_name'
+  | 'last_name'
+  | 'company'
+  | 'title'
+  | 'headline'
+  | 'location';
+
+type LeadMappingTarget = LeadCoreField | '__keep__' | '__ignore__';
+
+type LeadMappingSuggestion = {
+  target: LeadMappingTarget;
+  confidence: 'high' | 'medium' | 'low';
+  score: number;
+  reason: string;
+};
+
+const LEAD_FIELD_SYNONYMS: Record<LeadCoreField, string[]> = {
+  linkedin_url: [
+    'linkedin url',
+    'linkedin profile',
+    'profile url',
+    'linkedin_profile',
+    'person linkedin url',
+    'li url',
+  ],
+  email: [
+    'email',
+    'email address',
+    'email id',
+    'business email',
+    'biz email',
+    'work email',
+    'work mail',
+    'contact email',
+  ],
+  first_name: ['first name', 'firstname', 'given name', 'forename', 'fname'],
+  last_name: ['last name', 'lastname', 'surname', 'family name', 'lname'],
+  company: ['company', 'company name', 'organization', 'employer', 'current company'],
+  title: ['title', 'job title', 'role', 'position'],
+  headline: ['headline', 'linkedin headline', 'profile headline'],
+  location: ['location', 'person location', 'city', 'region'],
+};
+
+function normalizeLeadHeader(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+function tokenizeLeadHeader(value: string): string[] {
+  return normalizeLeadHeader(value)
+    .split(' ')
+    .map((token) => token.trim())
+    .filter(Boolean);
+}
+
+function scoreLeadHeaderAgainstSynonym(header: string, synonym: string): number {
+  const normalizedHeader = normalizeLeadHeader(header);
+  const normalizedSynonym = normalizeLeadHeader(synonym);
+  if (!normalizedHeader || !normalizedSynonym) return 0;
+  if (normalizedHeader === normalizedSynonym) return 1;
+  if (
+    normalizedHeader.includes(normalizedSynonym) ||
+    normalizedSynonym.includes(normalizedHeader)
+  ) {
+    return 0.92;
+  }
+  const headerTokens = new Set(tokenizeLeadHeader(header));
+  const synonymTokens = tokenizeLeadHeader(synonym);
+  const overlap = synonymTokens.filter((token) => headerTokens.has(token)).length;
+  if (overlap === 0) return 0;
+  const tokenScore = overlap / synonymTokens.length;
+  const coverageBoost = overlap / Math.max(headerTokens.size, 1);
+  return Math.min(0.88, tokenScore * 0.7 + coverageBoost * 0.18);
+}
+
+function getLeadColumnSuggestion(header: string): LeadMappingSuggestion {
+  const normalizedHeader = normalizeLeadHeader(header);
+  let bestField: LeadCoreField | null = null;
+  let bestScore = 0;
+  let bestReason = 'Will stay as a custom field.';
+
+  (Object.entries(LEAD_FIELD_SYNONYMS) as Array<[LeadCoreField, string[]]>).forEach(
+    ([field, synonyms]) => {
+      synonyms.forEach((synonym) => {
+        const score = scoreLeadHeaderAgainstSynonym(header, synonym);
+        if (score > bestScore) {
+          bestScore = score;
+          bestField = field;
+          bestReason =
+            score >= 0.92
+              ? `Strong match for ${field.replace('_', ' ')}`
+              : `Likely ${field.replace('_', ' ')} based on similar wording`;
+        }
+      });
+    }
+  );
+
+  if (normalizedHeader.includes('mail') && bestScore < 0.9) {
+    bestField = 'email';
+    bestScore = 0.9;
+    bestReason = 'Detected email-style wording.';
+  }
+  if (
+    normalizedHeader.includes('linkedin') &&
+    normalizedHeader.includes('profile') &&
+    bestScore < 0.9
+  ) {
+    bestField = 'linkedin_url';
+    bestScore = 0.9;
+    bestReason = 'Detected LinkedIn profile-style wording.';
+  }
+
+  if (!bestField || bestScore < 0.45) {
+    return {
+      target: '__keep__',
+      confidence: 'low',
+      score: bestScore,
+      reason: 'No strong core-field match found, so this column will be kept as-is.',
+    };
+  }
+
+  return {
+    target: bestField,
+    confidence: bestScore >= 0.9 ? 'high' : bestScore >= 0.7 ? 'medium' : 'low',
+    score: bestScore,
+    reason: bestReason,
+  };
+}
+
+function detectLeadDelimiter(text: string): ',' | ';' | '\t' {
+  const firstLine = text.split(/\r?\n/).find((line) => line.trim()) || '';
+  const candidates: Array<',' | ';' | '\t'> = [',', ';', '\t'];
+  return candidates.reduce((best, candidate) => {
+    const bestCount = firstLine.split(best).length;
+    const candidateCount = firstLine.split(candidate).length;
+    return candidateCount > bestCount ? candidate : best;
+  }, ',');
+}
+
+function parseLeadDelimitedLine(line: string, delimiter: string): string[] {
+  const cells: string[] = [];
+  let current = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i += 1) {
+    const char = line[i];
+    const next = line[i + 1];
+    if (char === '"') {
+      if (inQuotes && next === '"') {
+        current += '"';
+        i += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+    if (char === delimiter && !inQuotes) {
+      cells.push(current.trim());
+      current = '';
+      continue;
+    }
+    current += char;
+  }
+  cells.push(current.trim());
+  return cells;
+}
+
+function escapeLeadCsvCell(value: string): string {
+  if (/[",\n]/.test(value)) {
+    return `"${value.replace(/"/g, '""')}"`;
+  }
+  return value;
+}
+
 const IMPORT_METHODS: {
   id: ImportMethod;
   title: string;
@@ -1719,6 +1897,13 @@ function ImportMethodConfig({
 }) {
   const [pastedUrls, setPastedUrls] = useState('');
   const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [csvPreviewHeaders, setCsvPreviewHeaders] = useState<string[]>([]);
+  const [csvPreviewRows, setCsvPreviewRows] = useState<string[][]>([]);
+  const [columnMapping, setColumnMapping] = useState<Record<string, LeadMappingTarget>>({});
+  const [mappingSuggestions, setMappingSuggestions] = useState<
+    Record<string, LeadMappingSuggestion>
+  >({});
+  const [mappingConfirmed, setMappingConfirmed] = useState(false);
   const [searchUrl, setSearchUrl] = useState('');
   const [keywords, setKeywords] = useState('');
   const [networkDistance, setNetworkDistance] = useState<(number | string)[]>([2, 3]);
@@ -1742,6 +1927,62 @@ function ImportMethodConfig({
       default:
         return 'classic';
     }
+  };
+
+  const parseCsvPreview = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = String(event.target?.result || '');
+      const delimiter = detectLeadDelimiter(text);
+      const lines = text
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean);
+      if (lines.length === 0) {
+        setCsvPreviewHeaders([]);
+        setCsvPreviewRows([]);
+        setColumnMapping({});
+        setMappingSuggestions({});
+        setMappingConfirmed(false);
+        return;
+      }
+      const headers = parseLeadDelimitedLine(lines[0], delimiter);
+      const rows = lines.slice(1, 6).map((line) => parseLeadDelimitedLine(line, delimiter));
+      const suggestions = Object.fromEntries(
+        headers.map((header) => [header, getLeadColumnSuggestion(header)])
+      );
+      setCsvPreviewHeaders(headers);
+      setCsvPreviewRows(rows);
+      setMappingSuggestions(suggestions);
+      setColumnMapping(
+        Object.fromEntries(headers.map((header) => [header, suggestions[header].target]))
+      );
+      setMappingConfirmed(false);
+    };
+    reader.readAsText(file);
+  };
+
+  const buildMappedLeadCsvFile = async (file: File, mapping: Record<string, LeadMappingTarget>) => {
+    const text = await file.text();
+    const delimiter = detectLeadDelimiter(text);
+    const lines = text
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+    if (lines.length === 0) return file;
+    const sourceHeaders = parseLeadDelimitedLine(lines[0], delimiter);
+    const keptIndices = sourceHeaders
+      .map((header, index) => ({ header, index, target: mapping[header] || '__keep__' }))
+      .filter((item) => item.target !== '__ignore__');
+    const mappedHeaders = keptIndices.map((item) =>
+      item.target === '__keep__' ? item.header : item.target
+    );
+    const remappedRows = lines.slice(1).map((line) => {
+      const cells = parseLeadDelimitedLine(line, delimiter);
+      return keptIndices.map((item) => escapeLeadCsvCell(cells[item.index] || '')).join(',');
+    });
+    const remapped = [mappedHeaders.map(escapeLeadCsvCell).join(','), ...remappedRows].join('\n');
+    return new File([remapped], file.name, { type: 'text/csv' });
   };
 
   // People Search
@@ -1945,7 +2186,19 @@ function ImportMethodConfig({
             ref={fileInputRef}
             type="file"
             accept=".csv"
-            onChange={(e) => setCsvFile(e.target.files?.[0] || null)}
+            onChange={(e) => {
+              const file = e.target.files?.[0] || null;
+              setCsvFile(file);
+              if (file) {
+                parseCsvPreview(file);
+              } else {
+                setCsvPreviewHeaders([]);
+                setCsvPreviewRows([]);
+                setColumnMapping({});
+                setMappingSuggestions({});
+                setMappingConfirmed(false);
+              }
+            }}
             className="hidden"
           />
           {csvFile ? (
@@ -2003,6 +2256,102 @@ function ImportMethodConfig({
           </div>
         </div>
 
+        {csvPreviewHeaders.length > 0 && (
+          <div className="rounded-xl border border-[#E2E8F0] bg-white p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-medium text-[#1E293B]">Review smart field mapping</p>
+                <p className="mt-1 text-xs text-[#64748B]">
+                  We auto-detected the most likely Parrot fields. Confirm before import.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setMappingConfirmed(true)}
+                className="rounded-lg border border-[#FF6B35] px-3 py-2 text-sm font-medium text-[#FF6B35] hover:bg-[#FFF7ED]"
+              >
+                Confirm Mapping
+              </button>
+            </div>
+
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              {csvPreviewHeaders.map((header) => (
+                <div key={header} className="rounded-lg border border-[#E2E8F0] p-3">
+                  <div className="text-xs uppercase tracking-wide text-[#64748B]">CSV column</div>
+                  <div className="mt-1 text-sm font-medium text-[#1E293B]">{header}</div>
+                  <div className="mt-2 flex items-center gap-2">
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide ${
+                        mappingSuggestions[header]?.confidence === 'high'
+                          ? 'bg-[#DCFCE7] text-[#166534]'
+                          : mappingSuggestions[header]?.confidence === 'medium'
+                            ? 'bg-[#FEF3C7] text-[#92400E]'
+                            : 'bg-[#E2E8F0] text-[#475569]'
+                      }`}
+                    >
+                      {mappingSuggestions[header]?.confidence || 'low'} confidence
+                    </span>
+                    <span className="text-[11px] text-[#64748B]">
+                      {mappingSuggestions[header]?.reason || 'Kept as custom field'}
+                    </span>
+                  </div>
+                  <select
+                    value={columnMapping[header] || '__keep__'}
+                    onChange={(e) => {
+                      setColumnMapping((current) => ({
+                        ...current,
+                        [header]: e.target.value as LeadMappingTarget,
+                      }));
+                      setMappingConfirmed(false);
+                    }}
+                    className="mt-2 w-full rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm focus:border-[#FF6B35] focus:outline-none"
+                  >
+                    <option value="linkedin_url">LinkedIn URL</option>
+                    <option value="email">Email</option>
+                    <option value="first_name">First name</option>
+                    <option value="last_name">Last name</option>
+                    <option value="company">Company</option>
+                    <option value="title">Title</option>
+                    <option value="headline">Headline</option>
+                    <option value="location">Location</option>
+                    <option value="__keep__">Keep as custom field</option>
+                    <option value="__ignore__">Ignore this column</option>
+                  </select>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-4 overflow-x-auto">
+              <table className="min-w-full text-left text-sm">
+                <thead>
+                  <tr className="border-b border-[#E2E8F0] text-[#64748B]">
+                    {csvPreviewHeaders.map((header) => (
+                      <th key={header} className="px-2 py-2 font-medium">
+                        {columnMapping[header] === '__keep__'
+                          ? header
+                          : columnMapping[header] === '__ignore__'
+                            ? `${header} (ignored)`
+                            : columnMapping[header] || header}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {csvPreviewRows.map((row, rowIndex) => (
+                    <tr key={rowIndex} className="border-b border-[#F1F5F9] text-[#1E293B]">
+                      {csvPreviewHeaders.map((_, colIndex) => (
+                        <td key={`${rowIndex}-${colIndex}`} className="px-2 py-2">
+                          {row[colIndex] || '—'}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
         {importError && (
           <div className="rounded-xl border border-[#EF4444]/20 bg-[#FEF2F2] p-3 text-sm text-[#EF4444]">
             <pre className="whitespace-pre-wrap font-sans">{importError}</pre>
@@ -2010,11 +2359,15 @@ function ImportMethodConfig({
         )}
 
         <button
-          onClick={() => csvFile && onCSVImport(csvFile)}
-          disabled={!csvFile || !listName.trim()}
+          onClick={async () => {
+            if (!csvFile) return;
+            const mappedFile = await buildMappedLeadCsvFile(csvFile, columnMapping);
+            onCSVImport(mappedFile);
+          }}
+          disabled={!csvFile || !listName.trim() || !mappingConfirmed}
           className="w-full rounded-xl bg-[#FF6B35] py-3.5 font-semibold text-white hover:bg-[#E85A2A] disabled:cursor-not-allowed disabled:opacity-50"
         >
-          Import Leads
+          {mappingConfirmed ? 'Import Leads' : 'Confirm mapping to import'}
         </button>
       </div>
     );

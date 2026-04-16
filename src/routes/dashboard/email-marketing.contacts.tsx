@@ -9,6 +9,166 @@ export const Route = createFileRoute('/dashboard/email-marketing/contacts')({
   component: EmailMarketingContactsPage,
 });
 
+type CoreField = 'email' | 'first_name' | 'last_name' | 'timezone';
+type MappingTarget = CoreField | '__keep__' | '__ignore__';
+
+type MappingSuggestion = {
+  target: MappingTarget;
+  confidence: 'high' | 'medium' | 'low';
+  score: number;
+  reason: string;
+};
+
+const FIELD_SYNONYMS: Record<CoreField, string[]> = {
+  email: [
+    'email',
+    'email address',
+    'email id',
+    'mail',
+    'work mail',
+    'work email',
+    'business email',
+    'biz email',
+    'professional email',
+    'office email',
+    'contact email',
+    'primary email',
+  ],
+  first_name: ['first name', 'firstname', 'given name', 'forename', 'fname'],
+  last_name: ['last name', 'lastname', 'surname', 'family name', 'lname'],
+  timezone: ['timezone', 'time zone', 'tz', 'local timezone'],
+};
+
+function normalizeHeader(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+function tokenize(value: string): string[] {
+  return normalizeHeader(value)
+    .split(' ')
+    .map((token) => token.trim())
+    .filter(Boolean);
+}
+
+function scoreHeaderAgainstSynonym(header: string, synonym: string): number {
+  const normalizedHeader = normalizeHeader(header);
+  const normalizedSynonym = normalizeHeader(synonym);
+  if (!normalizedHeader || !normalizedSynonym) return 0;
+  if (normalizedHeader === normalizedSynonym) return 1;
+  if (
+    normalizedHeader.includes(normalizedSynonym) ||
+    normalizedSynonym.includes(normalizedHeader)
+  ) {
+    return 0.92;
+  }
+
+  const headerTokens = new Set(tokenize(header));
+  const synonymTokens = tokenize(synonym);
+  const overlap = synonymTokens.filter((token) => headerTokens.has(token)).length;
+  if (overlap === 0) return 0;
+
+  const tokenScore = overlap / synonymTokens.length;
+  const coverageBoost = overlap / Math.max(headerTokens.size, 1);
+  return Math.min(0.88, tokenScore * 0.7 + coverageBoost * 0.18);
+}
+
+function getSmartColumnSuggestion(header: string): MappingSuggestion {
+  const normalizedHeader = normalizeHeader(header);
+  let bestField: CoreField | null = null;
+  let bestScore = 0;
+  let bestReason = 'Will keep as a custom attribute.';
+
+  (Object.entries(FIELD_SYNONYMS) as Array<[CoreField, string[]]>).forEach(([field, synonyms]) => {
+    synonyms.forEach((synonym) => {
+      const score = scoreHeaderAgainstSynonym(header, synonym);
+      if (score > bestScore) {
+        bestScore = score;
+        bestField = field;
+        bestReason =
+          score >= 0.92
+            ? `Strong match for ${field.replace('_', ' ')}`
+            : `Likely ${field.replace('_', ' ')} based on similar wording`;
+      }
+    });
+  });
+
+  if (
+    normalizedHeader.includes('mail') &&
+    !normalizedHeader.includes('first') &&
+    !normalizedHeader.includes('last')
+  ) {
+    if (bestScore < 0.9) {
+      bestField = 'email';
+      bestScore = 0.9;
+      bestReason = 'Detected email-style wording.';
+    }
+  }
+
+  if (!bestField || bestScore < 0.45) {
+    return {
+      target: '__keep__',
+      confidence: 'low',
+      score: bestScore,
+      reason: 'No strong core-field match found, so this will stay as a custom attribute.',
+    };
+  }
+
+  return {
+    target: bestField,
+    confidence: bestScore >= 0.9 ? 'high' : bestScore >= 0.7 ? 'medium' : 'low',
+    score: bestScore,
+    reason: bestReason,
+  };
+}
+
+function detectDelimiter(text: string): ',' | ';' | '\t' {
+  const firstLine = text.split(/\r?\n/).find((line) => line.trim()) || '';
+  const candidates: Array<',' | ';' | '\t'> = [',', ';', '\t'];
+  return candidates.reduce((best, candidate) => {
+    const bestCount = firstLine.split(best).length;
+    const candidateCount = firstLine.split(candidate).length;
+    return candidateCount > bestCount ? candidate : best;
+  }, ',');
+}
+
+function parseDelimitedLine(line: string, delimiter: string): string[] {
+  const cells: string[] = [];
+  let current = '';
+  let inQuotes = false;
+
+  for (let i = 0; i < line.length; i += 1) {
+    const char = line[i];
+    const next = line[i + 1];
+    if (char === '"') {
+      if (inQuotes && next === '"') {
+        current += '"';
+        i += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+    if (char === delimiter && !inQuotes) {
+      cells.push(current.trim());
+      current = '';
+      continue;
+    }
+    current += char;
+  }
+  cells.push(current.trim());
+  return cells;
+}
+
+function escapeCsvCell(value: string): string {
+  if (/[",\n]/.test(value)) {
+    return `"${value.replace(/"/g, '""')}"`;
+  }
+  return value;
+}
+
 function EmailMarketingContactsPage() {
   const { currentWorkspace } = useCurrentWorkspace();
   const workspaceId = currentWorkspace?.id || '';
@@ -29,6 +189,10 @@ function EmailMarketingContactsPage() {
   >([]);
   const [duplicatePolicy, setDuplicatePolicy] = useState<'skip' | 'update_merge'>('update_merge');
   const [replaceAttributes, setReplaceAttributes] = useState(false);
+  const [mappingSuggestions, setMappingSuggestions] = useState<Record<string, MappingSuggestion>>(
+    {}
+  );
+  const [mappingConfirmed, setMappingConfirmed] = useState(false);
 
   const canSubmitImport =
     workspaceId &&
@@ -40,6 +204,7 @@ function EmailMarketingContactsPage() {
     const reader = new FileReader();
     reader.onload = (event) => {
       const text = String(event.target?.result || '');
+      const delimiter = detectDelimiter(text);
       const lines = text
         .split(/\r?\n/)
         .map((line) => line.trim())
@@ -49,28 +214,18 @@ function EmailMarketingContactsPage() {
         setCsvPreviewRows([]);
         return;
       }
-      const headers = lines[0].split(',').map((cell) => cell.trim());
-      const rows = lines.slice(1, 6).map((line) => line.split(',').map((cell) => cell.trim()));
+      const headers = parseDelimitedLine(lines[0], delimiter);
+      const rows = lines.slice(1, 6).map((line) => parseDelimitedLine(line, delimiter));
       setCsvPreviewHeaders(headers);
       setCsvPreviewRows(rows);
-      setColumnMapping(
-        Object.fromEntries(
-          headers.map((header) => {
-            const normalized = header.toLowerCase().replace(/\s+/g, '_');
-            const defaultTarget =
-              normalized === 'email' || normalized === 'email_address'
-                ? 'email'
-                : normalized === 'first_name' || normalized === 'firstname'
-                  ? 'first_name'
-                  : normalized === 'last_name' || normalized === 'lastname'
-                    ? 'last_name'
-                    : normalized === 'timezone' || normalized === 'time_zone'
-                      ? 'timezone'
-                      : header;
-            return [header, defaultTarget];
-          })
-        )
+      const suggestions = Object.fromEntries(
+        headers.map((header) => [header, getSmartColumnSuggestion(header)])
       );
+      setMappingSuggestions(suggestions);
+      setColumnMapping(
+        Object.fromEntries(headers.map((header) => [header, suggestions[header].target]))
+      );
+      setMappingConfirmed(false);
     };
     reader.readAsText(file);
   };
@@ -79,6 +234,8 @@ function EmailMarketingContactsPage() {
     setCsvFile(file);
     setLastImportErrors([]);
     setLastImportIssues([]);
+    setMappingSuggestions({});
+    setMappingConfirmed(false);
     if (file) {
       parseCsvPreview(file);
       return;
@@ -107,6 +264,7 @@ function EmailMarketingContactsPage() {
       setImportListId(result.list_id);
       setLastImportErrors(result.errors || []);
       setLastImportIssues(result.issues || []);
+      setMappingConfirmed(false);
       showSuccessToast(
         'Contacts imported',
         `${result.created_contacts} new, ${result.updated_contacts} updated, ${result.skipped} skipped.`
@@ -142,14 +300,24 @@ function EmailMarketingContactsPage() {
 
   const buildMappedCsvFile = async (file: File, mapping: Record<string, string>) => {
     const text = await file.text();
+    const delimiter = detectDelimiter(text);
     const lines = text
       .split(/\r?\n/)
       .map((line) => line.trim())
       .filter(Boolean);
     if (lines.length === 0) return file;
-    const sourceHeaders = lines[0].split(',').map((cell) => cell.trim());
-    const mappedHeaders = sourceHeaders.map((header) => mapping[header] || header);
-    const remapped = [mappedHeaders.join(','), ...lines.slice(1)].join('\n');
+    const sourceHeaders = parseDelimitedLine(lines[0], delimiter);
+    const keptIndices = sourceHeaders
+      .map((header, index) => ({ header, index, target: mapping[header] || '__keep__' }))
+      .filter((item) => item.target !== '__ignore__');
+    const mappedHeaders = keptIndices.map((item) =>
+      item.target === '__keep__' ? item.header : item.target
+    );
+    const remappedRows = lines.slice(1).map((line) => {
+      const cells = parseDelimitedLine(line, delimiter);
+      return keptIndices.map((item) => escapeCsvCell(cells[item.index] || '')).join(',');
+    });
+    const remapped = [mappedHeaders.map(escapeCsvCell).join(','), ...remappedRows].join('\n');
     return new File([remapped], file.name, { type: 'text/csv' });
   };
 
@@ -186,7 +354,7 @@ function EmailMarketingContactsPage() {
           <input
             ref={fileInputRef}
             type="file"
-            accept=".csv"
+            accept=".csv,.tsv,.txt"
             onChange={(e) => applySelectedCsvFile(e.target.files?.[0] || null)}
             className="hidden"
           />
@@ -259,10 +427,14 @@ function EmailMarketingContactsPage() {
 
           <button
             type="submit"
-            disabled={!canSubmitImport || importCsvMutation.isPending}
+            disabled={!canSubmitImport || importCsvMutation.isPending || !mappingConfirmed}
             className="rounded-lg bg-[#0F766E] px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {importCsvMutation.isPending ? 'Importing...' : 'Import CSV'}
+            {importCsvMutation.isPending
+              ? 'Importing...'
+              : mappingConfirmed
+                ? 'Import CSV'
+                : 'Confirm mapping to import'}
           </button>
         </form>
       </div>
@@ -280,21 +452,55 @@ function EmailMarketingContactsPage() {
                 <div key={header} className="rounded-lg border border-[#E2E8F0] p-3">
                   <div className="text-xs uppercase tracking-wide text-[#64748B]">CSV column</div>
                   <div className="mt-1 text-sm font-medium text-[#1E293B]">{header}</div>
+                  <div className="mt-2 flex items-center gap-2">
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide ${
+                        mappingSuggestions[header]?.confidence === 'high'
+                          ? 'bg-[#DCFCE7] text-[#166534]'
+                          : mappingSuggestions[header]?.confidence === 'medium'
+                            ? 'bg-[#FEF3C7] text-[#92400E]'
+                            : 'bg-[#E2E8F0] text-[#475569]'
+                      }`}
+                    >
+                      {mappingSuggestions[header]?.confidence || 'low'} confidence
+                    </span>
+                    <span className="text-[11px] text-[#64748B]">
+                      {mappingSuggestions[header]?.reason || 'Custom attribute by default'}
+                    </span>
+                  </div>
                   <select
-                    value={columnMapping[header] || header}
-                    onChange={(e) =>
-                      setColumnMapping((current) => ({ ...current, [header]: e.target.value }))
-                    }
+                    value={columnMapping[header] || '__keep__'}
+                    onChange={(e) => {
+                      const nextValue = e.target.value as MappingTarget;
+                      setColumnMapping((current) => ({ ...current, [header]: nextValue }));
+                      setMappingConfirmed(false);
+                    }}
                     className="mt-2 w-full rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm focus:border-[#FF6B35] focus:outline-none"
                   >
                     <option value="email">Email</option>
                     <option value="first_name">First name</option>
                     <option value="last_name">Last name</option>
                     <option value="timezone">Timezone</option>
-                    <option value={header}>Keep original field</option>
+                    <option value="__keep__">Keep as custom attribute</option>
+                    <option value="__ignore__">Ignore this column</option>
                   </select>
                 </div>
               ))}
+            </div>
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3">
+              <div>
+                <div className="text-sm font-medium text-[#1E293B]">Review auto-mapping</div>
+                <div className="mt-1 text-xs text-[#64748B]">
+                  Most columns should already be correct. Confirm once you’re satisfied.
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setMappingConfirmed(true)}
+                className="rounded-lg border border-[#FF6B35] px-4 py-2 text-sm font-medium text-[#FF6B35] hover:bg-[#FFF7ED]"
+              >
+                Confirm mapping
+              </button>
             </div>
             <div className="mt-3 overflow-x-auto">
               <table className="min-w-full text-left text-sm">
@@ -302,7 +508,11 @@ function EmailMarketingContactsPage() {
                   <tr className="border-b border-[#E2E8F0] text-[#64748B]">
                     {csvPreviewHeaders.map((header) => (
                       <th key={header} className="px-2 py-2 font-medium">
-                        {columnMapping[header] || header}
+                        {columnMapping[header] === '__keep__'
+                          ? header
+                          : columnMapping[header] === '__ignore__'
+                            ? `${header} (ignored)`
+                            : columnMapping[header] || header}
                       </th>
                     ))}
                   </tr>
