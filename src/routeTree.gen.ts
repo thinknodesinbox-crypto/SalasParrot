@@ -40,6 +40,14 @@ import { Route as DashboardAccountsRouteImport } from './routes/dashboard/accoun
 import { Route as AdminUsersRouteImport } from './routes/admin/users'
 import { Route as AdminPartnersRouteImport } from './routes/admin/partners'
 import { Route as AcceptInviteTokenRouteImport } from './routes/accept-invite.$token'
+import { Route as DashboardEmailMarketingIndexRouteImport } from './routes/dashboard/email-marketing.index'
+import { Route as DashboardEmailMarketingTemplatesRouteImport } from './routes/dashboard/email-marketing.templates'
+import { Route as DashboardEmailMarketingSuppressionsRouteImport } from './routes/dashboard/email-marketing.suppressions'
+import { Route as DashboardEmailMarketingListsRouteImport } from './routes/dashboard/email-marketing.lists'
+import { Route as DashboardEmailMarketingContactsRouteImport } from './routes/dashboard/email-marketing.contacts'
+import { Route as DashboardEmailMarketingBroadcastsRouteImport } from './routes/dashboard/email-marketing.broadcasts'
+import { Route as DashboardEmailMarketingListsListIdRouteImport } from './routes/dashboard/email-marketing.lists.$listId'
+import { Route as DashboardEmailMarketingContactsContactIdRouteImport } from './routes/dashboard/email-marketing.contacts.$contactId'
 
 const TermsRoute = TermsRouteImport.update({
   id: '/terms',
@@ -141,7 +149,9 @@ const DashboardSettingsRoute = DashboardSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
   getParentRoute: () => DashboardRoute,
-} as any)
+} as any).lazy(() =>
+  import('./routes/dashboard/settings.lazy').then((d) => d.Route),
+)
 const DashboardNotificationsRoute = DashboardNotificationsRouteImport.update({
   id: '/notifications',
   path: '/notifications',
@@ -151,12 +161,16 @@ const DashboardLeadsRoute = DashboardLeadsRouteImport.update({
   id: '/leads',
   path: '/leads',
   getParentRoute: () => DashboardRoute,
-} as any)
+} as any).lazy(() =>
+  import('./routes/dashboard/leads.lazy').then((d) => d.Route),
+)
 const DashboardInboxRoute = DashboardInboxRouteImport.update({
   id: '/inbox',
   path: '/inbox',
   getParentRoute: () => DashboardRoute,
-} as any)
+} as any).lazy(() =>
+  import('./routes/dashboard/inbox.lazy').then((d) => d.Route),
+)
 const DashboardHelpRoute = DashboardHelpRouteImport.update({
   id: '/help',
   path: '/help',
@@ -166,22 +180,30 @@ const DashboardEmailMarketingRoute = DashboardEmailMarketingRouteImport.update({
   id: '/email-marketing',
   path: '/email-marketing',
   getParentRoute: () => DashboardRoute,
-} as any)
+} as any).lazy(() =>
+  import('./routes/dashboard/email-marketing.lazy').then((d) => d.Route),
+)
 const DashboardCampaignsRoute = DashboardCampaignsRouteImport.update({
   id: '/campaigns',
   path: '/campaigns',
   getParentRoute: () => DashboardRoute,
-} as any)
+} as any).lazy(() =>
+  import('./routes/dashboard/campaigns.lazy').then((d) => d.Route),
+)
 const DashboardAnalyticsRoute = DashboardAnalyticsRouteImport.update({
   id: '/analytics',
   path: '/analytics',
   getParentRoute: () => DashboardRoute,
-} as any)
+} as any).lazy(() =>
+  import('./routes/dashboard/analytics.lazy').then((d) => d.Route),
+)
 const DashboardAccountsRoute = DashboardAccountsRouteImport.update({
   id: '/accounts',
   path: '/accounts',
   getParentRoute: () => DashboardRoute,
-} as any)
+} as any).lazy(() =>
+  import('./routes/dashboard/accounts.lazy').then((d) => d.Route),
+)
 const AdminUsersRoute = AdminUsersRouteImport.update({
   id: '/users',
   path: '/users',
@@ -197,6 +219,54 @@ const AcceptInviteTokenRoute = AcceptInviteTokenRouteImport.update({
   path: '/accept-invite/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DashboardEmailMarketingIndexRoute =
+  DashboardEmailMarketingIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => DashboardEmailMarketingRoute,
+  } as any)
+const DashboardEmailMarketingTemplatesRoute =
+  DashboardEmailMarketingTemplatesRouteImport.update({
+    id: '/templates',
+    path: '/templates',
+    getParentRoute: () => DashboardEmailMarketingRoute,
+  } as any)
+const DashboardEmailMarketingSuppressionsRoute =
+  DashboardEmailMarketingSuppressionsRouteImport.update({
+    id: '/suppressions',
+    path: '/suppressions',
+    getParentRoute: () => DashboardEmailMarketingRoute,
+  } as any)
+const DashboardEmailMarketingListsRoute =
+  DashboardEmailMarketingListsRouteImport.update({
+    id: '/lists',
+    path: '/lists',
+    getParentRoute: () => DashboardEmailMarketingRoute,
+  } as any)
+const DashboardEmailMarketingContactsRoute =
+  DashboardEmailMarketingContactsRouteImport.update({
+    id: '/contacts',
+    path: '/contacts',
+    getParentRoute: () => DashboardEmailMarketingRoute,
+  } as any)
+const DashboardEmailMarketingBroadcastsRoute =
+  DashboardEmailMarketingBroadcastsRouteImport.update({
+    id: '/broadcasts',
+    path: '/broadcasts',
+    getParentRoute: () => DashboardEmailMarketingRoute,
+  } as any)
+const DashboardEmailMarketingListsListIdRoute =
+  DashboardEmailMarketingListsListIdRouteImport.update({
+    id: '/$listId',
+    path: '/$listId',
+    getParentRoute: () => DashboardEmailMarketingListsRoute,
+  } as any)
+const DashboardEmailMarketingContactsContactIdRoute =
+  DashboardEmailMarketingContactsContactIdRouteImport.update({
+    id: '/$contactId',
+    path: '/$contactId',
+    getParentRoute: () => DashboardEmailMarketingContactsRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -219,7 +289,7 @@ export interface FileRoutesByFullPath {
   '/dashboard/accounts': typeof DashboardAccountsRoute
   '/dashboard/analytics': typeof DashboardAnalyticsRoute
   '/dashboard/campaigns': typeof DashboardCampaignsRoute
-  '/dashboard/email-marketing': typeof DashboardEmailMarketingRoute
+  '/dashboard/email-marketing': typeof DashboardEmailMarketingRouteWithChildren
   '/dashboard/help': typeof DashboardHelpRoute
   '/dashboard/inbox': typeof DashboardInboxRoute
   '/dashboard/leads': typeof DashboardLeadsRoute
@@ -230,6 +300,14 @@ export interface FileRoutesByFullPath {
   '/openlists/pricing': typeof OpenlistsPricingRoute
   '/admin/': typeof AdminIndexRoute
   '/dashboard/': typeof DashboardIndexRoute
+  '/dashboard/email-marketing/broadcasts': typeof DashboardEmailMarketingBroadcastsRoute
+  '/dashboard/email-marketing/contacts': typeof DashboardEmailMarketingContactsRouteWithChildren
+  '/dashboard/email-marketing/lists': typeof DashboardEmailMarketingListsRouteWithChildren
+  '/dashboard/email-marketing/suppressions': typeof DashboardEmailMarketingSuppressionsRoute
+  '/dashboard/email-marketing/templates': typeof DashboardEmailMarketingTemplatesRoute
+  '/dashboard/email-marketing/': typeof DashboardEmailMarketingIndexRoute
+  '/dashboard/email-marketing/contacts/$contactId': typeof DashboardEmailMarketingContactsContactIdRoute
+  '/dashboard/email-marketing/lists/$listId': typeof DashboardEmailMarketingListsListIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -250,7 +328,6 @@ export interface FileRoutesByTo {
   '/dashboard/accounts': typeof DashboardAccountsRoute
   '/dashboard/analytics': typeof DashboardAnalyticsRoute
   '/dashboard/campaigns': typeof DashboardCampaignsRoute
-  '/dashboard/email-marketing': typeof DashboardEmailMarketingRoute
   '/dashboard/help': typeof DashboardHelpRoute
   '/dashboard/inbox': typeof DashboardInboxRoute
   '/dashboard/leads': typeof DashboardLeadsRoute
@@ -261,6 +338,14 @@ export interface FileRoutesByTo {
   '/openlists/pricing': typeof OpenlistsPricingRoute
   '/admin': typeof AdminIndexRoute
   '/dashboard': typeof DashboardIndexRoute
+  '/dashboard/email-marketing/broadcasts': typeof DashboardEmailMarketingBroadcastsRoute
+  '/dashboard/email-marketing/contacts': typeof DashboardEmailMarketingContactsRouteWithChildren
+  '/dashboard/email-marketing/lists': typeof DashboardEmailMarketingListsRouteWithChildren
+  '/dashboard/email-marketing/suppressions': typeof DashboardEmailMarketingSuppressionsRoute
+  '/dashboard/email-marketing/templates': typeof DashboardEmailMarketingTemplatesRoute
+  '/dashboard/email-marketing': typeof DashboardEmailMarketingIndexRoute
+  '/dashboard/email-marketing/contacts/$contactId': typeof DashboardEmailMarketingContactsContactIdRoute
+  '/dashboard/email-marketing/lists/$listId': typeof DashboardEmailMarketingListsListIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -284,7 +369,7 @@ export interface FileRoutesById {
   '/dashboard/accounts': typeof DashboardAccountsRoute
   '/dashboard/analytics': typeof DashboardAnalyticsRoute
   '/dashboard/campaigns': typeof DashboardCampaignsRoute
-  '/dashboard/email-marketing': typeof DashboardEmailMarketingRoute
+  '/dashboard/email-marketing': typeof DashboardEmailMarketingRouteWithChildren
   '/dashboard/help': typeof DashboardHelpRoute
   '/dashboard/inbox': typeof DashboardInboxRoute
   '/dashboard/leads': typeof DashboardLeadsRoute
@@ -295,6 +380,14 @@ export interface FileRoutesById {
   '/openlists/pricing': typeof OpenlistsPricingRoute
   '/admin/': typeof AdminIndexRoute
   '/dashboard/': typeof DashboardIndexRoute
+  '/dashboard/email-marketing/broadcasts': typeof DashboardEmailMarketingBroadcastsRoute
+  '/dashboard/email-marketing/contacts': typeof DashboardEmailMarketingContactsRouteWithChildren
+  '/dashboard/email-marketing/lists': typeof DashboardEmailMarketingListsRouteWithChildren
+  '/dashboard/email-marketing/suppressions': typeof DashboardEmailMarketingSuppressionsRoute
+  '/dashboard/email-marketing/templates': typeof DashboardEmailMarketingTemplatesRoute
+  '/dashboard/email-marketing/': typeof DashboardEmailMarketingIndexRoute
+  '/dashboard/email-marketing/contacts/$contactId': typeof DashboardEmailMarketingContactsContactIdRoute
+  '/dashboard/email-marketing/lists/$listId': typeof DashboardEmailMarketingListsListIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -330,6 +423,14 @@ export interface FileRouteTypes {
     | '/openlists/pricing'
     | '/admin/'
     | '/dashboard/'
+    | '/dashboard/email-marketing/broadcasts'
+    | '/dashboard/email-marketing/contacts'
+    | '/dashboard/email-marketing/lists'
+    | '/dashboard/email-marketing/suppressions'
+    | '/dashboard/email-marketing/templates'
+    | '/dashboard/email-marketing/'
+    | '/dashboard/email-marketing/contacts/$contactId'
+    | '/dashboard/email-marketing/lists/$listId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -350,7 +451,6 @@ export interface FileRouteTypes {
     | '/dashboard/accounts'
     | '/dashboard/analytics'
     | '/dashboard/campaigns'
-    | '/dashboard/email-marketing'
     | '/dashboard/help'
     | '/dashboard/inbox'
     | '/dashboard/leads'
@@ -361,6 +461,14 @@ export interface FileRouteTypes {
     | '/openlists/pricing'
     | '/admin'
     | '/dashboard'
+    | '/dashboard/email-marketing/broadcasts'
+    | '/dashboard/email-marketing/contacts'
+    | '/dashboard/email-marketing/lists'
+    | '/dashboard/email-marketing/suppressions'
+    | '/dashboard/email-marketing/templates'
+    | '/dashboard/email-marketing'
+    | '/dashboard/email-marketing/contacts/$contactId'
+    | '/dashboard/email-marketing/lists/$listId'
   id:
     | '__root__'
     | '/'
@@ -394,6 +502,14 @@ export interface FileRouteTypes {
     | '/openlists/pricing'
     | '/admin/'
     | '/dashboard/'
+    | '/dashboard/email-marketing/broadcasts'
+    | '/dashboard/email-marketing/contacts'
+    | '/dashboard/email-marketing/lists'
+    | '/dashboard/email-marketing/suppressions'
+    | '/dashboard/email-marketing/templates'
+    | '/dashboard/email-marketing/'
+    | '/dashboard/email-marketing/contacts/$contactId'
+    | '/dashboard/email-marketing/lists/$listId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -634,6 +750,62 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AcceptInviteTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/dashboard/email-marketing/': {
+      id: '/dashboard/email-marketing/'
+      path: '/'
+      fullPath: '/dashboard/email-marketing/'
+      preLoaderRoute: typeof DashboardEmailMarketingIndexRouteImport
+      parentRoute: typeof DashboardEmailMarketingRoute
+    }
+    '/dashboard/email-marketing/templates': {
+      id: '/dashboard/email-marketing/templates'
+      path: '/templates'
+      fullPath: '/dashboard/email-marketing/templates'
+      preLoaderRoute: typeof DashboardEmailMarketingTemplatesRouteImport
+      parentRoute: typeof DashboardEmailMarketingRoute
+    }
+    '/dashboard/email-marketing/suppressions': {
+      id: '/dashboard/email-marketing/suppressions'
+      path: '/suppressions'
+      fullPath: '/dashboard/email-marketing/suppressions'
+      preLoaderRoute: typeof DashboardEmailMarketingSuppressionsRouteImport
+      parentRoute: typeof DashboardEmailMarketingRoute
+    }
+    '/dashboard/email-marketing/lists': {
+      id: '/dashboard/email-marketing/lists'
+      path: '/lists'
+      fullPath: '/dashboard/email-marketing/lists'
+      preLoaderRoute: typeof DashboardEmailMarketingListsRouteImport
+      parentRoute: typeof DashboardEmailMarketingRoute
+    }
+    '/dashboard/email-marketing/contacts': {
+      id: '/dashboard/email-marketing/contacts'
+      path: '/contacts'
+      fullPath: '/dashboard/email-marketing/contacts'
+      preLoaderRoute: typeof DashboardEmailMarketingContactsRouteImport
+      parentRoute: typeof DashboardEmailMarketingRoute
+    }
+    '/dashboard/email-marketing/broadcasts': {
+      id: '/dashboard/email-marketing/broadcasts'
+      path: '/broadcasts'
+      fullPath: '/dashboard/email-marketing/broadcasts'
+      preLoaderRoute: typeof DashboardEmailMarketingBroadcastsRouteImport
+      parentRoute: typeof DashboardEmailMarketingRoute
+    }
+    '/dashboard/email-marketing/lists/$listId': {
+      id: '/dashboard/email-marketing/lists/$listId'
+      path: '/$listId'
+      fullPath: '/dashboard/email-marketing/lists/$listId'
+      preLoaderRoute: typeof DashboardEmailMarketingListsListIdRouteImport
+      parentRoute: typeof DashboardEmailMarketingListsRoute
+    }
+    '/dashboard/email-marketing/contacts/$contactId': {
+      id: '/dashboard/email-marketing/contacts/$contactId'
+      path: '/$contactId'
+      fullPath: '/dashboard/email-marketing/contacts/$contactId'
+      preLoaderRoute: typeof DashboardEmailMarketingContactsContactIdRouteImport
+      parentRoute: typeof DashboardEmailMarketingContactsRoute
+    }
   }
 }
 
@@ -651,11 +823,70 @@ const AdminRouteChildren: AdminRouteChildren = {
 
 const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
 
+interface DashboardEmailMarketingContactsRouteChildren {
+  DashboardEmailMarketingContactsContactIdRoute: typeof DashboardEmailMarketingContactsContactIdRoute
+}
+
+const DashboardEmailMarketingContactsRouteChildren: DashboardEmailMarketingContactsRouteChildren =
+  {
+    DashboardEmailMarketingContactsContactIdRoute:
+      DashboardEmailMarketingContactsContactIdRoute,
+  }
+
+const DashboardEmailMarketingContactsRouteWithChildren =
+  DashboardEmailMarketingContactsRoute._addFileChildren(
+    DashboardEmailMarketingContactsRouteChildren,
+  )
+
+interface DashboardEmailMarketingListsRouteChildren {
+  DashboardEmailMarketingListsListIdRoute: typeof DashboardEmailMarketingListsListIdRoute
+}
+
+const DashboardEmailMarketingListsRouteChildren: DashboardEmailMarketingListsRouteChildren =
+  {
+    DashboardEmailMarketingListsListIdRoute:
+      DashboardEmailMarketingListsListIdRoute,
+  }
+
+const DashboardEmailMarketingListsRouteWithChildren =
+  DashboardEmailMarketingListsRoute._addFileChildren(
+    DashboardEmailMarketingListsRouteChildren,
+  )
+
+interface DashboardEmailMarketingRouteChildren {
+  DashboardEmailMarketingBroadcastsRoute: typeof DashboardEmailMarketingBroadcastsRoute
+  DashboardEmailMarketingContactsRoute: typeof DashboardEmailMarketingContactsRouteWithChildren
+  DashboardEmailMarketingListsRoute: typeof DashboardEmailMarketingListsRouteWithChildren
+  DashboardEmailMarketingSuppressionsRoute: typeof DashboardEmailMarketingSuppressionsRoute
+  DashboardEmailMarketingTemplatesRoute: typeof DashboardEmailMarketingTemplatesRoute
+  DashboardEmailMarketingIndexRoute: typeof DashboardEmailMarketingIndexRoute
+}
+
+const DashboardEmailMarketingRouteChildren: DashboardEmailMarketingRouteChildren =
+  {
+    DashboardEmailMarketingBroadcastsRoute:
+      DashboardEmailMarketingBroadcastsRoute,
+    DashboardEmailMarketingContactsRoute:
+      DashboardEmailMarketingContactsRouteWithChildren,
+    DashboardEmailMarketingListsRoute:
+      DashboardEmailMarketingListsRouteWithChildren,
+    DashboardEmailMarketingSuppressionsRoute:
+      DashboardEmailMarketingSuppressionsRoute,
+    DashboardEmailMarketingTemplatesRoute:
+      DashboardEmailMarketingTemplatesRoute,
+    DashboardEmailMarketingIndexRoute: DashboardEmailMarketingIndexRoute,
+  }
+
+const DashboardEmailMarketingRouteWithChildren =
+  DashboardEmailMarketingRoute._addFileChildren(
+    DashboardEmailMarketingRouteChildren,
+  )
+
 interface DashboardRouteChildren {
   DashboardAccountsRoute: typeof DashboardAccountsRoute
   DashboardAnalyticsRoute: typeof DashboardAnalyticsRoute
   DashboardCampaignsRoute: typeof DashboardCampaignsRoute
-  DashboardEmailMarketingRoute: typeof DashboardEmailMarketingRoute
+  DashboardEmailMarketingRoute: typeof DashboardEmailMarketingRouteWithChildren
   DashboardHelpRoute: typeof DashboardHelpRoute
   DashboardInboxRoute: typeof DashboardInboxRoute
   DashboardLeadsRoute: typeof DashboardLeadsRoute
@@ -668,7 +899,7 @@ const DashboardRouteChildren: DashboardRouteChildren = {
   DashboardAccountsRoute: DashboardAccountsRoute,
   DashboardAnalyticsRoute: DashboardAnalyticsRoute,
   DashboardCampaignsRoute: DashboardCampaignsRoute,
-  DashboardEmailMarketingRoute: DashboardEmailMarketingRoute,
+  DashboardEmailMarketingRoute: DashboardEmailMarketingRouteWithChildren,
   DashboardHelpRoute: DashboardHelpRoute,
   DashboardInboxRoute: DashboardInboxRoute,
   DashboardLeadsRoute: DashboardLeadsRoute,

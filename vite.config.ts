@@ -11,6 +11,32 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return undefined;
+
+          if (id.includes('@tiptap/')) return 'tiptap';
+          if (
+            id.includes('@tanstack/react-router') ||
+            id.includes('@tanstack/router-') ||
+            id.includes('@tanstack/history')
+          ) {
+            return 'tanstack-router';
+          }
+          if (id.includes('@tanstack/react-query') || id.includes('@tanstack/query-core')) {
+            return 'tanstack-query';
+          }
+          if (id.includes('framer-motion')) return 'framer-motion';
+          if (id.includes('react-dom') || id.includes('/react/')) return 'react-vendor';
+          if (id.includes('lucide-react') || id.includes('dompurify')) return 'ui-vendor';
+
+          return undefined;
+        },
+      },
+    },
+  },
   test: {
     globals: true,
     environment: 'jsdom',

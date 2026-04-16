@@ -1,7 +1,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState, useCallback, useRef } from 'react';
 import { SEQUENCE_TEMPLATES } from './sequenceTemplates';
-import { RichTextEditor } from '@/components/ui/RichTextEditor';
+import { LazyRichTextEditor } from '@/components/ui/LazyRichTextEditor';
 import type {
   PersonalizationMode,
   PersonalizationProvider,
@@ -1863,7 +1863,7 @@ export function NodeConfigPanel({
             </div>
             <div>
               <label className="mb-2 block text-sm font-medium text-[#1E293B]">Email Body</label>
-              <RichTextEditor
+              <LazyRichTextEditor
                 content={node.data.message || ''}
                 onChange={(html) => updateMessage(html)}
                 placeholder="Hi {{first_name}}..."

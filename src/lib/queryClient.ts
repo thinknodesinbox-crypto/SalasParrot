@@ -88,6 +88,8 @@ export const queryKeys = {
     broadcasts: (workspaceId?: string) => ['email-marketing', 'broadcasts', workspaceId] as const,
     broadcastMetrics: (broadcastId: string) =>
       ['email-marketing', 'broadcasts', broadcastId, 'metrics'] as const,
+    broadcastInsights: (broadcastId: string) =>
+      ['email-marketing', 'broadcasts', broadcastId, 'insights'] as const,
   },
 
   // Calendar Accounts

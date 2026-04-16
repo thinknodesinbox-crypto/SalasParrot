@@ -16,7 +16,7 @@ function ensureHtml(content: string): string {
     .join('');
 }
 
-interface RichTextEditorProps {
+export interface RichTextEditorProps {
   content: string;
   onChange: (html: string) => void;
   placeholder?: string;
