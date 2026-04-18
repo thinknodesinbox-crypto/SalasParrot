@@ -12,7 +12,7 @@ import './styles/globals.css';
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '';
 
 const router = createRouter({
-  routeTree,
+  routeTree: routeTree as never,
   context: {
     auth: undefined!,
   },

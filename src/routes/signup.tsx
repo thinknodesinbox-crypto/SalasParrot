@@ -49,12 +49,12 @@ function SignupPage() {
 
       // Admins skip onboarding and go directly to dashboard
       if (result.skip_payment) {
-        navigate({ to: '/dashboard' });
+        navigate({ to: '/dashboard' } as never);
         return;
       }
 
       // Regular users go to onboarding to choose plan or enter partner code
-      navigate({ to: '/onboarding' });
+      navigate({ to: '/onboarding' } as never);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Google sign-up failed. Please try again.');
     } finally {
@@ -81,12 +81,12 @@ function SignupPage() {
 
       // Admins skip onboarding and go directly to dashboard
       if (result.skip_payment) {
-        navigate({ to: '/dashboard' });
+        navigate({ to: '/dashboard' } as never);
         return;
       }
 
       // Regular users go to onboarding to choose plan or enter partner code
-      navigate({ to: '/onboarding' });
+      navigate({ to: '/onboarding' } as never);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Signup failed. Please try again.');
     } finally {
@@ -429,7 +429,7 @@ function SignupPage() {
                 onError={() => setError('Google sign-up failed. Please try again.')}
                 theme="outline"
                 size="large"
-                width="100%"
+                width={400}
                 text="signup_with"
                 shape="rectangular"
               />

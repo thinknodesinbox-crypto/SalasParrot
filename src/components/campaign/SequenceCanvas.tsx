@@ -1,11 +1,14 @@
 import { motion, AnimatePresence } from 'framer-motion';
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { SEQUENCE_TEMPLATES } from './sequenceTemplates';
+import { SuggestedDraftsPanel } from '@/components/ai/SuggestedDraftsPanel';
 import { LazyRichTextEditor } from '@/components/ui/LazyRichTextEditor';
+import { useSequenceStepSuggestions } from '@/lib/hooks/queries';
 import type {
   PersonalizationMode,
   PersonalizationProvider,
   SequenceTemplate,
+  SequenceStepSuggestionsResponse,
   WorkspaceAgentDefaults,
 } from '@/lib/types';
 export { SEQUENCE_TEMPLATES } from './sequenceTemplates';
@@ -1561,15 +1564,38 @@ export function NodeConfigPanel({
   onUpdate,
   onClose,
   readonlyStructure = false,
+  suggestionContext,
 }: {
   node: SequenceNode;
   onUpdate: (data: Partial<NodeData>) => void;
   onClose: () => void;
   readonlyStructure?: boolean;
+  suggestionContext?: {
+    workspaceId?: string | null;
+    leadListId?: string | null;
+    campaignId?: string | null;
+  };
 }) {
   const nodeConfig = getNodeConfig(node.type);
   const messageRef = useRef<HTMLTextAreaElement>(null);
+  const lastSuggestionRequestSignature = useRef<string | null>(null);
+  const {
+    mutate: requestSequenceSuggestionsMutation,
+    data: sequenceSuggestionData,
+    error: sequenceSuggestionErrorValue,
+    isPending: isSequenceSuggestionsPending,
+  } = useSequenceStepSuggestions();
   const messageUsesAiPersonalization = (node.data.message || '').includes('{{aiPersonalization}}');
+  const supportsSuggestions = [
+    'linkedin_message',
+    'linkedin_connect',
+    'linkedin_inmail',
+    'email',
+  ].includes(node.type);
+  const mergedVariables = Array.from(
+    new Set([...PERSONALIZATION_VARIABLES, ...(sequenceSuggestionData?.suggested_variables || [])])
+  );
+
   const updateMessage = (message: string) => {
     onUpdate({
       message,
@@ -1613,6 +1639,60 @@ export function NodeConfigPanel({
       personalizationProviders: next.length > 0 ? next : ['linkedin_profile'],
     });
   };
+
+  const requestSequenceSuggestions = useCallback(
+    (options?: { force?: boolean }) => {
+      if (!supportsSuggestions || !suggestionContext?.workspaceId) return;
+      const payload = {
+        workspace_id: suggestionContext.workspaceId,
+        lead_list_id: suggestionContext.leadListId || undefined,
+        campaign_id: suggestionContext.campaignId || undefined,
+        step_type: node.type,
+        current_message: node.data.message || undefined,
+        current_subject: node.data.subject || undefined,
+      };
+      const signature = JSON.stringify(payload);
+      if (!options?.force && lastSuggestionRequestSignature.current === signature) return;
+      lastSuggestionRequestSignature.current = signature;
+      requestSequenceSuggestionsMutation(payload);
+    },
+    [
+      requestSequenceSuggestionsMutation,
+      suggestionContext?.workspaceId,
+      suggestionContext?.leadListId,
+      suggestionContext?.campaignId,
+      supportsSuggestions,
+      node.type,
+      node.data.message,
+      node.data.subject,
+    ]
+  );
+
+  useEffect(() => {
+    if (!supportsSuggestions || !suggestionContext?.workspaceId) {
+      lastSuggestionRequestSignature.current = null;
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      requestSequenceSuggestions();
+    }, 500);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [node.id, requestSequenceSuggestions]);
+
+  const applySuggestedDraft = useCallback(
+    (draft: { subject?: string | null; message: string }) => {
+      onUpdate({
+        message: draft.message,
+        ...(draft.subject !== undefined ? { subject: draft.subject || '' } : {}),
+      });
+    },
+    [onUpdate]
+  );
+
+  const suggestionError =
+    sequenceSuggestionErrorValue instanceof Error ? sequenceSuggestionErrorValue.message : null;
 
   const renderPersonalizationControls = (channelLabel: string) => (
     <div className="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-3">
@@ -1787,7 +1867,7 @@ export function NodeConfigPanel({
               className="w-full resize-none rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
             />
             <div className="mt-2 flex flex-wrap gap-1.5">
-              {PERSONALIZATION_VARIABLES.map((variable) => (
+              {mergedVariables.map((variable) => (
                 <button
                   key={variable}
                   onMouseDown={(e) => e.preventDefault()}
@@ -1797,6 +1877,22 @@ export function NodeConfigPanel({
                   {variable}
                 </button>
               ))}
+            </div>
+            <div className="mt-3">
+              <SuggestedDraftsPanel
+                data={(sequenceSuggestionData as SequenceStepSuggestionsResponse | null) || null}
+                isLoading={isSequenceSuggestionsPending}
+                error={suggestionError}
+                onApply={applySuggestedDraft}
+                onRegenerate={() => requestSequenceSuggestions({ force: true })}
+                surface="sequence_builder"
+                suggestionType={node.type}
+                feedbackContext={{
+                  workspaceId: suggestionContext?.workspaceId,
+                  leadId: sequenceSuggestionData?.sample_lead?.lead_id || null,
+                  campaignId: suggestionContext?.campaignId,
+                }}
+              />
             </div>
             {renderPersonalizationControls('LinkedIn message')}
           </div>
@@ -1826,7 +1922,7 @@ export function NodeConfigPanel({
                 className="w-full resize-none rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
               />
               <div className="mt-2 flex flex-wrap gap-1.5">
-                {PERSONALIZATION_VARIABLES.map((variable) => (
+                {mergedVariables.map((variable) => (
                   <button
                     key={variable}
                     onMouseDown={(e) => e.preventDefault()}
@@ -1838,6 +1934,20 @@ export function NodeConfigPanel({
                 ))}
               </div>
             </div>
+            <SuggestedDraftsPanel
+              data={(sequenceSuggestionData as SequenceStepSuggestionsResponse | null) || null}
+              isLoading={isSequenceSuggestionsPending}
+              error={suggestionError}
+              onApply={applySuggestedDraft}
+              onRegenerate={() => requestSequenceSuggestions({ force: true })}
+              surface="sequence_builder"
+              suggestionType={node.type}
+              feedbackContext={{
+                workspaceId: suggestionContext?.workspaceId,
+                leadId: sequenceSuggestionData?.sample_lead?.lead_id || null,
+                campaignId: suggestionContext?.campaignId,
+              }}
+            />
             {renderPersonalizationControls('InMail')}
             <div className="rounded-lg bg-[#FFF7ED] p-3">
               <p className="text-xs text-[#92400E]">
@@ -1868,9 +1978,23 @@ export function NodeConfigPanel({
                 onChange={(html) => updateMessage(html)}
                 placeholder="Hi {{first_name}}..."
                 minHeight="120px"
-                variables={[...PERSONALIZATION_VARIABLES]}
+                variables={mergedVariables}
               />
             </div>
+            <SuggestedDraftsPanel
+              data={(sequenceSuggestionData as SequenceStepSuggestionsResponse | null) || null}
+              isLoading={isSequenceSuggestionsPending}
+              error={suggestionError}
+              onApply={applySuggestedDraft}
+              onRegenerate={() => requestSequenceSuggestions({ force: true })}
+              surface="sequence_builder"
+              suggestionType={node.type}
+              feedbackContext={{
+                workspaceId: suggestionContext?.workspaceId,
+                leadId: sequenceSuggestionData?.sample_lead?.lead_id || null,
+                campaignId: suggestionContext?.campaignId,
+              }}
+            />
             {renderPersonalizationControls('Email')}
           </>
         )}

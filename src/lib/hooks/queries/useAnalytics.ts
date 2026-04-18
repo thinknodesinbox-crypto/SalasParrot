@@ -25,7 +25,7 @@ function wsParam(workspaceId: string | null | undefined): string {
 // Get dashboard stats (6 stat cards)
 export const useDashboardStats = (dateRange: string = '7d') => {
   const workspaceId = useWorkspaceStore((s) => s.currentWorkspaceId);
-  return useQuery({
+  return useQuery<DashboardStats>({
     queryKey: queryKeys.analytics.dashboardStats(dateRange, workspaceId),
     queryFn: async () => {
       const response = await api.get<DashboardStats>(
@@ -43,7 +43,7 @@ export const useDashboardChart = (
   senderId?: string
 ) => {
   const workspaceId = useWorkspaceStore((s) => s.currentWorkspaceId);
-  return useQuery({
+  return useQuery<ActivityChartData>({
     queryKey: queryKeys.analytics.dashboardChart(dateRange, workspaceId, campaignId, senderId),
     queryFn: async () => {
       const response = await api.get<ActivityChartData>(
@@ -57,7 +57,7 @@ export const useDashboardChart = (
 // Get recent activity feed
 export const useDashboardActivity = (limit: number = 5) => {
   const workspaceId = useWorkspaceStore((s) => s.currentWorkspaceId);
-  return useQuery({
+  return useQuery<RecentActivityItem[]>({
     queryKey: queryKeys.analytics.dashboardActivity(limit, workspaceId),
     queryFn: async () => {
       const response = await api.get<RecentActivityItem[]>(
@@ -71,7 +71,7 @@ export const useDashboardActivity = (limit: number = 5) => {
 // Get active campaigns for dashboard
 export const useDashboardCampaigns = () => {
   const workspaceId = useWorkspaceStore((s) => s.currentWorkspaceId);
-  return useQuery({
+  return useQuery<ActiveCampaignItem[]>({
     queryKey: queryKeys.analytics.dashboardCampaigns(workspaceId),
     queryFn: async () => {
       const response = await api.get<ActiveCampaignItem[]>(
@@ -91,7 +91,7 @@ export const useAnalyticsOverviewStats = (
   senderId?: string
 ) => {
   const workspaceId = useWorkspaceStore((s) => s.currentWorkspaceId);
-  return useQuery({
+  return useQuery<AnalyticsOverviewStats>({
     queryKey: queryKeys.analytics.overview(dateRange, workspaceId, campaignId, senderId),
     queryFn: async () => {
       const response = await api.get<AnalyticsOverviewStats>(
@@ -109,7 +109,7 @@ export const useChannelPerformance = (
   senderId?: string
 ) => {
   const workspaceId = useWorkspaceStore((s) => s.currentWorkspaceId);
-  return useQuery({
+  return useQuery<ChannelPerformance>({
     queryKey: queryKeys.analytics.channelPerformance(dateRange, workspaceId, campaignId, senderId),
     queryFn: async () => {
       const response = await api.get<ChannelPerformance>(
@@ -123,7 +123,7 @@ export const useChannelPerformance = (
 // Get top performing campaigns
 export const useTopCampaigns = (dateRange: string = '30d', limit: number = 10) => {
   const workspaceId = useWorkspaceStore((s) => s.currentWorkspaceId);
-  return useQuery({
+  return useQuery<CampaignPerformanceItem[]>({
     queryKey: queryKeys.analytics.topCampaigns(dateRange, limit, workspaceId),
     queryFn: async () => {
       const response = await api.get<CampaignPerformanceItem[]>(
@@ -137,7 +137,7 @@ export const useTopCampaigns = (dateRange: string = '30d', limit: number = 10) =
 // Get sender performance
 export const useSenderPerformance = (dateRange: string = '30d') => {
   const workspaceId = useWorkspaceStore((s) => s.currentWorkspaceId);
-  return useQuery({
+  return useQuery<SenderPerformanceItem[]>({
     queryKey: queryKeys.analytics.senderPerformance(dateRange, workspaceId),
     queryFn: async () => {
       const response = await api.get<SenderPerformanceItem[]>(
@@ -155,7 +155,7 @@ export const useReplyRateTrend = (
   senderId?: string
 ) => {
   const workspaceId = useWorkspaceStore((s) => s.currentWorkspaceId);
-  return useQuery({
+  return useQuery<ReplyRateTrendPoint[]>({
     queryKey: queryKeys.analytics.replyRateTrend(dateRange, workspaceId, campaignId, senderId),
     queryFn: async () => {
       const response = await api.get<ReplyRateTrendPoint[]>(
@@ -171,7 +171,7 @@ export const useReplyRateTrend = (
 // Get analytics overview (legacy format)
 export const useAnalyticsOverview = () => {
   const workspaceId = useWorkspaceStore((s) => s.currentWorkspaceId);
-  return useQuery({
+  return useQuery<AnalyticsOverview>({
     queryKey: queryKeys.analytics.overview(undefined, workspaceId),
     queryFn: async () => {
       const response = await api.get<AnalyticsOverview>(
@@ -184,7 +184,7 @@ export const useAnalyticsOverview = () => {
 
 // Get campaign analytics
 export const useCampaignAnalytics = (campaignId: string) => {
-  return useQuery({
+  return useQuery<CampaignAnalytics>({
     queryKey: queryKeys.analytics.campaign(campaignId),
     queryFn: async () => {
       const response = await api.get<CampaignAnalytics>(`/analytics/campaigns/${campaignId}`);
@@ -196,7 +196,7 @@ export const useCampaignAnalytics = (campaignId: string) => {
 
 // Get account usage
 export const useAccountUsage = (accountId: string) => {
-  return useQuery({
+  return useQuery<unknown[]>({
     queryKey: queryKeys.analytics.accountUsage(accountId),
     queryFn: async () => {
       const response = await api.get<unknown[]>(`/analytics/accounts/${accountId}/usage`);

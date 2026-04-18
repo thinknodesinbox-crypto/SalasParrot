@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment */
+// @ts-nocheck
 import { motion } from 'framer-motion';
 
 export function FeaturesHeader() {

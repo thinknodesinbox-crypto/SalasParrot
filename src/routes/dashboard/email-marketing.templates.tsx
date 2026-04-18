@@ -1,6 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
+import { SuggestedDraftsPanel } from '@/components/ai/SuggestedDraftsPanel';
 import { LazyRichTextEditor } from '@/components/ui/LazyRichTextEditor';
 import {
   useCreateMarketingTemplate,
@@ -8,9 +9,11 @@ import {
   useEmailAccounts,
   useMarketingTemplates,
   usePreviewMarketingTemplate,
+  useSequenceStepSuggestions,
   useSendMarketingTemplateTest,
   useUpdateMarketingTemplate,
 } from '@/lib/hooks/queries';
+import type { SequenceStepSuggestionsResponse } from '@/lib/types';
 import { showErrorToast, showSuccessToast } from '@/lib/toast';
 import { useCurrentWorkspace } from '@/lib/workspace';
 
@@ -30,6 +33,13 @@ function EmailMarketingTemplatesPage() {
   const deleteTemplateMutation = useDeleteMarketingTemplate();
   const previewTemplateMutation = usePreviewMarketingTemplate();
   const testSendMutation = useSendMarketingTemplateTest();
+  const lastTemplateSuggestionSignature = useRef<string | null>(null);
+  const {
+    mutate: requestTemplateSuggestionsMutation,
+    data: templateSuggestionData,
+    error: templateSuggestionErrorValue,
+    isPending: isTemplateSuggestionsPending,
+  } = useSequenceStepSuggestions();
 
   const [selectedTemplateId, setSelectedTemplateId] = useState('');
   const [templateName, setTemplateName] = useState('');
@@ -158,7 +168,36 @@ function EmailMarketingTemplatesPage() {
     }
   };
 
+  const requestTemplateSuggestions = (options?: { force?: boolean }) => {
+    if (!workspaceId) return;
+    const payload = {
+      workspace_id: workspaceId,
+      step_type: 'email',
+      current_subject: templateSubject || undefined,
+      current_message: templateBody || undefined,
+    };
+    const signature = JSON.stringify(payload);
+    if (!options?.force && lastTemplateSuggestionSignature.current === signature) return;
+    lastTemplateSuggestionSignature.current = signature;
+    requestTemplateSuggestionsMutation(payload);
+  };
+
+  useEffect(() => {
+    if (!workspaceId) {
+      lastTemplateSuggestionSignature.current = null;
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      requestTemplateSuggestions();
+    }, 500);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [workspaceId, templateSubject, templateBody]);
+
   const preview = previewTemplateMutation.data;
+  const templateSuggestionError =
+    templateSuggestionErrorValue instanceof Error ? templateSuggestionErrorValue.message : null;
 
   return (
     <div className="space-y-6">
@@ -271,20 +310,36 @@ function EmailMarketingTemplatesPage() {
               <input
                 value={templateSubject}
                 onChange={(e) => setTemplateSubject(e.target.value)}
-                placeholder="Subject, e.g. Quick question for {{firstName}}"
+                placeholder="Subject, e.g. Quick question for {{first_name}}"
                 className="w-full rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm focus:border-[#FF6B35] focus:outline-none"
+              />
+              <SuggestedDraftsPanel
+                data={(templateSuggestionData as SequenceStepSuggestionsResponse | null) || null}
+                isLoading={isTemplateSuggestionsPending}
+                error={templateSuggestionError}
+                onApply={(draft) => {
+                  if (draft.subject) setTemplateSubject(draft.subject);
+                  setTemplateBody(draft.message);
+                }}
+                onRegenerate={() => requestTemplateSuggestions({ force: true })}
+                surface="email_template"
+                suggestionType="email"
+                feedbackContext={{
+                  workspaceId,
+                  leadId: templateSuggestionData?.sample_lead?.lead_id || null,
+                }}
               />
               <LazyRichTextEditor
                 content={templateBody}
                 onChange={setTemplateBody}
-                placeholder="Write the email body. Use placeholders like {{firstName}} or custom attributes."
+                placeholder="Write the email body. Use placeholders like {{first_name}} or custom attributes."
                 minHeight="260px"
                 variables={[
-                  '{{firstName}}',
-                  '{{lastName}}',
+                  '{{first_name}}',
+                  '{{last_name}}',
                   '{{email}}',
                   '{{company}}',
-                  '{{role}}',
+                  '{{title}}',
                 ]}
               />
               <div className="flex flex-wrap items-center gap-4">

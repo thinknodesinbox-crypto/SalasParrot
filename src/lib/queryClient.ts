@@ -27,6 +27,7 @@ export const queryKeys = {
     detail: (id: string) => ['workspaces', 'detail', id] as const,
     members: (workspaceId: string) => ['workspaces', workspaceId, 'members'] as const,
     invitations: (workspaceId: string) => ['workspaces', workspaceId, 'invitations'] as const,
+    onboarding: (workspaceId: string) => ['workspaces', workspaceId, 'onboarding'] as const,
   },
 
   // Invitations (public)

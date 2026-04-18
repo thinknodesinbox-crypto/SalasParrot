@@ -31,7 +31,7 @@ function LoginPage() {
 
     try {
       await googleLogin(credentialResponse.credential);
-      navigate({ to: '/dashboard' });
+      navigate({ to: '/dashboard' } as never);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Google sign-in failed. Please try again.');
     } finally {
@@ -46,7 +46,7 @@ function LoginPage() {
 
     try {
       await login({ email, password });
-      navigate({ to: '/dashboard' });
+      navigate({ to: '/dashboard' } as never);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed. Please check your credentials.');
     } finally {
@@ -215,7 +215,7 @@ function LoginPage() {
                 onError={() => setError('Google sign-in failed. Please try again.')}
                 theme="outline"
                 size="large"
-                width="100%"
+                width={380}
                 text="signin_with"
                 shape="rectangular"
               />

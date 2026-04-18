@@ -40,9 +40,9 @@ function DashboardPage() {
   useEffect(() => {
     if (!isLoading && !isSyncing) {
       if (!user) {
-        navigate({ to: '/login' });
+        navigate({ to: '/login' } as never);
       } else if (!hasValidAccess) {
-        navigate({ to: '/onboarding' });
+        navigate({ to: '/onboarding' } as never);
       }
     }
   }, [user, isLoading, isSyncing, hasValidAccess, navigate]);

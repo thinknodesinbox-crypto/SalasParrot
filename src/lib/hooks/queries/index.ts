@@ -170,6 +170,13 @@ export {
   useRemoveConversationTags,
 } from './useInbox';
 
+// AI
+export {
+  useReplySuggestions,
+  useSequenceStepSuggestions,
+  useSuggestionFeedback,
+} from './useAISuggestions';
+
 // Billing
 export {
   usePricingInfo,
@@ -188,8 +195,12 @@ export {
 export {
   useWorkspaces,
   useWorkspace,
+  useWorkspaceOnboarding,
+  usePreviewWebsiteContext,
   useCreateWorkspace,
   useUpdateWorkspace,
+  useUpdateWorkspaceContext,
+  useUpdateWorkspaceOnboarding,
   useDeleteWorkspace,
   useWorkspaceMembers,
   useInviteWorkspaceMember,

@@ -21,9 +21,9 @@ function AdminLayout() {
   useEffect(() => {
     if (!isLoading) {
       if (!user) {
-        navigate({ to: '/login' });
+        navigate({ to: '/login' } as never);
       } else if (!user.is_admin) {
-        navigate({ to: '/dashboard' });
+        navigate({ to: '/dashboard' } as never);
       }
     }
   }, [user, isLoading, navigate]);

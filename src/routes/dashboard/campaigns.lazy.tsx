@@ -77,7 +77,7 @@ function CampaignsPage() {
       setPreSelectedLeadListId(createWithList);
       setShowCreateModal(true);
       // Clear the search param from URL
-      navigate({ to: '/dashboard/campaigns', search: {}, replace: true });
+      navigate({ to: '/dashboard/campaigns', replace: true } as never);
     }
   }, [createWithList, navigate]);
 
@@ -1837,6 +1837,11 @@ function CreateCampaignModal({
                                   onUpdate={handleUpdateNode}
                                   onClose={() => setSelectedNodeId(null)}
                                   readonlyStructure={isActiveCampaign}
+                                  suggestionContext={{
+                                    workspaceId: currentWorkspaceId || null,
+                                    leadListId: selectedLeadListId,
+                                    campaignId: editingCampaign?.id || null,
+                                  }}
                                 />
                               </motion.div>
                             )}
@@ -1953,6 +1958,11 @@ function CreateCampaignModal({
                                 onUpdate={handleUpdateNode}
                                 onClose={() => setSelectedNodeId(null)}
                                 readonlyStructure={isActiveCampaign}
+                                suggestionContext={{
+                                  workspaceId: currentWorkspaceId || null,
+                                  leadListId: selectedLeadListId,
+                                  campaignId: editingCampaign?.id || null,
+                                }}
                               />
                             )}
                         </AnimatePresence>

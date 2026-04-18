@@ -1,6 +1,6 @@
 import { createLazyFileRoute } from '@tanstack/react-router';
 import { motion } from 'framer-motion';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import DOMPurify from 'dompurify';
 import { LazyRichTextEditor } from '@/components/ui/LazyRichTextEditor';
 import {
@@ -10,8 +10,10 @@ import {
   useMarkAsRead,
   useLinkedInAccounts,
   useCampaigns,
+  useReplySuggestions,
 } from '@/lib/hooks/queries';
-import type { Conversation, Message, Channel } from '@/lib/types';
+import { SuggestedDraftsPanel } from '@/components/ai/SuggestedDraftsPanel';
+import type { Conversation, Message, Channel, ReplySuggestionsResponse } from '@/lib/types';
 
 // Configure DOMPurify to add target="_blank" and rel="noopener noreferrer" to all links
 DOMPurify.addHook('afterSanitizeAttributes', (node) => {
@@ -49,6 +51,7 @@ function InboxPage() {
   const [replyText, setReplyText] = useState('');
   const [selectedSenderId, setSelectedSenderId] = useState<string>('');
   const [selectedCampaignId, setSelectedCampaignId] = useState<string>('');
+  const lastReplySuggestionSignature = useRef<string | null>(null);
 
   // Fetch accounts and campaigns for filter dropdowns
   const { data: linkedInAccounts = [] } = useLinkedInAccounts();
@@ -96,6 +99,12 @@ function InboxPage() {
   // Mutations
   const sendReply = useSendReply(selectedConversationId || '');
   const markAsReadMutation = useMarkAsRead(selectedConversationId || '');
+  const {
+    mutate: requestReplySuggestionsMutation,
+    data: replySuggestionData,
+    error: replySuggestionErrorValue,
+    isPending: isReplySuggestionsPending,
+  } = useReplySuggestions();
 
   // Filter and process conversations
   const conversations = conversationsData?.conversations || [];
@@ -132,6 +141,34 @@ function InboxPage() {
       // Error is handled by mutation
     }
   };
+
+  const requestReplySuggestions = (options?: { force?: boolean }) => {
+    if (!selectedConversationId) return;
+    const payload = {
+      conversation_id: selectedConversationId,
+      current_draft: replyText || undefined,
+    };
+    const signature = JSON.stringify(payload);
+    if (!options?.force && lastReplySuggestionSignature.current === signature) return;
+    lastReplySuggestionSignature.current = signature;
+    requestReplySuggestionsMutation(payload);
+  };
+
+  useEffect(() => {
+    if (!selectedConversationId) {
+      lastReplySuggestionSignature.current = null;
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      requestReplySuggestions();
+    }, 500);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [selectedConversationId, replyText]);
+
+  const replySuggestionError =
+    replySuggestionErrorValue instanceof Error ? replySuggestionErrorValue.message : null;
 
   // Loading state
   if (isLoading) {
@@ -720,6 +757,20 @@ function InboxPage() {
                 </div>
                 {selectedConversation.channel === 'email' ? (
                   <div className="flex flex-col gap-3">
+                    <SuggestedDraftsPanel
+                      data={(replySuggestionData as ReplySuggestionsResponse | null) || null}
+                      isLoading={isReplySuggestionsPending}
+                      error={replySuggestionError}
+                      onApply={(draft) => setReplyText(draft.message)}
+                      onRegenerate={() => requestReplySuggestions({ force: true })}
+                      surface="inbox_reply"
+                      suggestionType="reply"
+                      feedbackContext={{
+                        conversationId: selectedConversationId,
+                        leadId: selectedConversation?.lead_id || null,
+                        workspaceId: selectedConversation?.workspace_id || null,
+                      }}
+                    />
                     <LazyRichTextEditor
                       content={replyText}
                       onChange={setReplyText}
@@ -741,21 +792,41 @@ function InboxPage() {
                     </div>
                   </div>
                 ) : (
-                  <div className="flex gap-3">
-                    <textarea
-                      value={replyText}
-                      onChange={(e) => setReplyText(e.target.value)}
-                      placeholder="Type your reply..."
-                      rows={3}
-                      className="flex-1 resize-none rounded-xl border border-[#E2E8F0] px-4 py-3 focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+                  <div className="flex flex-col gap-3">
+                    <SuggestedDraftsPanel
+                      data={(replySuggestionData as ReplySuggestionsResponse | null) || null}
+                      isLoading={isReplySuggestionsPending}
+                      error={replySuggestionError}
+                      onApply={(draft) => setReplyText(draft.message)}
+                      onRegenerate={() => requestReplySuggestions({ force: true })}
+                      surface="inbox_reply"
+                      suggestionType="reply"
+                      feedbackContext={{
+                        conversationId: selectedConversationId,
+                        leadId: selectedConversation?.lead_id || null,
+                        workspaceId: selectedConversation?.workspace_id || null,
+                      }}
                     />
-                    <button
-                      onClick={handleSendReply}
-                      disabled={!replyText.trim() || sendReply.isPending}
-                      className="self-end rounded-xl bg-[#FF6B35] px-4 py-2 font-medium text-white hover:bg-[#E85A2A] disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {sendReply.isPending ? <LoadingSpinner className="h-5 w-5" /> : <SendIcon />}
-                    </button>
+                    <div className="flex gap-3">
+                      <textarea
+                        value={replyText}
+                        onChange={(e) => setReplyText(e.target.value)}
+                        placeholder="Type your reply..."
+                        rows={3}
+                        className="flex-1 resize-none rounded-xl border border-[#E2E8F0] px-4 py-3 focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+                      />
+                      <button
+                        onClick={handleSendReply}
+                        disabled={!replyText.trim() || sendReply.isPending}
+                        className="self-end rounded-xl bg-[#FF6B35] px-4 py-2 font-medium text-white hover:bg-[#E85A2A] disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {sendReply.isPending ? (
+                          <LoadingSpinner className="h-5 w-5" />
+                        ) : (
+                          <SendIcon />
+                        )}
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>

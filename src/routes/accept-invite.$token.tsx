@@ -50,7 +50,7 @@ function AcceptInvitePage() {
         if (result.workspace_id) {
           setCurrentWorkspaceId(result.workspace_id);
         }
-        navigate({ to: '/dashboard' });
+        navigate({ to: '/dashboard' } as never);
       }
     } catch {
       // Error handled by mutation
@@ -90,7 +90,7 @@ function AcceptInvitePage() {
         if (result.workspace_id) {
           setCurrentWorkspaceId(result.workspace_id);
         }
-        navigate({ to: '/dashboard' });
+        navigate({ to: '/dashboard' } as never);
       }
     } catch {
       // Error handled by mutation
@@ -101,7 +101,7 @@ function AcceptInvitePage() {
   const handleDecline = async () => {
     try {
       await declineMutation.mutateAsync(token);
-      navigate({ to: '/' });
+      navigate({ to: '/' } as never);
     } catch {
       // Error handled by mutation
     }

@@ -1,14 +1,16 @@
-import { forwardRef } from 'react';
-import { motion, type HTMLMotionProps } from 'framer-motion';
+import { forwardRef, type ButtonHTMLAttributes, type ComponentProps, type ReactNode } from 'react';
+import { motion } from 'framer-motion';
 
 type ButtonVariant = 'primary' | 'secondary';
 type ButtonSize = 'default' | 'lg';
 
-interface ButtonProps extends Omit<HTMLMotionProps<'button'>, 'children'> {
+interface ButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children'> {
   variant?: ButtonVariant;
   size?: ButtonSize;
-  children: React.ReactNode;
+  children: ReactNode;
 }
+
+type MotionButtonProps = ComponentProps<typeof motion.button>;
 
 const variantStyles: Record<ButtonVariant, string> = {
   primary:
@@ -39,7 +41,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
           ${sizeStyles[size]}
           ${className}
         `}
-        {...props}
+        {...(props as MotionButtonProps)}
       >
         {children}
       </motion.button>

@@ -90,6 +90,11 @@ export interface GoogleAuthRequest {
 
 // Workspace types
 export type WorkspaceRole = 'admin' | 'member';
+export type OnboardingStep =
+  | 'business_context'
+  | 'channel_selection'
+  | 'channel_connection'
+  | 'complete';
 
 export interface WorkspaceAgentDefaults {
   goal?: string;
@@ -109,9 +114,84 @@ export interface Workspace {
   slug: string;
   client_name: string | null;
   client_email: string | null;
+  website_url: string | null;
+  business_blurb: string | null;
+  icp: string | null;
+  outreach_intent: string | null;
+  brand_tone: string | null;
+  value_proposition: string | null;
+  cta_preference: string | null;
+  reply_guardrails: string | null;
+  forbidden_claims: string | null;
   working_hours: WorkingHours | null;
   agent_defaults?: WorkspaceAgentDefaults | null;
   created_at: string;
+}
+
+export interface WorkspaceOnboardingState {
+  workspace_id: string;
+  current_step: OnboardingStep;
+  selected_channels: string[];
+  show_onboarding_modal: boolean;
+  can_manage_setup: boolean;
+  started_at: string | null;
+  completed_at: string | null;
+  dismissed_at: string | null;
+  business_context_skipped_at: string | null;
+  channel_selection_skipped_at: string | null;
+  channel_connection_skipped_at: string | null;
+  last_seen_at: string | null;
+}
+
+export interface WebsiteContextPreview {
+  website_url: string;
+  business_blurb: string | null;
+  icp: string | null;
+  outreach_intent: string | null;
+  raw_result?: Record<string, unknown> | null;
+}
+
+export interface SuggestedDraft {
+  subject: string | null;
+  message: string;
+  rationale: string | null;
+  variables_used: string[];
+  grounding: string[];
+}
+
+export interface SequenceSuggestionSampleLead {
+  lead_id: string | null;
+  full_name: string | null;
+  company: string | null;
+  title: string | null;
+  headline: string | null;
+  location: string | null;
+}
+
+export interface VariableAvailability {
+  variable: string;
+  available_count: number;
+  total_count: number;
+  availability_ratio: number;
+  sample_value: string | null;
+}
+
+export interface SequenceStepSuggestionsResponse {
+  suggestions: SuggestedDraft[];
+  suggested_variables: string[];
+  variable_availability: VariableAvailability[];
+  provenance_labels: string[];
+  sample_lead: SequenceSuggestionSampleLead | null;
+  context_notes: string[];
+  raw_context?: Record<string, unknown> | null;
+}
+
+export interface ReplySuggestionsResponse {
+  suggestions: SuggestedDraft[];
+  provenance_labels: string[];
+  sample_lead: SequenceSuggestionSampleLead | null;
+  context_notes: string[];
+  raw_context?: Record<string, unknown> | null;
 }
 
 export interface WorkspaceMember {

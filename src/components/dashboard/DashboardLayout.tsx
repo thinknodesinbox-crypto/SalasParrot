@@ -5,6 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import logoImage from '@/assets/images/logo.png';
 import { useAuth } from '@/lib/auth';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
+import { OnboardingModal } from '@/components/onboarding/OnboardingModal';
 import { useWorkspaceStore, useWorkspaceHydrated } from '@/lib/workspace';
 import { useWorkspaces } from '@/lib/hooks/queries';
 
@@ -48,6 +49,11 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     useWorkspaceStore();
   const { data: workspaces = [] } = useWorkspaces();
   const hasHydrated = useWorkspaceHydrated();
+  const resolvedWorkspace =
+    workspaces.find((workspace) => workspace.id === currentWorkspaceId) ??
+    (currentWorkspace && workspaces.some((workspace) => workspace.id === currentWorkspace.id)
+      ? currentWorkspace
+      : null);
 
   // Auto-select or fix workspace selection after hydration
   useEffect(() => {
@@ -60,7 +66,9 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       // Validate stored workspace is one the user has access to
       const match = workspaces.find((w) => w.id === currentWorkspaceId);
       if (match) {
-        if (!currentWorkspace) setCurrentWorkspace(match);
+        if (!currentWorkspace || currentWorkspace.id !== match.id) {
+          setCurrentWorkspace(match);
+        }
       } else {
         // Stored workspace not in user's list — reset to first
         setCurrentWorkspace(workspaces[0]);
@@ -89,7 +97,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     logout();
 
     // Navigate to login
-    navigate({ to: '/login' });
+    navigate({ to: '/login' } as never);
   };
 
   // Close mobile menu on route change
@@ -335,7 +343,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                 >
                   <WorkspaceIcon />
                   <span className="max-w-[150px] truncate">
-                    {currentWorkspace?.name || 'Select Workspace'}
+                    {resolvedWorkspace?.name || 'Select Workspace'}
                   </span>
                   <ChevronDownIcon />
                 </button>
@@ -487,6 +495,8 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         {/* Page Content */}
         <main className="flex-1 p-4 md:p-6">{children}</main>
       </motion.div>
+
+      {hasHydrated && resolvedWorkspace && <OnboardingModal workspace={resolvedWorkspace} />}
     </div>
   );
 }

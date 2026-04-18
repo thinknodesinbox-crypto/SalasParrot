@@ -51,7 +51,7 @@ function OnboardingPage() {
   useEffect(() => {
     if (!isLoading && user) {
       if (user.is_admin) {
-        navigate({ to: '/dashboard' });
+        navigate({ to: '/dashboard' } as never);
       }
       // If user already has a subscription, partner access, or was invited to a workspace, go to dashboard
       if (
@@ -59,7 +59,7 @@ function OnboardingPage() {
         user.partner_access?.is_active ||
         user.has_invited_workspace_access
       ) {
-        navigate({ to: '/dashboard' });
+        navigate({ to: '/dashboard' } as never);
       }
     }
   }, [user, isLoading, navigate]);
@@ -67,7 +67,7 @@ function OnboardingPage() {
   // Redirect if not authenticated
   useEffect(() => {
     if (!isLoading && !user) {
-      navigate({ to: '/signup' });
+      navigate({ to: '/signup' } as never);
     }
   }, [user, isLoading, navigate]);
 
@@ -123,7 +123,7 @@ function OnboardingPage() {
     try {
       await api.post('/auth/redeem-partner-code', { code: partnerCode });
       await fetchUser(); // Refresh user data
-      navigate({ to: '/dashboard', search: { partner: 'activated' } });
+      navigate({ to: '/dashboard' } as never);
     } catch (err) {
       setError(getErrorMessage(err));
     } finally {

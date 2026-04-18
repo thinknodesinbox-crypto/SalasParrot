@@ -33,6 +33,10 @@ import {
   useDeleteCalendarAccount,
   useConnectCalendarFromEmail,
   useInitCalendarAuth,
+  useUpdateWorkspaceContext,
+  usePreviewWebsiteContext,
+  useUpdateWorkspaceOnboarding,
+  useWorkspaceOnboarding,
 } from '@/lib/hooks/queries';
 import { api, getErrorMessage } from '@/lib/api';
 import {
@@ -101,6 +105,7 @@ import {
 } from '@/lib/hooks/queries/useSlack';
 import type {
   CheckpointType,
+  OnboardingStep,
   Workspace,
   LinkedInAccount,
   BillingOverview,
@@ -172,14 +177,14 @@ function SettingsPage() {
 
   const handleLogout = () => {
     logout();
-    navigate({ to: '/login' });
+    navigate({ to: '/login' } as never);
   };
 
   const tabs: { id: SettingsTab; label: string; icon: React.ReactNode }[] = [
     { id: 'profile', label: 'Profile Settings', icon: <SettingsIcon /> },
     { id: 'workspaces', label: 'Workspaces', icon: <WorkspaceIcon /> },
     { id: 'members', label: 'Members', icon: <MembersIcon /> },
-    { id: 'ai_agent', label: 'AI Agent', icon: <AIAgentIcon /> },
+    { id: 'ai_agent', label: 'Parrot Brain', icon: <AIAgentIcon /> },
     { id: 'notifications', label: 'Notifications', icon: <NotificationIcon /> },
     { id: 'billing', label: 'Billing', icon: <BillingIcon /> },
     { id: 'integrations', label: 'Integrations', icon: <IntegrationIcon /> },
@@ -469,6 +474,7 @@ function WorkspaceSettings() {
   const [showBuySeatsModal, setShowBuySeatsModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [editingWorkspace, setEditingWorkspace] = useState<Workspace | null>(null);
+  const [setupWorkspace, setSetupWorkspace] = useState<Workspace | null>(null);
 
   // Fetch workspaces from API
   const { data: workspacesData = [], isLoading, error, refetch } = useWorkspaces();
@@ -629,13 +635,21 @@ function WorkspaceSettings() {
                     </span>
                   </td>
                   <td className="px-6 py-4 text-right">
-                    <button
-                      onClick={() => setEditingWorkspace(workspace)}
-                      className="rounded-lg p-2 text-[#64748B] hover:bg-[#F1F5F9]"
-                      title="Configure working hours"
-                    >
-                      <SettingsIcon />
-                    </button>
+                    <div className="flex justify-end gap-2">
+                      <button
+                        onClick={() => setSetupWorkspace(workspace)}
+                        className="rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm font-medium text-[#64748B] hover:bg-[#F8FAFC]"
+                      >
+                        Setup
+                      </button>
+                      <button
+                        onClick={() => setEditingWorkspace(workspace)}
+                        className="rounded-lg p-2 text-[#64748B] hover:bg-[#F1F5F9]"
+                        title="Configure working hours"
+                      >
+                        <SettingsIcon />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -649,13 +663,21 @@ function WorkspaceSettings() {
             <div key={workspace.id} className="p-4 transition-colors hover:bg-[#F8FAFC]">
               <div className="mb-2 flex items-center justify-between">
                 <span className="font-medium text-[#1E293B]">{workspace.name}</span>
-                <button
-                  onClick={() => setEditingWorkspace(workspace)}
-                  className="rounded-lg p-2 text-[#64748B] hover:bg-[#F1F5F9]"
-                  title="Configure working hours"
-                >
-                  <SettingsIcon />
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setSetupWorkspace(workspace)}
+                    className="rounded-lg border border-[#E2E8F0] px-3 py-1.5 text-sm font-medium text-[#64748B] hover:bg-[#F8FAFC]"
+                  >
+                    Setup
+                  </button>
+                  <button
+                    onClick={() => setEditingWorkspace(workspace)}
+                    className="rounded-lg p-2 text-[#64748B] hover:bg-[#F1F5F9]"
+                    title="Configure working hours"
+                  >
+                    <SettingsIcon />
+                  </button>
+                </div>
               </div>
               <div className="flex flex-wrap gap-4 text-sm">
                 <div>
@@ -680,6 +702,12 @@ function WorkspaceSettings() {
       </AnimatePresence>
 
       {/* Workspace Working Hours Modal */}
+      <AnimatePresence>
+        {setupWorkspace && (
+          <WorkspaceSetupModal workspace={setupWorkspace} onClose={() => setSetupWorkspace(null)} />
+        )}
+      </AnimatePresence>
+
       <AnimatePresence>
         {editingWorkspace && (
           <WorkspaceWorkingHoursModal
@@ -768,6 +796,206 @@ function CreateWorkspaceModal({ onClose }: { onClose: () => void }) {
           >
             {createWorkspace.isPending ? 'Creating...' : 'Create workspace'}
           </button>
+        </div>
+      </motion.div>
+    </motion.div>,
+    document.body
+  );
+}
+
+function WorkspaceSetupModal({
+  workspace,
+  onClose,
+}: {
+  workspace: Workspace;
+  onClose: () => void;
+}) {
+  const { data: onboarding } = useWorkspaceOnboarding(workspace.id);
+  const updateContext = useUpdateWorkspaceContext(workspace.id);
+  const updateOnboarding = useUpdateWorkspaceOnboarding(workspace.id);
+  const [websiteUrl, setWebsiteUrl] = useState(workspace.website_url || '');
+  const [businessBlurb, setBusinessBlurb] = useState(workspace.business_blurb || '');
+  const [icp, setIcp] = useState(workspace.icp || '');
+  const [outreachIntent, setOutreachIntent] = useState(workspace.outreach_intent || '');
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  useEffect(() => {
+    setWebsiteUrl(workspace.website_url || '');
+    setBusinessBlurb(workspace.business_blurb || '');
+    setIcp(workspace.icp || '');
+    setOutreachIntent(workspace.outreach_intent || '');
+  }, [workspace]);
+
+  const saveContext = async () => {
+    setError(null);
+    setSuccess(null);
+    try {
+      await updateContext.mutateAsync({
+        website_url: websiteUrl.trim() || null,
+        business_blurb: businessBlurb.trim() || null,
+        icp: icp.trim() || null,
+        outreach_intent: outreachIntent.trim() || null,
+      });
+      setSuccess('Workspace context saved.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save workspace context');
+    }
+  };
+
+  const reopenOnboarding = async (step: OnboardingStep) => {
+    setError(null);
+    setSuccess(null);
+    try {
+      await updateOnboarding.mutateAsync({ current_step: step });
+      setSuccess('Onboarding will show again on the dashboard.');
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to reopen onboarding');
+    }
+  };
+
+  const isPending = updateContext.isPending || updateOnboarding.isPending;
+  const canManageSetup = onboarding?.can_manage_setup ?? false;
+
+  return createPortal(
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        onClick={(event) => event.stopPropagation()}
+        className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-xl"
+      >
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-bold text-[#1E293B]">Workspace setup</h2>
+            <p className="mt-1 text-sm text-[#64748B]">
+              Update reusable business context and reopen onboarding when you want to guide the
+              workspace through setup again.
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="rounded-lg px-3 py-2 text-sm font-medium text-[#64748B] hover:bg-[#F8FAFC]"
+          >
+            Close
+          </button>
+        </div>
+
+        <div className="mt-6 grid gap-4">
+          <label className="block">
+            <span className="mb-2 block text-sm font-medium text-[#1E293B]">Website URL</span>
+            <input
+              type="url"
+              value={websiteUrl}
+              onChange={(event) => setWebsiteUrl(event.target.value)}
+              placeholder="https://yourcompany.com"
+              className="w-full rounded-lg border border-[#E2E8F0] px-4 py-3 focus:border-[#3B82F6] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/20"
+            />
+          </label>
+          <label className="block">
+            <span className="mb-2 block text-sm font-medium text-[#1E293B]">
+              Short business blurb
+            </span>
+            <textarea
+              value={businessBlurb}
+              onChange={(event) => setBusinessBlurb(event.target.value)}
+              rows={3}
+              placeholder="What do you sell and why does it matter?"
+              className="w-full rounded-lg border border-[#E2E8F0] px-4 py-3 focus:border-[#3B82F6] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/20"
+            />
+          </label>
+          <label className="block">
+            <span className="mb-2 block text-sm font-medium text-[#1E293B]">
+              Ideal customer profile
+            </span>
+            <textarea
+              value={icp}
+              onChange={(event) => setIcp(event.target.value)}
+              rows={3}
+              placeholder="Who should Parrot target?"
+              className="w-full rounded-lg border border-[#E2E8F0] px-4 py-3 focus:border-[#3B82F6] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/20"
+            />
+          </label>
+          <label className="block">
+            <span className="mb-2 block text-sm font-medium text-[#1E293B]">Outreach intent</span>
+            <textarea
+              value={outreachIntent}
+              onChange={(event) => setOutreachIntent(event.target.value)}
+              rows={3}
+              placeholder="What outcome should outreach drive?"
+              className="w-full rounded-lg border border-[#E2E8F0] px-4 py-3 focus:border-[#3B82F6] focus:outline-none focus:ring-2 focus:ring-[#3B82F6]/20"
+            />
+          </label>
+        </div>
+
+        {(error || success) && (
+          <div
+            className={`mt-4 rounded-lg border p-3 text-sm ${
+              error
+                ? 'border-[#FECACA] bg-[#FEF2F2] text-[#DC2626]'
+                : 'border-[#BBF7D0] bg-[#F0FDF4] text-[#166534]'
+            }`}
+          >
+            {error || success}
+          </div>
+        )}
+
+        <div className="mt-6 flex flex-col gap-4 border-t border-[#E2E8F0] pt-6">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h3 className="font-semibold text-[#1E293B]">Save context</h3>
+              <p className="text-sm text-[#64748B]">
+                This updates the workspace data Parrot can reuse across campaigns and agents.
+              </p>
+            </div>
+            <button
+              onClick={saveContext}
+              disabled={isPending || !canManageSetup}
+              className="rounded-lg bg-[#3B82F6] px-5 py-2.5 font-medium text-white hover:bg-[#2563EB] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Save context
+            </button>
+          </div>
+
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h3 className="font-semibold text-[#1E293B]">Resume onboarding</h3>
+              <p className="text-sm text-[#64748B]">
+                Reopen the dashboard modal from any step. Useful after someone skipped setup.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => reopenOnboarding('business_context')}
+                disabled={isPending || !canManageSetup}
+                className="rounded-lg border border-[#E2E8F0] px-4 py-2 text-sm font-medium text-[#64748B] hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Start at step 1
+              </button>
+              <button
+                onClick={() => reopenOnboarding('channel_selection')}
+                disabled={isPending || !canManageSetup}
+                className="rounded-lg border border-[#E2E8F0] px-4 py-2 text-sm font-medium text-[#64748B] hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Start at step 2
+              </button>
+              <button
+                onClick={() => reopenOnboarding('channel_connection')}
+                disabled={isPending || !canManageSetup}
+                className="rounded-lg border border-[#E2E8F0] px-4 py-2 text-sm font-medium text-[#64748B] hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Start at step 3
+              </button>
+            </div>
+          </div>
         </div>
       </motion.div>
     </motion.div>,
@@ -1772,22 +2000,40 @@ function InviteMemberModal({
 // ==================== AI AGENT SETTINGS ====================
 function AIAgentSettings() {
   const { data: workspaces = [], isLoading: isLoadingWorkspaces } = useWorkspaces();
+  const currentWorkspaceId = useWorkspaceStore((s) => s.currentWorkspaceId);
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string>('');
-  const [isSaving, setIsSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
+  const [isSavingDefaults, setIsSavingDefaults] = useState(false);
+  const [defaultsError, setDefaultsError] = useState<string | null>(null);
+  const [defaultsSuccess, setDefaultsSuccess] = useState(false);
+  const [contextError, setContextError] = useState<string | null>(null);
+  const [contextSuccess, setContextSuccess] = useState<string | null>(null);
 
-  // Auto-select first workspace
+  // Prefer the current workspace, then fall back to the first available one.
   useEffect(() => {
+    if (currentWorkspaceId && workspaces.some((workspace) => workspace.id === currentWorkspaceId)) {
+      setSelectedWorkspaceId(currentWorkspaceId);
+      return;
+    }
     if (workspaces.length > 0 && !selectedWorkspaceId) {
       setSelectedWorkspaceId(workspaces[0].id);
     }
-  }, [workspaces, selectedWorkspaceId]);
+  }, [currentWorkspaceId, workspaces, selectedWorkspaceId]);
 
   const { data: workspace } = useWorkspace(selectedWorkspaceId);
   const updateWorkspace = useUpdateWorkspace(selectedWorkspaceId);
+  const updateWorkspaceContext = useUpdateWorkspaceContext(selectedWorkspaceId);
+  const previewWebsiteContext = usePreviewWebsiteContext(selectedWorkspaceId);
 
   // Form state — reset when workspace changes
+  const [websiteUrl, setWebsiteUrl] = useState('');
+  const [businessBlurb, setBusinessBlurb] = useState('');
+  const [icp, setIcp] = useState('');
+  const [outreachIntent, setOutreachIntent] = useState('');
+  const [brandTone, setBrandTone] = useState('');
+  const [valueProposition, setValueProposition] = useState('');
+  const [ctaPreference, setCtaPreference] = useState('');
+  const [replyGuardrails, setReplyGuardrails] = useState('');
+  const [forbiddenClaims, setForbiddenClaims] = useState('');
   const [agentGoal, setAgentGoal] = useState('');
   const [agentTone, setAgentTone] = useState<'professional' | 'friendly' | 'casual'>(
     'professional'
@@ -1802,6 +2048,15 @@ function AIAgentSettings() {
   // Sync form state when workspace data loads or changes
   useEffect(() => {
     if (workspace) {
+      setWebsiteUrl(workspace.website_url || '');
+      setBusinessBlurb(workspace.business_blurb || '');
+      setIcp(workspace.icp || '');
+      setOutreachIntent(workspace.outreach_intent || '');
+      setBrandTone(workspace.brand_tone || '');
+      setValueProposition(workspace.value_proposition || '');
+      setCtaPreference(workspace.cta_preference || '');
+      setReplyGuardrails(workspace.reply_guardrails || '');
+      setForbiddenClaims(workspace.forbidden_claims || '');
       const d = workspace.agent_defaults || {};
       setAgentGoal(d.goal || '');
       setAgentTone(d.tone || 'professional');
@@ -1811,15 +2066,61 @@ function AIAgentSettings() {
       setAgentSchedulingLink(d.scheduling_link || '');
       setAgentSenderTitle(d.sender_title || '');
       setAgentCustomInstructions(d.custom_instructions || '');
-      setError(null);
-      setSuccess(false);
+      setDefaultsError(null);
+      setDefaultsSuccess(false);
+      setContextError(null);
+      setContextSuccess(null);
     }
   }, [workspace]);
 
+  const handleAnalyzeWebsite = async () => {
+    setContextError(null);
+    setContextSuccess(null);
+
+    if (!selectedWorkspaceId || !websiteUrl.trim()) {
+      setContextError('Enter a website URL before running analysis.');
+      return;
+    }
+
+    try {
+      const preview = await previewWebsiteContext.mutateAsync({
+        website_url: websiteUrl.trim(),
+      });
+      setBusinessBlurb(preview.business_blurb || '');
+      setIcp(preview.icp || '');
+      setOutreachIntent(preview.outreach_intent || '');
+      setContextSuccess('Website analysis applied. Review the fields before saving.');
+    } catch (err) {
+      setContextError(err instanceof Error ? err.message : 'Failed to analyze website');
+    }
+  };
+
+  const handleSaveContext = async () => {
+    setContextError(null);
+    setContextSuccess(null);
+
+    try {
+      await updateWorkspaceContext.mutateAsync({
+        website_url: websiteUrl.trim() || null,
+        business_blurb: businessBlurb.trim() || null,
+        icp: icp.trim() || null,
+        outreach_intent: outreachIntent.trim() || null,
+        brand_tone: brandTone.trim() || null,
+        value_proposition: valueProposition.trim() || null,
+        cta_preference: ctaPreference.trim() || null,
+        reply_guardrails: replyGuardrails.trim() || null,
+        forbidden_claims: forbiddenClaims.trim() || null,
+      });
+      setContextSuccess('Business context saved.');
+    } catch (err) {
+      setContextError(err instanceof Error ? err.message : 'Failed to save business context');
+    }
+  };
+
   const handleSave = async () => {
-    setError(null);
-    setSuccess(false);
-    setIsSaving(true);
+    setDefaultsError(null);
+    setDefaultsSuccess(false);
+    setIsSavingDefaults(true);
 
     try {
       await updateWorkspace.mutateAsync({
@@ -1834,22 +2135,25 @@ function AIAgentSettings() {
           custom_instructions: agentCustomInstructions,
         },
       });
-      setSuccess(true);
+      setDefaultsSuccess(true);
     } catch (err: unknown) {
       const error = err as { response?: { data?: { detail?: string } } };
-      setError(error?.response?.data?.detail || 'Failed to save AI agent defaults');
+      setDefaultsError(error?.response?.data?.detail || 'Failed to save AI agent defaults');
     } finally {
-      setIsSaving(false);
+      setIsSavingDefaults(false);
     }
   };
 
   // Auto-dismiss success
   useEffect(() => {
-    if (success) {
-      const timer = setTimeout(() => setSuccess(false), 3000);
+    if (defaultsSuccess || contextSuccess) {
+      const timer = setTimeout(() => {
+        setDefaultsSuccess(false);
+        setContextSuccess(null);
+      }, 3000);
       return () => clearTimeout(timer);
     }
-  }, [success]);
+  }, [defaultsSuccess, contextSuccess]);
 
   if (isLoadingWorkspaces) {
     return (
@@ -1871,10 +2175,11 @@ function AIAgentSettings() {
       className="space-y-6"
     >
       <div>
-        <h2 className="text-xl font-bold text-[#1E293B]">AI Agent Defaults</h2>
+        <h2 className="text-xl font-bold text-[#1E293B]">Parrot Brain</h2>
         <p className="mt-1 text-sm text-[#64748B]">
-          Set default values for Reply Agent steps in the campaign builder. These pre-populate new
-          steps so you don't have to fill them in every time.
+          Keep Parrot's business context and reply-agent defaults in one place. The business context
+          shapes targeting and copy quality, while the defaults below pre-populate new Reply Agent
+          steps.
         </p>
       </div>
 
@@ -1897,6 +2202,163 @@ function AIAgentSettings() {
       )}
 
       <div className="rounded-xl border border-[#E2E8F0] bg-white p-6">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h3 className="text-lg font-semibold text-[#1E293B]">Business Context</h3>
+            <p className="mt-1 text-sm text-[#64748B]">
+              This is the durable workspace context Parrot uses to understand what you sell, who you
+              target, and what outreach should achieve.
+            </p>
+          </div>
+          <button
+            onClick={handleAnalyzeWebsite}
+            disabled={!selectedWorkspaceId || !websiteUrl.trim() || previewWebsiteContext.isPending}
+            className="rounded-lg border border-[#CBD5E1] px-4 py-2 text-sm font-medium text-[#1E293B] hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {previewWebsiteContext.isPending ? 'Analyzing...' : 'Analyze website'}
+          </button>
+        </div>
+
+        <div className="mt-6 grid gap-6">
+          <div>
+            <label className="block text-sm font-medium text-[#1E293B]">Website URL</label>
+            <input
+              type="url"
+              value={websiteUrl}
+              onChange={(e) => setWebsiteUrl(e.target.value)}
+              placeholder="https://yourcompany.com"
+              className="mt-2 w-full rounded-lg border border-[#E2E8F0] px-4 py-2.5 text-[#1E293B] placeholder:text-[#94A3B8] focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+            />
+            <p className="mt-1 text-xs text-[#64748B]">
+              Use website analysis to draft the fields below, then edit them before saving.
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-[#1E293B]">Business Blurb</label>
+            <textarea
+              value={businessBlurb}
+              onChange={(e) => setBusinessBlurb(e.target.value)}
+              placeholder="What does your company do, and why does it matter?"
+              rows={3}
+              className="mt-2 w-full rounded-lg border border-[#E2E8F0] px-4 py-2.5 text-[#1E293B] placeholder:text-[#94A3B8] focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-[#1E293B]">
+              Ideal Customer Profile
+            </label>
+            <textarea
+              value={icp}
+              onChange={(e) => setIcp(e.target.value)}
+              placeholder="Who should Parrot target?"
+              rows={3}
+              className="mt-2 w-full rounded-lg border border-[#E2E8F0] px-4 py-2.5 text-[#1E293B] placeholder:text-[#94A3B8] focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-[#1E293B]">Outreach Intent</label>
+            <textarea
+              value={outreachIntent}
+              onChange={(e) => setOutreachIntent(e.target.value)}
+              placeholder="What outcome should outreach drive?"
+              rows={3}
+              className="mt-2 w-full rounded-lg border border-[#E2E8F0] px-4 py-2.5 text-[#1E293B] placeholder:text-[#94A3B8] focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-[#1E293B]">Brand Tone</label>
+            <input
+              type="text"
+              value={brandTone}
+              onChange={(e) => setBrandTone(e.target.value)}
+              placeholder="Direct, credible, and low-hype"
+              className="mt-2 w-full rounded-lg border border-[#E2E8F0] px-4 py-2.5 text-[#1E293B] placeholder:text-[#94A3B8] focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-[#1E293B]">Value Proposition</label>
+            <textarea
+              value={valueProposition}
+              onChange={(e) => setValueProposition(e.target.value)}
+              placeholder="What is the clearest concrete result your product creates?"
+              rows={3}
+              className="mt-2 w-full rounded-lg border border-[#E2E8F0] px-4 py-2.5 text-[#1E293B] placeholder:text-[#94A3B8] focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-[#1E293B]">CTA Preference</label>
+            <textarea
+              value={ctaPreference}
+              onChange={(e) => setCtaPreference(e.target.value)}
+              placeholder="Preferred call to action, e.g. short intro call, send overview first, etc."
+              rows={2}
+              className="mt-2 w-full rounded-lg border border-[#E2E8F0] px-4 py-2.5 text-[#1E293B] placeholder:text-[#94A3B8] focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-[#1E293B]">Reply Guardrails</label>
+            <textarea
+              value={replyGuardrails}
+              onChange={(e) => setReplyGuardrails(e.target.value)}
+              placeholder="Rules the AI should follow when drafting or replying."
+              rows={3}
+              className="mt-2 w-full rounded-lg border border-[#E2E8F0] px-4 py-2.5 text-[#1E293B] placeholder:text-[#94A3B8] focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-[#1E293B]">Forbidden Claims</label>
+            <textarea
+              value={forbiddenClaims}
+              onChange={(e) => setForbiddenClaims(e.target.value)}
+              placeholder="Claims, promises, or topics the AI must avoid."
+              rows={3}
+              className="mt-2 w-full rounded-lg border border-[#E2E8F0] px-4 py-2.5 text-[#1E293B] placeholder:text-[#94A3B8] focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+            />
+          </div>
+        </div>
+
+        {(contextError || contextSuccess) && (
+          <div
+            className={`mt-6 rounded-xl border p-4 ${
+              contextError ? 'border-[#EF4444]/20 bg-[#FEF2F2]' : 'border-[#86EFAC] bg-[#F0FDF4]'
+            }`}
+          >
+            <p
+              className={`text-sm font-medium ${
+                contextError ? 'text-[#991B1B]' : 'text-[#166534]'
+              }`}
+            >
+              {contextError || contextSuccess}
+            </p>
+          </div>
+        )}
+
+        <div className="mt-6 flex justify-end">
+          <button
+            onClick={handleSaveContext}
+            disabled={!selectedWorkspaceId || updateWorkspaceContext.isPending}
+            className="rounded-lg bg-[#0F172A] px-6 py-2.5 font-medium text-white hover:bg-[#1E293B] disabled:opacity-50"
+          >
+            {updateWorkspaceContext.isPending ? 'Saving...' : 'Save Context'}
+          </button>
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-[#E2E8F0] bg-white p-6">
+        <div className="mb-6">
+          <h3 className="text-lg font-semibold text-[#1E293B]">Reply Agent Defaults</h3>
+          <p className="mt-1 text-sm text-[#64748B]">
+            These values pre-populate new Reply Agent steps in the campaign builder.
+          </p>
+        </div>
         <div className="space-y-6">
           {/* Goal */}
           <div>
@@ -2023,16 +2485,16 @@ function AIAgentSettings() {
         </div>
 
         {/* Error / Success */}
-        {error && (
+        {defaultsError && (
           <div className="mt-6 flex items-start gap-3 rounded-xl border border-[#EF4444]/20 bg-[#FEF2F2] p-4">
             <WarningIcon className="mt-0.5 h-5 w-5 flex-shrink-0 text-[#EF4444]" />
             <div className="flex-1">
               <p className="text-sm font-medium text-[#991B1B]">Error</p>
-              <p className="text-xs text-[#DC2626]">{error}</p>
+              <p className="text-xs text-[#DC2626]">{defaultsError}</p>
             </div>
           </div>
         )}
-        {success && (
+        {defaultsSuccess && (
           <div className="mt-6 flex items-center gap-2 rounded-xl border border-[#86EFAC] bg-[#F0FDF4] p-4">
             <CheckIcon className="h-5 w-5 text-[#22C55E]" />
             <p className="text-sm font-medium text-[#166534]">
@@ -2045,10 +2507,10 @@ function AIAgentSettings() {
         <div className="mt-6 flex justify-end">
           <button
             onClick={handleSave}
-            disabled={isSaving}
+            disabled={isSavingDefaults}
             className="rounded-lg bg-[#FF6B35] px-6 py-2.5 font-medium text-white hover:bg-[#E85A2A] disabled:opacity-50"
           >
-            {isSaving ? 'Saving...' : 'Save Defaults'}
+            {isSavingDefaults ? 'Saving...' : 'Save Defaults'}
           </button>
         </div>
       </div>

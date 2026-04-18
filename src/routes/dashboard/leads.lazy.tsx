@@ -59,6 +59,19 @@ type LeadMappingSuggestion = {
   reason: string;
 };
 
+type LinkedInSearchParameterOption = {
+  id: string;
+  title: string;
+  picture_url?: string | null;
+  additional_data?: Record<string, string | number | boolean> | null;
+};
+
+type LinkedInSearchParametersLookupResponse = {
+  items: LinkedInSearchParameterOption[];
+  service: 'CLASSIC' | 'SALES_NAVIGATOR' | 'RECRUITER';
+  parameter_type: 'LOCATION' | 'REGION';
+};
+
 const LEAD_FIELD_SYNONYMS: Record<LeadCoreField, string[]> = {
   linkedin_url: [
     'linkedin url',
@@ -1550,8 +1563,17 @@ export function ImportLeadsModal({
       return;
     }
 
-    if (!searchParams.keywords || !(searchParams.keywords as string).trim()) {
-      setImportError('Please enter search keywords');
+    const hasKeywords =
+      typeof searchParams.keywords === 'string' &&
+      (searchParams.keywords as string).trim().length > 0;
+    const hasLocation =
+      Array.isArray(searchParams.location) ||
+      (typeof searchParams.location === 'object' &&
+        searchParams.location !== null &&
+        Object.keys(searchParams.location as Record<string, unknown>).length > 0);
+
+    if (!hasKeywords && !hasLocation) {
+      setImportError('Please enter search keywords or a location');
       return;
     }
 
@@ -1935,6 +1957,13 @@ function ImportMethodConfig({
   const [mappingConfirmed, setMappingConfirmed] = useState(false);
   const [searchUrl, setSearchUrl] = useState('');
   const [keywords, setKeywords] = useState('');
+  const [location, setLocation] = useState('');
+  const [locationOptions, setLocationOptions] = useState<LinkedInSearchParameterOption[]>([]);
+  const [selectedLocationOption, setSelectedLocationOption] =
+    useState<LinkedInSearchParameterOption | null>(null);
+  const [locationLoading, setLocationLoading] = useState(false);
+  const [locationLookupError, setLocationLookupError] = useState<string | null>(null);
+  const [peopleSearchError, setPeopleSearchError] = useState<string | null>(null);
   const [networkDistance, setNetworkDistance] = useState<(number | string)[]>([2, 3]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -1957,6 +1986,74 @@ function ImportMethodConfig({
         return 'classic';
     }
   };
+
+  useEffect(() => {
+    if (method !== 'linkedin_people_search') return;
+    setLocation('');
+    setLocationOptions([]);
+    setSelectedLocationOption(null);
+    setLocationLookupError(null);
+    setPeopleSearchError(null);
+  }, [selectedAccountId, method]);
+
+  useEffect(() => {
+    if (method !== 'linkedin_people_search') return;
+
+    const trimmedLocation = location.trim();
+    if (!selectedAccountId || trimmedLocation.length < 2) {
+      setLocationOptions([]);
+      setLocationLoading(false);
+      setLocationLookupError(null);
+      if (!trimmedLocation) {
+        setSelectedLocationOption(null);
+      }
+      return;
+    }
+
+    let cancelled = false;
+    const timeoutId = window.setTimeout(async () => {
+      setLocationLoading(true);
+      setLocationLookupError(null);
+
+      try {
+        const params = new URLSearchParams({
+          linkedin_account_id: selectedAccountId,
+          keywords: trimmedLocation,
+        });
+        const response = await api.get<LinkedInSearchParametersLookupResponse>(
+          `/leads/linkedin/search-parameters?${params.toString()}`
+        );
+
+        if (cancelled) return;
+
+        const items = response.data.items || [];
+        setLocationOptions(items);
+
+        const normalizedInput = trimmedLocation.toLowerCase();
+        const exactMatch =
+          items.find((item) => item.title.trim().toLowerCase() === normalizedInput) ||
+          (items.length === 1 ? items[0] : null);
+
+        setSelectedLocationOption(exactMatch);
+      } catch (error) {
+        if (cancelled) return;
+        setLocationOptions([]);
+        setSelectedLocationOption(null);
+        setLocationLookupError(
+          error instanceof Error ? error.message : 'Failed to look up locations'
+        );
+      } finally {
+        if (!cancelled) {
+          setLocationLoading(false);
+        }
+      }
+    }, 300);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+    };
+  }, [location, selectedAccountId, method]);
 
   const parseCsvPreview = (file: File) => {
     const reader = new FileReader();
@@ -2023,12 +2120,31 @@ function ImportMethodConfig({
     };
 
     const handleSearch = () => {
+      setPeopleSearchError(null);
+
       const searchParams: Record<string, unknown> = {
         api: getApiType(),
         category: 'people',
         keywords: keywords.trim(),
         network_distance: networkDistance.filter((d) => typeof d === 'number'),
       };
+      if (location.trim()) {
+        if (!selectedLocationOption) {
+          setPeopleSearchError('Select a valid location from the suggestions before searching');
+          return;
+        }
+
+        const apiType = getApiType();
+        if (apiType === 'sales_navigator') {
+          searchParams.location = { include: [selectedLocationOption.id] };
+        } else if (apiType === 'recruiter') {
+          searchParams.location = [
+            { id: selectedLocationOption.id, priority: 'MUST_HAVE', scope: 'CURRENT' },
+          ];
+        } else {
+          searchParams.location = [selectedLocationOption.id];
+        }
+      }
       // Include GROUP for advanced accounts if selected
       if (networkDistance.includes('GROUP')) {
         (searchParams.network_distance as (number | string)[]).push('GROUP');
@@ -2083,6 +2199,59 @@ function ImportMethodConfig({
           <p className="mt-1.5 text-xs text-[#64748B]">
             Search for people by job title, company, skills, or any keyword
           </p>
+        </div>
+
+        <div>
+          <label className="mb-2 block text-sm font-medium text-[#1E293B]">Location</label>
+          <input
+            type="text"
+            value={location}
+            onChange={(e) => {
+              setLocation(e.target.value);
+              setSelectedLocationOption(null);
+              setPeopleSearchError(null);
+            }}
+            placeholder="e.g., New York, Lagos, California, United Kingdom"
+            className="w-full rounded-xl border border-[#E2E8F0] px-4 py-3 focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+          />
+          <p className="mt-1.5 text-xs text-[#64748B]">
+            Narrow the search to a city, region, or country using a valid LinkedIn location.
+          </p>
+          {locationLoading && (
+            <p className="mt-2 text-xs text-[#64748B]">Finding matching locations...</p>
+          )}
+          {selectedLocationOption && location.trim() && (
+            <p className="mt-2 text-xs font-medium text-[#0A66C2]">
+              Using location: {selectedLocationOption.title}
+            </p>
+          )}
+          {locationLookupError && (
+            <p className="mt-2 text-xs text-[#EF4444]">{locationLookupError}</p>
+          )}
+          {!locationLoading &&
+            location.trim().length >= 2 &&
+            locationOptions.length > 0 &&
+            (!selectedLocationOption ||
+              selectedLocationOption.title.trim().toLowerCase() !==
+                location.trim().toLowerCase()) && (
+              <div className="mt-3 overflow-hidden rounded-xl border border-[#E2E8F0] bg-white">
+                {locationOptions.map((option) => (
+                  <button
+                    key={option.id}
+                    type="button"
+                    onClick={() => {
+                      setLocation(option.title);
+                      setSelectedLocationOption(option);
+                      setPeopleSearchError(null);
+                    }}
+                    className="flex w-full items-center justify-between border-b border-[#E2E8F0] px-4 py-3 text-left text-sm text-[#1E293B] transition-colors last:border-b-0 hover:bg-[#F8FAFC]"
+                  >
+                    <span>{option.title}</span>
+                    <span className="text-xs text-[#64748B]">{option.id}</span>
+                  </button>
+                ))}
+              </div>
+            )}
         </div>
 
         {/* Network Distance */}
@@ -2167,15 +2336,20 @@ function ImportMethodConfig({
           </div>
         </div>
 
-        {importError && (
+        {(peopleSearchError || importError) && (
           <div className="rounded-xl border border-[#EF4444]/20 bg-[#FEF2F2] p-3 text-sm text-[#EF4444]">
-            <pre className="whitespace-pre-wrap font-sans">{importError}</pre>
+            <pre className="whitespace-pre-wrap font-sans">{peopleSearchError || importError}</pre>
           </div>
         )}
 
         <button
           onClick={handleSearch}
-          disabled={!keywords.trim() || !listName.trim() || !selectedAccountId}
+          disabled={
+            (!keywords.trim() && !location.trim()) ||
+            (Boolean(location.trim()) && !selectedLocationOption) ||
+            !listName.trim() ||
+            !selectedAccountId
+          }
           className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#FF6B35] py-3.5 font-semibold text-white hover:bg-[#E85A2A] disabled:cursor-not-allowed disabled:opacity-50"
         >
           <svg
