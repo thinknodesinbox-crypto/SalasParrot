@@ -1,6 +1,6 @@
 import { useMutation } from '@tanstack/react-query';
 
-import { api, getErrorMessage } from '../../api';
+import { api } from '../../api';
 import type { ReplySuggestionsResponse, SequenceStepSuggestionsResponse } from '../../types';
 
 interface SequenceStepSuggestionsRequest {
@@ -22,9 +22,6 @@ export const useSequenceStepSuggestions = () => {
       );
       return response.data;
     },
-    onError: (error) => {
-      throw new Error(getErrorMessage(error));
-    },
   });
 };
 
@@ -43,9 +40,6 @@ export const useReplySuggestions = () => {
       });
       return response.data;
     },
-    onError: (error) => {
-      throw new Error(getErrorMessage(error));
-    },
   });
 };
 
@@ -63,9 +57,6 @@ export const useSuggestionFeedback = () => {
     }) => {
       const response = await api.post<{ status: string }>('/ai/suggestions/feedback', data);
       return response.data;
-    },
-    onError: (error) => {
-      throw new Error(getErrorMessage(error));
     },
   });
 };
