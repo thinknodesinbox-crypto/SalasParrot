@@ -3,9 +3,18 @@ import type { AssistantMessage } from '@/lib/types';
 interface AssistantMessageListProps {
   messages: AssistantMessage[];
   isLoading: boolean;
+  draftUserMessage?: string;
+  draftAssistantMessage?: string;
+  error?: string | null;
 }
 
-export function AssistantMessageList({ messages, isLoading }: AssistantMessageListProps) {
+export function AssistantMessageList({
+  messages,
+  isLoading,
+  draftUserMessage = '',
+  draftAssistantMessage = '',
+  error = null,
+}: AssistantMessageListProps) {
   if (isLoading) {
     return (
       <div className="space-y-4 p-6">
@@ -21,7 +30,7 @@ export function AssistantMessageList({ messages, isLoading }: AssistantMessageLi
     );
   }
 
-  if (messages.length === 0) {
+  if (messages.length === 0 && !draftUserMessage && !draftAssistantMessage && !error) {
     return (
       <div className="flex h-full items-center justify-center p-8 text-center">
         <div>
@@ -55,6 +64,27 @@ export function AssistantMessageList({ messages, isLoading }: AssistantMessageLi
           </div>
         );
       })}
+      {draftUserMessage ? (
+        <div className="flex justify-end">
+          <div className="max-w-[85%] rounded-2xl bg-[#FF6B35] px-4 py-3 text-white">
+            <div className="whitespace-pre-wrap text-sm leading-6">{draftUserMessage}</div>
+          </div>
+        </div>
+      ) : null}
+      {draftAssistantMessage ? (
+        <div className="flex justify-start">
+          <div className="max-w-[85%] rounded-2xl border border-[#E2E8F0] bg-white px-4 py-3 text-[#1E293B]">
+            <div className="whitespace-pre-wrap text-sm leading-6">{draftAssistantMessage}</div>
+          </div>
+        </div>
+      ) : null}
+      {error ? (
+        <div className="flex justify-start">
+          <div className="max-w-[85%] rounded-2xl border border-[#FECACA] bg-white px-4 py-3 text-[#B91C1C]">
+            <div className="whitespace-pre-wrap text-sm leading-6">{error}</div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

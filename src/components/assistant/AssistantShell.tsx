@@ -11,11 +11,9 @@ import {
   useWorkspace,
 } from '@/lib/hooks/queries';
 import { AssistantComposer } from './AssistantComposer';
-import { AssistantContextPanel } from './AssistantContextPanel';
 import { AssistantMessageList } from './AssistantMessageList';
 import { QRHandoffModal } from './QRHandoffModal';
 import { AssistantThreadList } from './AssistantThreadList';
-import { VoiceSessionPanel } from './VoiceSessionPanel';
 
 export function AssistantShell() {
   const { threadId: handoffThreadId } = useSearch({ from: '/dashboard/assistant' });
@@ -86,7 +84,7 @@ export function AssistantShell() {
         </p>
       </div>
 
-      <div className="grid h-[calc(100vh-12rem)] grid-cols-1 overflow-hidden rounded-xl border border-[#E2E8F0] bg-white xl:grid-cols-[280px_minmax(0,1fr)_320px]">
+      <div className="grid h-[calc(100vh-12rem)] grid-cols-1 overflow-hidden rounded-xl border border-[#E2E8F0] bg-white xl:grid-cols-[280px_minmax(0,1fr)]">
         <AssistantThreadList
           threads={threads}
           activeThreadId={activeThreadId}
@@ -97,68 +95,47 @@ export function AssistantShell() {
 
         <div className="flex min-h-0 flex-col bg-[#F8FAFC]">
           <div className="border-b border-[#E2E8F0] bg-white px-6 py-4">
-            <div className="flex items-center justify-between gap-4">
-              <div className="text-sm font-medium text-[#1E293B]">
-                {threads.find((thread) => thread.id === activeThreadId)?.title ||
-                  'New conversation'}
+            <div className="flex items-center justify-end gap-4">
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => {
+                    setShowQrModal(true);
+                    createQrTransfer.reset();
+                    createQrTransfer.mutate();
+                  }}
+                  disabled={!activeThreadId || !currentWorkspaceId}
+                  className="rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-sm font-medium text-[#1E293B] hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:bg-[#E2E8F0] disabled:text-[#94A3B8]"
+                >
+                  Continue on mobile
+                </button>
               </div>
-              <button
-                onClick={() => {
-                  if (!voiceMode) {
-                    setVoiceMode(true);
-                    void voice.start();
-                  } else {
-                    void voice.stop();
-                    setVoiceMode(false);
-                  }
-                }}
-                disabled={!activeThreadId || !currentWorkspaceId || voice.status === 'connecting'}
-                className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                  voiceMode
-                    ? 'bg-[#1E293B] text-white hover:bg-[#0F172A]'
-                    : 'border border-[#E2E8F0] bg-white text-[#1E293B] hover:bg-[#F8FAFC]'
-                } disabled:cursor-not-allowed disabled:bg-[#E2E8F0] disabled:text-[#94A3B8]`}
-              >
-                {voice.status === 'connecting'
-                  ? 'Connecting...'
-                  : voiceMode
-                    ? 'Stop Voice'
-                    : 'Start Voice'}
-              </button>
-              <button
-                onClick={() => {
-                  setShowQrModal(true);
-                  createQrTransfer.reset();
-                  createQrTransfer.mutate();
-                }}
-                disabled={!activeThreadId || !currentWorkspaceId}
-                className="rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-sm font-medium text-[#1E293B] hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:bg-[#E2E8F0] disabled:text-[#94A3B8]"
-              >
-                Continue on mobile
-              </button>
             </div>
           </div>
-          {voiceMode ? (
-            <VoiceSessionPanel
-              status={voice.status}
-              error={voice.error}
-              liveTranscript={voice.liveTranscript}
-            />
-          ) : null}
           <div className="min-h-0 flex-1 overflow-y-auto">
-            <AssistantMessageList messages={messages} isLoading={isMessagesLoading} />
+            <AssistantMessageList
+              messages={messages}
+              isLoading={isMessagesLoading}
+              draftUserMessage={voiceMode ? voice.liveUserTranscript : ''}
+              draftAssistantMessage={voiceMode ? voice.liveAssistantTranscript : ''}
+              error={voiceMode ? voice.error : null}
+            />
           </div>
           <AssistantComposer
             disabled={!currentWorkspaceId}
             isSending={createThread.isPending || sendMessage.isPending}
+            isVoiceDisabled={!activeThreadId || !currentWorkspaceId}
+            isVoiceActive={voiceMode}
+            isVoiceConnecting={voice.status === 'connecting'}
+            onToggleVoice={() => {
+              if (!voiceMode) {
+                setVoiceMode(true);
+                void voice.start();
+              } else {
+                void voice.stop();
+                setVoiceMode(false);
+              }
+            }}
             onSend={handleSendMessage}
-          />
-        </div>
-
-        <div className="hidden xl:block">
-          <AssistantContextPanel
-            workspace={workspace}
-            onUsePrompt={(prompt) => void handleSendMessage(prompt)}
           />
         </div>
       </div>

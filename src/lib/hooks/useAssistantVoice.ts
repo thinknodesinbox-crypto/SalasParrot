@@ -17,13 +17,16 @@ interface PersistTranscriptInput {
 export function useAssistantVoice({ workspaceId, threadId }: UseAssistantVoiceOptions) {
   const [status, setStatus] = useState<VoiceStatus>('idle');
   const [error, setError] = useState<string | null>(null);
-  const [liveTranscript, setLiveTranscript] = useState('');
+  const [liveUserTranscript, setLiveUserTranscript] = useState('');
+  const [liveAssistantTranscript, setLiveAssistantTranscript] = useState('');
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const dataChannelRef = useRef<RTCDataChannel | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
   const persistedItemIdsRef = useRef<Set<string>>(new Set());
   const sessionIdRef = useRef<string | null>(null);
+  const userTranscriptBuffersRef = useRef<Map<string, string>>(new Map());
+  const assistantTranscriptBuffersRef = useRef<Map<string, string>>(new Map());
 
   const completeVoiceSession = async () => {
     if (!workspaceId || !threadId || !sessionIdRef.current) return;
@@ -75,7 +78,10 @@ export function useAssistantVoice({ workspaceId, threadId }: UseAssistantVoiceOp
       remoteAudioRef.current.srcObject = null;
       remoteAudioRef.current = null;
     }
-    setLiveTranscript('');
+    setLiveUserTranscript('');
+    setLiveAssistantTranscript('');
+    userTranscriptBuffersRef.current.clear();
+    assistantTranscriptBuffersRef.current.clear();
     await completeVoiceSession();
     setStatus('idle');
   };
@@ -85,7 +91,10 @@ export function useAssistantVoice({ workspaceId, threadId }: UseAssistantVoiceOp
 
     setStatus('connecting');
     setError(null);
-    setLiveTranscript('');
+    setLiveUserTranscript('');
+    setLiveAssistantTranscript('');
+    userTranscriptBuffersRef.current.clear();
+    assistantTranscriptBuffersRef.current.clear();
 
     try {
       const tokenResponse = await api.post<{
@@ -118,24 +127,52 @@ export function useAssistantVoice({ workspaceId, threadId }: UseAssistantVoiceOp
       dc.onmessage = (event) => {
         try {
           const payload = JSON.parse(event.data);
+          if (
+            payload.type === 'conversation.item.input_audio_transcription.delta' &&
+            payload.delta &&
+            payload.item_id
+          ) {
+            const nextTranscript = `${userTranscriptBuffersRef.current.get(payload.item_id) || ''}${payload.delta}`;
+            userTranscriptBuffersRef.current.set(payload.item_id, nextTranscript);
+            setLiveUserTranscript(nextTranscript);
+          }
           if (payload.type === 'conversation.item.input_audio_transcription.completed') {
-            const transcript = payload.transcript || '';
-            setLiveTranscript('');
+            const transcript =
+              payload.transcript ||
+              (payload.item_id ? userTranscriptBuffersRef.current.get(payload.item_id) : '') ||
+              '';
+            if (payload.item_id) {
+              userTranscriptBuffersRef.current.delete(payload.item_id);
+            }
+            setLiveUserTranscript('');
             void persistTranscript({
               role: 'user',
               content: transcript,
               externalItemId: payload.item_id || null,
             });
           }
-          if (payload.type === 'response.audio_transcript.delta' && payload.delta) {
-            setLiveTranscript((current) => `${current}${payload.delta}`);
+          if (
+            (payload.type === 'response.audio_transcript.delta' ||
+              payload.type === 'response.output_audio_transcript.delta') &&
+            payload.delta &&
+            payload.item_id
+          ) {
+            const nextTranscript = `${assistantTranscriptBuffersRef.current.get(payload.item_id) || ''}${payload.delta}`;
+            assistantTranscriptBuffersRef.current.set(payload.item_id, nextTranscript);
+            setLiveAssistantTranscript(nextTranscript);
           }
           if (
             payload.type === 'response.audio_transcript.done' ||
             payload.type === 'response.output_audio_transcript.done'
           ) {
-            const transcript = payload.transcript || liveTranscript;
-            setLiveTranscript('');
+            const transcript =
+              payload.transcript ||
+              (payload.item_id ? assistantTranscriptBuffersRef.current.get(payload.item_id) : '') ||
+              '';
+            if (payload.item_id) {
+              assistantTranscriptBuffersRef.current.delete(payload.item_id);
+            }
+            setLiveAssistantTranscript('');
             void persistTranscript({
               role: 'assistant',
               content: transcript,
@@ -185,7 +222,8 @@ export function useAssistantVoice({ workspaceId, threadId }: UseAssistantVoiceOp
   return {
     status,
     error,
-    liveTranscript,
+    liveUserTranscript,
+    liveAssistantTranscript,
     isConnected: status === 'connected',
     start,
     stop,
