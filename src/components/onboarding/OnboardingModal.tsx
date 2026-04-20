@@ -182,31 +182,31 @@ function OnboardingModalContent({
           initial={{ opacity: 0, scale: 0.96, y: 12 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.96, y: 12 }}
-          className="w-full max-w-2xl rounded-2xl bg-white shadow-xl"
+          className="w-full max-w-lg rounded-2xl bg-white shadow-xl"
         >
-          <div className="flex items-center justify-between border-b border-[#E2E8F0] px-6 py-5">
+          <div className="flex items-center justify-between border-b border-[#E2E8F0] px-6 py-4">
             <div>
-              <p className="text-sm font-medium text-[#FF6B35]">Workspace setup</p>
-              <h2 className="mt-1 text-xl font-bold text-[#1E293B]">
+              <p className="text-xs font-medium text-[#FF6B35]">Workspace setup</p>
+              <h2 className="mt-0.5 text-lg font-bold text-[#1E293B]">
                 Get Parrot ready for {workspace.name}
               </h2>
             </div>
             <button
               onClick={closeModal}
-              className="rounded-lg px-3 py-2 text-sm font-medium text-[#64748B] transition-colors hover:bg-[#F8FAFC]"
+              className="rounded-lg px-3 py-1.5 text-sm font-medium text-[#64748B] transition-colors hover:bg-[#F8FAFC]"
             >
               Skip for now
             </button>
           </div>
 
-          <div className="px-6 pb-3 pt-4">
+          <div className="px-6 pb-2 pt-3">
             <div className="flex items-center gap-3">
               {STEP_ORDER.map((item, index) => {
                 const active = index <= stepIndex;
                 return (
                   <div key={item} className="flex flex-1 items-center gap-3">
                     <div
-                      className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold ${
+                      className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${
                         active ? 'bg-[#FF6B35] text-white' : 'bg-[#E2E8F0] text-[#64748B]'
                       }`}
                     >
@@ -223,81 +223,79 @@ function OnboardingModalContent({
             </div>
           </div>
 
-          <div className="space-y-6 px-6 py-5">
+          <div className="space-y-4 px-6 py-4">
             {step === 'business_context' && (
               <>
                 <div>
-                  <h3 className="text-lg font-semibold text-[#1E293B]">Business context</h3>
-                  <p className="mt-1 text-sm text-[#64748B]">
+                  <h3 className="text-base font-semibold text-[#1E293B]">Business context</h3>
+                  <p className="mt-0.5 text-sm text-[#64748B]">
                     Give Parrot the core context it needs to generate better outreach and reply
                     guidance.
                   </p>
                 </div>
 
-                <div className="grid gap-4">
+                <div className="grid gap-3">
                   <label className="block">
-                    <span className="mb-2 block text-sm font-medium text-[#1E293B]">
+                    <span className="mb-1.5 block text-sm font-medium text-[#1E293B]">
                       Website URL
                     </span>
-                    <div className="flex flex-col gap-3 sm:flex-row">
+                    <div className="flex gap-2">
                       <input
                         type="url"
                         value={websiteUrl}
                         onChange={(event) => setWebsiteUrl(event.target.value)}
                         placeholder="https://yourcompany.com"
-                        className="flex-1 rounded-xl border border-[#E2E8F0] px-4 py-3 focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+                        className="flex-1 rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
                       />
                       <button
                         type="button"
                         onClick={analyzeWebsite}
                         disabled={previewWebsiteContext.isPending}
-                        className="rounded-xl border border-[#E2E8F0] px-4 py-3 font-semibold text-[#1E293B] transition-colors hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-50"
+                        className="rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm font-semibold text-[#1E293B] transition-colors hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         {previewWebsiteContext.isPending ? 'Analyzing...' : 'Analyze website'}
                       </button>
                     </div>
                   </label>
                   <label className="block">
-                    <span className="mb-2 block text-sm font-medium text-[#1E293B]">
+                    <span className="mb-1.5 block text-sm font-medium text-[#1E293B]">
                       Short business blurb
                     </span>
                     <textarea
                       value={businessBlurb}
                       onChange={(event) => setBusinessBlurb(event.target.value)}
-                      rows={3}
+                      rows={2}
                       placeholder="What do you sell and why does it matter?"
-                      className="w-full rounded-xl border border-[#E2E8F0] px-4 py-3 focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+                      className="w-full rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
                     />
                   </label>
                   <label className="block">
-                    <span className="mb-2 block text-sm font-medium text-[#1E293B]">
+                    <span className="mb-1.5 block text-sm font-medium text-[#1E293B]">
                       Ideal customer profile
                     </span>
                     <textarea
                       value={icp}
                       onChange={(event) => setIcp(event.target.value)}
-                      rows={3}
+                      rows={2}
                       placeholder="Who should Parrot target?"
-                      className="w-full rounded-xl border border-[#E2E8F0] px-4 py-3 focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+                      className="w-full rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
                     />
                   </label>
                   <label className="block">
-                    <span className="mb-2 block text-sm font-medium text-[#1E293B]">
+                    <span className="mb-1.5 block text-sm font-medium text-[#1E293B]">
                       Outreach intent
                     </span>
                     <textarea
                       value={outreachIntent}
                       onChange={(event) => setOutreachIntent(event.target.value)}
-                      rows={3}
+                      rows={2}
                       placeholder="What outcome should outreach drive?"
-                      className="w-full rounded-xl border border-[#E2E8F0] px-4 py-3 focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+                      className="w-full rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
                     />
                   </label>
                 </div>
 
-                <div className="space-y-3">
-                  {analysisMessage && <p className="text-sm text-[#0F766E]">{analysisMessage}</p>}
-                </div>
+                {analysisMessage && <p className="text-sm text-[#0F766E]">{analysisMessage}</p>}
 
                 <div className="flex items-center justify-between">
                   <button
@@ -309,7 +307,7 @@ function OnboardingModalContent({
                   <button
                     onClick={saveBusinessContext}
                     disabled={updateContext.isPending || updateOnboarding.isPending}
-                    className="rounded-xl bg-[#FF6B35] px-5 py-3 font-semibold text-white transition-colors hover:bg-[#E85A2A] disabled:cursor-not-allowed disabled:opacity-50"
+                    className="rounded-lg bg-[#FF6B35] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#E85A2A] disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     Continue
                   </button>
@@ -320,8 +318,8 @@ function OnboardingModalContent({
             {step === 'channel_selection' && (
               <>
                 <div>
-                  <h3 className="text-lg font-semibold text-[#1E293B]">Channel selection</h3>
-                  <p className="mt-1 text-sm text-[#64748B]">
+                  <h3 className="text-base font-semibold text-[#1E293B]">Channel selection</h3>
+                  <p className="mt-0.5 text-sm text-[#64748B]">
                     Choose where you want to start. You can change this later.
                   </p>
                 </div>
@@ -347,15 +345,13 @@ function OnboardingModalContent({
                           }
                           toggleChannel(channel.id);
                         }}
-                        className={`rounded-2xl border px-4 py-6 text-left transition-colors ${
+                        className={`rounded-xl border px-4 py-4 text-left transition-colors ${
                           selected
                             ? 'border-[#FF6B35] bg-[#FFF7ED]'
                             : 'border-[#E2E8F0] bg-white hover:border-[#FF6B35]/40'
                         }`}
                       >
-                        <div className="text-base font-semibold text-[#1E293B]">
-                          {channel.label}
-                        </div>
+                        <div className="text-sm font-semibold text-[#1E293B]">{channel.label}</div>
                       </button>
                     );
                   })}
@@ -368,17 +364,17 @@ function OnboardingModalContent({
                   >
                     Skip
                   </button>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
                     <button
                       onClick={() => selectStep('business_context')}
-                      className="rounded-xl border border-[#E2E8F0] px-5 py-3 font-semibold text-[#64748B] transition-colors hover:bg-[#F8FAFC]"
+                      className="rounded-lg border border-[#E2E8F0] px-4 py-2 text-sm font-semibold text-[#64748B] transition-colors hover:bg-[#F8FAFC]"
                     >
                       Back
                     </button>
                     <button
                       onClick={continueChannels}
                       disabled={updateOnboarding.isPending}
-                      className="rounded-xl bg-[#FF6B35] px-5 py-3 font-semibold text-white transition-colors hover:bg-[#E85A2A] disabled:cursor-not-allowed disabled:opacity-50"
+                      className="rounded-lg bg-[#FF6B35] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#E85A2A] disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       Continue
                     </button>
@@ -390,8 +386,8 @@ function OnboardingModalContent({
             {step === 'channel_connection' && (
               <>
                 <div>
-                  <h3 className="text-lg font-semibold text-[#1E293B]">Connect your channels</h3>
-                  <p className="mt-1 text-sm text-[#64748B]">
+                  <h3 className="text-base font-semibold text-[#1E293B]">Connect your channels</h3>
+                  <p className="mt-0.5 text-sm text-[#64748B]">
                     Based on your selection, connect the relevant accounts now or skip and handle it
                     later.
                   </p>
@@ -446,17 +442,17 @@ function OnboardingModalContent({
                   >
                     Skip
                   </button>
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
                     <button
                       onClick={() => selectStep('channel_selection')}
-                      className="rounded-xl border border-[#E2E8F0] px-5 py-3 font-semibold text-[#64748B] transition-colors hover:bg-[#F8FAFC]"
+                      className="rounded-lg border border-[#E2E8F0] px-4 py-2 text-sm font-semibold text-[#64748B] transition-colors hover:bg-[#F8FAFC]"
                     >
                       Back
                     </button>
                     <button
                       onClick={finishOnboarding}
                       disabled={updateOnboarding.isPending}
-                      className="rounded-xl bg-[#FF6B35] px-5 py-3 font-semibold text-white transition-colors hover:bg-[#E85A2A] disabled:cursor-not-allowed disabled:opacity-50"
+                      className="rounded-lg bg-[#FF6B35] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#E85A2A] disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       Finish
                     </button>
