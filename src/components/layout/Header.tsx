@@ -34,6 +34,7 @@ export function Header() {
             {!isAuthenticated && (
               <Link
                 to="/login"
+                search={{ next: undefined }}
                 className="px-3 py-2 text-sm font-medium text-[#64748B] transition-colors duration-200 hover:text-[#1E293B]"
               >
                 Login
@@ -109,6 +110,7 @@ export function Header() {
                 {!isAuthenticated && (
                   <Link
                     to="/login"
+                    search={{ next: undefined }}
                     className="rounded-lg px-4 py-3 text-[15px] font-medium text-[#64748B] transition-colors hover:bg-slate-50"
                     onClick={() => setIsMenuOpen(false)}
                   >

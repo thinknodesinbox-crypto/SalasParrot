@@ -194,6 +194,138 @@ export interface ReplySuggestionsResponse {
   raw_context?: Record<string, unknown> | null;
 }
 
+export interface AssistantThread {
+  id: string;
+  workspace_id: string;
+  created_by_user_id: string;
+  title: string | null;
+  interface: 'dashboard_text' | 'dashboard_summary' | 'whatsapp';
+  last_message_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AssistantMessage {
+  id: string;
+  thread_id: string;
+  workspace_id: string;
+  user_id: string | null;
+  role: 'user' | 'assistant' | 'system' | 'tool';
+  content: string;
+  message_type: 'text' | 'summary' | 'voice_transcript';
+  interface: 'dashboard_text' | 'dashboard_summary' | 'whatsapp';
+  metadata: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface AssistantRun {
+  id: string;
+  status: 'running' | 'completed' | 'failed';
+  model: string | null;
+  latency_ms: number | null;
+  prompt_tokens: number | null;
+  completion_tokens: number | null;
+  tool_trace: Record<string, unknown>[];
+  error: string | null;
+}
+
+export interface AssistantThreadListResponse {
+  items: AssistantThread[];
+}
+
+export interface AssistantMessageListResponse {
+  items: AssistantMessage[];
+}
+
+export interface AssistantSendMessageResponse {
+  user_message: AssistantMessage;
+  assistant_message: AssistantMessage | null;
+  run: AssistantRun;
+}
+
+export interface AssistantQrTransfer {
+  token: string;
+  expires_at: string;
+  thread_id: string;
+  workspace_id: string;
+}
+
+export interface AssistantQrRedeemResponse {
+  workspace_id: string;
+  thread_id: string;
+  redeemed_at: string;
+}
+
+export interface AssistantDeliverySettings {
+  workspace_id: string;
+  dashboard_recipient_user_id: string | null;
+  daily_summary_enabled: boolean;
+  delivery_channel: 'dashboard' | 'whatsapp' | 'both';
+  daily_summary_time: string;
+  timezone: string;
+  include_campaign_health: boolean;
+  include_sender_health: boolean;
+  include_inbox_summary: boolean;
+  include_workspace_gaps: boolean;
+  whatsapp_daily_interaction_limit: number;
+  voice_daily_minutes_limit: number;
+  monthly_token_alert_threshold: number;
+  last_summary_sent_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AssistantUsageSnapshot {
+  workspace_id: string;
+  timezone: string;
+  whatsapp_interactions_today: number;
+  whatsapp_daily_interaction_limit: number;
+  whatsapp_remaining_today: number;
+  voice_seconds_today: number;
+  voice_minutes_today: number;
+  voice_daily_minutes_limit: number;
+  voice_seconds_remaining_today: number;
+  monthly_prompt_tokens: number;
+  monthly_completion_tokens: number;
+  monthly_total_tokens: number;
+  monthly_token_alert_threshold: number;
+  monthly_token_alert_reached: boolean;
+  assistant_runs_last_24h: number;
+  failed_runs_last_24h: number;
+  qr_transfers_last_7d: number;
+}
+
+export interface AssistantDailySummaryRunResponse {
+  workspace_id: string;
+  thread_id: string | null;
+  assistant_message_id: string | null;
+  delivery_channel: string;
+  delivered_at: string;
+  status: string;
+}
+
+export interface AssistantWhatsAppAccount {
+  unipile_account_id: string;
+  name: string | null;
+  phone_number: string | null;
+  status: string | null;
+}
+
+export interface AssistantWhatsAppAccountListResponse {
+  items: AssistantWhatsAppAccount[];
+}
+
+export interface AssistantWhatsAppBinding {
+  workspace_id: string;
+  user_id: string;
+  unipile_account_id: string;
+  account_name: string | null;
+  phone_number: string | null;
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface WorkspaceMember {
   id: string;
   workspace_id: string;

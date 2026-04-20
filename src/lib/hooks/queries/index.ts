@@ -177,6 +177,23 @@ export {
   useSuggestionFeedback,
 } from './useAISuggestions';
 
+export {
+  useAssistantThreads,
+  useAssistantMessages,
+  useCreateAssistantThread,
+  useSendAssistantMessage,
+  useCreateAssistantQrTransfer,
+  useRedeemAssistantQrTransfer,
+  useAssistantDeliverySettings,
+  useAssistantUsage,
+  useUpdateAssistantDeliverySettings,
+  useRunAssistantDailySummary,
+  useAssistantWhatsAppAccounts,
+  useAssistantWhatsAppBinding,
+  useUpdateAssistantWhatsAppBinding,
+  useDeleteAssistantWhatsAppBinding,
+} from './useAssistant';
+
 // Billing
 export {
   usePricingInfo,

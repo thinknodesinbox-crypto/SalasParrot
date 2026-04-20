@@ -200,6 +200,7 @@ function AcceptInvitePage() {
           <div className="mt-6 flex gap-3">
             <Link
               to="/login"
+              search={{ next: undefined }}
               className="flex-1 rounded-lg border border-[#E2E8F0] px-4 py-3 font-medium text-[#1E293B] hover:bg-[#F8FAFC]"
             >
               Log Out & Sign In
@@ -378,7 +379,7 @@ function AcceptInvitePage() {
             Already have an account?{' '}
             <Link
               to="/login"
-              search={{ redirect: `/accept-invite/${token}` }}
+              search={{ next: `/accept-invite/${token}` }}
               className="font-medium text-[#FF6B35] hover:underline"
             >
               Log in

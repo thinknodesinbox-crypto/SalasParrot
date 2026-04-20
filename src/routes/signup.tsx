@@ -250,6 +250,7 @@ function SignupPage() {
               Already have an account?{' '}
               <Link
                 to="/login"
+                search={{ next: undefined }}
                 className="font-semibold text-[#FF6B35] transition-colors hover:text-[#E85A2A]"
               >
                 Sign in

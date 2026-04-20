@@ -6,10 +6,14 @@ import logoImage from '@/assets/images/logo.png';
 import { useAuthStore } from '@/lib/auth';
 
 export const Route = createFileRoute('/login')({
+  validateSearch: (search: Record<string, unknown>) => ({
+    next: typeof search.next === 'string' ? search.next : undefined,
+  }),
   component: LoginPage,
 });
 
 function LoginPage() {
+  const { next } = Route.useSearch();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -31,7 +35,11 @@ function LoginPage() {
 
     try {
       await googleLogin(credentialResponse.credential);
-      navigate({ to: '/dashboard' } as never);
+      if (next) {
+        window.location.href = next;
+      } else {
+        navigate({ to: '/dashboard' } as never);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Google sign-in failed. Please try again.');
     } finally {
@@ -46,7 +54,11 @@ function LoginPage() {
 
     try {
       await login({ email, password });
-      navigate({ to: '/dashboard' } as never);
+      if (next) {
+        window.location.href = next;
+      } else {
+        navigate({ to: '/dashboard' } as never);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed. Please check your credentials.');
     } finally {

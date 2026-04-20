@@ -35,6 +35,14 @@ import {
   useInitCalendarAuth,
   useUpdateWorkspaceContext,
   usePreviewWebsiteContext,
+  useAssistantDeliverySettings,
+  useAssistantUsage,
+  useUpdateAssistantDeliverySettings,
+  useRunAssistantDailySummary,
+  useAssistantWhatsAppAccounts,
+  useAssistantWhatsAppBinding,
+  useUpdateAssistantWhatsAppBinding,
+  useDeleteAssistantWhatsAppBinding,
   useUpdateWorkspaceOnboarding,
   useWorkspaceOnboarding,
 } from '@/lib/hooks/queries';
@@ -2007,6 +2015,10 @@ function AIAgentSettings() {
   const [defaultsSuccess, setDefaultsSuccess] = useState(false);
   const [contextError, setContextError] = useState<string | null>(null);
   const [contextSuccess, setContextSuccess] = useState<string | null>(null);
+  const [deliveryError, setDeliveryError] = useState<string | null>(null);
+  const [deliverySuccess, setDeliverySuccess] = useState<string | null>(null);
+  const [whatsAppError, setWhatsAppError] = useState<string | null>(null);
+  const [whatsAppSuccess, setWhatsAppSuccess] = useState<string | null>(null);
 
   // Prefer the current workspace, then fall back to the first available one.
   useEffect(() => {
@@ -2023,6 +2035,14 @@ function AIAgentSettings() {
   const updateWorkspace = useUpdateWorkspace(selectedWorkspaceId);
   const updateWorkspaceContext = useUpdateWorkspaceContext(selectedWorkspaceId);
   const previewWebsiteContext = usePreviewWebsiteContext(selectedWorkspaceId);
+  const { data: deliverySettings } = useAssistantDeliverySettings(selectedWorkspaceId);
+  const { data: assistantUsage } = useAssistantUsage(selectedWorkspaceId);
+  const updateDeliverySettings = useUpdateAssistantDeliverySettings(selectedWorkspaceId);
+  const runDailySummary = useRunAssistantDailySummary(selectedWorkspaceId);
+  const { data: whatsappAccounts = [] } = useAssistantWhatsAppAccounts(selectedWorkspaceId);
+  const { data: whatsappBinding } = useAssistantWhatsAppBinding(selectedWorkspaceId);
+  const updateWhatsAppBinding = useUpdateAssistantWhatsAppBinding(selectedWorkspaceId);
+  const deleteWhatsAppBinding = useDeleteAssistantWhatsAppBinding(selectedWorkspaceId);
 
   // Form state — reset when workspace changes
   const [websiteUrl, setWebsiteUrl] = useState('');
@@ -2044,6 +2064,20 @@ function AIAgentSettings() {
   const [agentSchedulingLink, setAgentSchedulingLink] = useState('');
   const [agentSenderTitle, setAgentSenderTitle] = useState('');
   const [agentCustomInstructions, setAgentCustomInstructions] = useState('');
+  const [dailySummaryEnabled, setDailySummaryEnabled] = useState(true);
+  const [deliveryChannel, setDeliveryChannel] = useState<'dashboard' | 'whatsapp' | 'both'>(
+    'dashboard'
+  );
+  const [dailySummaryTime, setDailySummaryTime] = useState('09:00');
+  const [deliveryTimezone, setDeliveryTimezone] = useState('America/New_York');
+  const [includeCampaignHealth, setIncludeCampaignHealth] = useState(true);
+  const [includeSenderHealth, setIncludeSenderHealth] = useState(true);
+  const [includeInboxSummary, setIncludeInboxSummary] = useState(true);
+  const [includeWorkspaceGaps, setIncludeWorkspaceGaps] = useState(true);
+  const [whatsAppDailyLimit, setWhatsAppDailyLimit] = useState('100');
+  const [voiceDailyMinutesLimit, setVoiceDailyMinutesLimit] = useState('30');
+  const [monthlyTokenAlertThreshold, setMonthlyTokenAlertThreshold] = useState('200000');
+  const [selectedWhatsAppAccountId, setSelectedWhatsAppAccountId] = useState('');
 
   // Sync form state when workspace data loads or changes
   useEffect(() => {
@@ -2070,8 +2104,40 @@ function AIAgentSettings() {
       setDefaultsSuccess(false);
       setContextError(null);
       setContextSuccess(null);
+      setDeliveryError(null);
+      setDeliverySuccess(null);
+      setWhatsAppError(null);
+      setWhatsAppSuccess(null);
     }
   }, [workspace]);
+
+  useEffect(() => {
+    if (deliverySettings) {
+      setDailySummaryEnabled(deliverySettings.daily_summary_enabled);
+      setDeliveryChannel(deliverySettings.delivery_channel);
+      setDailySummaryTime(deliverySettings.daily_summary_time);
+      setDeliveryTimezone(deliverySettings.timezone);
+      setIncludeCampaignHealth(deliverySettings.include_campaign_health);
+      setIncludeSenderHealth(deliverySettings.include_sender_health);
+      setIncludeInboxSummary(deliverySettings.include_inbox_summary);
+      setIncludeWorkspaceGaps(deliverySettings.include_workspace_gaps);
+      setWhatsAppDailyLimit(String(deliverySettings.whatsapp_daily_interaction_limit));
+      setVoiceDailyMinutesLimit(String(deliverySettings.voice_daily_minutes_limit));
+      setMonthlyTokenAlertThreshold(String(deliverySettings.monthly_token_alert_threshold));
+    } else if (workspace?.working_hours?.timezone) {
+      setDeliveryTimezone(workspace.working_hours.timezone);
+    }
+  }, [deliverySettings, workspace]);
+
+  useEffect(() => {
+    if (whatsappBinding) {
+      setSelectedWhatsAppAccountId(whatsappBinding.unipile_account_id);
+      return;
+    }
+    if (!selectedWhatsAppAccountId && whatsappAccounts.length > 0) {
+      setSelectedWhatsAppAccountId(whatsappAccounts[0].unipile_account_id);
+    }
+  }, [whatsappBinding, whatsappAccounts, selectedWhatsAppAccountId]);
 
   const handleAnalyzeWebsite = async () => {
     setContextError(null);
@@ -2144,16 +2210,95 @@ function AIAgentSettings() {
     }
   };
 
+  const handleSaveDeliverySettings = async () => {
+    setDeliveryError(null);
+    setDeliverySuccess(null);
+    try {
+      await updateDeliverySettings.mutateAsync({
+        daily_summary_enabled: dailySummaryEnabled,
+        delivery_channel: deliveryChannel,
+        daily_summary_time: dailySummaryTime,
+        timezone: deliveryTimezone,
+        include_campaign_health: includeCampaignHealth,
+        include_sender_health: includeSenderHealth,
+        include_inbox_summary: includeInboxSummary,
+        include_workspace_gaps: includeWorkspaceGaps,
+        whatsapp_daily_interaction_limit: Number(whatsAppDailyLimit),
+        voice_daily_minutes_limit: Number(voiceDailyMinutesLimit),
+        monthly_token_alert_threshold: Number(monthlyTokenAlertThreshold),
+      });
+      setDeliverySuccess('Assistant delivery settings saved.');
+    } catch (err) {
+      setDeliveryError(
+        err instanceof Error ? err.message : 'Failed to save assistant delivery settings'
+      );
+    }
+  };
+
+  const handleRunDailySummary = async () => {
+    setDeliveryError(null);
+    setDeliverySuccess(null);
+    try {
+      await updateDeliverySettings.mutateAsync({
+        daily_summary_enabled: dailySummaryEnabled,
+        delivery_channel: deliveryChannel,
+        daily_summary_time: dailySummaryTime,
+        timezone: deliveryTimezone,
+        include_campaign_health: includeCampaignHealth,
+        include_sender_health: includeSenderHealth,
+        include_inbox_summary: includeInboxSummary,
+        include_workspace_gaps: includeWorkspaceGaps,
+        whatsapp_daily_interaction_limit: Number(whatsAppDailyLimit),
+        voice_daily_minutes_limit: Number(voiceDailyMinutesLimit),
+        monthly_token_alert_threshold: Number(monthlyTokenAlertThreshold),
+      });
+      await runDailySummary.mutateAsync();
+      setDeliverySuccess('Daily workspace summary delivered to Assistant.');
+    } catch (err) {
+      setDeliveryError(err instanceof Error ? err.message : 'Failed to run daily summary');
+    }
+  };
+
+  const handleSaveWhatsAppBinding = async () => {
+    setWhatsAppError(null);
+    setWhatsAppSuccess(null);
+    if (!selectedWhatsAppAccountId) {
+      setWhatsAppError('Select a WhatsApp account first.');
+      return;
+    }
+    try {
+      await updateWhatsAppBinding.mutateAsync({
+        unipile_account_id: selectedWhatsAppAccountId,
+      });
+      setWhatsAppSuccess('WhatsApp assistant channel connected.');
+    } catch (err) {
+      setWhatsAppError(err instanceof Error ? err.message : 'Failed to connect WhatsApp channel');
+    }
+  };
+
+  const handleRemoveWhatsAppBinding = async () => {
+    setWhatsAppError(null);
+    setWhatsAppSuccess(null);
+    try {
+      await deleteWhatsAppBinding.mutateAsync();
+      setWhatsAppSuccess('WhatsApp assistant channel removed.');
+    } catch (err) {
+      setWhatsAppError(err instanceof Error ? err.message : 'Failed to remove WhatsApp channel');
+    }
+  };
+
   // Auto-dismiss success
   useEffect(() => {
-    if (defaultsSuccess || contextSuccess) {
+    if (defaultsSuccess || contextSuccess || deliverySuccess || whatsAppSuccess) {
       const timer = setTimeout(() => {
         setDefaultsSuccess(false);
         setContextSuccess(null);
+        setDeliverySuccess(null);
+        setWhatsAppSuccess(null);
       }, 3000);
       return () => clearTimeout(timer);
     }
-  }, [defaultsSuccess, contextSuccess]);
+  }, [defaultsSuccess, contextSuccess, deliverySuccess, whatsAppSuccess]);
 
   if (isLoadingWorkspaces) {
     return (
@@ -2349,6 +2494,354 @@ function AIAgentSettings() {
           >
             {updateWorkspaceContext.isPending ? 'Saving...' : 'Save Context'}
           </button>
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-[#E2E8F0] bg-white p-6">
+        <div className="mb-6">
+          <h3 className="text-lg font-semibold text-[#1E293B]">Assistant Delivery</h3>
+          <p className="mt-1 text-sm text-[#64748B]">
+            Configure the daily workspace summary that Parrot can post into Assistant. This uses the
+            workspace timezone and current operational data.
+          </p>
+        </div>
+
+        <div className="grid gap-6">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] p-4">
+              <div className="text-xs font-semibold uppercase tracking-wide text-[#64748B]">
+                WhatsApp Today
+              </div>
+              <div className="mt-2 text-2xl font-semibold text-[#1E293B]">
+                {assistantUsage
+                  ? `${assistantUsage.whatsapp_interactions_today}/${assistantUsage.whatsapp_daily_interaction_limit}`
+                  : '--'}
+              </div>
+              <p className="mt-1 text-xs text-[#64748B]">
+                Remaining: {assistantUsage ? assistantUsage.whatsapp_remaining_today : '--'}
+              </p>
+            </div>
+            <div className="rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] p-4">
+              <div className="text-xs font-semibold uppercase tracking-wide text-[#64748B]">
+                Voice Today
+              </div>
+              <div className="mt-2 text-2xl font-semibold text-[#1E293B]">
+                {assistantUsage
+                  ? `${assistantUsage.voice_minutes_today}/${assistantUsage.voice_daily_minutes_limit}m`
+                  : '--'}
+              </div>
+              <p className="mt-1 text-xs text-[#64748B]">
+                Remaining seconds:{' '}
+                {assistantUsage ? assistantUsage.voice_seconds_remaining_today : '--'}
+              </p>
+            </div>
+            <div className="rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] p-4">
+              <div className="text-xs font-semibold uppercase tracking-wide text-[#64748B]">
+                Monthly Tokens
+              </div>
+              <div className="mt-2 text-2xl font-semibold text-[#1E293B]">
+                {assistantUsage ? assistantUsage.monthly_total_tokens.toLocaleString() : '--'}
+              </div>
+              <p
+                className={`mt-1 text-xs ${
+                  assistantUsage?.monthly_token_alert_reached ? 'text-[#B45309]' : 'text-[#64748B]'
+                }`}
+              >
+                Alert at{' '}
+                {assistantUsage
+                  ? assistantUsage.monthly_token_alert_threshold.toLocaleString()
+                  : '--'}
+              </p>
+            </div>
+            <div className="rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] p-4">
+              <div className="text-xs font-semibold uppercase tracking-wide text-[#64748B]">
+                Reliability
+              </div>
+              <div className="mt-2 text-2xl font-semibold text-[#1E293B]">
+                {assistantUsage ? assistantUsage.failed_runs_last_24h : '--'}
+              </div>
+              <p className="mt-1 text-xs text-[#64748B]">
+                failed runs in 24h, {assistantUsage ? assistantUsage.qr_transfers_last_7d : '--'} QR
+                handoffs in 7d
+              </p>
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-[#E2E8F0] p-4">
+            <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+              <div className="flex-1">
+                <h4 className="text-sm font-semibold text-[#1E293B]">WhatsApp Assistant Channel</h4>
+                <p className="mt-1 text-sm text-[#64748B]">
+                  Select the Unipile WhatsApp account Parrot should use for assistant chat and
+                  optional summary delivery.
+                </p>
+                <select
+                  value={selectedWhatsAppAccountId}
+                  onChange={(e) => setSelectedWhatsAppAccountId(e.target.value)}
+                  className="mt-3 w-full rounded-lg border border-[#E2E8F0] px-4 py-2.5 text-[#1E293B] focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+                >
+                  {whatsappAccounts.length === 0 ? (
+                    <option value="">No WhatsApp accounts found in Unipile</option>
+                  ) : null}
+                  {whatsappAccounts.map((account) => (
+                    <option key={account.unipile_account_id} value={account.unipile_account_id}>
+                      {account.name || account.phone_number || account.unipile_account_id}
+                    </option>
+                  ))}
+                </select>
+                <div className="mt-2 text-xs text-[#64748B]">
+                  {whatsappBinding ? (
+                    <span>
+                      Connected:{' '}
+                      {whatsappBinding.account_name ||
+                        whatsappBinding.phone_number ||
+                        whatsappBinding.unipile_account_id}
+                    </span>
+                  ) : (
+                    <span>No WhatsApp assistant channel connected yet.</span>
+                  )}
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                {whatsappBinding ? (
+                  <button
+                    onClick={handleRemoveWhatsAppBinding}
+                    disabled={deleteWhatsAppBinding.isPending}
+                    className="rounded-lg border border-[#E2E8F0] px-4 py-2.5 text-sm font-medium text-[#1E293B] hover:bg-[#F8FAFC] disabled:opacity-50"
+                  >
+                    {deleteWhatsAppBinding.isPending ? 'Removing...' : 'Remove'}
+                  </button>
+                ) : null}
+                <button
+                  onClick={handleSaveWhatsAppBinding}
+                  disabled={
+                    !selectedWorkspaceId ||
+                    !selectedWhatsAppAccountId ||
+                    updateWhatsAppBinding.isPending
+                  }
+                  className="rounded-lg border border-[#CBD5E1] px-4 py-2.5 text-sm font-medium text-[#1E293B] hover:bg-[#F8FAFC] disabled:opacity-50"
+                >
+                  {updateWhatsAppBinding.isPending ? 'Connecting...' : 'Connect WhatsApp'}
+                </button>
+              </div>
+            </div>
+
+            {(whatsAppError || whatsAppSuccess) && (
+              <div
+                className={`mt-4 rounded-xl border p-4 ${
+                  whatsAppError
+                    ? 'border-[#EF4444]/20 bg-[#FEF2F2]'
+                    : 'border-[#86EFAC] bg-[#F0FDF4]'
+                }`}
+              >
+                <p
+                  className={`text-sm font-medium ${
+                    whatsAppError ? 'text-[#991B1B]' : 'text-[#166534]'
+                  }`}
+                >
+                  {whatsAppError || whatsAppSuccess}
+                </p>
+              </div>
+            )}
+          </div>
+
+          <label className="flex items-start gap-3 rounded-lg border border-[#E2E8F0] p-4">
+            <input
+              type="checkbox"
+              checked={dailySummaryEnabled}
+              onChange={(e) => setDailySummaryEnabled(e.target.checked)}
+              className="mt-1 h-4 w-4 rounded border-[#CBD5E1] text-[#FF6B35] focus:ring-[#FF6B35]"
+            />
+            <div>
+              <div className="font-medium text-[#1E293B]">Enable daily workspace summary</div>
+              <div className="mt-1 text-sm text-[#64748B]">
+                Post one read-only daily summary with campaign health, inbox activity, and setup
+                gaps.
+              </div>
+            </div>
+          </label>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <div>
+              <label className="block text-sm font-medium text-[#1E293B]">Delivery Channel</label>
+              <select
+                value={deliveryChannel}
+                onChange={(e) =>
+                  setDeliveryChannel(e.target.value as 'dashboard' | 'whatsapp' | 'both')
+                }
+                className="mt-2 w-full rounded-lg border border-[#E2E8F0] px-4 py-2.5 text-[#1E293B] focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+              >
+                <option value="dashboard">Dashboard Assistant</option>
+                <option value="whatsapp">WhatsApp Assistant</option>
+                <option value="both">Dashboard + WhatsApp</option>
+              </select>
+              <p className="mt-1 text-xs text-[#64748B]">
+                WhatsApp delivery requires an active assistant WhatsApp thread for the connected
+                channel.
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-[#1E293B]">Daily Send Time</label>
+              <input
+                type="time"
+                value={dailySummaryTime}
+                onChange={(e) => setDailySummaryTime(e.target.value)}
+                className="mt-2 w-full rounded-lg border border-[#E2E8F0] px-4 py-2.5 text-[#1E293B] focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-[#1E293B]">Timezone</label>
+            <input
+              type="text"
+              value={deliveryTimezone}
+              onChange={(e) => setDeliveryTimezone(e.target.value)}
+              placeholder="America/New_York"
+              className="mt-2 w-full rounded-lg border border-[#E2E8F0] px-4 py-2.5 text-[#1E293B] placeholder:text-[#94A3B8] focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+            />
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-3">
+            <div>
+              <label className="block text-sm font-medium text-[#1E293B]">
+                WhatsApp Daily Limit
+              </label>
+              <input
+                type="number"
+                min={1}
+                value={whatsAppDailyLimit}
+                onChange={(e) => setWhatsAppDailyLimit(e.target.value)}
+                className="mt-2 w-full rounded-lg border border-[#E2E8F0] px-4 py-2.5 text-[#1E293B] focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+              />
+              <p className="mt-1 text-xs text-[#64748B]">
+                Max inbound WhatsApp assistant prompts per workspace day.
+              </p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-[#1E293B]">
+                Voice Daily Minutes
+              </label>
+              <input
+                type="number"
+                min={1}
+                value={voiceDailyMinutesLimit}
+                onChange={(e) => setVoiceDailyMinutesLimit(e.target.value)}
+                className="mt-2 w-full rounded-lg border border-[#E2E8F0] px-4 py-2.5 text-[#1E293B] focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+              />
+              <p className="mt-1 text-xs text-[#64748B]">
+                Shared dashboard voice allowance per workspace day.
+              </p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-[#1E293B]">
+                Monthly Token Alert
+              </label>
+              <input
+                type="number"
+                min={1000}
+                step={1000}
+                value={monthlyTokenAlertThreshold}
+                onChange={(e) => setMonthlyTokenAlertThreshold(e.target.value)}
+                className="mt-2 w-full rounded-lg border border-[#E2E8F0] px-4 py-2.5 text-[#1E293B] focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+              />
+              <p className="mt-1 text-xs text-[#64748B]">
+                Warn when combined assistant monthly tokens cross this threshold.
+              </p>
+            </div>
+          </div>
+
+          <div>
+            <div className="block text-sm font-medium text-[#1E293B]">Summary Sections</div>
+            <div className="mt-3 grid gap-3 md:grid-cols-2">
+              {[
+                {
+                  checked: includeCampaignHealth,
+                  setChecked: setIncludeCampaignHealth,
+                  label: 'Campaign health',
+                },
+                {
+                  checked: includeSenderHealth,
+                  setChecked: setIncludeSenderHealth,
+                  label: 'Sender and account health',
+                },
+                {
+                  checked: includeInboxSummary,
+                  setChecked: setIncludeInboxSummary,
+                  label: 'Inbox activity',
+                },
+                {
+                  checked: includeWorkspaceGaps,
+                  setChecked: setIncludeWorkspaceGaps,
+                  label: 'Workspace setup gaps',
+                },
+              ].map((item) => (
+                <label
+                  key={item.label}
+                  className="flex items-center gap-3 rounded-lg border border-[#E2E8F0] px-4 py-3"
+                >
+                  <input
+                    type="checkbox"
+                    checked={item.checked}
+                    onChange={(e) => item.setChecked(e.target.checked)}
+                    className="h-4 w-4 rounded border-[#CBD5E1] text-[#FF6B35] focus:ring-[#FF6B35]"
+                  />
+                  <span className="text-sm text-[#1E293B]">{item.label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] p-4 text-sm text-[#64748B]">
+            {deliverySettings?.last_summary_sent_at ? (
+              <span>
+                Last summary sent:{' '}
+                {new Date(deliverySettings.last_summary_sent_at).toLocaleString()}
+              </span>
+            ) : (
+              <span>No daily summary has been sent yet.</span>
+            )}
+          </div>
+
+          {(deliveryError || deliverySuccess) && (
+            <div
+              className={`rounded-xl border p-4 ${
+                deliveryError ? 'border-[#EF4444]/20 bg-[#FEF2F2]' : 'border-[#86EFAC] bg-[#F0FDF4]'
+              }`}
+            >
+              <p
+                className={`text-sm font-medium ${
+                  deliveryError ? 'text-[#991B1B]' : 'text-[#166534]'
+                }`}
+              >
+                {deliveryError || deliverySuccess}
+              </p>
+            </div>
+          )}
+
+          <div className="flex flex-wrap justify-end gap-3">
+            <button
+              onClick={handleRunDailySummary}
+              disabled={
+                !selectedWorkspaceId ||
+                runDailySummary.isPending ||
+                updateDeliverySettings.isPending
+              }
+              className="rounded-lg border border-[#CBD5E1] px-4 py-2.5 text-sm font-medium text-[#1E293B] hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {runDailySummary.isPending || updateDeliverySettings.isPending
+                ? 'Running...'
+                : 'Run now'}
+            </button>
+            <button
+              onClick={handleSaveDeliverySettings}
+              disabled={!selectedWorkspaceId || updateDeliverySettings.isPending}
+              className="rounded-lg bg-[#0F172A] px-6 py-2.5 font-medium text-white hover:bg-[#1E293B] disabled:opacity-50"
+            >
+              {updateDeliverySettings.isPending ? 'Saving...' : 'Save Delivery Settings'}
+            </button>
+          </div>
         </div>
       </div>
 

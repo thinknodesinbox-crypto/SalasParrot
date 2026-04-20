@@ -35,8 +35,10 @@ import { Route as DashboardInboxRouteImport } from './routes/dashboard/inbox'
 import { Route as DashboardHelpRouteImport } from './routes/dashboard/help'
 import { Route as DashboardEmailMarketingRouteImport } from './routes/dashboard/email-marketing'
 import { Route as DashboardCampaignsRouteImport } from './routes/dashboard/campaigns'
+import { Route as DashboardAssistantRouteImport } from './routes/dashboard/assistant'
 import { Route as DashboardAnalyticsRouteImport } from './routes/dashboard/analytics'
 import { Route as DashboardAccountsRouteImport } from './routes/dashboard/accounts'
+import { Route as AssistantHandoffTokenRouteImport } from './routes/assistant-handoff.$token'
 import { Route as AdminUsersRouteImport } from './routes/admin/users'
 import { Route as AdminPartnersRouteImport } from './routes/admin/partners'
 import { Route as AcceptInviteTokenRouteImport } from './routes/accept-invite.$token'
@@ -190,6 +192,13 @@ const DashboardCampaignsRoute = DashboardCampaignsRouteImport.update({
 } as any).lazy(() =>
   import('./routes/dashboard/campaigns.lazy').then((d) => d.Route),
 )
+const DashboardAssistantRoute = DashboardAssistantRouteImport.update({
+  id: '/assistant',
+  path: '/assistant',
+  getParentRoute: () => DashboardRoute,
+} as any).lazy(() =>
+  import('./routes/dashboard/assistant.lazy').then((d) => d.Route),
+)
 const DashboardAnalyticsRoute = DashboardAnalyticsRouteImport.update({
   id: '/analytics',
   path: '/analytics',
@@ -204,6 +213,11 @@ const DashboardAccountsRoute = DashboardAccountsRouteImport.update({
 } as any).lazy(() =>
   import('./routes/dashboard/accounts.lazy').then((d) => d.Route),
 )
+const AssistantHandoffTokenRoute = AssistantHandoffTokenRouteImport.update({
+  id: '/assistant-handoff/$token',
+  path: '/assistant-handoff/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminUsersRoute = AdminUsersRouteImport.update({
   id: '/users',
   path: '/users',
@@ -286,8 +300,10 @@ export interface FileRoutesByFullPath {
   '/accept-invite/$token': typeof AcceptInviteTokenRoute
   '/admin/partners': typeof AdminPartnersRoute
   '/admin/users': typeof AdminUsersRoute
+  '/assistant-handoff/$token': typeof AssistantHandoffTokenRoute
   '/dashboard/accounts': typeof DashboardAccountsRoute
   '/dashboard/analytics': typeof DashboardAnalyticsRoute
+  '/dashboard/assistant': typeof DashboardAssistantRoute
   '/dashboard/campaigns': typeof DashboardCampaignsRoute
   '/dashboard/email-marketing': typeof DashboardEmailMarketingRouteWithChildren
   '/dashboard/help': typeof DashboardHelpRoute
@@ -325,8 +341,10 @@ export interface FileRoutesByTo {
   '/accept-invite/$token': typeof AcceptInviteTokenRoute
   '/admin/partners': typeof AdminPartnersRoute
   '/admin/users': typeof AdminUsersRoute
+  '/assistant-handoff/$token': typeof AssistantHandoffTokenRoute
   '/dashboard/accounts': typeof DashboardAccountsRoute
   '/dashboard/analytics': typeof DashboardAnalyticsRoute
+  '/dashboard/assistant': typeof DashboardAssistantRoute
   '/dashboard/campaigns': typeof DashboardCampaignsRoute
   '/dashboard/help': typeof DashboardHelpRoute
   '/dashboard/inbox': typeof DashboardInboxRoute
@@ -366,8 +384,10 @@ export interface FileRoutesById {
   '/accept-invite/$token': typeof AcceptInviteTokenRoute
   '/admin/partners': typeof AdminPartnersRoute
   '/admin/users': typeof AdminUsersRoute
+  '/assistant-handoff/$token': typeof AssistantHandoffTokenRoute
   '/dashboard/accounts': typeof DashboardAccountsRoute
   '/dashboard/analytics': typeof DashboardAnalyticsRoute
+  '/dashboard/assistant': typeof DashboardAssistantRoute
   '/dashboard/campaigns': typeof DashboardCampaignsRoute
   '/dashboard/email-marketing': typeof DashboardEmailMarketingRouteWithChildren
   '/dashboard/help': typeof DashboardHelpRoute
@@ -409,8 +429,10 @@ export interface FileRouteTypes {
     | '/accept-invite/$token'
     | '/admin/partners'
     | '/admin/users'
+    | '/assistant-handoff/$token'
     | '/dashboard/accounts'
     | '/dashboard/analytics'
+    | '/dashboard/assistant'
     | '/dashboard/campaigns'
     | '/dashboard/email-marketing'
     | '/dashboard/help'
@@ -448,8 +470,10 @@ export interface FileRouteTypes {
     | '/accept-invite/$token'
     | '/admin/partners'
     | '/admin/users'
+    | '/assistant-handoff/$token'
     | '/dashboard/accounts'
     | '/dashboard/analytics'
+    | '/dashboard/assistant'
     | '/dashboard/campaigns'
     | '/dashboard/help'
     | '/dashboard/inbox'
@@ -488,8 +512,10 @@ export interface FileRouteTypes {
     | '/accept-invite/$token'
     | '/admin/partners'
     | '/admin/users'
+    | '/assistant-handoff/$token'
     | '/dashboard/accounts'
     | '/dashboard/analytics'
+    | '/dashboard/assistant'
     | '/dashboard/campaigns'
     | '/dashboard/email-marketing'
     | '/dashboard/help'
@@ -528,6 +554,7 @@ export interface RootRouteChildren {
   SignupRoute: typeof SignupRoute
   TermsRoute: typeof TermsRoute
   AcceptInviteTokenRoute: typeof AcceptInviteTokenRoute
+  AssistantHandoffTokenRoute: typeof AssistantHandoffTokenRoute
   DocsApiRoute: typeof DocsApiRoute
 }
 
@@ -715,6 +742,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DashboardCampaignsRouteImport
       parentRoute: typeof DashboardRoute
     }
+    '/dashboard/assistant': {
+      id: '/dashboard/assistant'
+      path: '/assistant'
+      fullPath: '/dashboard/assistant'
+      preLoaderRoute: typeof DashboardAssistantRouteImport
+      parentRoute: typeof DashboardRoute
+    }
     '/dashboard/analytics': {
       id: '/dashboard/analytics'
       path: '/analytics'
@@ -728,6 +762,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/dashboard/accounts'
       preLoaderRoute: typeof DashboardAccountsRouteImport
       parentRoute: typeof DashboardRoute
+    }
+    '/assistant-handoff/$token': {
+      id: '/assistant-handoff/$token'
+      path: '/assistant-handoff/$token'
+      fullPath: '/assistant-handoff/$token'
+      preLoaderRoute: typeof AssistantHandoffTokenRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/admin/users': {
       id: '/admin/users'
@@ -885,6 +926,7 @@ const DashboardEmailMarketingRouteWithChildren =
 interface DashboardRouteChildren {
   DashboardAccountsRoute: typeof DashboardAccountsRoute
   DashboardAnalyticsRoute: typeof DashboardAnalyticsRoute
+  DashboardAssistantRoute: typeof DashboardAssistantRoute
   DashboardCampaignsRoute: typeof DashboardCampaignsRoute
   DashboardEmailMarketingRoute: typeof DashboardEmailMarketingRouteWithChildren
   DashboardHelpRoute: typeof DashboardHelpRoute
@@ -898,6 +940,7 @@ interface DashboardRouteChildren {
 const DashboardRouteChildren: DashboardRouteChildren = {
   DashboardAccountsRoute: DashboardAccountsRoute,
   DashboardAnalyticsRoute: DashboardAnalyticsRoute,
+  DashboardAssistantRoute: DashboardAssistantRoute,
   DashboardCampaignsRoute: DashboardCampaignsRoute,
   DashboardEmailMarketingRoute: DashboardEmailMarketingRouteWithChildren,
   DashboardHelpRoute: DashboardHelpRoute,
@@ -943,6 +986,7 @@ const rootRouteChildren: RootRouteChildren = {
   SignupRoute: SignupRoute,
   TermsRoute: TermsRoute,
   AcceptInviteTokenRoute: AcceptInviteTokenRoute,
+  AssistantHandoffTokenRoute: AssistantHandoffTokenRoute,
   DocsApiRoute: DocsApiRoute,
 }
 export const routeTree = rootRouteImport

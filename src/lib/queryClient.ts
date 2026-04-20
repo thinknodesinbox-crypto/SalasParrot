@@ -108,6 +108,17 @@ export const queryKeys = {
     messages: (conversationId: string) => ['conversations', conversationId, 'messages'] as const,
   },
 
+  assistant: {
+    all: ['assistant'] as const,
+    threads: (workspaceId?: string | null) => ['assistant', 'threads', workspaceId] as const,
+    messages: (workspaceId: string, threadId: string) =>
+      ['assistant', 'messages', workspaceId, threadId] as const,
+    deliverySettings: (workspaceId?: string | null) =>
+      ['assistant', 'delivery-settings', workspaceId] as const,
+    usage: (workspaceId?: string | null) => ['assistant', 'usage', workspaceId] as const,
+    handoff: (token: string) => ['assistant', 'handoff', token] as const,
+  },
+
   // Billing
   billing: {
     overview: ['billing', 'overview'] as const,
