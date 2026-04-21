@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import type { AssistantMessage } from '@/lib/types';
 
 interface AssistantMessageListProps {
@@ -15,6 +16,30 @@ export function AssistantMessageList({
   draftAssistantMessage = '',
   error = null,
 }: AssistantMessageListProps) {
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const shouldStickToBottomRef = useRef(true);
+
+  useEffect(() => {
+    const container = scrollRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      const distanceFromBottom =
+        container.scrollHeight - container.scrollTop - container.clientHeight;
+      shouldStickToBottomRef.current = distanceFromBottom < 120;
+    };
+
+    handleScroll();
+    container.addEventListener('scroll', handleScroll);
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  useEffect(() => {
+    const container = scrollRef.current;
+    if (!container || !shouldStickToBottomRef.current) return;
+    container.scrollTop = container.scrollHeight;
+  }, [messages.length, draftUserMessage, draftAssistantMessage, error]);
+
   if (isLoading) {
     return (
       <div className="space-y-4 p-6">
@@ -44,47 +69,46 @@ export function AssistantMessageList({
   }
 
   return (
-    <div className="space-y-4 p-6">
-      {messages.map((message) => {
-        const isUser = message.role === 'user';
-        return (
-          <div key={message.id} className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
-            <div
-              className={`max-w-[85%] rounded-2xl px-4 py-3 ${
-                isUser
-                  ? 'bg-[#FF6B35] text-white'
-                  : 'border border-[#E2E8F0] bg-white text-[#1E293B]'
-              }`}
-            >
-              <div className="whitespace-pre-wrap text-sm leading-6">{message.content}</div>
-              <div className={`mt-2 text-[11px] ${isUser ? 'text-white/80' : 'text-[#94A3B8]'}`}>
-                {new Date(message.created_at).toLocaleString()}
+    <div ref={scrollRef} className="h-full overflow-y-auto">
+      <div className="space-y-4 p-6">
+        {messages.map((message) => {
+          const isUser = message.role === 'user';
+          return (
+            <div key={message.id} className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
+              <div
+                className={`max-w-[85%] rounded-2xl px-4 py-3 ${
+                  isUser
+                    ? 'bg-[#FF6B35] text-white'
+                    : 'border border-[#E2E8F0] bg-white text-[#1E293B]'
+                }`}
+              >
+                <div className="whitespace-pre-wrap text-sm leading-6">{message.content}</div>
               </div>
             </div>
+          );
+        })}
+        {draftUserMessage ? (
+          <div className="flex justify-end">
+            <div className="max-w-[85%] rounded-2xl bg-[#FF6B35] px-4 py-3 text-white">
+              <div className="whitespace-pre-wrap text-sm leading-6">{draftUserMessage}</div>
+            </div>
           </div>
-        );
-      })}
-      {draftUserMessage ? (
-        <div className="flex justify-end">
-          <div className="max-w-[85%] rounded-2xl bg-[#FF6B35] px-4 py-3 text-white">
-            <div className="whitespace-pre-wrap text-sm leading-6">{draftUserMessage}</div>
+        ) : null}
+        {draftAssistantMessage ? (
+          <div className="flex justify-start">
+            <div className="max-w-[85%] rounded-2xl border border-[#E2E8F0] bg-white px-4 py-3 text-[#1E293B]">
+              <div className="whitespace-pre-wrap text-sm leading-6">{draftAssistantMessage}</div>
+            </div>
           </div>
-        </div>
-      ) : null}
-      {draftAssistantMessage ? (
-        <div className="flex justify-start">
-          <div className="max-w-[85%] rounded-2xl border border-[#E2E8F0] bg-white px-4 py-3 text-[#1E293B]">
-            <div className="whitespace-pre-wrap text-sm leading-6">{draftAssistantMessage}</div>
+        ) : null}
+        {error ? (
+          <div className="flex justify-start">
+            <div className="max-w-[85%] rounded-2xl border border-[#FECACA] bg-white px-4 py-3 text-[#B91C1C]">
+              <div className="whitespace-pre-wrap text-sm leading-6">{error}</div>
+            </div>
           </div>
-        </div>
-      ) : null}
-      {error ? (
-        <div className="flex justify-start">
-          <div className="max-w-[85%] rounded-2xl border border-[#FECACA] bg-white px-4 py-3 text-[#B91C1C]">
-            <div className="whitespace-pre-wrap text-sm leading-6">{error}</div>
-          </div>
-        </div>
-      ) : null}
+        ) : null}
+      </div>
     </div>
   );
 }

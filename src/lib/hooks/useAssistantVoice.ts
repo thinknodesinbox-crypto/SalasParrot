@@ -6,15 +6,27 @@ type VoiceStatus = 'idle' | 'connecting' | 'connected' | 'error';
 interface UseAssistantVoiceOptions {
   workspaceId: string | null;
   threadId: string | null;
+  onTranscriptSaved?: () => void;
 }
 
 interface PersistTranscriptInput {
   role: 'user' | 'assistant';
   content: string;
   externalItemId?: string | null;
+  eventIndex?: number | null;
+  eventCreatedAt?: string | null;
 }
 
-export function useAssistantVoice({ workspaceId, threadId }: UseAssistantVoiceOptions) {
+interface StartVoiceOptions {
+  workspaceId?: string | null;
+  threadId?: string | null;
+}
+
+export function useAssistantVoice({
+  workspaceId,
+  threadId,
+  onTranscriptSaved,
+}: UseAssistantVoiceOptions) {
   const [status, setStatus] = useState<VoiceStatus>('idle');
   const [error, setError] = useState<string | null>(null);
   const [liveUserTranscript, setLiveUserTranscript] = useState('');
@@ -25,14 +37,18 @@ export function useAssistantVoice({ workspaceId, threadId }: UseAssistantVoiceOp
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
   const persistedItemIdsRef = useRef<Set<string>>(new Set());
   const sessionIdRef = useRef<string | null>(null);
+  const sessionWorkspaceIdRef = useRef<string | null>(null);
+  const sessionThreadIdRef = useRef<string | null>(null);
+  const eventIndexRef = useRef(0);
   const userTranscriptBuffersRef = useRef<Map<string, string>>(new Map());
   const assistantTranscriptBuffersRef = useRef<Map<string, string>>(new Map());
 
   const completeVoiceSession = async () => {
-    if (!workspaceId || !threadId || !sessionIdRef.current) return;
+    if (!sessionWorkspaceIdRef.current || !sessionThreadIdRef.current || !sessionIdRef.current)
+      return;
     try {
       await api.post(
-        `/assistant/threads/${threadId}/voice-session/complete?workspace_id=${workspaceId}`,
+        `/assistant/threads/${sessionThreadIdRef.current}/voice-session/complete?workspace_id=${sessionWorkspaceIdRef.current}`,
         {
           session_id: sessionIdRef.current,
         }
@@ -41,26 +57,39 @@ export function useAssistantVoice({ workspaceId, threadId }: UseAssistantVoiceOp
       // voice completion should not hard-fail UI teardown
     } finally {
       sessionIdRef.current = null;
+      sessionWorkspaceIdRef.current = null;
+      sessionThreadIdRef.current = null;
     }
   };
 
-  const persistTranscript = async ({ role, content, externalItemId }: PersistTranscriptInput) => {
-    if (!workspaceId || !threadId || !content.trim()) return;
+  const persistTranscript = async ({
+    role,
+    content,
+    externalItemId,
+    eventIndex,
+    eventCreatedAt,
+  }: PersistTranscriptInput) => {
+    if (!sessionWorkspaceIdRef.current || !sessionThreadIdRef.current || !content.trim()) return;
     const dedupeKey = `${role}:${externalItemId || content}`;
     if (persistedItemIdsRef.current.has(dedupeKey)) return;
-    persistedItemIdsRef.current.add(dedupeKey);
     try {
       await api.post(
-        `/assistant/threads/${threadId}/messages/transcript?workspace_id=${workspaceId}`,
+        `/assistant/threads/${sessionThreadIdRef.current}/messages/transcript?workspace_id=${sessionWorkspaceIdRef.current}`,
         {
           role,
           content,
           external_item_id: externalItemId,
+          session_id: sessionIdRef.current,
+          event_index: eventIndex ?? null,
+          event_created_at: eventCreatedAt ?? null,
           transcript_kind: 'voice_transcript',
         }
       );
+      persistedItemIdsRef.current.add(dedupeKey);
+      onTranscriptSaved?.();
+      return true;
     } catch {
-      // transcript persistence should not hard-fail the session
+      return false;
     }
   };
 
@@ -82,12 +111,23 @@ export function useAssistantVoice({ workspaceId, threadId }: UseAssistantVoiceOp
     setLiveAssistantTranscript('');
     userTranscriptBuffersRef.current.clear();
     assistantTranscriptBuffersRef.current.clear();
+    persistedItemIdsRef.current.clear();
+    eventIndexRef.current = 0;
     await completeVoiceSession();
     setStatus('idle');
   };
 
-  const start = async () => {
-    if (!workspaceId || !threadId || status === 'connecting' || status === 'connected') return;
+  const start = async (options?: StartVoiceOptions) => {
+    const targetWorkspaceId = options?.workspaceId ?? workspaceId;
+    const targetThreadId = options?.threadId ?? threadId;
+    if (
+      !targetWorkspaceId ||
+      !targetThreadId ||
+      status === 'connecting' ||
+      status === 'connected'
+    ) {
+      return;
+    }
 
     setStatus('connecting');
     setError(null);
@@ -95,6 +135,7 @@ export function useAssistantVoice({ workspaceId, threadId }: UseAssistantVoiceOp
     setLiveAssistantTranscript('');
     userTranscriptBuffersRef.current.clear();
     assistantTranscriptBuffersRef.current.clear();
+    eventIndexRef.current = 0;
 
     try {
       const tokenResponse = await api.post<{
@@ -103,9 +144,11 @@ export function useAssistantVoice({ workspaceId, threadId }: UseAssistantVoiceOp
         expires_at?: number | null;
         model: string;
         voice: string;
-      }>(`/assistant/threads/${threadId}/voice-token?workspace_id=${workspaceId}`);
+      }>(`/assistant/threads/${targetThreadId}/voice-token?workspace_id=${targetWorkspaceId}`);
 
       sessionIdRef.current = tokenResponse.data.session_id;
+      sessionWorkspaceIdRef.current = targetWorkspaceId;
+      sessionThreadIdRef.current = targetThreadId;
       const ephemeralKey = tokenResponse.data.client_secret;
       const pc = new RTCPeerConnection();
       peerConnectionRef.current = pc;
@@ -141,15 +184,26 @@ export function useAssistantVoice({ workspaceId, threadId }: UseAssistantVoiceOp
               payload.transcript ||
               (payload.item_id ? userTranscriptBuffersRef.current.get(payload.item_id) : '') ||
               '';
-            if (payload.item_id) {
-              userTranscriptBuffersRef.current.delete(payload.item_id);
-            }
-            setLiveUserTranscript('');
-            void persistTranscript({
-              role: 'user',
-              content: transcript,
-              externalItemId: payload.item_id || null,
-            });
+            const eventIndex = ++eventIndexRef.current;
+            const eventCreatedAt = new Date().toISOString();
+            void (async () => {
+              const persisted = await persistTranscript({
+                role: 'user',
+                content: transcript,
+                externalItemId: payload.item_id || null,
+                eventIndex,
+                eventCreatedAt,
+              });
+              if (persisted) {
+                if (payload.item_id) {
+                  userTranscriptBuffersRef.current.delete(payload.item_id);
+                }
+                setLiveUserTranscript('');
+              } else {
+                setError('Failed to save transcript.');
+                setLiveUserTranscript(transcript);
+              }
+            })();
           }
           if (
             (payload.type === 'response.audio_transcript.delta' ||
@@ -169,15 +223,26 @@ export function useAssistantVoice({ workspaceId, threadId }: UseAssistantVoiceOp
               payload.transcript ||
               (payload.item_id ? assistantTranscriptBuffersRef.current.get(payload.item_id) : '') ||
               '';
-            if (payload.item_id) {
-              assistantTranscriptBuffersRef.current.delete(payload.item_id);
-            }
-            setLiveAssistantTranscript('');
-            void persistTranscript({
-              role: 'assistant',
-              content: transcript,
-              externalItemId: payload.item_id || null,
-            });
+            const eventIndex = ++eventIndexRef.current;
+            const eventCreatedAt = new Date().toISOString();
+            void (async () => {
+              const persisted = await persistTranscript({
+                role: 'assistant',
+                content: transcript,
+                externalItemId: payload.item_id || null,
+                eventIndex,
+                eventCreatedAt,
+              });
+              if (persisted) {
+                if (payload.item_id) {
+                  assistantTranscriptBuffersRef.current.delete(payload.item_id);
+                }
+                setLiveAssistantTranscript('');
+              } else {
+                setError('Failed to save transcript.');
+                setLiveAssistantTranscript(transcript);
+              }
+            })();
           }
         } catch {
           // ignore malformed events

@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useSearch } from '@tanstack/react-router';
+import { queryKeys } from '@/lib/queryClient';
 import { useCurrentWorkspace } from '@/lib/workspace';
 import { useAssistantVoice } from '@/lib/hooks/useAssistantVoice';
 import {
@@ -17,6 +19,7 @@ import { AssistantThreadList } from './AssistantThreadList';
 
 export function AssistantShell() {
   const { threadId: handoffThreadId } = useSearch({ from: '/dashboard/assistant' });
+  const queryClient = useQueryClient();
   const { currentWorkspaceId } = useCurrentWorkspace();
   const { data: workspace = null } = useWorkspace(currentWorkspaceId || '');
   const { data: threads = [], isLoading: isThreadsLoading } =
@@ -29,12 +32,20 @@ export function AssistantShell() {
   const createThread = useCreateAssistantThread(currentWorkspaceId);
   const sendMessage = useSendAssistantMessage(currentWorkspaceId);
   const createQrTransfer = useCreateAssistantQrTransfer(currentWorkspaceId, activeThreadId);
-  const [voiceMode, setVoiceMode] = useState(false);
   const [showQrModal, setShowQrModal] = useState(false);
   const voice = useAssistantVoice({
     workspaceId: currentWorkspaceId,
     threadId: activeThreadId,
+    onTranscriptSaved: () => {
+      if (currentWorkspaceId && activeThreadId) {
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.assistant.messages(currentWorkspaceId, activeThreadId),
+        });
+      }
+      queryClient.invalidateQueries({ queryKey: queryKeys.assistant.threads(currentWorkspaceId) });
+    },
   });
+  const isVoiceActive = voice.status === 'connecting' || voice.status === 'connected';
 
   useEffect(() => {
     if (!activeThreadId && threads.length > 0) {
@@ -74,6 +85,25 @@ export function AssistantShell() {
     await sendMessage.mutateAsync({ threadId: targetThreadId, content });
   };
 
+  const handleToggleVoice = async () => {
+    if (isVoiceActive) {
+      await voice.stop();
+      return;
+    }
+
+    if (!currentWorkspaceId) return;
+    let targetThreadId = activeThreadId;
+    if (!targetThreadId) {
+      const thread = await createThread.mutateAsync({
+        title: starterPrompt || 'Assistant conversation',
+      });
+      targetThreadId = thread.id;
+      setActiveThreadId(thread.id);
+    }
+
+    await voice.start({ workspaceId: currentWorkspaceId, threadId: targetThreadId });
+  };
+
   return (
     <div className="space-y-4 md:space-y-6">
       <div>
@@ -111,30 +141,22 @@ export function AssistantShell() {
               </div>
             </div>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="min-h-0 flex-1">
             <AssistantMessageList
               messages={messages}
               isLoading={isMessagesLoading}
-              draftUserMessage={voiceMode ? voice.liveUserTranscript : ''}
-              draftAssistantMessage={voiceMode ? voice.liveAssistantTranscript : ''}
-              error={voiceMode ? voice.error : null}
+              draftUserMessage={isVoiceActive ? voice.liveUserTranscript : ''}
+              draftAssistantMessage={isVoiceActive ? voice.liveAssistantTranscript : ''}
+              error={voice.error}
             />
           </div>
           <AssistantComposer
             disabled={!currentWorkspaceId}
             isSending={createThread.isPending || sendMessage.isPending}
-            isVoiceDisabled={!activeThreadId || !currentWorkspaceId}
-            isVoiceActive={voiceMode}
+            isVoiceDisabled={!currentWorkspaceId}
+            isVoiceActive={isVoiceActive}
             isVoiceConnecting={voice.status === 'connecting'}
-            onToggleVoice={() => {
-              if (!voiceMode) {
-                setVoiceMode(true);
-                void voice.start();
-              } else {
-                void voice.stop();
-                setVoiceMode(false);
-              }
-            }}
+            onToggleVoice={() => void handleToggleVoice()}
             onSend={handleSendMessage}
           />
         </div>
