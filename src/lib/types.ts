@@ -404,6 +404,7 @@ export type StepType =
   | 'email'
   | 'email_followup'
   | 'reply_agent'
+  | 'enrichment'
   | 'end';
 
 export interface CampaignStep {

@@ -13,6 +13,7 @@ export function mapNodeTypeToStepType(nodeType: SequenceNode['type']): StepType 
     delay: 'wait',
     condition: 'condition',
     reply_agent: 'reply_agent',
+    enrichment: 'enrichment',
     end: 'end',
   };
   return mapping[nodeType] ?? null;
@@ -31,6 +32,7 @@ export function mapStepTypeToNodeType(stepType: StepType): SequenceNode['type'] 
     condition: 'condition',
     email_followup: 'email',
     reply_agent: 'reply_agent',
+    enrichment: 'enrichment',
     end: 'end',
   };
   return mapping[stepType] ?? null;
