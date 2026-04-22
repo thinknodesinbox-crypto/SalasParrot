@@ -97,8 +97,26 @@ export function SequenceCanvas({
     (nodeId: string) => {
       const node = nodes.find((n) => n.id === nodeId);
       if (node?.type === 'start') return; // Can't delete start
-      onNodesChange(nodes.filter((n) => n.id !== nodeId));
-      if (selectedNodeId === nodeId) onNodeSelect(null);
+
+      const idsToDelete = new Set<string>([nodeId]);
+      let foundChild = true;
+
+      while (foundChild) {
+        foundChild = false;
+        for (const candidate of nodes) {
+          if (
+            candidate.parentId &&
+            idsToDelete.has(candidate.parentId) &&
+            !idsToDelete.has(candidate.id)
+          ) {
+            idsToDelete.add(candidate.id);
+            foundChild = true;
+          }
+        }
+      }
+
+      onNodesChange(nodes.filter((n) => !idsToDelete.has(n.id)));
+      if (selectedNodeId && idsToDelete.has(selectedNodeId)) onNodeSelect(null);
     },
     [nodes, onNodesChange, selectedNodeId, onNodeSelect]
   );
