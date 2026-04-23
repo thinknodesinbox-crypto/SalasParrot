@@ -243,6 +243,91 @@ export interface AssistantSendMessageResponse {
   run: AssistantRun;
 }
 
+export type AssistantActionStatus =
+  | 'proposed'
+  | 'awaiting_confirmation'
+  | 'approved'
+  | 'executed'
+  | 'rejected'
+  | 'failed'
+  | 'expired';
+
+export type AssistantActionType =
+  | 'update_delivery_settings'
+  | 'run_daily_summary_now'
+  | 'bind_whatsapp_account'
+  | 'unbind_whatsapp_account'
+  | 'pause_campaign'
+  | 'resume_campaign'
+  | 'rename_campaign'
+  | 'update_campaign_daily_limit'
+  | 'stop_campaign'
+  | 'create_reply_draft'
+  | 'send_reply_draft'
+  | 'mark_conversation_read'
+  | 'snooze_conversation'
+  | 'update_workspace_context'
+  | 'create_lead_list'
+  | 'rename_lead_list'
+  | 'create_marketing_list'
+  | 'rename_marketing_list';
+
+export interface AssistantActionTargetRef {
+  campaign_id?: string | null;
+  campaign_name?: string | null;
+  conversation_id?: string | null;
+  conversation_name?: string | null;
+  lead_list_id?: string | null;
+  lead_list_name?: string | null;
+  marketing_list_id?: string | null;
+  marketing_list_name?: string | null;
+  draft_message_id?: string | null;
+  options?: string[];
+  target_key?: string | null;
+  before?: Record<string, unknown>;
+}
+
+export interface AssistantActionPreview {
+  title: string;
+  summary: string;
+  before: Record<string, unknown>;
+  after: Record<string, unknown>;
+  exact_payload: Record<string, unknown>;
+  warnings: string[];
+}
+
+export interface AssistantAction {
+  id: string;
+  workspace_id: string;
+  thread_id: string;
+  proposed_by_message_id: string | null;
+  approved_by_user_id: string | null;
+  executed_by_user_id: string | null;
+  action_type: AssistantActionType;
+  risk_level: 'low' | 'medium' | 'high';
+  status: AssistantActionStatus;
+  requires_confirmation: boolean;
+  target_ref: AssistantActionTargetRef;
+  payload: Record<string, unknown>;
+  preview: AssistantActionPreview;
+  result: Record<string, unknown> | null;
+  error: string | null;
+  expires_at: string | null;
+  approved_at: string | null;
+  executed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AssistantActionListResponse {
+  items: AssistantAction[];
+}
+
+export interface AssistantActionExecuteResponse {
+  action: AssistantAction;
+  assistant_message: AssistantMessage | null;
+}
+
 export interface AssistantQrTransfer {
   token: string;
   expires_at: string;

@@ -2,6 +2,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { api, getErrorMessage } from '../../api';
 import { queryKeys } from '../../queryClient';
 import type {
+  AssistantAction,
+  AssistantActionExecuteResponse,
+  AssistantActionListResponse,
   AssistantDailySummaryRunResponse,
   AssistantDeliverySettings,
   AssistantMessageListResponse,
@@ -39,6 +42,27 @@ interface UpdateAssistantDeliverySettingsData {
   monthly_token_alert_threshold?: number;
 }
 
+interface ProposeAssistantActionData {
+  threadId: string;
+  action_type: string;
+  target_ref?: Record<string, unknown>;
+  payload?: Record<string, unknown>;
+  message?: string;
+}
+
+interface EditAssistantActionData {
+  actionId: string;
+  payload?: Record<string, unknown>;
+  target_ref?: Record<string, unknown>;
+  message?: string;
+}
+
+interface ReviewAssistantActionData {
+  actionId: string;
+  note?: string;
+  reason?: string;
+}
+
 export const useAssistantThreads = (workspaceId: string | null | undefined) => {
   return useQuery<AssistantThread[]>({
     queryKey: queryKeys.assistant.threads(workspaceId),
@@ -64,6 +88,25 @@ export const useAssistantMessages = (
     queryFn: async () => {
       const response = await api.get<AssistantMessageListResponse>(
         `/assistant/threads/${threadId}/messages?workspace_id=${workspaceId}`
+      );
+      return response.data.items;
+    },
+    enabled: !!workspaceId && !!threadId,
+  });
+};
+
+export const useAssistantActions = (
+  workspaceId: string | null | undefined,
+  threadId: string | null | undefined
+) => {
+  return useQuery<AssistantAction[]>({
+    queryKey:
+      threadId && workspaceId
+        ? queryKeys.assistant.actions(workspaceId, threadId)
+        : ['assistant', 'actions'],
+    queryFn: async () => {
+      const response = await api.get<AssistantActionListResponse>(
+        `/assistant/threads/${threadId}/actions?workspace_id=${workspaceId}`
       );
       return response.data.items;
     },
@@ -109,6 +152,165 @@ export const useSendAssistantMessage = (workspaceId: string | null | undefined) 
         });
       }
       queryClient.invalidateQueries({ queryKey: queryKeys.assistant.threads(workspaceId) });
+    },
+    onError: (error) => {
+      throw new Error(getErrorMessage(error));
+    },
+  });
+};
+
+export const useProposeAssistantAction = (workspaceId: string | null | undefined) => {
+  const queryClient = useQueryClient();
+
+  return useMutation<AssistantActionExecuteResponse, Error, ProposeAssistantActionData>({
+    mutationFn: async ({ threadId, ...data }) => {
+      const response = await api.post<AssistantActionExecuteResponse>(
+        `/assistant/threads/${threadId}/actions/propose?workspace_id=${workspaceId}`,
+        data
+      );
+      return response.data;
+    },
+    onSuccess: (_data, variables) => {
+      if (workspaceId) {
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.assistant.messages(workspaceId, variables.threadId),
+        });
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.assistant.actions(workspaceId, variables.threadId),
+        });
+      }
+    },
+    onError: (error) => {
+      throw new Error(getErrorMessage(error));
+    },
+  });
+};
+
+export const useApproveAssistantAction = (
+  workspaceId: string | null | undefined,
+  threadId: string | null | undefined
+) => {
+  const queryClient = useQueryClient();
+
+  return useMutation<AssistantAction, Error, ReviewAssistantActionData>({
+    mutationFn: async ({ actionId, note }) => {
+      const response = await api.post<AssistantAction>(
+        `/assistant/actions/${actionId}/approve?workspace_id=${workspaceId}`,
+        { note }
+      );
+      return response.data;
+    },
+    onSuccess: (data) => {
+      if (workspaceId && threadId) {
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.assistant.actions(workspaceId, threadId),
+        });
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.assistant.messages(workspaceId, threadId),
+        });
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.assistant.action(workspaceId, data.id),
+        });
+      }
+    },
+    onError: (error) => {
+      throw new Error(getErrorMessage(error));
+    },
+  });
+};
+
+export const useRejectAssistantAction = (
+  workspaceId: string | null | undefined,
+  threadId: string | null | undefined
+) => {
+  const queryClient = useQueryClient();
+
+  return useMutation<AssistantAction, Error, ReviewAssistantActionData>({
+    mutationFn: async ({ actionId, reason }) => {
+      const response = await api.post<AssistantAction>(
+        `/assistant/actions/${actionId}/reject?workspace_id=${workspaceId}`,
+        { reason }
+      );
+      return response.data;
+    },
+    onSuccess: (data) => {
+      if (workspaceId && threadId) {
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.assistant.actions(workspaceId, threadId),
+        });
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.assistant.messages(workspaceId, threadId),
+        });
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.assistant.action(workspaceId, data.id),
+        });
+      }
+    },
+    onError: (error) => {
+      throw new Error(getErrorMessage(error));
+    },
+  });
+};
+
+export const useEditAssistantAction = (
+  workspaceId: string | null | undefined,
+  threadId: string | null | undefined
+) => {
+  const queryClient = useQueryClient();
+
+  return useMutation<AssistantAction, Error, EditAssistantActionData>({
+    mutationFn: async ({ actionId, ...data }) => {
+      const response = await api.post<AssistantAction>(
+        `/assistant/actions/${actionId}/edit?workspace_id=${workspaceId}`,
+        data
+      );
+      return response.data;
+    },
+    onSuccess: (data) => {
+      if (workspaceId && threadId) {
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.assistant.actions(workspaceId, threadId),
+        });
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.assistant.messages(workspaceId, threadId),
+        });
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.assistant.action(workspaceId, data.id),
+        });
+      }
+    },
+    onError: (error) => {
+      throw new Error(getErrorMessage(error));
+    },
+  });
+};
+
+export const useExecuteAssistantAction = (
+  workspaceId: string | null | undefined,
+  threadId: string | null | undefined
+) => {
+  const queryClient = useQueryClient();
+
+  return useMutation<AssistantActionExecuteResponse, Error, { actionId: string }>({
+    mutationFn: async ({ actionId }) => {
+      const response = await api.post<AssistantActionExecuteResponse>(
+        `/assistant/actions/${actionId}/execute?workspace_id=${workspaceId}`
+      );
+      return response.data;
+    },
+    onSuccess: (data) => {
+      if (workspaceId && threadId) {
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.assistant.actions(workspaceId, threadId),
+        });
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.assistant.messages(workspaceId, threadId),
+        });
+        queryClient.invalidateQueries({ queryKey: queryKeys.assistant.threads(workspaceId) });
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.assistant.action(workspaceId, data.action.id),
+        });
+      }
     },
     onError: (error) => {
       throw new Error(getErrorMessage(error));

@@ -1,0 +1,104 @@
+import { render, screen } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
+import type { AssistantAction, AssistantMessage } from '@/lib/types';
+import { AssistantMessageList } from '../AssistantMessageList';
+
+function buildMessage(overrides: Partial<AssistantMessage> = {}): AssistantMessage {
+  return {
+    id: 'message-1',
+    thread_id: 'thread-1',
+    workspace_id: 'workspace-1',
+    user_id: null,
+    role: 'assistant',
+    content: 'I prepared an action for review.',
+    message_type: 'text',
+    interface: 'dashboard_text',
+    metadata: {},
+    created_at: '2026-04-22T10:00:00Z',
+    ...overrides,
+  };
+}
+
+function buildAction(): AssistantAction {
+  return {
+    id: 'action-1',
+    workspace_id: 'workspace-1',
+    thread_id: 'thread-1',
+    proposed_by_message_id: null,
+    approved_by_user_id: null,
+    executed_by_user_id: null,
+    action_type: 'pause_campaign',
+    risk_level: 'medium',
+    status: 'awaiting_confirmation',
+    requires_confirmation: true,
+    target_ref: {
+      campaign_id: 'campaign-1',
+      campaign_name: 'Apollo Enterprise',
+      before: {},
+    },
+    payload: {},
+    preview: {
+      title: 'Pause campaign',
+      summary: 'Campaign: Apollo Enterprise',
+      before: {},
+      after: {},
+      exact_payload: {},
+      warnings: [],
+    },
+    result: null,
+    error: null,
+    expires_at: null,
+    approved_at: null,
+    executed_at: null,
+    created_at: '2026-04-22T10:00:00Z',
+    updated_at: '2026-04-22T10:00:00Z',
+  };
+}
+
+describe('AssistantMessageList', () => {
+  it('renders empty state when no messages are present', () => {
+    render(<AssistantMessageList messages={[]} isLoading={false} />);
+
+    expect(screen.getByText('Start a conversation')).toBeInTheDocument();
+  });
+
+  it('renders linked action card for assistant messages with action metadata', () => {
+    const onApproveAction = vi.fn();
+    const action = buildAction();
+    const message = buildMessage({
+      metadata: {
+        action_id: action.id,
+      },
+    });
+
+    render(
+      <AssistantMessageList
+        messages={[message]}
+        actionsById={{ [action.id]: action }}
+        isLoading={false}
+        onApproveAction={onApproveAction}
+      />
+    );
+
+    expect(screen.getByText('I prepared an action for review.')).toBeInTheDocument();
+    expect(screen.getByText('Pause campaign')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Approve' })).toBeInTheDocument();
+  });
+
+  it('renders voice draft transcripts and errors alongside persisted messages', () => {
+    render(
+      <AssistantMessageList
+        messages={[buildMessage({ role: 'user', user_id: 'user-1', content: 'Hello' })]}
+        isLoading={false}
+        draftUserMessage="Draft user transcript"
+        draftAssistantMessage="Draft assistant transcript"
+        error="Transcript save failed."
+      />
+    );
+
+    expect(screen.getByText('Hello')).toBeInTheDocument();
+    expect(screen.getByText('Draft user transcript')).toBeInTheDocument();
+    expect(screen.getByText('Draft assistant transcript')).toBeInTheDocument();
+    expect(screen.getByText('Transcript save failed.')).toBeInTheDocument();
+  });
+});

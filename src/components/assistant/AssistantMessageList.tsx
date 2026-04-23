@@ -1,20 +1,39 @@
 import { useEffect, useRef } from 'react';
-import type { AssistantMessage } from '@/lib/types';
+import type { AssistantAction, AssistantMessage } from '@/lib/types';
+import { AssistantActionCard } from './AssistantActionCard';
 
 interface AssistantMessageListProps {
   messages: AssistantMessage[];
+  actionsById?: Record<string, AssistantAction>;
   isLoading: boolean;
   draftUserMessage?: string;
   draftAssistantMessage?: string;
   error?: string | null;
+  onApproveAction?: (actionId: string, note?: string) => void;
+  onRejectAction?: (actionId: string, reason?: string) => void;
+  onEditAction?: (actionId: string, payload: Record<string, unknown>, message?: string) => void;
+  onExecuteAction?: (actionId: string) => void;
+  isApprovingAction?: boolean;
+  isRejectingAction?: boolean;
+  isEditingAction?: boolean;
+  isExecutingAction?: boolean;
 }
 
 export function AssistantMessageList({
   messages,
+  actionsById = {},
   isLoading,
   draftUserMessage = '',
   draftAssistantMessage = '',
   error = null,
+  onApproveAction,
+  onRejectAction,
+  onEditAction,
+  onExecuteAction,
+  isApprovingAction = false,
+  isRejectingAction = false,
+  isEditingAction = false,
+  isExecutingAction = false,
 }: AssistantMessageListProps) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const shouldStickToBottomRef = useRef(true);
@@ -73,16 +92,34 @@ export function AssistantMessageList({
       <div className="space-y-4 p-6">
         {messages.map((message) => {
           const isUser = message.role === 'user';
+          const actionId =
+            typeof message.metadata?.action_id === 'string' ? message.metadata.action_id : null;
+          const action = actionId ? actionsById[actionId] : undefined;
           return (
             <div key={message.id} className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
-              <div
-                className={`max-w-[85%] rounded-2xl px-4 py-3 ${
-                  isUser
-                    ? 'bg-[#FF6B35] text-white'
-                    : 'border border-[#E2E8F0] bg-white text-[#1E293B]'
-                }`}
-              >
-                <div className="whitespace-pre-wrap text-sm leading-6">{message.content}</div>
+              <div className="max-w-[85%]">
+                <div
+                  className={`rounded-2xl px-4 py-3 ${
+                    isUser
+                      ? 'bg-[#FF6B35] text-white'
+                      : 'border border-[#E2E8F0] bg-white text-[#1E293B]'
+                  }`}
+                >
+                  <div className="whitespace-pre-wrap text-sm leading-6">{message.content}</div>
+                </div>
+                {action ? (
+                  <AssistantActionCard
+                    action={action}
+                    onApprove={onApproveAction}
+                    onReject={onRejectAction}
+                    onEdit={onEditAction}
+                    onExecute={onExecuteAction}
+                    isApproving={isApprovingAction}
+                    isRejecting={isRejectingAction}
+                    isEditing={isEditingAction}
+                    isExecuting={isExecutingAction}
+                  />
+                ) : null}
               </div>
             </div>
           );

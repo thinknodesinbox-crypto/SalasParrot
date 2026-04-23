@@ -113,6 +113,10 @@ export const queryKeys = {
     threads: (workspaceId?: string | null) => ['assistant', 'threads', workspaceId] as const,
     messages: (workspaceId: string, threadId: string) =>
       ['assistant', 'messages', workspaceId, threadId] as const,
+    actions: (workspaceId: string, threadId: string) =>
+      ['assistant', 'actions', workspaceId, threadId] as const,
+    action: (workspaceId: string, actionId: string) =>
+      ['assistant', 'action', workspaceId, actionId] as const,
     deliverySettings: (workspaceId?: string | null) =>
       ['assistant', 'delivery-settings', workspaceId] as const,
     usage: (workspaceId?: string | null) => ['assistant', 'usage', workspaceId] as const,

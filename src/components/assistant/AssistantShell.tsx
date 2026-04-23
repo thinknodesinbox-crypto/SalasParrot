@@ -6,9 +6,14 @@ import { useCurrentWorkspace } from '@/lib/workspace';
 import { useAssistantVoice } from '@/lib/hooks/useAssistantVoice';
 import {
   useAssistantMessages,
+  useAssistantActions,
   useCreateAssistantQrTransfer,
   useAssistantThreads,
   useCreateAssistantThread,
+  useApproveAssistantAction,
+  useRejectAssistantAction,
+  useEditAssistantAction,
+  useExecuteAssistantAction,
   useSendAssistantMessage,
   useWorkspace,
 } from '@/lib/hooks/queries';
@@ -29,8 +34,13 @@ export function AssistantShell() {
     currentWorkspaceId,
     activeThreadId
   );
+  const { data: actions = [] } = useAssistantActions(currentWorkspaceId, activeThreadId);
   const createThread = useCreateAssistantThread(currentWorkspaceId);
   const sendMessage = useSendAssistantMessage(currentWorkspaceId);
+  const approveAction = useApproveAssistantAction(currentWorkspaceId, activeThreadId);
+  const rejectAction = useRejectAssistantAction(currentWorkspaceId, activeThreadId);
+  const editAction = useEditAssistantAction(currentWorkspaceId, activeThreadId);
+  const executeAction = useExecuteAssistantAction(currentWorkspaceId, activeThreadId);
   const createQrTransfer = useCreateAssistantQrTransfer(currentWorkspaceId, activeThreadId);
   const [showQrModal, setShowQrModal] = useState(false);
   const voice = useAssistantVoice({
@@ -66,6 +76,10 @@ export function AssistantShell() {
     if (!workspace) return '';
     return `What needs attention in ${workspace.name} today?`;
   }, [workspace]);
+  const actionsById = useMemo(
+    () => Object.fromEntries(actions.map((action) => [action.id, action])),
+    [actions]
+  );
 
   const handleCreateThread = async () => {
     const thread = await createThread.mutateAsync({});
@@ -144,10 +158,21 @@ export function AssistantShell() {
           <div className="min-h-0 flex-1">
             <AssistantMessageList
               messages={messages}
+              actionsById={actionsById}
               isLoading={isMessagesLoading}
               draftUserMessage={isVoiceActive ? voice.liveUserTranscript : ''}
               draftAssistantMessage={isVoiceActive ? voice.liveAssistantTranscript : ''}
               error={voice.error}
+              onApproveAction={(actionId, note) => approveAction.mutate({ actionId, note })}
+              onRejectAction={(actionId, reason) => rejectAction.mutate({ actionId, reason })}
+              onEditAction={(actionId, payload, message) =>
+                editAction.mutate({ actionId, payload, message })
+              }
+              onExecuteAction={(actionId) => executeAction.mutate({ actionId })}
+              isApprovingAction={approveAction.isPending}
+              isRejectingAction={rejectAction.isPending}
+              isEditingAction={editAction.isPending}
+              isExecutingAction={executeAction.isPending}
             />
           </div>
           <AssistantComposer
