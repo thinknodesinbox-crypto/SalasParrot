@@ -77,6 +77,9 @@ export function AssistantPanel({
         queryClient.invalidateQueries({
           queryKey: queryKeys.assistant.messages(currentWorkspaceId, activeThreadId),
         });
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.assistant.actions(currentWorkspaceId, activeThreadId),
+        });
       }
       queryClient.invalidateQueries({ queryKey: queryKeys.assistant.threads(currentWorkspaceId) });
     },

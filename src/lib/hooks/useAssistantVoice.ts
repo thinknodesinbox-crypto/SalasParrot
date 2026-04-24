@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { api } from '@/lib/api';
+import type { AssistantTranscriptResponse } from '@/lib/types';
 
 type VoiceStatus = 'idle' | 'connecting' | 'connected' | 'error';
 
@@ -70,6 +71,21 @@ export function useAssistantVoice({
   const assistantTranscriptBuffersRef = useRef<Map<string, string>>(new Map());
   const isStoppingRef = useRef(false);
 
+  const speakAssistantText = (text: string) => {
+    const channel = dataChannelRef.current;
+    if (!channel || channel.readyState !== 'open' || !text.trim()) return;
+    setLiveAssistantTranscript(text);
+    channel.send(
+      JSON.stringify({
+        type: 'response.create',
+        response: {
+          input: [],
+          instructions: `Say exactly the following text to the user. Do not add or remove words.\n\n${text}`,
+        },
+      })
+    );
+  };
+
   const completeVoiceSession = async () => {
     if (!sessionWorkspaceIdRef.current || !sessionThreadIdRef.current || !sessionIdRef.current)
       return;
@@ -95,12 +111,14 @@ export function useAssistantVoice({
     externalItemId,
     eventIndex,
     eventCreatedAt,
-  }: PersistTranscriptInput) => {
-    if (!sessionWorkspaceIdRef.current || !sessionThreadIdRef.current || !content.trim()) return;
+  }: PersistTranscriptInput): Promise<AssistantTranscriptResponse | null> => {
+    if (!sessionWorkspaceIdRef.current || !sessionThreadIdRef.current || !content.trim()) {
+      return null;
+    }
     const dedupeKey = `${role}:${externalItemId || content}`;
-    if (persistedItemIdsRef.current.has(dedupeKey)) return;
+    if (persistedItemIdsRef.current.has(dedupeKey)) return null;
     try {
-      await api.post(
+      const response = await api.post<AssistantTranscriptResponse>(
         `/assistant/threads/${sessionThreadIdRef.current}/messages/transcript?workspace_id=${sessionWorkspaceIdRef.current}`,
         {
           role,
@@ -114,9 +132,9 @@ export function useAssistantVoice({
       );
       persistedItemIdsRef.current.add(dedupeKey);
       onTranscriptSaved?.();
-      return true;
+      return response.data;
     } catch {
-      return false;
+      return null;
     }
   };
 
@@ -276,6 +294,9 @@ export function useAssistantVoice({
                   userTranscriptBuffersRef.current.delete(payload.item_id);
                 }
                 setLiveUserTranscript('');
+                if (persisted.assistant_message?.content) {
+                  speakAssistantText(persisted.assistant_message.content);
+                }
               } else {
                 setError('Failed to save transcript.');
                 setLiveUserTranscript(transcript);
@@ -296,30 +317,10 @@ export function useAssistantVoice({
             payload.type === 'response.audio_transcript.done' ||
             payload.type === 'response.output_audio_transcript.done'
           ) {
-            const transcript =
-              payload.transcript ||
-              (payload.item_id ? assistantTranscriptBuffersRef.current.get(payload.item_id) : '') ||
-              '';
-            const eventIndex = ++eventIndexRef.current;
-            const eventCreatedAt = new Date().toISOString();
-            void (async () => {
-              const persisted = await persistTranscript({
-                role: 'assistant',
-                content: transcript,
-                externalItemId: payload.item_id || null,
-                eventIndex,
-                eventCreatedAt,
-              });
-              if (persisted) {
-                if (payload.item_id) {
-                  assistantTranscriptBuffersRef.current.delete(payload.item_id);
-                }
-                setLiveAssistantTranscript('');
-              } else {
-                setError('Failed to save transcript.');
-                setLiveAssistantTranscript(transcript);
-              }
-            })();
+            if (payload.item_id) {
+              assistantTranscriptBuffersRef.current.delete(payload.item_id);
+            }
+            setLiveAssistantTranscript('');
           }
         } catch {
           // ignore malformed events

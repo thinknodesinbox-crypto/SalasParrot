@@ -199,7 +199,7 @@ export interface AssistantThread {
   workspace_id: string;
   created_by_user_id: string;
   title: string | null;
-  interface: 'dashboard_text' | 'dashboard_summary' | 'whatsapp';
+  interface: 'dashboard_text' | 'dashboard_voice' | 'dashboard_summary' | 'whatsapp';
   last_message_at: string | null;
   created_at: string;
   updated_at: string;
@@ -213,7 +213,7 @@ export interface AssistantMessage {
   role: 'user' | 'assistant' | 'system' | 'tool';
   content: string;
   message_type: 'text' | 'summary' | 'voice_transcript';
-  interface: 'dashboard_text' | 'dashboard_summary' | 'whatsapp';
+  interface: 'dashboard_text' | 'dashboard_voice' | 'dashboard_summary' | 'whatsapp';
   metadata: Record<string, unknown>;
   created_at: string;
 }
@@ -241,6 +241,12 @@ export interface AssistantSendMessageResponse {
   user_message: AssistantMessage;
   assistant_message: AssistantMessage | null;
   run: AssistantRun;
+}
+
+export interface AssistantTranscriptResponse {
+  message: AssistantMessage;
+  assistant_message: AssistantMessage | null;
+  run: AssistantRun | null;
 }
 
 export type AssistantActionStatus =
