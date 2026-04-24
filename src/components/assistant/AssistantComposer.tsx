@@ -7,6 +7,7 @@ interface AssistantComposerProps {
   isVoiceDisabled?: boolean;
   isVoiceActive?: boolean;
   isVoiceConnecting?: boolean;
+  voiceUnavailableReason?: string | null;
   onToggleVoice?: () => void;
   onSend: (content: string) => Promise<void> | void;
 }
@@ -17,6 +18,7 @@ export function AssistantComposer({
   isVoiceDisabled = false,
   isVoiceActive = false,
   isVoiceConnecting = false,
+  voiceUnavailableReason = null,
   onToggleVoice,
   onSend,
 }: AssistantComposerProps) {
@@ -55,11 +57,13 @@ export function AssistantComposer({
           disabled={isVoiceDisabled || isVoiceConnecting || !onToggleVoice}
           aria-label={isVoiceActive ? 'Stop voice chat' : 'Start voice chat'}
           title={
-            isVoiceConnecting
-              ? 'Connecting voice chat'
-              : isVoiceActive
-                ? 'Stop voice chat'
-                : 'Start voice chat'
+            voiceUnavailableReason
+              ? voiceUnavailableReason
+              : isVoiceConnecting
+                ? 'Connecting voice chat'
+                : isVoiceActive
+                  ? 'Stop voice chat'
+                  : 'Start voice chat'
           }
           className={`self-end rounded-xl border p-3 transition-colors disabled:cursor-not-allowed ${
             isVoiceActive
@@ -77,6 +81,9 @@ export function AssistantComposer({
           {isSending ? 'Sending...' : 'Send'}
         </button>
       </div>
+      {voiceUnavailableReason ? (
+        <p className="mt-3 text-xs text-[#B45309]">{voiceUnavailableReason}</p>
+      ) : null}
     </div>
   );
 }

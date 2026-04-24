@@ -4,22 +4,28 @@ interface AssistantThreadListProps {
   threads: AssistantThread[];
   activeThreadId: string | null;
   isLoading: boolean;
+  error?: string | null;
   onSelectThread: (threadId: string) => void;
   onCreateThread: () => void;
+  onRetry?: () => void;
 }
 
 export function AssistantThreadList({
   threads,
   activeThreadId,
   isLoading,
+  error = null,
   onSelectThread,
   onCreateThread,
+  onRetry,
 }: AssistantThreadListProps) {
   return (
     <div className="flex h-full flex-col border-r border-[#E2E8F0] bg-white">
       <div className="border-b border-[#E2E8F0] p-4">
         <h2 className="mb-1 text-base font-semibold text-[#1E293B]">Assistant</h2>
-        <p className="mb-3 text-sm text-[#64748B]">Read-only workspace questions</p>
+        <p className="mb-3 text-sm text-[#64748B]">
+          Ask questions, review proposed changes, and execute approved actions.
+        </p>
         <button
           onClick={onCreateThread}
           className="w-full rounded-lg bg-[#FF6B35] px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-[#E85A2A]"
@@ -37,6 +43,20 @@ export function AssistantThreadList({
                 <div className="h-3 w-1/3 rounded bg-[#E2E8F0]" />
               </div>
             ))}
+          </div>
+        ) : error ? (
+          <div className="space-y-3 rounded-lg border border-[#FECACA] bg-[#FEF2F2] p-4">
+            <div className="text-sm font-medium text-[#991B1B]">Failed to load conversations</div>
+            <div className="text-sm text-[#B91C1C]">{error}</div>
+            {onRetry ? (
+              <button
+                type="button"
+                onClick={onRetry}
+                className="rounded-lg border border-[#FCA5A5] bg-white px-3 py-2 text-sm font-medium text-[#991B1B]"
+              >
+                Retry
+              </button>
+            ) : null}
           </div>
         ) : threads.length === 0 ? (
           <div className="rounded-lg border border-dashed border-[#CBD5E1] p-4 text-sm text-[#64748B]">

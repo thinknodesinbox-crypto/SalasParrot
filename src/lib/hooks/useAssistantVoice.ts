@@ -3,6 +3,11 @@ import { api } from '@/lib/api';
 
 type VoiceStatus = 'idle' | 'connecting' | 'connected' | 'error';
 
+interface VoiceCapability {
+  supported: boolean;
+  reason: string | null;
+}
+
 interface UseAssistantVoiceOptions {
   workspaceId: string | null;
   threadId: string | null;
@@ -27,6 +32,27 @@ export function useAssistantVoice({
   threadId,
   onTranscriptSaved,
 }: UseAssistantVoiceOptions) {
+  const getVoiceCapability = (): VoiceCapability => {
+    if (typeof window === 'undefined') {
+      return { supported: false, reason: 'Voice chat is only available in the browser.' };
+    }
+    if (!window.isSecureContext) {
+      return { supported: false, reason: 'Voice chat requires a secure HTTPS connection.' };
+    }
+    if (typeof window.RTCPeerConnection === 'undefined') {
+      return { supported: false, reason: 'This browser does not support realtime voice chat.' };
+    }
+    if (
+      typeof navigator === 'undefined' ||
+      !navigator.mediaDevices ||
+      typeof navigator.mediaDevices.getUserMedia !== 'function'
+    ) {
+      return { supported: false, reason: 'Microphone access is not available in this browser.' };
+    }
+    return { supported: true, reason: null };
+  };
+
+  const [capability, setCapability] = useState<VoiceCapability>(() => getVoiceCapability());
   const [status, setStatus] = useState<VoiceStatus>('idle');
   const [error, setError] = useState<string | null>(null);
   const [liveUserTranscript, setLiveUserTranscript] = useState('');
@@ -42,6 +68,7 @@ export function useAssistantVoice({
   const eventIndexRef = useRef(0);
   const userTranscriptBuffersRef = useRef<Map<string, string>>(new Map());
   const assistantTranscriptBuffersRef = useRef<Map<string, string>>(new Map());
+  const isStoppingRef = useRef(false);
 
   const completeVoiceSession = async () => {
     if (!sessionWorkspaceIdRef.current || !sessionThreadIdRef.current || !sessionIdRef.current)
@@ -94,6 +121,7 @@ export function useAssistantVoice({
   };
 
   const stop = async () => {
+    isStoppingRef.current = true;
     dataChannelRef.current?.close();
     dataChannelRef.current = null;
     peerConnectionRef.current?.close();
@@ -115,6 +143,7 @@ export function useAssistantVoice({
     eventIndexRef.current = 0;
     await completeVoiceSession();
     setStatus('idle');
+    isStoppingRef.current = false;
   };
 
   const start = async (options?: StartVoiceOptions) => {
@@ -126,6 +155,14 @@ export function useAssistantVoice({
       status === 'connecting' ||
       status === 'connected'
     ) {
+      return;
+    }
+
+    const nextCapability = getVoiceCapability();
+    setCapability(nextCapability);
+    if (!nextCapability.supported) {
+      setStatus('error');
+      setError(nextCapability.reason);
       return;
     }
 
@@ -152,6 +189,34 @@ export function useAssistantVoice({
       const ephemeralKey = tokenResponse.data.client_secret;
       const pc = new RTCPeerConnection();
       peerConnectionRef.current = pc;
+      pc.onconnectionstatechange = () => {
+        if (pc.connectionState === 'connected') {
+          setStatus('connected');
+          return;
+        }
+        if (
+          pc.connectionState === 'failed' ||
+          pc.connectionState === 'disconnected' ||
+          pc.connectionState === 'closed'
+        ) {
+          if (!isStoppingRef.current) {
+            setError('Voice connection was interrupted. Start voice chat again to continue.');
+            void stop();
+          }
+        }
+      };
+      pc.oniceconnectionstatechange = () => {
+        if (
+          pc.iceConnectionState === 'failed' ||
+          pc.iceConnectionState === 'disconnected' ||
+          pc.iceConnectionState === 'closed'
+        ) {
+          if (!isStoppingRef.current) {
+            setError('Network connectivity interrupted the voice session.');
+            void stop();
+          }
+        }
+      };
 
       const remoteAudio = new Audio();
       remoteAudio.autoplay = true;
@@ -166,6 +231,18 @@ export function useAssistantVoice({
 
       const dc = pc.createDataChannel('oai-events');
       dataChannelRef.current = dc;
+      dc.onopen = () => {
+        setStatus('connected');
+      };
+      dc.onerror = () => {
+        setError('Voice event channel failed.');
+      };
+      dc.onclose = () => {
+        if (!isStoppingRef.current && peerConnectionRef.current) {
+          setError('Voice event channel closed unexpectedly.');
+          void stop();
+        }
+      };
 
       dc.onmessage = (event) => {
         try {
@@ -265,11 +342,23 @@ export function useAssistantVoice({
       }
       const answerSdp = await sdpResponse.text();
       await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp });
-
-      setStatus('connected');
     } catch (err) {
       await stop();
       setStatus('error');
+      if (err instanceof DOMException) {
+        if (err.name === 'NotAllowedError') {
+          setError('Microphone permission was denied.');
+          return;
+        }
+        if (err.name === 'NotFoundError') {
+          setError('No microphone was found on this device.');
+          return;
+        }
+        if (err.name === 'NotReadableError') {
+          setError('The microphone is already in use by another application.');
+          return;
+        }
+      }
       setError(err instanceof Error ? err.message : 'Voice connection failed.');
     }
   };
@@ -284,7 +373,38 @@ export function useAssistantVoice({
     void stop();
   }, [threadId, workspaceId]);
 
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden' && peerConnectionRef.current) {
+        setError('Voice chat stopped after the tab was backgrounded.');
+        void stop();
+      }
+    };
+    const handlePageHide = () => {
+      if (peerConnectionRef.current) {
+        void stop();
+      }
+    };
+    const handleOffline = () => {
+      if (peerConnectionRef.current) {
+        setError('Voice chat stopped because the device went offline.');
+        void stop();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('pagehide', handlePageHide);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('pagehide', handlePageHide);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
   return {
+    capability,
     status,
     error,
     liveUserTranscript,

@@ -38,9 +38,11 @@ export function AssistantActionCard({
 }: AssistantActionCardProps) {
   const [isEditingOpen, setIsEditingOpen] = useState(false);
   const [editValue, setEditValue] = useState('');
+  const [editError, setEditError] = useState<string | null>(null);
 
   useEffect(() => {
     setEditValue(JSON.stringify(action.preview.exact_payload || action.payload || {}, null, 2));
+    setEditError(null);
   }, [action.id, action.payload, action.preview.exact_payload]);
 
   const canReview = action.status === 'awaiting_confirmation' || action.status === 'approved';
@@ -53,6 +55,13 @@ export function AssistantActionCard({
     ([key]) => key !== 'options' && key !== 'target_key'
   );
   const targetDisplay = Object.fromEntries(targetDisplayEntries);
+  const riskTone =
+    action.risk_level === 'high'
+      ? 'bg-[#FEF2F2] text-[#B91C1C]'
+      : action.risk_level === 'medium'
+        ? 'bg-[#FFFBEB] text-[#B45309]'
+        : 'bg-[#ECFDF5] text-[#047857]';
+  const expiresLabel = action.expires_at ? new Date(action.expires_at).toLocaleString() : null;
 
   return (
     <div className="mt-3 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
@@ -60,19 +69,60 @@ export function AssistantActionCard({
         <div>
           <div className="text-sm font-semibold text-[#1E293B]">{action.preview.title}</div>
           <div className="mt-1 text-sm text-[#475569]">{action.preview.summary}</div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <span
+              className={`rounded-full px-2.5 py-1 text-xs font-semibold capitalize ${riskTone}`}
+            >
+              {action.risk_level} risk
+            </span>
+            {expiresLabel ? (
+              <span className="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-[#475569]">
+                Expires {expiresLabel}
+              </span>
+            ) : null}
+          </div>
         </div>
         <div className="rounded-full bg-white px-2.5 py-1 text-xs font-medium capitalize text-[#475569]">
           {action.status.replace(/_/g, ' ')}
         </div>
       </div>
 
-      <div className="mt-3 grid gap-3 md:grid-cols-2">
+      {action.preview.warnings.length > 0 ? (
+        <div className="mt-3 rounded-lg border border-[#FDE68A] bg-[#FFFBEB] p-3">
+          <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#B45309]">
+            Review Warnings
+          </div>
+          <div className="space-y-1 text-sm text-[#92400E]">
+            {action.preview.warnings.map((warning) => (
+              <div key={warning}>{warning}</div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <div className="rounded-lg border border-[#E2E8F0] bg-white p-3">
           <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#94A3B8]">
             Target
           </div>
           <div className="whitespace-pre-wrap text-sm text-[#1E293B]">
             {formatRecord(targetDisplay)}
+          </div>
+        </div>
+        <div className="rounded-lg border border-[#E2E8F0] bg-white p-3">
+          <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#94A3B8]">
+            Before
+          </div>
+          <div className="whitespace-pre-wrap text-sm text-[#1E293B]">
+            {formatRecord(action.preview.before)}
+          </div>
+        </div>
+        <div className="rounded-lg border border-[#E2E8F0] bg-white p-3">
+          <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#94A3B8]">
+            After
+          </div>
+          <div className="whitespace-pre-wrap text-sm text-[#1E293B]">
+            {formatRecord(action.preview.after)}
           </div>
         </div>
         <div className="rounded-lg border border-[#E2E8F0] bg-white p-3">
@@ -130,10 +180,11 @@ export function AssistantActionCard({
               onClick={() => {
                 try {
                   const nextPayload = JSON.parse(editValue) as Record<string, unknown>;
+                  setEditError(null);
                   onEdit?.(action.id, nextPayload, 'Action updated from review card.');
                   setIsEditingOpen(false);
                 } catch {
-                  // Keep UI simple for now; invalid JSON just stays in place until corrected.
+                  setEditError('Payload must be valid JSON before it can be saved.');
                 }
               }}
               disabled={isEditing}
@@ -149,6 +200,7 @@ export function AssistantActionCard({
               Cancel
             </button>
           </div>
+          {editError ? <div className="text-sm text-[#B91C1C]">{editError}</div> : null}
         </div>
       ) : null}
 

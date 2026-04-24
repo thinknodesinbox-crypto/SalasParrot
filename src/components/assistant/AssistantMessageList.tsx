@@ -6,9 +6,11 @@ interface AssistantMessageListProps {
   messages: AssistantMessage[];
   actionsById?: Record<string, AssistantAction>;
   isLoading: boolean;
+  queryError?: string | null;
   draftUserMessage?: string;
   draftAssistantMessage?: string;
   error?: string | null;
+  onRetryQuery?: () => void;
   onApproveAction?: (actionId: string, note?: string) => void;
   onRejectAction?: (actionId: string, reason?: string) => void;
   onEditAction?: (actionId: string, payload: Record<string, unknown>, message?: string) => void;
@@ -23,9 +25,11 @@ export function AssistantMessageList({
   messages,
   actionsById = {},
   isLoading,
+  queryError = null,
   draftUserMessage = '',
   draftAssistantMessage = '',
   error = null,
+  onRetryQuery,
   onApproveAction,
   onRejectAction,
   onEditAction,
@@ -74,6 +78,26 @@ export function AssistantMessageList({
     );
   }
 
+  if (queryError && messages.length === 0 && !draftUserMessage && !draftAssistantMessage) {
+    return (
+      <div className="flex h-full items-center justify-center p-8">
+        <div className="max-w-md space-y-3 rounded-2xl border border-[#FECACA] bg-white p-6 text-center shadow-sm">
+          <h3 className="text-lg font-semibold text-[#991B1B]">Failed to load this conversation</h3>
+          <p className="text-sm text-[#B91C1C]">{queryError}</p>
+          {onRetryQuery ? (
+            <button
+              type="button"
+              onClick={onRetryQuery}
+              className="rounded-lg border border-[#FCA5A5] bg-white px-4 py-2 text-sm font-medium text-[#991B1B]"
+            >
+              Retry
+            </button>
+          ) : null}
+        </div>
+      </div>
+    );
+  }
+
   if (messages.length === 0 && !draftUserMessage && !draftAssistantMessage && !error) {
     return (
       <div className="flex h-full items-center justify-center p-8 text-center">
@@ -90,6 +114,24 @@ export function AssistantMessageList({
   return (
     <div ref={scrollRef} className="h-full overflow-y-auto">
       <div className="space-y-4 p-6">
+        {queryError ? (
+          <div
+            role="alert"
+            className="rounded-2xl border border-[#FECACA] bg-[#FEF2F2] px-4 py-3 text-sm text-[#991B1B]"
+          >
+            <div className="font-medium">Some assistant data failed to refresh.</div>
+            <div className="mt-1">{queryError}</div>
+            {onRetryQuery ? (
+              <button
+                type="button"
+                onClick={onRetryQuery}
+                className="mt-3 rounded-lg border border-[#FCA5A5] bg-white px-3 py-2 text-sm font-medium text-[#991B1B]"
+              >
+                Retry
+              </button>
+            ) : null}
+          </div>
+        ) : null}
         {messages.map((message) => {
           const isUser = message.role === 'user';
           const actionId =
@@ -140,7 +182,10 @@ export function AssistantMessageList({
         ) : null}
         {error ? (
           <div className="flex justify-start">
-            <div className="max-w-[85%] rounded-2xl border border-[#FECACA] bg-white px-4 py-3 text-[#B91C1C]">
+            <div
+              role="alert"
+              className="max-w-[85%] rounded-2xl border border-[#FECACA] bg-white px-4 py-3 text-[#B91C1C]"
+            >
               <div className="whitespace-pre-wrap text-sm leading-6">{error}</div>
             </div>
           </div>

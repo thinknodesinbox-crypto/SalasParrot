@@ -27,14 +27,27 @@ export function AssistantShell() {
   const queryClient = useQueryClient();
   const { currentWorkspaceId } = useCurrentWorkspace();
   const { data: workspace = null } = useWorkspace(currentWorkspaceId || '');
-  const { data: threads = [], isLoading: isThreadsLoading } =
-    useAssistantThreads(currentWorkspaceId);
+  const {
+    data: threads = [],
+    isLoading: isThreadsLoading,
+    isError: isThreadsError,
+    error: threadsError,
+    refetch: refetchThreads,
+  } = useAssistantThreads(currentWorkspaceId);
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
-  const { data: messages = [], isLoading: isMessagesLoading } = useAssistantMessages(
-    currentWorkspaceId,
-    activeThreadId
-  );
-  const { data: actions = [] } = useAssistantActions(currentWorkspaceId, activeThreadId);
+  const {
+    data: messages = [],
+    isLoading: isMessagesLoading,
+    isError: isMessagesError,
+    error: messagesError,
+    refetch: refetchMessages,
+  } = useAssistantMessages(currentWorkspaceId, activeThreadId);
+  const {
+    data: actions = [],
+    isError: isActionsError,
+    error: actionsError,
+    refetch: refetchActions,
+  } = useAssistantActions(currentWorkspaceId, activeThreadId);
   const createThread = useCreateAssistantThread(currentWorkspaceId);
   const sendMessage = useSendAssistantMessage(currentWorkspaceId);
   const approveAction = useApproveAssistantAction(currentWorkspaceId, activeThreadId);
@@ -56,6 +69,9 @@ export function AssistantShell() {
     },
   });
   const isVoiceActive = voice.status === 'connecting' || voice.status === 'connected';
+  const conversationError =
+    (isMessagesError ? messagesError?.message : null) ||
+    (isActionsError ? actionsError?.message : null);
 
   useEffect(() => {
     if (!activeThreadId && threads.length > 0) {
@@ -123,8 +139,8 @@ export function AssistantShell() {
       <div>
         <h1 className="text-xl font-bold text-[#1E293B] md:text-2xl">Assistant</h1>
         <p className="mt-1 text-sm text-[#64748B] md:text-base">
-          Ask read-only questions about campaigns, inbox activity, sender health, and workspace
-          setup.
+          Ask operational questions, review proposed changes, and execute approved actions across
+          campaigns, inbox activity, sender health, and workspace setup.
         </p>
       </div>
 
@@ -133,8 +149,10 @@ export function AssistantShell() {
           threads={threads}
           activeThreadId={activeThreadId}
           isLoading={isThreadsLoading}
+          error={isThreadsError ? (threadsError?.message ?? 'Failed to load conversations.') : null}
           onSelectThread={setActiveThreadId}
           onCreateThread={() => void handleCreateThread()}
+          onRetry={() => void refetchThreads()}
         />
 
         <div className="flex min-h-0 flex-col bg-[#F8FAFC]">
@@ -160,9 +178,14 @@ export function AssistantShell() {
               messages={messages}
               actionsById={actionsById}
               isLoading={isMessagesLoading}
+              queryError={conversationError}
               draftUserMessage={isVoiceActive ? voice.liveUserTranscript : ''}
               draftAssistantMessage={isVoiceActive ? voice.liveAssistantTranscript : ''}
               error={voice.error}
+              onRetryQuery={() => {
+                void refetchMessages();
+                void refetchActions();
+              }}
               onApproveAction={(actionId, note) => approveAction.mutate({ actionId, note })}
               onRejectAction={(actionId, reason) => rejectAction.mutate({ actionId, reason })}
               onEditAction={(actionId, payload, message) =>
@@ -181,6 +204,7 @@ export function AssistantShell() {
             isVoiceDisabled={!currentWorkspaceId}
             isVoiceActive={isVoiceActive}
             isVoiceConnecting={voice.status === 'connecting'}
+            voiceUnavailableReason={!voice.capability.supported ? voice.capability.reason : null}
             onToggleVoice={() => void handleToggleVoice()}
             onSend={handleSendMessage}
           />
