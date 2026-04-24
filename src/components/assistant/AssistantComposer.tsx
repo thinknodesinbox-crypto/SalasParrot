@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Mic, Square } from 'lucide-react';
+import { Mic } from 'lucide-react';
 
 interface AssistantComposerProps {
   disabled?: boolean;
@@ -23,6 +23,11 @@ export function AssistantComposer({
   onSend,
 }: AssistantComposerProps) {
   const [value, setValue] = useState('');
+  const voiceStatusLabel = isVoiceConnecting
+    ? 'Connecting voice assistant'
+    : isVoiceActive
+      ? 'Voice assistant live'
+      : 'Start voice assistant';
 
   const handleSubmit = async () => {
     const cleaned = value.trim();
@@ -33,6 +38,44 @@ export function AssistantComposer({
 
   return (
     <div className="border-t border-[#E2E8F0] bg-white p-4">
+      {(isVoiceConnecting || isVoiceActive) && (
+        <div className="mb-3 flex items-center justify-between rounded-xl border border-[#FED7AA] bg-[#FFF7ED] px-4 py-3">
+          <div className="flex items-center gap-3">
+            <div className="flex items-end gap-1">
+              <span
+                className={`h-2.5 w-2.5 rounded-full ${isVoiceConnecting ? 'animate-pulse bg-[#F59E0B]' : 'animate-pulse bg-[#FF6B35]'}`}
+              />
+              <span
+                className={`w-1.5 rounded-full bg-[#FF6B35] ${isVoiceConnecting ? 'h-3 animate-pulse' : 'h-4 animate-bounce'}`}
+              />
+              <span
+                className={`w-1.5 rounded-full bg-[#FB923C] ${isVoiceConnecting ? 'h-5 animate-pulse' : 'h-6 animate-bounce'}`}
+                style={{ animationDelay: '120ms' }}
+              />
+              <span
+                className={`w-1.5 rounded-full bg-[#FDBA74] ${isVoiceConnecting ? 'h-4 animate-pulse' : 'h-5 animate-bounce'}`}
+                style={{ animationDelay: '240ms' }}
+              />
+            </div>
+            <div>
+              <div className="text-sm font-semibold text-[#9A3412]">{voiceStatusLabel}</div>
+              <div className="text-xs text-[#C2410C]">
+                {isVoiceConnecting
+                  ? 'Setting up microphone and realtime audio.'
+                  : 'Listening and transcribing in real time.'}
+              </div>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onToggleVoice}
+            className="rounded-lg bg-[#1E293B] px-3 py-2 text-xs font-semibold uppercase tracking-wide text-white"
+          >
+            Stop
+          </button>
+        </div>
+      )}
+
       <div className="flex gap-3">
         <textarea
           value={value}
@@ -51,28 +94,21 @@ export function AssistantComposer({
           }
           className="min-h-[84px] flex-1 rounded-xl border border-[#E2E8F0] px-4 py-3 text-sm text-[#1E293B] focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20 disabled:bg-[#F8FAFC]"
         />
-        <button
-          type="button"
-          onClick={onToggleVoice}
-          disabled={isVoiceDisabled || isVoiceConnecting || !onToggleVoice}
-          aria-label={isVoiceActive ? 'Stop voice chat' : 'Start voice chat'}
-          title={
-            voiceUnavailableReason
-              ? voiceUnavailableReason
-              : isVoiceConnecting
-                ? 'Connecting voice chat'
-                : isVoiceActive
-                  ? 'Stop voice chat'
-                  : 'Start voice chat'
-          }
-          className={`self-end rounded-xl border p-3 transition-colors disabled:cursor-not-allowed ${
-            isVoiceActive
-              ? 'border-[#1E293B] bg-[#1E293B] text-white hover:bg-[#0F172A]'
-              : 'border-[#E2E8F0] bg-white text-[#1E293B] hover:bg-[#F8FAFC]'
-          } disabled:border-[#E2E8F0] disabled:bg-[#E2E8F0] disabled:text-[#94A3B8]`}
-        >
-          {isVoiceActive ? <Square className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
-        </button>
+        {!isVoiceActive && !isVoiceConnecting ? (
+          <button
+            type="button"
+            onClick={onToggleVoice}
+            disabled={isVoiceDisabled || !onToggleVoice}
+            aria-label="Start voice chat"
+            title={voiceUnavailableReason ? voiceUnavailableReason : 'Start voice chat'}
+            className="self-end rounded-xl border border-[#E2E8F0] bg-white px-3 py-3 text-[#1E293B] transition-colors hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:border-[#E2E8F0] disabled:bg-[#E2E8F0] disabled:text-[#94A3B8]"
+          >
+            <div className="flex items-center gap-2">
+              <Mic className="h-5 w-5" />
+              <span className="hidden text-sm font-medium sm:inline">Voice</span>
+            </div>
+          </button>
+        ) : null}
         <button
           onClick={() => void handleSubmit()}
           disabled={disabled || isSending || !value.trim()}

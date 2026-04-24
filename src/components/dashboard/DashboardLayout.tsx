@@ -6,7 +6,9 @@ import logoImage from '@/assets/images/logo.png';
 import { useAuth } from '@/lib/auth';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { OnboardingModal } from '@/components/onboarding/OnboardingModal';
+import { AssistantDrawer } from '@/components/assistant/AssistantDrawer';
 import { useWorkspaceStore, useWorkspaceHydrated } from '@/lib/workspace';
+import { useAssistantUiStore } from '@/lib/assistantUi';
 import { useWorkspaces } from '@/lib/hooks/queries';
 
 interface DashboardLayoutProps {
@@ -44,6 +46,11 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const queryClient = useQueryClient();
+  const isDrawerOpen = useAssistantUiStore((state) => state.isDrawerOpen);
+  const selectedThreadId = useAssistantUiStore((state) => state.selectedThreadId);
+  const openDrawer = useAssistantUiStore((state) => state.openDrawer);
+  const closeDrawer = useAssistantUiStore((state) => state.closeDrawer);
+  const setSelectedThreadId = useAssistantUiStore((state) => state.setSelectedThreadId);
 
   // Workspace context
   const { currentWorkspace, currentWorkspaceId, setCurrentWorkspace, clearCurrentWorkspace } =
@@ -116,6 +123,13 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  useEffect(() => {
+    setSelectedThreadId(null);
+    closeDrawer();
+  }, [currentWorkspaceId, setSelectedThreadId, closeDrawer]);
+
+  const isAssistantPage = currentPath.startsWith('/dashboard/assistant');
 
   return (
     <div className="flex min-h-screen bg-[#F8FAFC]">
@@ -416,6 +430,25 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           </div>
 
           <div className="flex items-center gap-2 md:gap-4">
+            <button
+              type="button"
+              onClick={() => {
+                if (isAssistantPage) {
+                  navigate({
+                    to: '/dashboard',
+                  } as never);
+                  return;
+                }
+                openDrawer();
+              }}
+              className="inline-flex items-center gap-2 rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-sm font-medium text-[#1E293B] transition-colors hover:bg-[#F8FAFC]"
+            >
+              <AssistantIcon />
+              <span className="hidden sm:inline">
+                {isAssistantPage ? 'Back to Dashboard' : 'Assistant'}
+              </span>
+            </button>
+
             {/* Notifications */}
             <NotificationBell />
 
@@ -496,6 +529,19 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         {/* Page Content */}
         <main className="flex-1 p-4 md:p-6">{children}</main>
       </motion.div>
+
+      <AssistantDrawer
+        isOpen={isDrawerOpen && !isAssistantPage}
+        initialThreadId={selectedThreadId}
+        onClose={closeDrawer}
+        onExpand={(threadId) => {
+          closeDrawer();
+          navigate({
+            to: '/dashboard/assistant',
+            search: threadId ? ({ threadId } as never) : ({} as never),
+          } as never);
+        }}
+      />
 
       {hasHydrated && resolvedWorkspace && <OnboardingModal workspace={resolvedWorkspace} />}
     </div>
