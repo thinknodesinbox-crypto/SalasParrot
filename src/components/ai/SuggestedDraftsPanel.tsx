@@ -116,14 +116,6 @@ function SuggestedDraftsPanelContent({
         grounding: Array.isArray(item.grounding) ? item.grounding : [],
       }));
   }, [data]);
-  const provenanceLabels = Array.isArray(data?.provenance_labels) ? data.provenance_labels : [];
-  const contextNotes = Array.isArray(data?.context_notes) ? data.context_notes : [];
-  const variableAvailability =
-    data && 'variable_availability' in data && Array.isArray(data.variable_availability)
-      ? data.variable_availability
-      : [];
-  const sampleLead =
-    data?.sample_lead && typeof data.sample_lead === 'object' ? data.sample_lead : null;
   const contextRef = useRef({
     surface,
     suggestionType,
@@ -210,9 +202,6 @@ function SuggestedDraftsPanelContent({
       <div className="mb-3 flex items-start justify-between gap-3">
         <div>
           <p className="text-sm font-medium text-[#1E293B]">Suggested drafts</p>
-          <p className="mt-1 text-xs text-[#64748B]">
-            Suggestions use your business context and a representative prospect when available.
-          </p>
         </div>
         <div className="flex items-center gap-2">
           {onRegenerate ? (
@@ -245,33 +234,6 @@ function SuggestedDraftsPanelContent({
         </div>
       ) : null}
 
-      {provenanceLabels.length ? (
-        <div className="mb-3 rounded-lg border border-[#E2E8F0] bg-white p-3">
-          <p className="text-xs font-medium uppercase tracking-wide text-[#64748B]">Grounded In</p>
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {provenanceLabels.map((label) => (
-              <span
-                key={label}
-                className="rounded bg-[#ECFDF5] px-2 py-1 text-[10px] font-medium text-[#047857]"
-              >
-                {label}
-              </span>
-            ))}
-          </div>
-        </div>
-      ) : null}
-
-      {sampleLead ? (
-        <div className="mb-3 rounded-lg border border-[#E2E8F0] bg-white p-3 text-xs text-[#475569]">
-          <p className="font-medium text-[#1E293B]">Representative prospect</p>
-          <p className="mt-1">
-            {[sampleLead.full_name, sampleLead.title, sampleLead.company]
-              .filter(Boolean)
-              .join(' • ')}
-          </p>
-        </div>
-      ) : null}
-
       <div className="space-y-3">
         {normalizedSuggestions.map((draft, index) => (
           <div
@@ -284,29 +246,6 @@ function SuggestedDraftsPanelContent({
               </p>
             ) : null}
             <p className="mt-2 whitespace-pre-wrap text-sm text-[#1E293B]">{draft.message}</p>
-            {draft.rationale ? (
-              <p className="mt-2 text-xs text-[#64748B]">{draft.rationale}</p>
-            ) : null}
-            {(draft.grounding.length > 0 || draft.variables_used.length > 0) && (
-              <div className="mt-3 flex flex-wrap gap-1.5">
-                {draft.grounding.map((item) => (
-                  <span
-                    key={`ground-${item}`}
-                    className="rounded bg-[#EFF6FF] px-2 py-1 text-[10px] font-medium text-[#1D4ED8]"
-                  >
-                    {item}
-                  </span>
-                ))}
-                {draft.variables_used.map((item) => (
-                  <span
-                    key={`var-${item}`}
-                    className="rounded bg-[#FFF7ED] px-2 py-1 text-[10px] font-medium text-[#C2410C]"
-                  >
-                    {item}
-                  </span>
-                ))}
-              </div>
-            )}
             <div className="mt-3 flex justify-end">
               <button
                 onClick={() => {
@@ -326,42 +265,6 @@ function SuggestedDraftsPanelContent({
           </div>
         ))}
       </div>
-
-      {contextNotes.length ? (
-        <div className="mt-3 rounded-lg border border-[#E2E8F0] bg-white p-3 text-xs text-[#64748B]">
-          {contextNotes.map((note) => (
-            <p key={note}>{note}</p>
-          ))}
-        </div>
-      ) : null}
-
-      {variableAvailability.length ? (
-        <div className="mt-3 rounded-lg border border-[#E2E8F0] bg-white p-3">
-          <p className="text-xs font-medium uppercase tracking-wide text-[#64748B]">
-            Variable availability
-          </p>
-          <div className="mt-2 space-y-2">
-            {variableAvailability.map((item) => (
-              <div
-                key={item.variable}
-                className="flex items-start justify-between gap-3 text-xs text-[#475569]"
-              >
-                <div>
-                  <p className="font-medium text-[#1E293B]">{item.variable}</p>
-                  {item.sample_value ? (
-                    <p className="mt-0.5 text-[#64748B]">e.g. {item.sample_value}</p>
-                  ) : null}
-                </div>
-                <div className="text-right">
-                  <p className="font-medium text-[#1E293B]">
-                    {item.available_count}/{item.total_count}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 }
