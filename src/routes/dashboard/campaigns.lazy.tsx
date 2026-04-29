@@ -369,6 +369,22 @@ function getRateLimitLabel(actions: string[]): string {
   return actions.map((a) => labels[a] ?? a).join(', ');
 }
 
+function isEmailOnlySequenceNodeType(type: SequenceNode['type']): boolean {
+  return ['email', 'delay', 'condition', 'enrichment'].includes(type);
+}
+
+function isEmailOnlySequence(nodes: SequenceNode[]): boolean {
+  const actionNodes = nodes.filter((n) => n.type !== 'start' && n.type !== 'end');
+  return (
+    actionNodes.some((n) => n.type === 'email') &&
+    actionNodes.every((n) => isEmailOnlySequenceNodeType(n.type))
+  );
+}
+
+function isEmailOnlyCampaignStepType(type: string): boolean {
+  return ['email', 'email_followup', 'wait', 'condition', 'enrichment', 'end'].includes(type);
+}
+
 function CampaignsList({
   campaigns,
   onSelect,
@@ -795,6 +811,7 @@ function CreateCampaignModal({
   );
   const [selectedSenderIds, setSelectedSenderIds] = useState<string[]>([]);
   const [senderEmailMap, setSenderEmailMap] = useState<Record<string, string>>({});
+  const [dailyEmailLimitInput, setDailyEmailLimitInput] = useState('');
   const [sequenceNodes, setSequenceNodes] = useState<SequenceNode[]>([
     { id: 'start', type: 'start', data: {} },
     { id: 'end', type: 'end', data: {} },
@@ -827,7 +844,17 @@ function CreateCampaignModal({
 
   // Check if sequence has email steps
   const hasEmailSteps = sequenceNodes.some((n) => n.type === 'email');
+  const emailOnlySequence = isEmailOnlySequence(sequenceNodes);
   const connectedEmailAccounts = emailAccounts.filter((a) => a.status === 'connected');
+  const selectedSenderEmailAccounts = selectedSenderIds
+    .map((id) => senderEmailMap[id])
+    .filter(Boolean)
+    .map((emailId) => emailAccounts.find((account) => account.id === emailId))
+    .filter((account): account is (typeof emailAccounts)[number] => Boolean(account));
+  const maxDailyEmailLimit = selectedSenderEmailAccounts.reduce(
+    (sum, account) => sum + (account.daily_limit || 100),
+    0
+  );
 
   // Auto-initialize sender email map from LinkedIn account defaults
   useEffect(() => {
@@ -878,6 +905,9 @@ function CreateCampaignModal({
     if (isEditMode && campaignDetails && !detailsLoading) {
       // Set campaign name
       setCampaignName(campaignDetails.name || '');
+      setDailyEmailLimitInput(
+        campaignDetails.daily_email_limit != null ? String(campaignDetails.daily_email_limit) : ''
+      );
 
       // Convert backend steps to frontend nodes
       if (campaignDetails.steps && campaignDetails.steps.length > 0) {
@@ -1028,6 +1058,12 @@ function CreateCampaignModal({
   // Check if sequence is valid (for disabling Continue button)
   const sequenceValidation = validateSequence();
   const isSequenceValid = sequenceValidation.valid;
+  const parsedDailyEmailLimit = (() => {
+    const trimmed = dailyEmailLimitInput.trim();
+    if (!trimmed || !emailOnlySequence) return null;
+    const parsed = parseInt(trimmed, 10);
+    return Number.isNaN(parsed) ? null : parsed;
+  })();
 
   const stepConfigs = [
     { id: 'name', label: 'Name', number: 1 },
@@ -1047,6 +1083,17 @@ function CreateCampaignModal({
     if (!campaignName || !campaignName.trim()) {
       setError('Campaign name is required');
       return;
+    }
+
+    if (emailOnlySequence && dailyEmailLimitInput.trim()) {
+      if (parsedDailyEmailLimit === null || parsedDailyEmailLimit < 1) {
+        setError('Daily email limit must be at least 1');
+        return;
+      }
+      if (maxDailyEmailLimit > 0 && parsedDailyEmailLimit > maxDailyEmailLimit) {
+        setError(`Daily email limit cannot exceed ${maxDailyEmailLimit}/day`);
+        return;
+      }
     }
 
     // Skip validation for draft saves — only validate when starting
@@ -1104,7 +1151,10 @@ function CreateCampaignModal({
 
         // Update campaign name
         if (updateCampaign) {
-          await updateCampaign.mutateAsync({ name: campaignName });
+          await updateCampaign.mutateAsync({
+            name: campaignName,
+            daily_email_limit: emailOnlySequence ? parsedDailyEmailLimit : null,
+          });
         }
 
         // Patch each step's config individually
@@ -1134,7 +1184,10 @@ function CreateCampaignModal({
         campaignId = editingCampaign.id;
 
         // Step 1: Update campaign name
-        await updateCampaign.mutateAsync({ name: campaignName });
+        await updateCampaign.mutateAsync({
+          name: campaignName,
+          daily_email_limit: emailOnlySequence ? parsedDailyEmailLimit : null,
+        });
 
         // Step 2: Delete all existing steps
         if (campaignDetails?.steps) {
@@ -1167,6 +1220,7 @@ function CreateCampaignModal({
         const campaign = await createCampaign.mutateAsync({
           name: campaignName,
           workspace_id: currentWorkspaceId,
+          daily_email_limit: emailOnlySequence ? parsedDailyEmailLimit : null,
         });
         campaignId = campaign.id;
       }
@@ -1761,6 +1815,21 @@ function CreateCampaignModal({
                               You can edit step content and timing. The sequence structure (adding,
                               removing, or reordering steps) cannot be changed once a campaign has
                               been started.
+                            </p>
+                          </div>
+                        </div>
+                      )}
+
+                      {hasEmailSteps && (
+                        <div className="mx-6 mb-4 flex items-start gap-2.5 rounded-lg border border-[#F59E0B]/20 bg-[#FFFBEB] p-3">
+                          <InfoIcon className="mt-0.5 h-4 w-4 flex-shrink-0 text-[#F59E0B]" />
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-[#92400E]">
+                              Email enrichment cap
+                            </p>
+                            <p className="mt-0.5 text-xs text-[#B45309]">
+                              Successful email enrichments are capped at 300 per campaign. Only
+                              enrichments that return an email count toward the cap.
                             </p>
                           </div>
                         </div>
@@ -2371,6 +2440,57 @@ function CreateCampaignModal({
                               </span>
                             </div>
                           )}
+                          {emailOnlySequence && (
+                            <div className="border-t border-[#F1F5F9] pt-3">
+                              <div className="mb-2 flex items-center justify-between">
+                                <span className="text-sm text-[#64748B]">Daily Email Limit</span>
+                                <span className="text-xs text-[#94A3B8]">
+                                  {maxDailyEmailLimit > 0
+                                    ? `Max ${maxDailyEmailLimit}/day`
+                                    : 'Optional'}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="number"
+                                  min="1"
+                                  max={maxDailyEmailLimit || undefined}
+                                  placeholder="No limit"
+                                  value={dailyEmailLimitInput}
+                                  onChange={(e) => {
+                                    const raw = e.target.value;
+                                    if (raw === '') {
+                                      setDailyEmailLimitInput('');
+                                      return;
+                                    }
+                                    const parsed = parseInt(raw, 10);
+                                    if (Number.isNaN(parsed)) {
+                                      setDailyEmailLimitInput('');
+                                      return;
+                                    }
+                                    const nextValue =
+                                      maxDailyEmailLimit > 0
+                                        ? Math.min(parsed, maxDailyEmailLimit)
+                                        : parsed;
+                                    setDailyEmailLimitInput(String(nextValue));
+                                  }}
+                                  className="w-28 rounded-lg border border-[#E2E8F0] px-3 py-1.5 text-sm focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+                                />
+                                <span className="text-xs text-[#94A3B8]">emails/day</span>
+                              </div>
+                              <p className="mt-2 text-xs text-[#64748B]">
+                                Cap total email sends for this sequence each day.
+                              </p>
+                            </div>
+                          )}
+                          {hasEmailSteps && (
+                            <div className="rounded-lg border border-[#F59E0B]/20 bg-[#FFFBEB] px-3 py-2">
+                              <p className="text-xs text-[#92400E]">
+                                Successful email enrichments are capped at 300 per campaign. Only
+                                enrichments that return an email count toward the cap.
+                              </p>
+                            </div>
+                          )}
                         </div>
 
                         {isActiveCampaign ? (
@@ -2635,9 +2755,16 @@ function CampaignDetailDrawer({
 
   const updateCampaign = useUpdateCampaign(campaign.id);
   const { data: linkedInAccounts = [] } = useLinkedInAccounts();
+  const { data: emailAccounts = [] } = useEmailAccounts();
   const steps = campaignDetails?.steps || [];
   const senders = campaignDetails?.senders || [];
   const leadCount = campaignDetails?.lead_count || 0;
+  const emailOnlyCampaign =
+    steps.some((step) => ['email', 'email_followup'].includes(step.type)) &&
+    steps.every((step) => isEmailOnlyCampaignStepType(step.type));
+  const selectedEmailAccounts = senders
+    .map((sender) => emailAccounts.find((account) => account.id === sender.email_account_id))
+    .filter((account): account is (typeof emailAccounts)[number] => Boolean(account));
 
   // Compute max daily connection limit from sender account subscription types
   const CONNECTION_LIMITS: Record<string, number> = {
@@ -2654,10 +2781,15 @@ function CampaignDetailDrawer({
       const accountLimit = customLimit ?? CONNECTION_LIMITS[subType] ?? 20;
       return Math.max(max, accountLimit);
     }, 0) || CONNECTION_LIMITS.free;
+  const maxDailyEmailLimit = selectedEmailAccounts.reduce(
+    (sum, account) => sum + (account.daily_limit || 100),
+    0
+  );
 
   // Local state for campaign controls
   const [pauseNewSends, setPauseNewSends] = useState(false);
   const [dailyLimitInput, setDailyLimitInput] = useState<string>('');
+  const [dailyEmailLimitInput, setDailyEmailLimitInput] = useState<string>('');
   const [controlsInitialized, setControlsInitialized] = useState(false);
 
   // Sync local state with campaign data (only on initial load / after external changes)
@@ -2669,6 +2801,9 @@ function CampaignDetailDrawer({
           campaignDetails.daily_connection_limit != null
             ? String(campaignDetails.daily_connection_limit)
             : ''
+        );
+        setDailyEmailLimitInput(
+          campaignDetails.daily_email_limit != null ? String(campaignDetails.daily_email_limit) : ''
         );
         setControlsInitialized(true);
       }
@@ -2981,6 +3116,94 @@ function CampaignDetailDrawer({
                         </button>
                       </div>
                     </div>
+
+                    {emailOnlyCampaign && (
+                      <div className="border-t border-[#F1F5F9] pt-4">
+                        <p className="text-sm font-medium text-[#1E293B]">Daily Email Limit</p>
+                        <p className="mb-3 text-xs text-[#64748B]">
+                          Max emails per day for this campaign
+                          {maxDailyEmailLimit > 0 ? ` (max ${maxDailyEmailLimit})` : ''}. Leave
+                          empty for no cap.
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            min="1"
+                            max={maxDailyEmailLimit || undefined}
+                            placeholder="No limit"
+                            value={dailyEmailLimitInput}
+                            onChange={(e) => {
+                              const raw = e.target.value;
+                              if (raw === '') {
+                                setDailyEmailLimitInput('');
+                              } else {
+                                const num = parseInt(raw, 10);
+                                const nextValue =
+                                  Number.isNaN(num) || num < 1
+                                    ? ''
+                                    : String(
+                                        maxDailyEmailLimit > 0
+                                          ? Math.min(num, maxDailyEmailLimit)
+                                          : num
+                                      );
+                                setDailyEmailLimitInput(nextValue);
+                              }
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                (e.target as HTMLInputElement).blur();
+                              }
+                            }}
+                            className="w-24 rounded-lg border border-[#E2E8F0] px-3 py-1.5 text-center text-sm focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+                          />
+                          <span className="text-xs text-[#94A3B8]">/day</span>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              const val = dailyEmailLimitInput.trim();
+                              const newLimit = val === '' ? null : parseInt(val, 10);
+                              if (newLimit !== null && (newLimit < 1 || Number.isNaN(newLimit))) {
+                                return;
+                              }
+                              if (
+                                newLimit !== null &&
+                                maxDailyEmailLimit > 0 &&
+                                newLimit > maxDailyEmailLimit
+                              ) {
+                                showErrorToast(
+                                  'Invalid limit',
+                                  `Daily email limit cannot exceed ${maxDailyEmailLimit}/day`
+                                );
+                                return;
+                              }
+                              try {
+                                await updateCampaign.mutateAsync({
+                                  daily_email_limit: newLimit,
+                                });
+                                showSuccessToast('Saved', 'Daily email limit updated');
+                              } catch (err) {
+                                const axiosErr = err as { message?: string };
+                                showErrorToast(
+                                  'Invalid limit',
+                                  axiosErr?.message || 'Failed to update limit'
+                                );
+                              }
+                            }}
+                            disabled={updateCampaign.isPending}
+                            className="rounded-md bg-[#FF6B35] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#E85A2A] disabled:opacity-50"
+                          >
+                            {updateCampaign.isPending ? 'Saving...' : 'Save'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {emailOnlyCampaign && (
+                      <div className="rounded-md border border-[#F59E0B]/20 bg-[#FFFBEB] px-3 py-2 text-xs text-[#92400E]">
+                        Successful email enrichments are capped at 300 per campaign. Only
+                        enrichments that return an email count toward the cap.
+                      </div>
+                    )}
                   </div>
                 </div>
               )}

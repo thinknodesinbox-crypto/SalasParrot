@@ -2070,11 +2070,17 @@ export function NodeConfigPanel({
 
         {/* Enrichment Configuration */}
         {node.type === 'enrichment' && (
-          <div className="rounded-lg bg-[#F3E8FF] p-3">
+          <div className="space-y-2 rounded-lg bg-[#F3E8FF] p-3">
             <p className="text-xs text-[#7C3AED]">
               This step will discover the lead's email address. Leads that already have an email
               will skip this step automatically.
             </p>
+            <div className="rounded-md border border-[#A855F7]/20 bg-white/70 px-3 py-2">
+              <p className="text-xs text-[#6D28D9]">
+                Successful email enrichments are capped at 300 per campaign. Only enrichments that
+                return an email count toward the cap.
+              </p>
+            </div>
           </div>
         )}
 

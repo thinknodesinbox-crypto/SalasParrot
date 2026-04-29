@@ -22,12 +22,14 @@ interface CampaignFilters {
 interface CreateCampaignData {
   name: string;
   workspace_id: string; // Required - campaigns must belong to a workspace
+  daily_email_limit?: number | null;
 }
 
 interface UpdateCampaignData {
   name?: string;
   pause_new_sends?: boolean;
   daily_connection_limit?: number | null;
+  daily_email_limit?: number | null;
 }
 
 interface CreateStepData {

@@ -84,6 +84,7 @@ export function AssistantPanel({
       queryClient.invalidateQueries({ queryKey: queryKeys.assistant.threads(currentWorkspaceId) });
     },
   });
+  const voiceCapability = voice.capability ?? { supported: true, reason: null };
   const isVoiceActive = voice.status === 'connecting' || voice.status === 'connected';
   const conversationError =
     (isMessagesError ? messagesError?.message : null) ||
@@ -299,9 +300,7 @@ export function AssistantPanel({
                 isVoiceDisabled={!currentWorkspaceId}
                 isVoiceActive={isVoiceActive}
                 isVoiceConnecting={voice.status === 'connecting'}
-                voiceUnavailableReason={
-                  !voice.capability.supported ? voice.capability.reason : null
-                }
+                voiceUnavailableReason={!voiceCapability.supported ? voiceCapability.reason : null}
                 onToggleVoice={() => void handleToggleVoice()}
                 onSend={handleSendMessage}
               />

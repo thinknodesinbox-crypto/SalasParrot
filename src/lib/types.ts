@@ -530,6 +530,7 @@ export interface Campaign {
   created_by: string | null;
   pause_new_sends: boolean;
   daily_connection_limit: number | null;
+  daily_email_limit: number | null;
   rate_limited_actions: string[];
   rate_limited_date: string | null;
   created_at: string;
