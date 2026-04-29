@@ -26,6 +26,7 @@ interface LeadFilters {
   search?: string;
   has_email?: boolean;
   in_campaign?: boolean;
+  imported_only?: boolean;
   limit?: number;
   offset?: number;
 }
@@ -201,6 +202,8 @@ export const useLeads = (filters?: LeadFilters) => {
         params.append('has_email', filters.has_email.toString());
       if (filters?.in_campaign !== undefined)
         params.append('in_campaign', filters.in_campaign.toString());
+      if (filters?.imported_only !== undefined)
+        params.append('imported_only', filters.imported_only.toString());
       if (filters?.limit) params.append('limit', filters.limit.toString());
       if (filters?.offset) params.append('offset', filters.offset.toString());
 

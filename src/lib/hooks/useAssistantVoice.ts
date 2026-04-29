@@ -70,6 +70,36 @@ export function useAssistantVoice({
   const userTranscriptBuffersRef = useRef<Map<string, string>>(new Map());
   const assistantTranscriptBuffersRef = useRef<Map<string, string>>(new Map());
   const isStoppingRef = useRef(false);
+  const pendingSessionBindingRef = useRef<{ workspaceId: string; threadId: string } | null>(null);
+
+  const getVoiceReviewText = (response: AssistantTranscriptResponse | null): string | null => {
+    const metadata =
+      response?.assistant_message?.metadata &&
+      typeof response.assistant_message.metadata === 'object'
+        ? (response.assistant_message.metadata as Record<string, unknown>)
+        : null;
+    const explicitText =
+      metadata &&
+      typeof metadata.voice_review_text === 'string' &&
+      metadata.voice_review_text.trim()
+        ? metadata.voice_review_text.trim()
+        : null;
+    if (explicitText) return explicitText;
+    if (metadata?.action_id) {
+      const actionStatus =
+        typeof metadata.action_status === 'string' ? metadata.action_status : null;
+      if (actionStatus && ['executed', 'rejected', 'failed', 'expired'].includes(actionStatus)) {
+        const content = response?.assistant_message?.content?.trim();
+        return content ? content : null;
+      }
+      if (metadata.voice_requires_visual_review === true) {
+        return 'I prepared an action that requires visual review. Open the review card to continue.';
+      }
+      return null;
+    }
+    const fallback = response?.assistant_message?.content?.trim();
+    return fallback ? fallback : null;
+  };
 
   const speakAssistantText = (text: string) => {
     const channel = dataChannelRef.current;
@@ -159,6 +189,7 @@ export function useAssistantVoice({
     assistantTranscriptBuffersRef.current.clear();
     persistedItemIdsRef.current.clear();
     eventIndexRef.current = 0;
+    pendingSessionBindingRef.current = null;
     await completeVoiceSession();
     setStatus('idle');
     isStoppingRef.current = false;
@@ -193,6 +224,12 @@ export function useAssistantVoice({
     eventIndexRef.current = 0;
 
     try {
+      pendingSessionBindingRef.current = {
+        workspaceId: targetWorkspaceId,
+        threadId: targetThreadId,
+      };
+      sessionWorkspaceIdRef.current = targetWorkspaceId;
+      sessionThreadIdRef.current = targetThreadId;
       const tokenResponse = await api.post<{
         session_id: string;
         client_secret: string;
@@ -202,8 +239,6 @@ export function useAssistantVoice({
       }>(`/assistant/threads/${targetThreadId}/voice-token?workspace_id=${targetWorkspaceId}`);
 
       sessionIdRef.current = tokenResponse.data.session_id;
-      sessionWorkspaceIdRef.current = targetWorkspaceId;
-      sessionThreadIdRef.current = targetThreadId;
       const ephemeralKey = tokenResponse.data.client_secret;
       const pc = new RTCPeerConnection();
       peerConnectionRef.current = pc;
@@ -294,8 +329,9 @@ export function useAssistantVoice({
                   userTranscriptBuffersRef.current.delete(payload.item_id);
                 }
                 setLiveUserTranscript('');
-                if (persisted.assistant_message?.content) {
-                  speakAssistantText(persisted.assistant_message.content);
+                const voiceReviewText = getVoiceReviewText(persisted);
+                if (voiceReviewText) {
+                  speakAssistantText(voiceReviewText);
                 }
               } else {
                 setError('Failed to save transcript.');
@@ -371,6 +407,34 @@ export function useAssistantVoice({
   }, []);
 
   useEffect(() => {
+    const activeWorkspaceId = sessionWorkspaceIdRef.current;
+    const activeThreadId = sessionThreadIdRef.current;
+    const hasLiveSession =
+      status === 'connecting' || status === 'connected' || Boolean(peerConnectionRef.current);
+    if (!hasLiveSession) return;
+    if (!activeWorkspaceId || !activeThreadId) return;
+    const pendingBinding = pendingSessionBindingRef.current;
+    if (
+      status === 'connecting' &&
+      pendingBinding &&
+      pendingBinding.workspaceId === activeWorkspaceId &&
+      pendingBinding.threadId === activeThreadId &&
+      (!workspaceId || !threadId)
+    ) {
+      return;
+    }
+    if (workspaceId === activeWorkspaceId && threadId === activeThreadId) {
+      pendingSessionBindingRef.current = null;
+      return;
+    }
+    if (
+      pendingBinding &&
+      workspaceId === pendingBinding.workspaceId &&
+      threadId === pendingBinding.threadId
+    ) {
+      pendingSessionBindingRef.current = null;
+      return;
+    }
     void stop();
   }, [threadId, workspaceId]);
 

@@ -5,6 +5,7 @@ interface AssistantThreadListProps {
   activeThreadId: string | null;
   isLoading: boolean;
   error?: string | null;
+  compact?: boolean;
   onSelectThread: (threadId: string) => void;
   onCreateThread: () => void;
   onRetry?: () => void;
@@ -15,12 +16,15 @@ export function AssistantThreadList({
   activeThreadId,
   isLoading,
   error = null,
+  compact = false,
   onSelectThread,
   onCreateThread,
   onRetry,
 }: AssistantThreadListProps) {
   return (
-    <div className="flex h-full flex-col border-r border-[#E2E8F0] bg-white">
+    <div
+      className={`flex flex-col bg-white ${compact ? 'h-auto rounded-xl border border-[#E2E8F0]' : 'h-full border-r border-[#E2E8F0]'}`}
+    >
       <div className="border-b border-[#E2E8F0] p-4">
         <h2 className="mb-1 text-base font-semibold text-[#1E293B]">Assistant</h2>
         <p className="mb-3 text-sm text-[#64748B]">
@@ -34,7 +38,7 @@ export function AssistantThreadList({
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-2">
+      <div className={`${compact ? 'max-h-64 overflow-y-auto p-2' : 'flex-1 overflow-y-auto p-2'}`}>
         {isLoading ? (
           <div className="space-y-2">
             {Array.from({ length: 4 }).map((_, index) => (

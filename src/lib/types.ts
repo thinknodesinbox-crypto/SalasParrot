@@ -259,6 +259,15 @@ export type AssistantActionStatus =
   | 'expired';
 
 export type AssistantActionType =
+  | 'create_campaign'
+  | 'start_leads_import'
+  | 'cancel_leads_import'
+  | 'assign_leads_to_campaign'
+  | 'tag_leads'
+  | 'move_leads_to_list'
+  | 'remove_tags_from_leads'
+  | 'unassign_leads_from_campaign'
+  | 'delete_leads'
   | 'update_delivery_settings'
   | 'run_daily_summary_now'
   | 'bind_whatsapp_account'
@@ -267,6 +276,7 @@ export type AssistantActionType =
   | 'resume_campaign'
   | 'rename_campaign'
   | 'update_campaign_daily_limit'
+  | 'update_campaign_steps'
   | 'stop_campaign'
   | 'create_reply_draft'
   | 'send_reply_draft'
@@ -281,6 +291,10 @@ export type AssistantActionType =
 export interface AssistantActionTargetRef {
   campaign_id?: string | null;
   campaign_name?: string | null;
+  linkedin_account_id?: string | null;
+  linkedin_account_name?: string | null;
+  import_job_id?: string | null;
+  import_job_list_name?: string | null;
   conversation_id?: string | null;
   conversation_name?: string | null;
   lead_list_id?: string | null;
@@ -300,6 +314,34 @@ export interface AssistantActionPreview {
   after: Record<string, unknown>;
   exact_payload: Record<string, unknown>;
   warnings: string[];
+  scope_review?: {
+    entity_type?: string;
+    matched_count?: number;
+    sample_records?: Array<{
+      id?: string;
+      name?: string;
+      company?: string | null;
+      status?: string | null;
+      lead_list_name?: string | null;
+      campaign_name?: string | null;
+    }>;
+    filters?: Record<string, unknown>;
+    scope_owner_user_id?: string | null;
+    resolved_at?: string | null;
+    resolved_ids_hash?: string | null;
+    stale?: boolean;
+    stale_reason?: string | null;
+    reviewed_matched_count?: number;
+    reviewed_ids_hash?: string | null;
+  };
+  voice_review?: {
+    headline?: string;
+    spoken_summary?: string;
+    approval_prompt?: string;
+    execute_prompt?: string;
+    requires_visual_review?: boolean;
+    visual_reason?: string | null;
+  };
 }
 
 export interface AssistantAction {

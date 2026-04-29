@@ -313,6 +313,14 @@ export const useExecuteAssistantAction = (
       }
     },
     onError: (error) => {
+      if (workspaceId && threadId) {
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.assistant.actions(workspaceId, threadId),
+        });
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.assistant.messages(workspaceId, threadId),
+        });
+      }
       throw new Error(getErrorMessage(error));
     },
   });

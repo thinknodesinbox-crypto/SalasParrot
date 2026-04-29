@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import type { AssistantAction, AssistantMessage } from '@/lib/types';
 import { AssistantActionCard } from './AssistantActionCard';
+import { AssistantInsightCard } from './AssistantInsightCard';
 
 interface AssistantMessageListProps {
   messages: AssistantMessage[];
@@ -137,15 +138,21 @@ export function AssistantMessageList({
           const actionId =
             typeof message.metadata?.action_id === 'string' ? message.metadata.action_id : null;
           const action = actionId ? actionsById[actionId] : undefined;
+          const responseCard = !action ? message.metadata?.response_card : null;
+          const hasStructuredInsight = !isUser && !action && Boolean(responseCard);
           return (
             <div key={message.id} className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
-              <div className="max-w-[85%]">
+              <div className={hasStructuredInsight ? 'max-w-[92%]' : 'max-w-[85%]'}>
                 <div
-                  className={`rounded-2xl px-4 py-3 ${
-                    isUser
-                      ? 'bg-[#FF6B35] text-white'
-                      : 'border border-[#E2E8F0] bg-white text-[#1E293B]'
-                  }`}
+                  className={
+                    hasStructuredInsight
+                      ? 'px-1 pb-1 text-sm text-[#475569]'
+                      : `rounded-2xl px-4 py-3 ${
+                          isUser
+                            ? 'bg-[#FF6B35] text-white'
+                            : 'border border-[#E2E8F0] bg-white text-[#1E293B]'
+                        }`
+                  }
                 >
                   <div className="whitespace-pre-wrap text-sm leading-6">{message.content}</div>
                 </div>
@@ -161,6 +168,9 @@ export function AssistantMessageList({
                     isEditing={isEditingAction}
                     isExecuting={isExecutingAction}
                   />
+                ) : null}
+                {!action && !isUser && responseCard ? (
+                  <AssistantInsightCard card={responseCard} />
                 ) : null}
               </div>
             </div>

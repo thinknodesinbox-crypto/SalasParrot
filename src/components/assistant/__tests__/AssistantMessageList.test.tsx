@@ -1,7 +1,34 @@
+import type { ReactNode } from 'react';
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type { AssistantAction, AssistantMessage } from '@/lib/types';
 import { AssistantMessageList } from '../AssistantMessageList';
+
+vi.mock('@tanstack/react-router', () => ({
+  Link: ({
+    children,
+    to,
+    search,
+    ...props
+  }: {
+    children: ReactNode;
+    to: string;
+    search?: Record<string, unknown>;
+  }) => {
+    const params = new URLSearchParams();
+    Object.entries(search || {}).forEach(([key, value]) => {
+      if (value !== undefined && value !== null) {
+        params.set(key, String(value));
+      }
+    });
+    const href = params.toString() ? `${to}?${params.toString()}` : to;
+    return (
+      <a href={href} {...props}>
+        {children}
+      </a>
+    );
+  },
+}));
 
 function buildMessage(overrides: Partial<AssistantMessage> = {}): AssistantMessage {
   return {
@@ -83,6 +110,45 @@ describe('AssistantMessageList', () => {
     expect(screen.getByText('I prepared an action for review.')).toBeInTheDocument();
     expect(screen.getByText('Pause campaign')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Approve' })).toBeInTheDocument();
+  });
+
+  it('renders response cards for structured assistant insights', () => {
+    const message = buildMessage({
+      content: 'Here is the current campaign status.',
+      metadata: {
+        response_card: {
+          kind: 'campaign_detail',
+          tone: 'orange',
+          eyebrow: 'Campaign',
+          title: 'Apollo Enterprise',
+          subtitle: 'Status: active',
+          stats: [
+            { label: 'Status', value: 'active' },
+            { label: 'Leads', value: '42' },
+          ],
+          sections: [
+            {
+              title: 'Performance',
+              items: ['6 replied leads', '2 accepted leads'],
+            },
+          ],
+          cta: {
+            label: 'Open In Campaigns',
+            href: '/dashboard/campaigns?campaignId=campaign-1',
+          },
+        },
+      },
+    });
+
+    render(<AssistantMessageList messages={[message]} isLoading={false} />);
+
+    expect(screen.getByText('Apollo Enterprise')).toBeInTheDocument();
+    expect(screen.getByText('Status: active')).toBeInTheDocument();
+    expect(screen.getByText('Performance')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open In Campaigns' })).toHaveAttribute(
+      'href',
+      '/dashboard/campaigns?campaignId=campaign-1'
+    );
   });
 
   it('renders voice draft transcripts and errors alongside persisted messages', () => {

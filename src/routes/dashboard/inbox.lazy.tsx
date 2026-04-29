@@ -1,4 +1,4 @@
-import { createLazyFileRoute } from '@tanstack/react-router';
+import { createLazyFileRoute, useNavigate, useSearch } from '@tanstack/react-router';
 import { motion } from 'framer-motion';
 import { useState, useMemo, useEffect, useRef } from 'react';
 import DOMPurify from 'dompurify';
@@ -45,12 +45,16 @@ function formatRelativeTime(dateString: string | null): string {
 }
 
 function InboxPage() {
-  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
+  const navigate = useNavigate();
+  const { conversationId, senderId, campaignId } = useSearch({ from: '/dashboard/inbox' });
+  const [selectedConversationId, setSelectedConversationId] = useState<string | null>(
+    conversationId ?? null
+  );
   const [filter, setFilter] = useState<'all' | 'linkedin' | 'email' | 'unread'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [replyText, setReplyText] = useState('');
-  const [selectedSenderId, setSelectedSenderId] = useState<string>('');
-  const [selectedCampaignId, setSelectedCampaignId] = useState<string>('');
+  const [selectedSenderId, setSelectedSenderId] = useState<string>(senderId ?? '');
+  const [selectedCampaignId, setSelectedCampaignId] = useState<string>(campaignId ?? '');
   const lastReplySuggestionSignature = useRef<string | null>(null);
 
   // Fetch accounts and campaigns for filter dropdowns
@@ -119,9 +123,28 @@ function InboxPage() {
 
   const unreadCount = conversations.filter((c) => c.unread_count > 0).length;
 
+  useEffect(() => {
+    setSelectedConversationId(conversationId ?? null);
+  }, [conversationId]);
+
+  useEffect(() => {
+    setSelectedSenderId(senderId ?? '');
+  }, [senderId]);
+
+  useEffect(() => {
+    setSelectedCampaignId(campaignId ?? '');
+  }, [campaignId]);
+
   // Handle selecting a conversation
   const handleSelectConversation = (conversationId: string) => {
     setSelectedConversationId(conversationId);
+    navigate({
+      to: '/dashboard/inbox',
+      search: (prev: { senderId?: string; campaignId?: string }) => ({
+        ...prev,
+        conversationId,
+      }),
+    } as never);
     const conversation = conversations.find((c) => c.id === conversationId);
     if (conversation && conversation.unread_count > 0) {
       markAsReadMutation.mutate();
@@ -265,7 +288,21 @@ function InboxPage() {
           <div className="relative flex-1">
             <select
               value={selectedSenderId}
-              onChange={(e) => setSelectedSenderId(e.target.value)}
+              onChange={(e) => {
+                const nextValue = e.target.value;
+                setSelectedSenderId(nextValue);
+                navigate({
+                  to: '/dashboard/inbox',
+                  search: (prev: {
+                    conversationId?: string;
+                    senderId?: string;
+                    campaignId?: string;
+                  }) => ({
+                    ...prev,
+                    senderId: nextValue || undefined,
+                  }),
+                } as never);
+              }}
               className="w-full appearance-none rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] py-1.5 pl-3 pr-8 text-xs text-[#64748B] focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
             >
               <option value="">All Senders</option>
@@ -282,7 +319,21 @@ function InboxPage() {
           <div className="relative flex-1">
             <select
               value={selectedCampaignId}
-              onChange={(e) => setSelectedCampaignId(e.target.value)}
+              onChange={(e) => {
+                const nextValue = e.target.value;
+                setSelectedCampaignId(nextValue);
+                navigate({
+                  to: '/dashboard/inbox',
+                  search: (prev: {
+                    conversationId?: string;
+                    senderId?: string;
+                    campaignId?: string;
+                  }) => ({
+                    ...prev,
+                    campaignId: nextValue || undefined,
+                  }),
+                } as never);
+              }}
               className="w-full appearance-none rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] py-1.5 pl-3 pr-8 text-xs text-[#64748B] focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
             >
               <option value="">All Campaigns</option>
@@ -301,6 +352,14 @@ function InboxPage() {
               onClick={() => {
                 setSelectedSenderId('');
                 setSelectedCampaignId('');
+                navigate({
+                  to: '/dashboard/inbox',
+                  search: (prev: { conversationId?: string }) => ({
+                    ...prev,
+                    senderId: undefined,
+                    campaignId: undefined,
+                  }),
+                } as never);
               }}
               className="flex items-center gap-1 whitespace-nowrap rounded-lg px-2 py-1.5 text-xs font-medium text-[#64748B] hover:bg-[#FEF2F2] hover:text-[#EF4444]"
             >
@@ -430,7 +489,17 @@ function InboxPage() {
                 <div className="flex items-center gap-3 md:gap-4">
                   {/* Mobile Back Button */}
                   <button
-                    onClick={() => setSelectedConversationId(null)}
+                    onClick={() => {
+                      setSelectedConversationId(null);
+                      navigate({
+                        to: '/dashboard/inbox',
+                        search: (prev: { senderId?: string; campaignId?: string }) => ({
+                          ...prev,
+                          conversationId: undefined,
+                        }),
+                        replace: true,
+                      } as never);
+                    }}
                     className="-ml-2 rounded-lg p-2 text-[#64748B] hover:bg-[#F8FAFC] md:hidden"
                   >
                     <BackIcon />

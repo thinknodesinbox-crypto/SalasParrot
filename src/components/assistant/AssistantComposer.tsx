@@ -8,6 +8,16 @@ interface AssistantComposerProps {
   isVoiceActive?: boolean;
   isVoiceConnecting?: boolean;
   voiceUnavailableReason?: string | null;
+  voiceReview?: {
+    headline?: string;
+    spokenSummary?: string;
+    requiresVisualReview?: boolean;
+    visualReason?: string | null;
+  } | null;
+  voiceActionState?: 'awaiting_confirmation' | 'approved' | null;
+  onApproveVoiceAction?: () => void;
+  onExecuteVoiceAction?: () => void;
+  onRejectVoiceAction?: () => void;
   onToggleVoice?: () => void;
   onSend: (content: string) => Promise<void> | void;
 }
@@ -19,6 +29,11 @@ export function AssistantComposer({
   isVoiceActive = false,
   isVoiceConnecting = false,
   voiceUnavailableReason = null,
+  voiceReview = null,
+  voiceActionState = null,
+  onApproveVoiceAction,
+  onExecuteVoiceAction,
+  onRejectVoiceAction,
   onToggleVoice,
   onSend,
 }: AssistantComposerProps) {
@@ -75,6 +90,51 @@ export function AssistantComposer({
           </button>
         </div>
       )}
+
+      {isVoiceActive && voiceReview?.spokenSummary ? (
+        <div className="mb-3 rounded-xl border border-[#E9D5FF] bg-[#FAF5FF] px-4 py-3">
+          <div className="text-sm font-semibold text-[#6D28D9]">
+            {voiceReview.requiresVisualReview
+              ? 'Review In Chat To Continue'
+              : voiceActionState === 'approved'
+                ? 'Ready to execute by voice'
+                : 'Pending voice confirmation'}
+          </div>
+          <div className="mt-1 text-sm text-[#5B21B6]">
+            {voiceReview.spokenSummary}
+            {voiceReview.requiresVisualReview && voiceReview.visualReason
+              ? ` ${voiceReview.visualReason}`
+              : ''}
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {voiceActionState === 'awaiting_confirmation' && !voiceReview.requiresVisualReview ? (
+              <button
+                type="button"
+                onClick={onApproveVoiceAction}
+                className="rounded-lg bg-[#6D28D9] px-3 py-2 text-xs font-semibold uppercase tracking-wide text-white"
+              >
+                Approve
+              </button>
+            ) : null}
+            {voiceActionState === 'approved' && !voiceReview.requiresVisualReview ? (
+              <button
+                type="button"
+                onClick={onExecuteVoiceAction}
+                className="rounded-lg bg-[#FF6B35] px-3 py-2 text-xs font-semibold uppercase tracking-wide text-white"
+              >
+                Execute
+              </button>
+            ) : null}
+            <button
+              type="button"
+              onClick={onRejectVoiceAction}
+              className="rounded-lg border border-[#D8B4FE] bg-white px-3 py-2 text-xs font-semibold uppercase tracking-wide text-[#6D28D9]"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       <div className="flex gap-3">
         <textarea

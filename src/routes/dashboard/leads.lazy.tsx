@@ -1,4 +1,4 @@
-import { Link, createLazyFileRoute } from '@tanstack/react-router';
+import { Link, createLazyFileRoute, useSearch } from '@tanstack/react-router';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState, useRef, useEffect } from 'react';
@@ -348,6 +348,7 @@ type StatusFilter =
   | 'not_interested';
 
 function LeadsPage() {
+  const routeSearch = useSearch({ from: '/dashboard/leads' });
   const [showImportModal, setShowImportModal] = useState(false);
   const [selectedListId, setSelectedListId] = useState<string | null>(null);
   // Lead list search (for overview page)
@@ -358,9 +359,29 @@ function LeadsPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [emailFilter, setEmailFilter] = useState<EmailFilter>('all');
   const [campaignFilter, setCampaignFilter] = useState<CampaignFilter>('all');
+  const [importedOnly, setImportedOnly] = useState(false);
   const [editingList, setEditingList] = useState<LeadList | null>(null);
   const [deletingList, setDeletingList] = useState<LeadList | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
+
+  useEffect(() => {
+    setSelectedListId(routeSearch.listId ?? null);
+    setSearchQuery(routeSearch.search ?? '');
+    setDebouncedSearch(routeSearch.search ?? '');
+    setStatusFilter((routeSearch.status as StatusFilter | undefined) ?? 'all');
+    setEmailFilter(routeSearch.email ?? 'all');
+    setCampaignFilter(routeSearch.campaign ?? 'all');
+    setImportedOnly(Boolean(routeSearch.importedOnly));
+    setCurrentPage(1);
+    setListSearchQuery('');
+  }, [
+    routeSearch.campaign,
+    routeSearch.email,
+    routeSearch.importedOnly,
+    routeSearch.listId,
+    routeSearch.search,
+    routeSearch.status,
+  ]);
 
   // Debounce search query
   useEffect(() => {
@@ -370,16 +391,6 @@ function LeadsPage() {
     }, 300);
     return () => clearTimeout(timer);
   }, [searchQuery]);
-
-  // Reset filters when changing list
-  useEffect(() => {
-    setCurrentPage(1);
-    setDebouncedSearch('');
-    setSearchQuery('');
-    setStatusFilter('all');
-    setEmailFilter('all');
-    setCampaignFilter('all');
-  }, [selectedListId]);
 
   // Fetch lead lists from API
   const {
@@ -395,10 +406,18 @@ function LeadsPage() {
     ? allLists.filter((list) => list.name.toLowerCase().includes(listSearchQuery.toLowerCase()))
     : allLists;
 
+  const isLeadResultsView =
+    Boolean(selectedListId) ||
+    Boolean(debouncedSearch) ||
+    statusFilter !== 'all' ||
+    emailFilter !== 'all' ||
+    campaignFilter !== 'all' ||
+    importedOnly;
+
   // Build filters for useLeads
-  const leadFilters = selectedListId
+  const leadFilters = isLeadResultsView
     ? {
-        list_id: selectedListId,
+        list_id: selectedListId || undefined,
         search: debouncedSearch || undefined,
         status:
           statusFilter !== 'all'
@@ -412,6 +431,7 @@ function LeadsPage() {
             : undefined,
         has_email: emailFilter === 'all' ? undefined : emailFilter === 'has_email',
         in_campaign: campaignFilter === 'all' ? undefined : campaignFilter === 'in_campaign',
+        imported_only: importedOnly || undefined,
         limit: LEADS_PER_PAGE,
         offset: (currentPage - 1) * LEADS_PER_PAGE,
       }
@@ -422,6 +442,28 @@ function LeadsPage() {
   const leads = leadsResponse?.leads || [];
   const totalLeads = leadsResponse?.total || 0;
   const totalPages = Math.ceil(totalLeads / LEADS_PER_PAGE);
+
+  const clearLeadResultsView = () => {
+    setSelectedListId(null);
+    setCurrentPage(1);
+    setDebouncedSearch('');
+    setSearchQuery('');
+    setStatusFilter('all');
+    setEmailFilter('all');
+    setCampaignFilter('all');
+    setImportedOnly(false);
+  };
+
+  const openLeadList = (id: string) => {
+    setSelectedListId(id);
+    setCurrentPage(1);
+    setDebouncedSearch('');
+    setSearchQuery('');
+    setStatusFilter('all');
+    setEmailFilter('all');
+    setCampaignFilter('all');
+    setImportedOnly(false);
+  };
 
   const isLoading = listsLoading;
   const error = listsError;
@@ -480,7 +522,7 @@ function LeadsPage() {
         </button>
       </div>
       {/* Search and Filters */}
-      {selectedListId ? (
+      {isLeadResultsView ? (
         // Filters for lead detail view
         <div className="flex flex-col items-stretch gap-3 md:flex-row md:items-center md:gap-4">
           <div className="relative flex-1">
@@ -534,6 +576,11 @@ function LeadsPage() {
               <option value="in_campaign">In Campaign</option>
               <option value="not_in_campaign">Not in Campaign</option>
             </select>
+            {importedOnly ? (
+              <div className="inline-flex items-center rounded-lg border border-[#BFDBFE] bg-[#EFF6FF] px-3 py-2.5 text-sm font-medium text-[#1D4ED8]">
+                Imported Only
+              </div>
+            ) : null}
           </div>
         </div>
       ) : allLists.length > 0 ? (
@@ -558,19 +605,26 @@ function LeadsPage() {
         </div>
       ) : null}
       {/* Content */}
-      {allLists.length === 0 && !selectedListId ? (
+      {allLists.length === 0 && !isLeadResultsView ? (
         <EmptyState onImport={() => setShowImportModal(true)} />
-      ) : selectedListId && selectedList ? (
+      ) : isLeadResultsView ? (
         <LeadListDetail
-          list={selectedList}
+          list={selectedList ?? null}
           leads={leads}
           isLoading={leadsLoading}
-          onBack={() => setSelectedListId(null)}
+          onBack={clearLeadResultsView}
           onLeadsDeleted={() => refetchLists()}
           totalLeads={totalLeads}
           totalPages={totalPages}
           currentPage={currentPage}
           onPageChange={setCurrentPage}
+          filterMeta={{
+            search: debouncedSearch || undefined,
+            status: statusFilter !== 'all' ? statusFilter : undefined,
+            hasEmail: emailFilter === 'all' ? undefined : emailFilter === 'has_email',
+            inCampaign: campaignFilter === 'all' ? undefined : campaignFilter === 'in_campaign',
+            importedOnly,
+          }}
         />
       ) : lists.length === 0 && listSearchQuery ? (
         // No lists match search
@@ -594,7 +648,7 @@ function LeadsPage() {
       ) : (
         <LeadListsGrid
           lists={lists}
-          onSelectList={setSelectedListId}
+          onSelectList={openLeadList}
           onEditList={setEditingList}
           onDeleteList={setDeletingList}
         />
@@ -609,7 +663,7 @@ function LeadsPage() {
           onDeleted={() => {
             setDeletingList(null);
             if (selectedListId === deletingList.id) {
-              setSelectedListId(null);
+              clearLeadResultsView();
             }
           }}
         />
@@ -828,8 +882,9 @@ function LeadListDetail({
   totalPages,
   currentPage,
   onPageChange,
+  filterMeta,
 }: {
-  list: LeadList;
+  list: LeadList | null;
   leads: Lead[];
   isLoading: boolean;
   onBack: () => void;
@@ -838,6 +893,13 @@ function LeadListDetail({
   totalPages: number;
   currentPage: number;
   onPageChange: (page: number) => void;
+  filterMeta?: {
+    search?: string;
+    status?: StatusFilter;
+    hasEmail?: boolean;
+    inCampaign?: boolean;
+    importedOnly?: boolean;
+  };
 }) {
   const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -868,7 +930,15 @@ function LeadListDetail({
 
       while (offset < totalLeads) {
         const params = new URLSearchParams();
-        params.append('list_id', list.id);
+        if (list?.id) params.append('list_id', list.id);
+        if (filterMeta?.search) params.append('search', filterMeta.search);
+        if (filterMeta?.status) params.append('status', filterMeta.status);
+        if (filterMeta?.hasEmail !== undefined)
+          params.append('has_email', filterMeta.hasEmail.toString());
+        if (filterMeta?.inCampaign !== undefined)
+          params.append('in_campaign', filterMeta.inCampaign.toString());
+        if (filterMeta?.importedOnly !== undefined && filterMeta.importedOnly)
+          params.append('imported_only', 'true');
         params.append('limit', batchSize.toString());
         params.append('offset', offset.toString());
 
@@ -928,7 +998,7 @@ function LeadListDetail({
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `${list.name.replace(/[^a-z0-9]/gi, '_')}_leads.csv`;
+      link.download = `${(list?.name || 'filtered_leads').replace(/[^a-z0-9]/gi, '_')}_leads.csv`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -957,10 +1027,10 @@ function LeadListDetail({
             className="flex items-center gap-1 text-[#64748B] transition-colors hover:text-[#1E293B]"
           >
             <BackIcon className="h-4 w-4" />
-            All Lists
+            {list ? 'All Lists' : 'All Leads'}
           </button>
           <ChevronRightIcon className="h-4 w-4 text-[#94A3B8]" />
-          <span className="font-medium text-[#1E293B]">{list.name}</span>
+          <span className="font-medium text-[#1E293B]">{list?.name || 'Filtered Leads'}</span>
         </div>
 
         {/* List Header */}
@@ -971,9 +1041,11 @@ function LeadListDetail({
                 <ListIcon className="h-6 w-6 text-[#FF6B35]" />
               </div>
               <div>
-                <h2 className="text-xl font-bold text-[#1E293B]">{list.name}</h2>
+                <h2 className="text-xl font-bold text-[#1E293B]">
+                  {list?.name || 'Filtered Leads'}
+                </h2>
                 <div className="mt-1 flex items-center gap-4 text-sm text-[#64748B]">
-                  <span>{list.lead_count} leads</span>
+                  <span>{list ? `${list.lead_count} leads` : `${totalLeads} matching leads`}</span>
                 </div>
               </div>
             </div>
@@ -990,16 +1062,57 @@ function LeadListDetail({
                 )}
                 {isExporting ? 'Exporting...' : 'Export'}
               </button>
-              <Link
-                to="/dashboard/campaigns"
-                search={{ createWithList: list.id }}
-                className="flex items-center gap-2 rounded-lg bg-[#FF6B35] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#E85A2A]"
-              >
-                <CampaignIcon className="h-4 w-4" />
-                Add to Campaign
-              </Link>
+              {list ? (
+                <Link
+                  to="/dashboard/campaigns"
+                  search={{ createWithList: list.id }}
+                  className="flex items-center gap-2 rounded-lg bg-[#FF6B35] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[#E85A2A]"
+                >
+                  <CampaignIcon className="h-4 w-4" />
+                  Add to Campaign
+                </Link>
+              ) : null}
             </div>
           </div>
+          {!list && filterMeta ? (
+            <div className="mt-4 flex flex-wrap gap-2">
+              {filterMeta.status ? (
+                <span className="rounded-full bg-[#F8FAFC] px-3 py-1 text-xs font-medium text-[#475569]">
+                  Status: {filterMeta.status}
+                </span>
+              ) : null}
+              {filterMeta.hasEmail === true ? (
+                <span className="rounded-full bg-[#F8FAFC] px-3 py-1 text-xs font-medium text-[#475569]">
+                  Has email
+                </span>
+              ) : null}
+              {filterMeta.hasEmail === false ? (
+                <span className="rounded-full bg-[#F8FAFC] px-3 py-1 text-xs font-medium text-[#475569]">
+                  No email
+                </span>
+              ) : null}
+              {filterMeta.inCampaign === true ? (
+                <span className="rounded-full bg-[#F8FAFC] px-3 py-1 text-xs font-medium text-[#475569]">
+                  In campaign
+                </span>
+              ) : null}
+              {filterMeta.inCampaign === false ? (
+                <span className="rounded-full bg-[#F8FAFC] px-3 py-1 text-xs font-medium text-[#475569]">
+                  Not in campaign
+                </span>
+              ) : null}
+              {filterMeta.importedOnly ? (
+                <span className="rounded-full bg-[#EFF6FF] px-3 py-1 text-xs font-medium text-[#1D4ED8]">
+                  Imported only
+                </span>
+              ) : null}
+              {filterMeta.search ? (
+                <span className="rounded-full bg-[#F8FAFC] px-3 py-1 text-xs font-medium text-[#475569]">
+                  Search: {filterMeta.search}
+                </span>
+              ) : null}
+            </div>
+          ) : null}
         </div>
 
         {/* Bulk Actions Bar */}
@@ -1563,20 +1676,6 @@ export function ImportLeadsModal({
       return;
     }
 
-    const hasKeywords =
-      typeof searchParams.keywords === 'string' &&
-      (searchParams.keywords as string).trim().length > 0;
-    const hasLocation =
-      Array.isArray(searchParams.location) ||
-      (typeof searchParams.location === 'object' &&
-        searchParams.location !== null &&
-        Object.keys(searchParams.location as Record<string, unknown>).length > 0);
-
-    if (!hasKeywords && !hasLocation) {
-      setImportError('Please enter search keywords or a location');
-      return;
-    }
-
     setStep('processing');
     setImportError(null);
 
@@ -2125,9 +2224,11 @@ function ImportMethodConfig({
       const searchParams: Record<string, unknown> = {
         api: getApiType(),
         category: 'people',
-        keywords: keywords.trim(),
         network_distance: networkDistance.filter((d) => typeof d === 'number'),
       };
+      if (keywords.trim()) {
+        searchParams.keywords = keywords.trim();
+      }
       if (location.trim()) {
         if (!selectedLocationOption) {
           setPeopleSearchError('Select a valid location from the suggestions before searching');
@@ -2188,7 +2289,9 @@ function ImportMethodConfig({
         />
 
         <div>
-          <label className="mb-2 block text-sm font-medium text-[#1E293B]">Keywords</label>
+          <label className="mb-2 block text-sm font-medium text-[#1E293B]">
+            Keywords <span className="text-[#64748B]">(optional)</span>
+          </label>
           <input
             type="text"
             value={keywords}
@@ -2345,7 +2448,6 @@ function ImportMethodConfig({
         <button
           onClick={handleSearch}
           disabled={
-            (!keywords.trim() && !location.trim()) ||
             (Boolean(location.trim()) && !selectedLocationOption) ||
             !listName.trim() ||
             !selectedAccountId

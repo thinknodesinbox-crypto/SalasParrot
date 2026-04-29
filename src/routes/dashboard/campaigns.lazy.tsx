@@ -62,7 +62,7 @@ export const Route = createLazyFileRoute('/dashboard/campaigns')({
 });
 
 function CampaignsPage() {
-  const { createWithList } = useSearch({ from: '/dashboard/campaigns' });
+  const { createWithList, campaignId } = useSearch({ from: '/dashboard/campaigns' });
   const navigate = useNavigate();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [preSelectedLeadListId, setPreSelectedLeadListId] = useState<string | null>(null);
@@ -94,6 +94,17 @@ function CampaignsPage() {
     if (searchQuery && !c.name.toLowerCase().includes(searchQuery.toLowerCase())) return false;
     return true;
   });
+
+  useEffect(() => {
+    if (!campaignId) {
+      setSelectedCampaign(null);
+      return;
+    }
+    const matched = campaigns.find((campaign) => campaign.id === campaignId) ?? null;
+    if (matched) {
+      setSelectedCampaign(matched);
+    }
+  }, [campaignId, campaigns]);
 
   if (isLoading) {
     return (
@@ -180,9 +191,26 @@ function CampaignsPage() {
       ) : (
         <CampaignsList
           campaigns={filteredCampaigns}
-          onSelect={setSelectedCampaign}
+          onSelect={(campaign) => {
+            setSelectedCampaign(campaign);
+            navigate({
+              to: '/dashboard/campaigns',
+              search: (prev: { createWithList?: string }) => ({
+                ...prev,
+                campaignId: campaign.id,
+              }),
+            } as never);
+          }}
           onEdit={(campaign) => {
             setEditingCampaign(campaign);
+            navigate({
+              to: '/dashboard/campaigns',
+              search: (prev: { createWithList?: string; campaignId?: string }) => ({
+                ...prev,
+                campaignId: undefined,
+              }),
+              replace: true,
+            } as never);
             setShowCreateModal(true);
           }}
         />
@@ -208,10 +236,28 @@ function CampaignsPage() {
         {selectedCampaign && (
           <CampaignDetailDrawer
             campaign={selectedCampaign}
-            onClose={() => setSelectedCampaign(null)}
+            onClose={() => {
+              setSelectedCampaign(null);
+              navigate({
+                to: '/dashboard/campaigns',
+                search: (prev: { createWithList?: string; campaignId?: string }) => ({
+                  ...prev,
+                  campaignId: undefined,
+                }),
+                replace: true,
+              } as never);
+            }}
             onEdit={(campaign) => {
               setEditingCampaign(campaign);
               setSelectedCampaign(null);
+              navigate({
+                to: '/dashboard/campaigns',
+                search: (prev: { createWithList?: string; campaignId?: string }) => ({
+                  ...prev,
+                  campaignId: undefined,
+                }),
+                replace: true,
+              } as never);
               setShowCreateModal(true);
             }}
           />

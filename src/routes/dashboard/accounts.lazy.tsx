@@ -1,4 +1,4 @@
-import { createLazyFileRoute } from '@tanstack/react-router';
+import { createLazyFileRoute, useNavigate, useSearch } from '@tanstack/react-router';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState, useEffect, useRef } from 'react';
@@ -42,7 +42,9 @@ export const Route = createLazyFileRoute('/dashboard/accounts')({
 type AccountTab = 'linkedin' | 'email' | 'calendar';
 
 function AccountsPage() {
-  const [activeTab, setActiveTab] = useState<AccountTab>('linkedin');
+  const navigate = useNavigate();
+  const { tab, accountId } = useSearch({ from: '/dashboard/accounts' });
+  const [activeTab, setActiveTab] = useState<AccountTab>(tab ?? 'linkedin');
   const [showConnectLinkedInModal, setShowConnectLinkedInModal] = useState(false);
   const [showConnectEmailModal, setShowConnectEmailModal] = useState(false);
   const [showConnectCalendarModal, setShowConnectCalendarModal] = useState(false);
@@ -93,6 +95,12 @@ function AccountsPage() {
       return () => clearTimeout(timer);
     }
   }, [notification]);
+
+  useEffect(() => {
+    if (tab) {
+      setActiveTab(tab);
+    }
+  }, [tab]);
 
   const {
     data: linkedInAccounts = [],
@@ -234,7 +242,13 @@ function AccountsPage() {
         {/* Tabs */}
         <div className="flex gap-2 border-b border-[#E2E8F0]">
           <button
-            onClick={() => setActiveTab('linkedin')}
+            onClick={() => {
+              setActiveTab('linkedin');
+              navigate({
+                to: '/dashboard/accounts',
+                search: (prev: { accountId?: string }) => ({ ...prev, tab: 'linkedin' }),
+              } as never);
+            }}
             className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors ${
               activeTab === 'linkedin'
                 ? 'border-b-2 border-[#0A66C2] text-[#0A66C2]'
@@ -245,7 +259,13 @@ function AccountsPage() {
             LinkedIn ({linkedInAccounts.length})
           </button>
           <button
-            onClick={() => setActiveTab('email')}
+            onClick={() => {
+              setActiveTab('email');
+              navigate({
+                to: '/dashboard/accounts',
+                search: (prev: { accountId?: string }) => ({ ...prev, tab: 'email' }),
+              } as never);
+            }}
             className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors ${
               activeTab === 'email'
                 ? 'border-b-2 border-[#FF6B35] text-[#FF6B35]'
@@ -256,7 +276,13 @@ function AccountsPage() {
             Email ({emailAccounts.length})
           </button>
           <button
-            onClick={() => setActiveTab('calendar')}
+            onClick={() => {
+              setActiveTab('calendar');
+              navigate({
+                to: '/dashboard/accounts',
+                search: (prev: { accountId?: string }) => ({ ...prev, tab: 'calendar' }),
+              } as never);
+            }}
             className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium transition-colors ${
               activeTab === 'calendar'
                 ? 'border-b-2 border-[#14B8A6] text-[#14B8A6]'
@@ -330,7 +356,7 @@ function AccountsPage() {
             {linkedInAccounts.length === 0 ? (
               <EmptyState onConnect={() => setShowConnectLinkedInModal(true)} />
             ) : (
-              <AccountsList accounts={linkedInAccounts} />
+              <AccountsList accounts={linkedInAccounts} highlightedAccountId={accountId ?? null} />
             )}
           </motion.div>
         ) : activeTab === 'email' ? (
@@ -343,7 +369,10 @@ function AccountsPage() {
             {emailAccounts.length === 0 ? (
               <EmailEmptyState onConnect={() => setShowConnectEmailModal(true)} />
             ) : (
-              <EmailAccountsList accounts={emailAccounts} />
+              <EmailAccountsList
+                accounts={emailAccounts}
+                highlightedAccountId={accountId ?? null}
+              />
             )}
           </motion.div>
         ) : (
@@ -356,7 +385,10 @@ function AccountsPage() {
             {calendarAccounts.length === 0 ? (
               <CalendarEmptyState onConnect={() => setShowConnectCalendarModal(true)} />
             ) : (
-              <CalendarAccountsList accounts={calendarAccounts} />
+              <CalendarAccountsList
+                accounts={calendarAccounts}
+                highlightedAccountId={accountId ?? null}
+              />
             )}
           </motion.div>
         )}
@@ -571,7 +603,13 @@ function SyncModeModal({
   );
 }
 
-function AccountsList({ accounts }: { accounts: LinkedInAccount[] }) {
+function AccountsList({
+  accounts,
+  highlightedAccountId,
+}: {
+  accounts: LinkedInAccount[];
+  highlightedAccountId: string | null;
+}) {
   const deleteAccount = useDeleteLinkedInAccount();
   const syncChats = useSyncLinkedInChats();
   const { data: emailAccounts = [] } = useEmailAccounts();
@@ -704,6 +742,7 @@ function AccountsList({ accounts }: { accounts: LinkedInAccount[] }) {
                   onDelete={handleDeleteClick}
                   onSync={handleSyncClick}
                   isSyncing={syncingAccountId === account.id}
+                  isHighlighted={highlightedAccountId === account.id}
                 />
               ))}
             </tbody>
@@ -720,6 +759,7 @@ function AccountsList({ accounts }: { accounts: LinkedInAccount[] }) {
               onDelete={handleDeleteClick}
               onSync={handleSyncClick}
               isSyncing={syncingAccountId === account.id}
+              isHighlighted={highlightedAccountId === account.id}
             />
           ))}
         </div>
@@ -807,12 +847,14 @@ function AccountCard({
   onDelete,
   onSync,
   isSyncing,
+  isHighlighted,
 }: {
   account: LinkedInAccount;
   emailAccounts: EmailAccount[];
   onDelete: (id: string, name: string) => void;
   onSync: (id: string) => void;
   isSyncing: boolean;
+  isHighlighted: boolean;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -854,7 +896,7 @@ function AccountCard({
   };
 
   return (
-    <div className="p-4">
+    <div className={`p-4 ${isHighlighted ? 'bg-[#EFF6FF]' : ''}`}>
       <div className="mb-3 flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
           {account.avatar_url ? (
@@ -998,12 +1040,14 @@ function AccountRow({
   onDelete,
   onSync,
   isSyncing,
+  isHighlighted,
 }: {
   account: LinkedInAccount;
   emailAccounts: EmailAccount[];
   onDelete: (id: string, name: string) => void;
   onSync: (id: string) => void;
   isSyncing: boolean;
+  isHighlighted: boolean;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -1045,7 +1089,7 @@ function AccountRow({
   };
 
   return (
-    <tr className="transition-colors hover:bg-[#F8FAFC]">
+    <tr className={`transition-colors hover:bg-[#F8FAFC] ${isHighlighted ? 'bg-[#EFF6FF]' : ''}`}>
       <td className="px-6 py-4">
         <div className="flex items-center gap-3">
           {account.avatar_url ? (
@@ -1963,7 +2007,13 @@ function EmailEmptyState({ onConnect }: { onConnect: () => void }) {
   );
 }
 
-function EmailAccountsList({ accounts }: { accounts: EmailAccount[] }) {
+function EmailAccountsList({
+  accounts,
+  highlightedAccountId,
+}: {
+  accounts: EmailAccount[];
+  highlightedAccountId: string | null;
+}) {
   const deleteAccount = useDeleteEmailAccount();
   const syncInbox = useSyncEmailInbox();
   const [syncingAccountId, setSyncingAccountId] = useState<string | null>(null);
@@ -2061,6 +2111,7 @@ function EmailAccountsList({ accounts }: { accounts: EmailAccount[] }) {
               onDelete={handleDeleteClick}
               onSync={handleSyncClick}
               isSyncing={syncingAccountId === account.id}
+              isHighlighted={highlightedAccountId === account.id}
             />
           ))}
         </div>
@@ -2135,11 +2186,13 @@ function EmailAccountRow({
   onDelete,
   onSync,
   isSyncing,
+  isHighlighted,
 }: {
   account: EmailAccount;
   onDelete: (id: string, email: string) => void;
   onSync: (id: string) => void;
   isSyncing: boolean;
+  isHighlighted: boolean;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
@@ -2178,7 +2231,9 @@ function EmailAccountRow({
   const initials = displayName.split(/[@.]/)[0].slice(0, 2).toUpperCase();
 
   return (
-    <div className="flex items-center justify-between gap-4 p-4">
+    <div
+      className={`flex items-center justify-between gap-4 p-4 ${isHighlighted ? 'bg-[#FFF7ED]' : ''}`}
+    >
       <div className="flex min-w-0 items-center gap-3">
         <div
           className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full font-semibold text-white"
@@ -2786,7 +2841,13 @@ function CalendarEmptyState({ onConnect }: { onConnect: () => void }) {
   );
 }
 
-function CalendarAccountsList({ accounts }: { accounts: CalendarAccount[] }) {
+function CalendarAccountsList({
+  accounts,
+  highlightedAccountId,
+}: {
+  accounts: CalendarAccount[];
+  highlightedAccountId: string | null;
+}) {
   const deleteAccount = useDeleteCalendarAccount();
   const [disconnectModal, setDisconnectModal] = useState<{
     open: boolean;
@@ -2839,7 +2900,10 @@ function CalendarAccountsList({ accounts }: { accounts: CalendarAccount[] }) {
       <div className="rounded-xl border border-[#E2E8F0] bg-white">
         <div className="divide-y divide-[#E2E8F0]">
           {accounts.map((account) => (
-            <div key={account.id} className="flex items-center justify-between p-4">
+            <div
+              key={account.id}
+              className={`flex items-center justify-between p-4 ${highlightedAccountId === account.id ? 'bg-[#F0FDFA]' : ''}`}
+            >
               <div className="flex items-center gap-4">
                 <div
                   className={`flex h-10 w-10 items-center justify-center rounded-lg ${
