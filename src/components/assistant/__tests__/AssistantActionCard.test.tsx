@@ -370,10 +370,42 @@ describe('AssistantActionCard', () => {
     expect(screen.getByText('Destination')).toBeInTheDocument();
     expect(screen.getByText('Source')).toBeInTheDocument();
     expect(screen.getByText('Config')).toBeInTheDocument();
-    expect(screen.getByText('List: Founders')).toBeInTheDocument();
+    expect(screen.getByText('New list: Founders')).toBeInTheDocument();
     expect(screen.getByText('Account: Jay Sender')).toBeInTheDocument();
     expect(screen.getByText('Keywords: fintech founders')).toBeInTheDocument();
     expect(screen.getByText('Advanced details')).toBeInTheDocument();
+  });
+
+  it('renders append import review against an existing list', () => {
+    render(
+      <AssistantActionCard
+        action={buildAction({
+          action_type: 'start_leads_import',
+          target_ref: {
+            lead_list_id: 'list-1',
+            lead_list_name: 'Founders',
+            linkedin_account_name: 'Jay Sender',
+          },
+          payload: {
+            import_type: 'paste_urls',
+            source_data: ['https://www.linkedin.com/in/jane-doe'],
+          },
+          preview: {
+            title: 'Start leads import',
+            summary: "Import paste URLs import with 1 URLs into existing list 'Founders'",
+            before: {},
+            after: {},
+            exact_payload: {
+              import_type: 'paste_urls',
+              source_data: ['https://www.linkedin.com/in/jane-doe'],
+            },
+            warnings: [],
+          },
+        })}
+      />
+    );
+
+    expect(screen.getByText('Existing list: Founders')).toBeInTheDocument();
   });
 
   it('supports structured import editing', () => {
@@ -441,6 +473,114 @@ describe('AssistantActionCard', () => {
       },
       'Import criteria updated from review card.'
     );
+  });
+
+  it('keeps existing import target list during structured edits', () => {
+    const onEdit = vi.fn();
+
+    render(
+      <AssistantActionCard
+        action={buildAction({
+          action_type: 'start_leads_import',
+          target_ref: {
+            lead_list_id: 'list-1',
+            lead_list_name: 'Founders',
+            linkedin_account_name: 'Jay Sender',
+          },
+          payload: {
+            import_type: 'paste_urls',
+            source_data: ['https://www.linkedin.com/in/jane-doe'],
+          },
+          preview: {
+            title: 'Start leads import',
+            summary: "Import paste URLs import with 1 URLs into existing list 'Founders'",
+            before: {},
+            after: {},
+            exact_payload: {
+              import_type: 'paste_urls',
+              source_data: ['https://www.linkedin.com/in/jane-doe'],
+            },
+            warnings: [],
+          },
+        })}
+        onEdit={onEdit}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Profile URLs' }), {
+      target: {
+        value: 'https://www.linkedin.com/in/jane-doe\nhttps://www.linkedin.com/in/john-doe',
+      },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    expect(onEdit).toHaveBeenCalledWith(
+      'action-1',
+      {
+        list_name: null,
+        import_type: 'paste_urls',
+        source_url: null,
+        source_data: [
+          'https://www.linkedin.com/in/jane-doe',
+          'https://www.linkedin.com/in/john-doe',
+        ],
+        keywords: null,
+        location_name: null,
+        network_distance: [],
+        search_params: null,
+        max_leads: null,
+      },
+      'Import criteria updated from review card.'
+    );
+  });
+
+  it('renders typed merge lead list review details', () => {
+    render(
+      <AssistantActionCard
+        action={buildAction({
+          action_type: 'merge_lead_lists',
+          target_ref: {
+            lead_list_id: 'list-target',
+            lead_list_name: 'Q2 Prospects',
+          },
+          payload: {
+            source_list_names: ['Founders', 'CEOs'],
+            delete_source_lists: true,
+          },
+          preview: {
+            title: 'Merge lead lists',
+            summary:
+              "Merge Founders, CEOs into 'Q2 Prospects' | Adds 40 unique leads | Skips 6 duplicates",
+            before: {},
+            after: {
+              merge_preview: {
+                leads_to_add: 40,
+                duplicates_skipped: 6,
+                source_lists_ready_for_deletion: 1,
+                source_lists_blocked_from_deletion: 1,
+                source_lists: [
+                  { id: 'list-1', name: 'Founders' },
+                  { id: 'list-2', name: 'CEOs' },
+                ],
+              },
+            },
+            exact_payload: {
+              source_list_names: ['Founders', 'CEOs'],
+              delete_source_lists: true,
+            },
+            warnings: [],
+          },
+        })}
+      />
+    );
+
+    expect(screen.getByText('Lead List Merge Review')).toBeInTheDocument();
+    expect(screen.getByText('Target list: Q2 Prospects')).toBeInTheDocument();
+    expect(screen.getByText('Unique leads to add: 40')).toBeInTheDocument();
+    expect(screen.getByText('Duplicates skipped: 6')).toBeInTheDocument();
+    expect(screen.getByText('Ready to delete: 1')).toBeInTheDocument();
+    expect(screen.getByText('Blocked from deletion: 1')).toBeInTheDocument();
   });
 
   it('renders typed reply review details', () => {

@@ -194,6 +194,12 @@ function getMixedList(value: unknown): Array<string | number> {
     : [];
 }
 
+function getStringList(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+    : [];
+}
+
 function formatStepTypeLabel(type: string) {
   return type.replace(/_/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
 }
@@ -358,6 +364,7 @@ export function AssistantActionCard({
   const replyActionTypes = new Set(['create_reply_draft', 'send_reply_draft']);
   const settingsActionTypes = new Set(['update_delivery_settings']);
   const workspaceContextActionTypes = new Set(['update_workspace_context']);
+  const mergeActionTypes = new Set(['merge_lead_lists']);
   const listActionTypes = new Set([
     'create_lead_list',
     'rename_lead_list',
@@ -371,14 +378,15 @@ export function AssistantActionCard({
   const conversationId =
     getRecordString((action.result as Record<string, unknown> | null)?.conversation_id) ||
     getRecordString(action.target_ref.conversation_id);
-  const importLeadListId = getRecordString(
-    (action.result as Record<string, unknown> | null)?.lead_list_id
-  );
+  const importLeadListId =
+    getRecordString((action.result as Record<string, unknown> | null)?.lead_list_id) ||
+    getRecordString(action.target_ref.lead_list_id);
   const shouldRenderCampaignSummary = campaignActionTypes.has(action.action_type);
   const shouldRenderImportSummary = importActionTypes.has(action.action_type);
   const shouldRenderReplySummary = replyActionTypes.has(action.action_type);
   const shouldRenderSettingsSummary = settingsActionTypes.has(action.action_type);
   const shouldRenderWorkspaceContextSummary = workspaceContextActionTypes.has(action.action_type);
+  const shouldRenderMergeSummary = mergeActionTypes.has(action.action_type);
   const shouldRenderListSummary = listActionTypes.has(action.action_type);
   const shouldRenderConversationUtilitySummary = conversationUtilityActionTypes.has(
     action.action_type
@@ -389,6 +397,7 @@ export function AssistantActionCard({
     shouldRenderReplySummary ||
     shouldRenderSettingsSummary ||
     shouldRenderWorkspaceContextSummary ||
+    shouldRenderMergeSummary ||
     shouldRenderListSummary ||
     shouldRenderConversationUtilitySummary;
   const advancedToggleLabel = hideVerbosePayload ? 'Advanced details' : null;
@@ -408,7 +417,15 @@ export function AssistantActionCard({
         : 'bg-[#ECFDF5] text-[#047857]';
   const expiresLabel = action.expires_at ? new Date(action.expires_at).toLocaleString() : null;
   const importType = getRecordString(effectivePayload.import_type) || 'Unknown';
-  const importListName = getRecordString(effectivePayload.list_name) || 'Lead import';
+  const importTargetListName = getRecordString(action.target_ref.lead_list_name);
+  const importListName =
+    importTargetListName ||
+    getRecordString((action.result as Record<string, unknown> | null)?.lead_list_name) ||
+    getRecordString(effectivePayload.list_name) ||
+    'Lead import';
+  const importTargetsExistingList = Boolean(
+    getRecordString(action.target_ref.lead_list_id) || importTargetListName
+  );
   const importSearchParams =
     typeof effectivePayload.search_params === 'object' && effectivePayload.search_params !== null
       ? (effectivePayload.search_params as Record<string, unknown>)
@@ -493,6 +510,45 @@ export function AssistantActionCard({
   const listDescription = getRecordString(effectivePayload.description);
   const listSource = getRecordString(effectivePayload.source);
   const snoozeUntil = getRecordString(effectivePayload.until);
+  const mergePreview =
+    typeof action.preview.after.merge_preview === 'object' &&
+    action.preview.after.merge_preview !== null
+      ? (action.preview.after.merge_preview as Record<string, unknown>)
+      : null;
+  const mergeSourceNames =
+    getStringList(mergePreview?.source_lists).length > 0
+      ? []
+      : getStringList(effectivePayload.source_list_names);
+  const mergeSourceListEntries =
+    Array.isArray(mergePreview?.source_lists) && mergePreview?.source_lists.length > 0
+      ? (mergePreview.source_lists as Array<Record<string, unknown>>)
+      : [];
+  const mergeSourceListNames =
+    mergeSourceListEntries.length > 0
+      ? mergeSourceListEntries
+          .map((item) => getRecordString(item.name))
+          .filter((item): item is string => Boolean(item))
+      : mergeSourceNames;
+  const mergeTargetListName =
+    getRecordString((action.result as Record<string, unknown> | null)?.target_list_name) ||
+    getRecordString(action.target_ref.lead_list_name) ||
+    'Lead list';
+  const mergeTargetListId =
+    getRecordString((action.result as Record<string, unknown> | null)?.target_list_id) ||
+    getRecordString(action.target_ref.lead_list_id);
+  const mergeLeadsToAdd =
+    getRecordNumber(mergePreview?.leads_to_add) ??
+    getRecordNumber((action.result as Record<string, unknown> | null)?.merged);
+  const mergeDuplicatesSkipped =
+    getRecordNumber(mergePreview?.duplicates_skipped) ??
+    getRecordNumber((action.result as Record<string, unknown> | null)?.duplicates_skipped);
+  const mergeSourceListsReadyForDeletion = getRecordNumber(
+    mergePreview?.source_lists_ready_for_deletion
+  );
+  const mergeSourceListsBlockedFromDeletion = getRecordNumber(
+    mergePreview?.source_lists_blocked_from_deletion
+  );
+  const mergeDeletesSources = effectivePayload.delete_source_lists !== false;
 
   useEffect(() => {
     setJsonEditValue(JSON.stringify(action.preview.exact_payload || action.payload || {}, null, 2));
@@ -647,7 +703,6 @@ export function AssistantActionCard({
   const saveImportStructuredEdit = () => {
     if (!onEdit) return;
     const nextPayload: Record<string, unknown> = {
-      list_name: importListNameInput.trim(),
       import_type: importTypeInput.trim(),
       source_url: null,
       source_data: [],
@@ -657,7 +712,12 @@ export function AssistantActionCard({
       search_params: null,
       max_leads: null,
     };
-    if (!String(nextPayload.list_name).trim()) {
+    if (importTargetsExistingList) {
+      nextPayload.list_name = null;
+    } else {
+      nextPayload.list_name = importListNameInput.trim();
+    }
+    if (!importTargetsExistingList && !String(nextPayload.list_name).trim()) {
       setEditError('Import list name is required.');
       return;
     }
@@ -1014,7 +1074,9 @@ export function AssistantActionCard({
                   ? `Cancel the running import for ${
                       getRecordString(action.target_ref.import_job_list_name) || 'this list'
                     }`
-                  : `List: ${importListName}`}
+                  : importTargetsExistingList
+                    ? `Existing list: ${importListName}`
+                    : `New list: ${importListName}`}
               </div>
               {action.action_type !== 'cancel_leads_import' ? <div>Type: {importType}</div> : null}
               {action.action_type !== 'cancel_leads_import' ? (
@@ -1053,6 +1115,57 @@ export function AssistantActionCard({
               importNetworkDistance.length === 0 &&
               importMaxLeads === null ? (
                 <div className="mt-1 text-[#475569]">No extra search filters configured.</div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {shouldRenderMergeSummary ? (
+        <div className="mt-3 rounded-lg border border-[#BFDBFE] bg-[#EFF6FF] p-3">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-wide text-[#1D4ED8]">
+                Lead List Merge Review
+              </div>
+              <div className="mt-1 text-sm font-medium text-[#1E3A8A]">{mergeTargetListName}</div>
+            </div>
+            {mergeTargetListId ? (
+              <Link
+                to="/dashboard/leads"
+                search={{ listId: mergeTargetListId }}
+                className="inline-flex items-center rounded-lg border border-[#93C5FD] bg-white px-3 py-2 text-sm font-medium text-[#1D4ED8] transition-colors hover:bg-[#DBEAFE]"
+              >
+                Open In Leads
+              </Link>
+            ) : null}
+          </div>
+          <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            <div className="rounded-lg bg-white p-3 text-sm text-[#1E293B]">
+              <div className="font-medium text-[#1D4ED8]">Destination</div>
+              <div className="mt-1">Target list: {mergeTargetListName}</div>
+              <div>
+                Source lists:{' '}
+                {mergeSourceListNames.length > 0 ? mergeSourceListNames.join(', ') : 'Not resolved'}
+              </div>
+            </div>
+            <div className="rounded-lg bg-white p-3 text-sm text-[#1E293B]">
+              <div className="font-medium text-[#1D4ED8]">Merge Result</div>
+              <div className="mt-1">Unique leads to add: {mergeLeadsToAdd ?? 'Unknown'}</div>
+              <div>Duplicates skipped: {mergeDuplicatesSkipped ?? 0}</div>
+            </div>
+            <div className="rounded-lg bg-white p-3 text-sm text-[#1E293B]">
+              <div className="font-medium text-[#1D4ED8]">Source Cleanup</div>
+              <div className="mt-1">
+                {mergeDeletesSources
+                  ? 'Delete source lists when safe'
+                  : 'Keep source lists after merge'}
+              </div>
+              {mergeSourceListsReadyForDeletion !== null ? (
+                <div>Ready to delete: {mergeSourceListsReadyForDeletion}</div>
+              ) : null}
+              {mergeSourceListsBlockedFromDeletion !== null ? (
+                <div>Blocked from deletion: {mergeSourceListsBlockedFromDeletion}</div>
               ) : null}
             </div>
           </div>
@@ -1659,14 +1772,23 @@ export function AssistantActionCard({
             Edit Import Criteria
           </div>
           <div className="grid gap-3 md:grid-cols-2">
-            <label className="text-sm text-[#1E293B]">
-              <div className="mb-1 font-medium">List name</div>
-              <input
-                value={importListNameInput}
-                onChange={(event) => setImportListNameInput(event.target.value)}
-                className="w-full rounded-lg border border-[#CBD5E1] px-3 py-2 text-sm text-[#1E293B] focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
-              />
-            </label>
+            {importTargetsExistingList ? (
+              <div className="text-sm text-[#1E293B]">
+                <div className="mb-1 font-medium">Destination</div>
+                <div className="rounded-lg border border-[#CBD5E1] bg-[#F8FAFC] px-3 py-2">
+                  Existing list: {importListName}
+                </div>
+              </div>
+            ) : (
+              <label className="text-sm text-[#1E293B]">
+                <div className="mb-1 font-medium">List name</div>
+                <input
+                  value={importListNameInput}
+                  onChange={(event) => setImportListNameInput(event.target.value)}
+                  className="w-full rounded-lg border border-[#CBD5E1] px-3 py-2 text-sm text-[#1E293B] focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+                />
+              </label>
+            )}
             <label className="text-sm text-[#1E293B]">
               <div className="mb-1 font-medium">Import type</div>
               <select

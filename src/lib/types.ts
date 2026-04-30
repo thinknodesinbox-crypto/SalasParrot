@@ -285,6 +285,7 @@ export type AssistantActionType =
   | 'update_workspace_context'
   | 'create_lead_list'
   | 'rename_lead_list'
+  | 'merge_lead_lists'
   | 'create_marketing_list'
   | 'rename_marketing_list';
 
@@ -616,6 +617,41 @@ export interface LeadList {
 export interface LeadListsResponse {
   lists: LeadList[];
   total: number;
+}
+
+export interface LeadListMergeSourcePreview {
+  id: string;
+  name: string;
+  lead_count: number;
+  active_import_jobs: number;
+  can_delete_after_merge: boolean;
+}
+
+export interface LeadListMergePreviewRequest {
+  target_list_id: string;
+  source_list_ids: string[];
+  delete_source_lists?: boolean;
+}
+
+export interface LeadListMergePreviewResponse {
+  target_list_id: string;
+  target_list_name: string;
+  source_lists: LeadListMergeSourcePreview[];
+  total_source_leads: number;
+  leads_to_add: number;
+  duplicates_skipped: number;
+  source_lists_ready_for_deletion: number;
+  source_lists_blocked_from_deletion: number;
+}
+
+export interface LeadListMergeResponse {
+  target_list_id: string;
+  target_list_name: string;
+  source_list_ids: string[];
+  merged: number;
+  duplicates_skipped: number;
+  deleted_source_lists: string[];
+  retained_source_lists: string[];
 }
 
 // Lead types
@@ -1127,7 +1163,8 @@ export interface ImportJob {
 }
 
 export interface ImportJobStartRequest {
-  list_name: string;
+  list_name?: string;
+  target_list_id?: string;
   import_type: ImportType;
   linkedin_account_id?: string;
   source_url?: string;

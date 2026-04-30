@@ -5,6 +5,9 @@ import { useWorkspaceStore } from '../../workspace';
 import type {
   Lead,
   LeadList,
+  LeadListMergePreviewRequest,
+  LeadListMergePreviewResponse,
+  LeadListMergeResponse,
   LeadListResponse,
   LeadListsResponse,
   LeadStatus,
@@ -150,6 +153,40 @@ export const useDeleteLeadList = () => {
   });
 };
 
+export const usePreviewMergeLeadLists = () => {
+  return useMutation({
+    mutationFn: async (data: LeadListMergePreviewRequest) => {
+      const response = await api.post<LeadListMergePreviewResponse>(
+        '/leads/lists/merge/preview',
+        data
+      );
+      return response.data;
+    },
+    onError: (error) => {
+      throw new Error(getErrorMessage(error));
+    },
+  });
+};
+
+export const useMergeLeadLists = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (data: LeadListMergePreviewRequest) => {
+      const response = await api.post<LeadListMergeResponse>('/leads/lists/merge', data);
+      return response.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.leadLists.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.leads.all });
+      queryClient.invalidateQueries({ queryKey: ['importJobs'] });
+    },
+    onError: (error) => {
+      throw new Error(getErrorMessage(error));
+    },
+  });
+};
+
 // Import leads from CSV with list name
 export const useImportLeadsFromCSV = () => {
   const queryClient = useQueryClient();
@@ -157,13 +194,15 @@ export const useImportLeadsFromCSV = () => {
   return useMutation({
     mutationFn: async (data: {
       file: File;
-      list_name: string;
+      list_name?: string;
+      list_id?: string;
       campaign_id?: string;
       workspace_id?: string;
     }) => {
       const formData = new FormData();
       formData.append('file', data.file);
-      formData.append('list_name', data.list_name);
+      if (data.list_name) formData.append('list_name', data.list_name);
+      if (data.list_id) formData.append('list_id', data.list_id);
       if (data.campaign_id) formData.append('campaign_id', data.campaign_id);
       if (data.workspace_id) formData.append('workspace_id', data.workspace_id);
 

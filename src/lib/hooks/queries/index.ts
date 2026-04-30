@@ -93,6 +93,8 @@ export {
   useCreateLeadList,
   useUpdateLeadList,
   useDeleteLeadList,
+  usePreviewMergeLeadLists,
+  useMergeLeadLists,
   useImportLeadsFromCSV,
 } from './useLeads';
 

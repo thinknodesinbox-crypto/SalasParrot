@@ -13,10 +13,13 @@ import {
   useUpdateLeadList,
   useDeleteLeadList,
   useDeleteLeads,
+  usePreviewMergeLeadLists,
+  useMergeLeadLists,
 } from '../../lib/hooks/queries';
 import type {
   Lead,
   LeadList,
+  LeadListMergePreviewResponse,
   LeadListResponse,
   LinkedInAccount,
   ImportType,
@@ -350,6 +353,7 @@ type StatusFilter =
 function LeadsPage() {
   const routeSearch = useSearch({ from: '/dashboard/leads' });
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showMergeModal, setShowMergeModal] = useState(false);
   const [selectedListId, setSelectedListId] = useState<string | null>(null);
   // Lead list search (for overview page)
   const [listSearchQuery, setListSearchQuery] = useState('');
@@ -513,13 +517,24 @@ function LeadsPage() {
             Import and organize your prospects
           </p>
         </div>
-        <button
-          onClick={() => setShowImportModal(true)}
-          className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#FF6B35] px-4 py-2.5 font-medium text-white shadow-[0_2px_8px_rgba(255,107,53,0.25)] transition-colors hover:bg-[#E85A2A] sm:w-auto"
-        >
-          <PlusIcon />
-          Add Leads
-        </button>
+        <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
+          <button
+            onClick={() => setShowImportModal(true)}
+            className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#FF6B35] px-4 py-2.5 font-medium text-white shadow-[0_2px_8px_rgba(255,107,53,0.25)] transition-colors hover:bg-[#E85A2A] sm:w-auto"
+          >
+            <PlusIcon />
+            Add Leads
+          </button>
+          {allLists.length > 1 ? (
+            <button
+              onClick={() => setShowMergeModal(true)}
+              className="flex w-full items-center justify-center gap-2 rounded-lg border border-[#E2E8F0] bg-white px-4 py-2.5 font-medium text-[#1E293B] transition-colors hover:bg-[#F8FAFC] sm:w-auto"
+            >
+              <MergeIcon />
+              Merge Lists
+            </button>
+          ) : null}
+        </div>
       </div>
       {/* Search and Filters */}
       {isLeadResultsView ? (
@@ -651,6 +666,11 @@ function LeadsPage() {
           onSelectList={openLeadList}
           onEditList={setEditingList}
           onDeleteList={setDeletingList}
+          canMerge={allLists.length > 1}
+          onMergeList={(list) => {
+            setSelectedListId(list.id);
+            setShowMergeModal(true);
+          }}
         />
       )}
       {/* Edit List Modal */}
@@ -672,10 +692,28 @@ function LeadsPage() {
       <AnimatePresence>
         {showImportModal && (
           <ImportLeadsModal
+            availableLists={allLists}
             onClose={() => setShowImportModal(false)}
-            onSuccess={() => {
+            onSuccess={(listId) => {
               refetchLists();
               setShowImportModal(false);
+              if (listId) {
+                openLeadList(listId);
+              }
+            }}
+          />
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {showMergeModal && (
+          <MergeLeadListsModal
+            lists={allLists}
+            initialTargetListId={selectedListId}
+            onClose={() => setShowMergeModal(false)}
+            onMerged={(targetListId) => {
+              refetchLists();
+              setShowMergeModal(false);
+              openLeadList(targetListId);
             }}
           />
         )}
@@ -758,11 +796,15 @@ function LeadListsGrid({
   onSelectList,
   onEditList,
   onDeleteList,
+  canMerge,
+  onMergeList,
 }: {
   lists: LeadList[];
   onSelectList: (id: string) => void;
   onEditList: (list: LeadList) => void;
   onDeleteList: (list: LeadList) => void;
+  canMerge: boolean;
+  onMergeList: (list: LeadList) => void;
 }) {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -846,6 +888,19 @@ function LeadListsGrid({
                     <TrashIcon className="h-4 w-4" />
                     Delete
                   </button>
+                  {canMerge ? (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenMenuId(null);
+                        onMergeList(list);
+                      }}
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-[#1E293B] hover:bg-[#F8FAFC]"
+                    >
+                      <MergeIcon className="h-4 w-4 text-[#64748B]" />
+                      Merge
+                    </button>
+                  ) : null}
                 </div>
               )}
             </div>
@@ -1501,15 +1556,19 @@ function LeadRow({
 
 // Main Import Modal with all methods
 export function ImportLeadsModal({
+  availableLists = [],
   onClose,
   onSuccess,
 }: {
+  availableLists?: LeadList[];
   onClose: () => void;
   onSuccess: (listId?: string) => void;
 }) {
   const [selectedMethod, setSelectedMethod] = useState<ImportMethod | null>(null);
   const [step, setStep] = useState<'method' | 'configure' | 'processing' | 'complete'>('method');
+  const [listDestinationMode, setListDestinationMode] = useState<'new' | 'existing'>('new');
   const [listName, setListName] = useState('');
+  const [targetListId, setTargetListId] = useState<string | null>(availableLists[0]?.id ?? null);
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
   const [importResult, setImportResult] = useState<{
     created: number;
@@ -1576,6 +1635,17 @@ export function ImportLeadsModal({
     }
   }, [linkedInAccounts, selectedAccountId]);
 
+  useEffect(() => {
+    if (availableLists.length === 0) {
+      setListDestinationMode('new');
+      setTargetListId(null);
+      return;
+    }
+    if (listDestinationMode === 'existing' && !targetListId) {
+      setTargetListId(availableLists[0].id);
+    }
+  }, [availableLists, listDestinationMode, targetListId]);
+
   const handleBack = () => {
     if (step === 'configure') {
       setSelectedMethod(null);
@@ -1584,8 +1654,12 @@ export function ImportLeadsModal({
   };
 
   const handleCSVImport = async (file: File) => {
-    if (!listName.trim()) {
+    if (listDestinationMode === 'new' && !listName.trim()) {
       setImportError('Please enter a list name');
+      return;
+    }
+    if (listDestinationMode === 'existing' && !targetListId) {
+      setImportError('Please select a destination list');
       return;
     }
 
@@ -1595,10 +1669,11 @@ export function ImportLeadsModal({
     try {
       const result = await importCSVMutation.mutateAsync({
         file,
-        list_name: listName.trim(),
+        list_name: listDestinationMode === 'new' ? listName.trim() : undefined,
+        list_id: listDestinationMode === 'existing' ? targetListId || undefined : undefined,
       });
       setImportResult(result);
-      if (result.list_id) setCreatedListId(result.list_id);
+      setCreatedListId(result.list_id || targetListId);
       setStep('complete');
     } catch (error) {
       setImportError(error instanceof Error ? error.message : 'Import failed');
@@ -1608,8 +1683,13 @@ export function ImportLeadsModal({
 
   // For LinkedIn-based imports (starts background job)
   const handleLinkedInImport = async (sourceUrl: string, sourceData?: string[]) => {
-    if (!listName.trim()) {
+    if (listDestinationMode === 'new' && !listName.trim()) {
       setImportError('Please enter a list name');
+      return;
+    }
+
+    if (listDestinationMode === 'existing' && !targetListId) {
+      setImportError('Please select a destination list');
       return;
     }
 
@@ -1649,7 +1729,8 @@ export function ImportLeadsModal({
 
     try {
       const result = await startImportMutation.mutateAsync({
-        list_name: listName.trim(),
+        list_name: listDestinationMode === 'new' ? listName.trim() : undefined,
+        target_list_id: listDestinationMode === 'existing' ? targetListId || undefined : undefined,
         import_type: selectedMethod as ImportType,
         linkedin_account_id: selectedAccountId,
         source_url: sourceUrl || undefined,
@@ -1657,7 +1738,7 @@ export function ImportLeadsModal({
         max_leads: maxLeads,
       });
       setCurrentJobId(result.job_id);
-      if (result.list_id) setCreatedListId(result.list_id);
+      setCreatedListId(result.list_id || targetListId);
     } catch (error) {
       setImportError(error instanceof Error ? error.message : 'Failed to start import');
       setStep('configure');
@@ -1666,8 +1747,13 @@ export function ImportLeadsModal({
 
   // For People Search imports (starts background job with search params)
   const handlePeopleSearchImport = async (searchParams: Record<string, unknown>) => {
-    if (!listName.trim()) {
+    if (listDestinationMode === 'new' && !listName.trim()) {
       setImportError('Please enter a list name');
+      return;
+    }
+
+    if (listDestinationMode === 'existing' && !targetListId) {
+      setImportError('Please select a destination list');
       return;
     }
 
@@ -1681,14 +1767,15 @@ export function ImportLeadsModal({
 
     try {
       const result = await startImportMutation.mutateAsync({
-        list_name: listName.trim(),
+        list_name: listDestinationMode === 'new' ? listName.trim() : undefined,
+        target_list_id: listDestinationMode === 'existing' ? targetListId || undefined : undefined,
         import_type: 'linkedin_people_search',
         linkedin_account_id: selectedAccountId,
         search_params: searchParams,
         max_leads: maxLeads,
       });
       setCurrentJobId(result.job_id);
-      if (result.list_id) setCreatedListId(result.list_id);
+      setCreatedListId(result.list_id || targetListId);
     } catch (error) {
       setImportError(error instanceof Error ? error.message : 'Failed to start import');
       setStep('configure');
@@ -1868,8 +1955,13 @@ export function ImportLeadsModal({
               >
                 <ImportMethodConfig
                   method={selectedMethod}
+                  availableLists={availableLists}
+                  listDestinationMode={listDestinationMode}
+                  setListDestinationMode={setListDestinationMode}
                   listName={listName}
                   setListName={setListName}
+                  targetListId={targetListId}
+                  setTargetListId={setTargetListId}
                   onCSVImport={handleCSVImport}
                   onLinkedInImport={handleLinkedInImport}
                   onPeopleSearchImport={handlePeopleSearchImport}
@@ -2016,10 +2108,106 @@ export function ImportLeadsModal({
 }
 
 // Import method configuration panels
-function ImportMethodConfig({
-  method,
+function ImportDestinationFields({
+  availableLists,
+  listDestinationMode,
+  setListDestinationMode,
   listName,
   setListName,
+  targetListId,
+  setTargetListId,
+}: {
+  availableLists: LeadList[];
+  listDestinationMode: 'new' | 'existing';
+  setListDestinationMode: (mode: 'new' | 'existing') => void;
+  listName: string;
+  setListName: (name: string) => void;
+  targetListId: string | null;
+  setTargetListId: (id: string | null) => void;
+}) {
+  return (
+    <div className="space-y-4 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
+      <div>
+        <label className="mb-2 block text-sm font-medium text-[#1E293B]">Destination</label>
+        <div className="grid gap-2 sm:grid-cols-2">
+          <button
+            type="button"
+            onClick={() => setListDestinationMode('new')}
+            className={`rounded-xl border px-4 py-3 text-left transition-all ${
+              listDestinationMode === 'new'
+                ? 'border-[#FF6B35] bg-[#FFF7ED]'
+                : 'border-[#E2E8F0] bg-white hover:border-[#FF6B35]/30'
+            }`}
+          >
+            <div className="text-sm font-medium text-[#1E293B]">Create new list</div>
+            <div className="mt-1 text-xs text-[#64748B]">Import into a brand-new lead list</div>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setListDestinationMode('existing');
+              if (!targetListId && availableLists[0]) {
+                setTargetListId(availableLists[0].id);
+              }
+            }}
+            disabled={availableLists.length === 0}
+            className={`rounded-xl border px-4 py-3 text-left transition-all ${
+              listDestinationMode === 'existing'
+                ? 'border-[#FF6B35] bg-[#FFF7ED]'
+                : 'border-[#E2E8F0] bg-white hover:border-[#FF6B35]/30'
+            } disabled:cursor-not-allowed disabled:opacity-50`}
+          >
+            <div className="text-sm font-medium text-[#1E293B]">Add to existing list</div>
+            <div className="mt-1 text-xs text-[#64748B]">
+              Append new leads and skip duplicates already in that list
+            </div>
+          </button>
+        </div>
+      </div>
+
+      {listDestinationMode === 'new' ? (
+        <div>
+          <label className="mb-2 block text-sm font-medium text-[#1E293B]">List Name</label>
+          <input
+            type="text"
+            value={listName}
+            onChange={(e) => setListName(e.target.value)}
+            placeholder="e.g., Q1 Tech Leaders"
+            className="w-full rounded-xl border border-[#E2E8F0] bg-white px-4 py-3 focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+          />
+        </div>
+      ) : (
+        <div>
+          <label className="mb-2 block text-sm font-medium text-[#1E293B]">Select List</label>
+          <select
+            value={targetListId || ''}
+            onChange={(e) => setTargetListId(e.target.value || null)}
+            className="w-full rounded-xl border border-[#E2E8F0] bg-white px-4 py-3 text-sm focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+          >
+            <option value="" disabled>
+              Select a lead list
+            </option>
+            {availableLists.map((list) => (
+              <option key={list.id} value={list.id}>
+                {list.name} ({list.lead_count} leads)
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ImportMethodConfig({
+  method,
+  availableLists,
+  listDestinationMode,
+  setListDestinationMode,
+  listName,
+  setListName,
+  targetListId,
+  setTargetListId,
   onCSVImport,
   onLinkedInImport,
   onPeopleSearchImport,
@@ -2032,8 +2220,13 @@ function ImportMethodConfig({
   setMaxLeads,
 }: {
   method: ImportMethod;
+  availableLists: LeadList[];
+  listDestinationMode: 'new' | 'existing';
+  setListDestinationMode: (mode: 'new' | 'existing') => void;
   listName: string;
   setListName: (name: string) => void;
+  targetListId: string | null;
+  setTargetListId: (id: string | null) => void;
   onCSVImport: (file: File) => void;
   onLinkedInImport: (sourceUrl: string, sourceData?: string[]) => void;
   onPeopleSearchImport: (searchParams: Record<string, unknown>) => void;
@@ -2269,16 +2462,15 @@ function ImportMethodConfig({
           </div>
         </div>
 
-        <div>
-          <label className="mb-2 block text-sm font-medium text-[#1E293B]">List Name</label>
-          <input
-            type="text"
-            value={listName}
-            onChange={(e) => setListName(e.target.value)}
-            placeholder="e.g., Q1 Tech Leaders"
-            className="w-full rounded-xl border border-[#E2E8F0] px-4 py-3 focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
-          />
-        </div>
+        <ImportDestinationFields
+          availableLists={availableLists}
+          listDestinationMode={listDestinationMode}
+          setListDestinationMode={setListDestinationMode}
+          listName={listName}
+          setListName={setListName}
+          targetListId={targetListId}
+          setTargetListId={setTargetListId}
+        />
 
         {/* LinkedIn Account Selector */}
         <LinkedInAccountSelector
@@ -2449,7 +2641,7 @@ function ImportMethodConfig({
           onClick={handleSearch}
           disabled={
             (Boolean(location.trim()) && !selectedLocationOption) ||
-            !listName.trim() ||
+            (listDestinationMode === 'new' ? !listName.trim() : !targetListId) ||
             !selectedAccountId
           }
           className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#FF6B35] py-3.5 font-semibold text-white hover:bg-[#E85A2A] disabled:cursor-not-allowed disabled:opacity-50"
@@ -2474,16 +2666,15 @@ function ImportMethodConfig({
   if (method === 'csv') {
     return (
       <div className="space-y-5 p-6">
-        <div>
-          <label className="mb-2 block text-sm font-medium text-[#1E293B]">List Name</label>
-          <input
-            type="text"
-            value={listName}
-            onChange={(e) => setListName(e.target.value)}
-            placeholder="e.g., Q1 Tech Leaders"
-            className="w-full rounded-xl border border-[#E2E8F0] px-4 py-3 focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
-          />
-        </div>
+        <ImportDestinationFields
+          availableLists={availableLists}
+          listDestinationMode={listDestinationMode}
+          setListDestinationMode={setListDestinationMode}
+          listName={listName}
+          setListName={setListName}
+          targetListId={targetListId}
+          setTargetListId={setTargetListId}
+        />
 
         <div>
           <label className="mb-2 block text-sm font-medium text-[#1E293B]">CSV File</label>
@@ -2669,7 +2860,11 @@ function ImportMethodConfig({
             const mappedFile = await buildMappedLeadCsvFile(csvFile, columnMapping);
             onCSVImport(mappedFile);
           }}
-          disabled={!csvFile || !listName.trim() || !mappingConfirmed}
+          disabled={
+            !csvFile ||
+            !mappingConfirmed ||
+            (listDestinationMode === 'new' ? !listName.trim() : !targetListId)
+          }
           className="w-full rounded-xl bg-[#FF6B35] py-3.5 font-semibold text-white hover:bg-[#E85A2A] disabled:cursor-not-allowed disabled:opacity-50"
         >
           {mappingConfirmed ? 'Import Leads' : 'Confirm mapping to import'}
@@ -2687,16 +2882,15 @@ function ImportMethodConfig({
 
     return (
       <div className="space-y-5 p-6">
-        <div>
-          <label className="mb-2 block text-sm font-medium text-[#1E293B]">List Name</label>
-          <input
-            type="text"
-            value={listName}
-            onChange={(e) => setListName(e.target.value)}
-            placeholder="e.g., Q1 Tech Leaders"
-            className="w-full rounded-xl border border-[#E2E8F0] px-4 py-3 focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
-          />
-        </div>
+        <ImportDestinationFields
+          availableLists={availableLists}
+          listDestinationMode={listDestinationMode}
+          setListDestinationMode={setListDestinationMode}
+          listName={listName}
+          setListName={setListName}
+          targetListId={targetListId}
+          setTargetListId={setTargetListId}
+        />
 
         {/* LinkedIn Account Selector */}
         <LinkedInAccountSelector
@@ -2728,7 +2922,11 @@ function ImportMethodConfig({
 
         <button
           onClick={() => onLinkedInImport('', urlList)}
-          disabled={urlList.length === 0 || !listName || !selectedAccountId}
+          disabled={
+            urlList.length === 0 ||
+            !selectedAccountId ||
+            (listDestinationMode === 'new' ? !listName.trim() : !targetListId)
+          }
           className="w-full rounded-xl bg-[#FF6B35] py-3.5 font-semibold text-white hover:bg-[#E85A2A] disabled:cursor-not-allowed disabled:opacity-50"
         >
           Import Leads
@@ -2754,16 +2952,15 @@ function ImportMethodConfig({
         </div>
       </div>
 
-      <div>
-        <label className="mb-2 block text-sm font-medium text-[#1E293B]">List Name</label>
-        <input
-          type="text"
-          value={listName}
-          onChange={(e) => setListName(e.target.value)}
-          placeholder="e.g., Q1 Tech Leaders"
-          className="w-full rounded-xl border border-[#E2E8F0] px-4 py-3 focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
-        />
-      </div>
+      <ImportDestinationFields
+        availableLists={availableLists}
+        listDestinationMode={listDestinationMode}
+        setListDestinationMode={setListDestinationMode}
+        listName={listName}
+        setListName={setListName}
+        targetListId={targetListId}
+        setTargetListId={setTargetListId}
+      />
 
       {/* LinkedIn Account Selector */}
       <LinkedInAccountSelector
@@ -2892,7 +3089,11 @@ function ImportMethodConfig({
 
       <button
         onClick={() => onLinkedInImport(searchUrl)}
-        disabled={!searchUrl || !listName || !selectedAccountId}
+        disabled={
+          !searchUrl ||
+          !selectedAccountId ||
+          (listDestinationMode === 'new' ? !listName.trim() : !targetListId)
+        }
         className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#FF6B35] py-3.5 font-semibold text-white hover:bg-[#E85A2A] disabled:cursor-not-allowed disabled:opacity-50"
       >
         Import Leads
@@ -3028,6 +3229,282 @@ function LinkedInAccountSelector({
         </div>
       )}
     </div>
+  );
+}
+
+function MergeLeadListsModal({
+  lists,
+  initialTargetListId,
+  onClose,
+  onMerged,
+}: {
+  lists: LeadList[];
+  initialTargetListId?: string | null;
+  onClose: () => void;
+  onMerged: (targetListId: string) => void;
+}) {
+  const previewMergeMutation = usePreviewMergeLeadLists();
+  const mergeListsMutation = useMergeLeadLists();
+  const [targetListId, setTargetListId] = useState<string>(
+    initialTargetListId || lists[0]?.id || ''
+  );
+  const [sourceListIds, setSourceListIds] = useState<string[]>([]);
+  const [deleteSourceLists, setDeleteSourceLists] = useState(true);
+  const [preview, setPreview] = useState<LeadListMergePreviewResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!targetListId && lists[0]) {
+      setTargetListId(lists[0].id);
+    }
+  }, [lists, targetListId]);
+
+  useEffect(() => {
+    setSourceListIds((current) => current.filter((id) => id !== targetListId));
+    setPreview(null);
+  }, [targetListId]);
+
+  const toggleSourceList = (listId: string) => {
+    setPreview(null);
+    setSourceListIds((current) =>
+      current.includes(listId) ? current.filter((id) => id !== listId) : [...current, listId]
+    );
+  };
+
+  const handlePreview = async () => {
+    setError(null);
+    setPreview(null);
+    if (!targetListId) {
+      setError('Select a target list');
+      return;
+    }
+    if (sourceListIds.length === 0) {
+      setError('Select at least one source list to merge');
+      return;
+    }
+    try {
+      const result = await previewMergeMutation.mutateAsync({
+        target_list_id: targetListId,
+        source_list_ids: sourceListIds,
+        delete_source_lists: deleteSourceLists,
+      });
+      setPreview(result);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to preview merge');
+    }
+  };
+
+  const handleMerge = async () => {
+    setError(null);
+    if (!targetListId || sourceListIds.length === 0) return;
+    try {
+      await mergeListsMutation.mutateAsync({
+        target_list_id: targetListId,
+        source_list_ids: sourceListIds,
+        delete_source_lists: deleteSourceLists,
+      });
+      onMerged(targetListId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to merge lists');
+    }
+  };
+
+  return createPortal(
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ opacity: 0, scale: 0.95, y: 20 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 20 }}
+        onClick={(e) => e.stopPropagation()}
+        className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+      >
+        <div className="flex items-center justify-between border-b border-[#E2E8F0] px-6 py-4">
+          <div>
+            <h2 className="text-lg font-bold text-[#1E293B]">Merge Lead Lists</h2>
+            <p className="text-sm text-[#64748B]">
+              Merge multiple source lists into one target list and skip duplicates already in the
+              target.
+            </p>
+          </div>
+          <button onClick={onClose} className="rounded-lg p-2 hover:bg-[#F8FAFC]">
+            <CloseIcon />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-6">
+          <div className="grid gap-6 lg:grid-cols-[1.2fr,0.8fr]">
+            <div className="space-y-5">
+              <div>
+                <label className="mb-2 block text-sm font-medium text-[#1E293B]">Target List</label>
+                <select
+                  value={targetListId}
+                  onChange={(e) => setTargetListId(e.target.value)}
+                  className="w-full rounded-xl border border-[#E2E8F0] bg-white px-4 py-3 text-sm focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+                >
+                  {lists.map((list) => (
+                    <option key={list.id} value={list.id}>
+                      {list.name} ({list.lead_count} leads)
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <div className="mb-2 flex items-center justify-between">
+                  <label className="block text-sm font-medium text-[#1E293B]">Source Lists</label>
+                  <span className="text-xs text-[#64748B]">{sourceListIds.length} selected</span>
+                </div>
+                <div className="space-y-2">
+                  {lists
+                    .filter((list) => list.id !== targetListId)
+                    .map((list) => (
+                      <label
+                        key={list.id}
+                        className="flex items-start gap-3 rounded-xl border border-[#E2E8F0] px-4 py-3 transition-colors hover:bg-[#F8FAFC]"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={sourceListIds.includes(list.id)}
+                          onChange={() => toggleSourceList(list.id)}
+                          className="mt-1 rounded border-[#E2E8F0] text-[#FF6B35] focus:ring-[#FF6B35]"
+                        />
+                        <div className="min-w-0">
+                          <div className="font-medium text-[#1E293B]">{list.name}</div>
+                          <div className="text-sm text-[#64748B]">{list.lead_count} leads</div>
+                        </div>
+                      </label>
+                    ))}
+                </div>
+              </div>
+
+              <label className="flex items-start gap-3 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3">
+                <input
+                  type="checkbox"
+                  checked={deleteSourceLists}
+                  onChange={(e) => {
+                    setDeleteSourceLists(e.target.checked);
+                    setPreview(null);
+                  }}
+                  className="mt-1 rounded border-[#E2E8F0] text-[#FF6B35] focus:ring-[#FF6B35]"
+                />
+                <div>
+                  <div className="font-medium text-[#1E293B]">
+                    Delete empty source lists after merge
+                  </div>
+                  <div className="text-sm text-[#64748B]">
+                    Source lists with active import jobs will be retained automatically.
+                  </div>
+                </div>
+              </label>
+            </div>
+
+            <div className="space-y-4 rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] p-5">
+              <div>
+                <div className="text-sm font-semibold text-[#1E293B]">Merge Preview</div>
+                <div className="mt-1 text-sm text-[#64748B]">
+                  Review how many rows will be added and how many duplicates will be skipped.
+                </div>
+              </div>
+
+              {preview ? (
+                <div className="space-y-3">
+                  <div className="rounded-xl border border-[#E2E8F0] bg-white p-4">
+                    <div className="text-xs uppercase tracking-wide text-[#94A3B8]">Target</div>
+                    <div className="mt-1 font-medium text-[#1E293B]">
+                      {preview.target_list_name}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="rounded-xl border border-[#E2E8F0] bg-white p-4">
+                      <div className="text-xs uppercase tracking-wide text-[#94A3B8]">
+                        Source leads
+                      </div>
+                      <div className="mt-1 text-2xl font-bold text-[#1E293B]">
+                        {preview.total_source_leads}
+                      </div>
+                    </div>
+                    <div className="rounded-xl border border-[#E2E8F0] bg-white p-4">
+                      <div className="text-xs uppercase tracking-wide text-[#94A3B8]">Will add</div>
+                      <div className="mt-1 text-2xl font-bold text-[#22C55E]">
+                        {preview.leads_to_add}
+                      </div>
+                    </div>
+                    <div className="rounded-xl border border-[#E2E8F0] bg-white p-4">
+                      <div className="text-xs uppercase tracking-wide text-[#94A3B8]">
+                        Duplicates skipped
+                      </div>
+                      <div className="mt-1 text-2xl font-bold text-[#F59E0B]">
+                        {preview.duplicates_skipped}
+                      </div>
+                    </div>
+                    <div className="rounded-xl border border-[#E2E8F0] bg-white p-4">
+                      <div className="text-xs uppercase tracking-wide text-[#94A3B8]">
+                        Lists deletable
+                      </div>
+                      <div className="mt-1 text-2xl font-bold text-[#1E293B]">
+                        {preview.source_lists_ready_for_deletion}
+                      </div>
+                    </div>
+                  </div>
+                  {preview.source_lists_blocked_from_deletion > 0 ? (
+                    <div className="rounded-xl border border-[#F59E0B]/20 bg-[#FFFBEB] p-4 text-sm text-[#92400E]">
+                      {preview.source_lists_blocked_from_deletion} source list
+                      {preview.source_lists_blocked_from_deletion === 1 ? '' : 's'} will be retained
+                      because they still have active import jobs.
+                    </div>
+                  ) : null}
+                </div>
+              ) : (
+                <div className="rounded-xl border border-dashed border-[#CBD5E1] bg-white p-6 text-sm text-[#64748B]">
+                  Select a target and source lists, then preview the merge.
+                </div>
+              )}
+
+              {error ? (
+                <div className="rounded-xl border border-[#EF4444]/20 bg-[#FEF2F2] p-3 text-sm text-[#EF4444]">
+                  {error}
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between border-t border-[#E2E8F0] px-6 py-4">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg border border-[#E2E8F0] px-4 py-2.5 font-medium text-[#1E293B] hover:bg-[#F8FAFC]"
+          >
+            Cancel
+          </button>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={handlePreview}
+              disabled={previewMergeMutation.isPending || mergeListsMutation.isPending}
+              className="rounded-lg border border-[#E2E8F0] bg-white px-4 py-2.5 font-medium text-[#1E293B] hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {previewMergeMutation.isPending ? 'Previewing...' : 'Preview Merge'}
+            </button>
+            <button
+              type="button"
+              onClick={handleMerge}
+              disabled={!preview || mergeListsMutation.isPending}
+              className="rounded-lg bg-[#FF6B35] px-4 py-2.5 font-medium text-white hover:bg-[#E85A2A] disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {mergeListsMutation.isPending ? 'Merging...' : 'Merge Lists'}
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </motion.div>,
+    document.body
   );
 }
 
@@ -3232,6 +3709,23 @@ function ListIcon({ className = 'w-5 h-5' }: { className?: string }) {
         strokeLinejoin="round"
         d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
       />
+    </svg>
+  );
+}
+
+function MergeIcon({ className = 'w-5 h-5' }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={2}
+    >
+      <path strokeLinecap="round" strokeLinejoin="round" d="M7 7h7a4 4 0 014 4" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15 4l3 3-3 3" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M17 17h-7a4 4 0 01-4-4" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 20l-3-3 3-3" />
     </svg>
   );
 }
