@@ -821,8 +821,8 @@ Enrichment is the process of finding additional contact information (primarily e
 
 - Each successful enrichment uses 1 credit
 - Failed lookups don't use credits
-- Credits included in your plan
-- Additional credits available for purchase
+- Each workspace gets 300 successful enrichments per month
+- The monthly window resets in the workspace timezone
 
 ### Tips for Better Results
 

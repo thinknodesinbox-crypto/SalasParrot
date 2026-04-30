@@ -540,7 +540,7 @@ function checkEnrichmentBeforeEmail(nodes: SequenceNode[]): SequenceWarning[] {
       code: 'EMAIL_WITHOUT_ENRICHMENT',
       message: 'No enrichment step before email steps',
       suggestion:
-        "If your leads don't already have email addresses, add an enrichment step to find them. Leads without an email will be skipped during email steps. Only successful enrichments count, and each campaign is capped at 300 enrichments.",
+        "If your leads don't already have email addresses, add an enrichment step to find them. Leads without an email will be skipped during email steps. Only successful enrichments count, and each workspace is capped at 300 enrichments per month.",
       nodeIds: emailNodes.map((n) => n.id),
     });
   }

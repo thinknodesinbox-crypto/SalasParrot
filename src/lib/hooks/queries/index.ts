@@ -107,6 +107,7 @@ export {
   useDeleteLead,
   useImportLeads,
   useDeleteLeads,
+  useRemoveLeadsFromList,
   useAssignLeadsToCampaign,
   useAddLeadTags,
   useRemoveLeadTags,
@@ -269,6 +270,7 @@ export {
   useEnrichmentJobs,
   useEnrichmentJobStatus,
   useEnrichmentJobWithPolling,
+  useEnrichmentUsage,
 } from './useEnrichment';
 
 // Webhooks

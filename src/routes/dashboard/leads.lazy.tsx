@@ -13,8 +13,12 @@ import {
   useUpdateLeadList,
   useDeleteLeadList,
   useDeleteLeads,
+  useRemoveLeadsFromList,
   usePreviewMergeLeadLists,
   useMergeLeadLists,
+  useEnrichLeads,
+  useEnrichmentJobWithPolling,
+  useEnrichmentUsage,
 } from '../../lib/hooks/queries';
 import type {
   Lead,
@@ -26,6 +30,8 @@ import type {
 } from '../../lib/types';
 import { api } from '../../lib/api';
 import { validateImportURL, validateProfileURLsBatch } from '../../lib/linkedinValidation';
+import { showErrorToast, showSuccessToast } from '../../lib/toast';
+import { useWorkspaceStore } from '../../lib/workspace';
 
 export const Route = createLazyFileRoute('/dashboard/leads')({
   component: LeadsPage,
@@ -339,7 +345,14 @@ const IMPORT_METHODS: {
 
 const LEADS_PER_PAGE = 50;
 
-type EmailFilter = 'all' | 'has_email' | 'no_email';
+type EmailFilter =
+  | 'all'
+  | 'has_email'
+  | 'missing_email'
+  | 'needs_enrichment'
+  | 'pending'
+  | 'no_email_found'
+  | 'failed';
 type CampaignFilter = 'all' | 'in_campaign' | 'not_in_campaign';
 type StatusFilter =
   | 'all'
@@ -350,8 +363,24 @@ type StatusFilter =
   | 'qualified'
   | 'not_interested';
 
+function getUserFacingEnrichmentFailure(error: string | null | undefined): string {
+  const message = (error || '').trim();
+  if (!message) return 'Enrichment failed. Retry later.';
+  if (message.includes('monthly limit')) return message;
+  if (
+    message.startsWith('API error:') ||
+    message.includes('Server disconnected without sending a response') ||
+    message.includes('Cloudflare') ||
+    message.includes('Access denied')
+  ) {
+    return 'Enrichment service unavailable. Retry later.';
+  }
+  return 'Enrichment failed. Retry later.';
+}
+
 function LeadsPage() {
   const routeSearch = useSearch({ from: '/dashboard/leads' });
+  const currentWorkspaceId = useWorkspaceStore((s) => s.currentWorkspaceId);
   const [showImportModal, setShowImportModal] = useState(false);
   const [showMergeModal, setShowMergeModal] = useState(false);
   const [selectedListId, setSelectedListId] = useState<string | null>(null);
@@ -373,7 +402,9 @@ function LeadsPage() {
     setSearchQuery(routeSearch.search ?? '');
     setDebouncedSearch(routeSearch.search ?? '');
     setStatusFilter((routeSearch.status as StatusFilter | undefined) ?? 'all');
-    setEmailFilter(routeSearch.email ?? 'all');
+    setEmailFilter(
+      routeSearch.email === 'no_email' ? 'missing_email' : (routeSearch.email ?? 'all')
+    );
     setCampaignFilter(routeSearch.campaign ?? 'all');
     setImportedOnly(Boolean(routeSearch.importedOnly));
     setCurrentPage(1);
@@ -421,6 +452,7 @@ function LeadsPage() {
   // Build filters for useLeads
   const leadFilters = isLeadResultsView
     ? {
+        workspace_id: currentWorkspaceId || undefined,
         list_id: selectedListId || undefined,
         search: debouncedSearch || undefined,
         status:
@@ -433,9 +465,21 @@ function LeadsPage() {
                 | 'qualified'
                 | 'not_interested')
             : undefined,
-        has_email: emailFilter === 'all' ? undefined : emailFilter === 'has_email',
+        has_email:
+          emailFilter === 'has_email' ? true : emailFilter === 'missing_email' ? false : undefined,
+        enrichment_status:
+          emailFilter === 'needs_enrichment'
+            ? ('not_enriched' as const)
+            : emailFilter === 'pending'
+              ? ('pending' as const)
+              : emailFilter === 'no_email_found'
+                ? ('no_email_found' as const)
+                : emailFilter === 'failed'
+                  ? ('failed' as const)
+                  : undefined,
         in_campaign: campaignFilter === 'all' ? undefined : campaignFilter === 'in_campaign',
         imported_only: importedOnly || undefined,
+        sort_by: selectedListId ? ('email_actionability' as const) : undefined,
         limit: LEADS_PER_PAGE,
         offset: (currentPage - 1) * LEADS_PER_PAGE,
       }
@@ -576,8 +620,12 @@ function LeadsPage() {
               className="min-w-[110px] rounded-lg border border-[#E2E8F0] bg-white px-3 py-2.5 text-sm focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
             >
               <option value="all">All Emails</option>
-              <option value="has_email">Has Email</option>
-              <option value="no_email">No Email</option>
+              <option value="has_email">Found Email</option>
+              <option value="needs_enrichment">Needs Enrichment</option>
+              <option value="pending">Enrichment Pending</option>
+              <option value="no_email_found">No Email Found</option>
+              <option value="failed">Enrichment Failed</option>
+              <option value="missing_email">Missing Email</option>
             </select>
             <select
               value={campaignFilter}
@@ -636,7 +684,22 @@ function LeadsPage() {
           filterMeta={{
             search: debouncedSearch || undefined,
             status: statusFilter !== 'all' ? statusFilter : undefined,
-            hasEmail: emailFilter === 'all' ? undefined : emailFilter === 'has_email',
+            hasEmail:
+              emailFilter === 'has_email'
+                ? true
+                : emailFilter === 'missing_email'
+                  ? false
+                  : undefined,
+            enrichmentStatus:
+              emailFilter === 'needs_enrichment'
+                ? ('not_enriched' as const)
+                : emailFilter === 'pending'
+                  ? ('pending' as const)
+                  : emailFilter === 'no_email_found'
+                    ? ('no_email_found' as const)
+                    : emailFilter === 'failed'
+                      ? ('failed' as const)
+                      : undefined,
             inCampaign: campaignFilter === 'all' ? undefined : campaignFilter === 'in_campaign',
             importedOnly,
           }}
@@ -952,13 +1015,70 @@ function LeadListDetail({
     search?: string;
     status?: StatusFilter;
     hasEmail?: boolean;
+    enrichmentStatus?: 'not_enriched' | 'pending' | 'no_email_found' | 'failed';
     inCampaign?: boolean;
     importedOnly?: boolean;
   };
 }) {
+  const currentWorkspaceId = useWorkspaceStore((s) => s.currentWorkspaceId);
+  const workspaceId = list?.workspace_id || currentWorkspaceId || undefined;
   const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [activeEnrichmentJobId, setActiveEnrichmentJobId] = useState<string | null>(null);
   const deleteLeadsMutation = useDeleteLeads();
+  const removeFromListMutation = useRemoveLeadsFromList();
+  const enrichLeadsMutation = useEnrichLeads();
+  const { data: enrichmentUsage } = useEnrichmentUsage(workspaceId);
+  const { data: enrichmentJob } = useEnrichmentJobWithPolling(activeEnrichmentJobId);
+
+  useEffect(() => {
+    if (!enrichmentJob || !activeEnrichmentJobId) return;
+    if (enrichmentJob.status === 'completed') {
+      showSuccessToast(
+        'Email enrichment finished',
+        `${enrichmentJob.enriched_count} emails found, ${enrichmentJob.no_email_count} not found`
+      );
+      setActiveEnrichmentJobId(null);
+    } else if (enrichmentJob.status === 'failed') {
+      showErrorToast('Email enrichment failed', 'The enrichment job did not complete.');
+      setActiveEnrichmentJobId(null);
+    }
+  }, [activeEnrichmentJobId, enrichmentJob]);
+
+  const buildLeadQueryParams = (limit: number, offset: number) => {
+    const params = new URLSearchParams();
+    if (workspaceId) params.append('workspace_id', workspaceId);
+    if (list?.id) params.append('list_id', list.id);
+    if (filterMeta?.search) params.append('search', filterMeta.search);
+    if (filterMeta?.status) params.append('status', filterMeta.status);
+    if (filterMeta?.hasEmail !== undefined)
+      params.append('has_email', filterMeta.hasEmail.toString());
+    if (filterMeta?.enrichmentStatus)
+      params.append('enrichment_status', filterMeta.enrichmentStatus);
+    if (filterMeta?.inCampaign !== undefined)
+      params.append('in_campaign', filterMeta.inCampaign.toString());
+    if (filterMeta?.importedOnly !== undefined && filterMeta.importedOnly)
+      params.append('imported_only', 'true');
+    if (list?.id) params.append('sort_by', 'email_actionability');
+    params.append('limit', limit.toString());
+    params.append('offset', offset.toString());
+    return params;
+  };
+
+  const fetchAllMatchingLeads = async () => {
+    const allLeads: Lead[] = [];
+    const batchSize = 500;
+    let offset = 0;
+
+    while (offset < totalLeads) {
+      const params = buildLeadQueryParams(batchSize, offset);
+      const response = await api.get<LeadListResponse>(`/leads?${params}`);
+      allLeads.push(...response.data.leads);
+      offset += batchSize;
+    }
+
+    return allLeads;
+  };
 
   const handleDeleteSelected = async () => {
     try {
@@ -971,6 +1091,92 @@ function LeadListDetail({
     }
   };
 
+  const handleRemoveSelectedFromList = async () => {
+    try {
+      await removeFromListMutation.mutateAsync(selectedLeads);
+      setSelectedLeads([]);
+      onLeadsDeleted?.();
+      showSuccessToast('Removed from list', 'Selected leads were removed from this list.');
+    } catch (error) {
+      showErrorToast('Unable to remove leads', error instanceof Error ? error.message : undefined);
+    }
+  };
+
+  const handleExcludeNoEmailFound = async () => {
+    try {
+      const allMatchingLeads = await fetchAllMatchingLeads();
+      const noEmailLeadIds = allMatchingLeads
+        .filter((lead) => lead.enrichment_status === 'no_email_found')
+        .map((lead) => lead.id);
+      if (noEmailLeadIds.length === 0) {
+        showSuccessToast('Nothing to exclude', 'There are no no-email leads in this view.');
+        return;
+      }
+      await removeFromListMutation.mutateAsync(noEmailLeadIds);
+      onLeadsDeleted?.();
+      showSuccessToast(
+        'Excluded no-email leads',
+        `${noEmailLeadIds.length} leads were removed from this list.`
+      );
+    } catch (error) {
+      showErrorToast(
+        'Unable to exclude no-email leads',
+        error instanceof Error ? error.message : undefined
+      );
+    }
+  };
+
+  const handleEnrichSelected = async () => {
+    if (!workspaceId || selectedLeads.length === 0) return;
+    try {
+      const result = await enrichLeadsMutation.mutateAsync({
+        lead_ids: selectedLeads,
+        workspace_id: workspaceId,
+        list_id: list?.id || undefined,
+      });
+      setActiveEnrichmentJobId(result.job_id);
+      setSelectedLeads([]);
+      showSuccessToast(
+        'Email enrichment started',
+        `${result.lead_count} leads queued. ${result.usage.credits_remaining} credits remaining this month.`
+      );
+    } catch (error) {
+      showErrorToast(
+        'Unable to start enrichment',
+        error instanceof Error ? error.message : undefined
+      );
+    }
+  };
+
+  const handleEnrichCurrentView = async () => {
+    if (!workspaceId) return;
+    try {
+      const allMatchingLeads = await fetchAllMatchingLeads();
+      const candidateLeadIds = allMatchingLeads
+        .filter((lead) => !lead.email && lead.enrichment_status !== 'pending')
+        .map((lead) => lead.id);
+      if (candidateLeadIds.length === 0) {
+        showSuccessToast('Nothing to enrich', 'All leads in this view already have email results.');
+        return;
+      }
+      const result = await enrichLeadsMutation.mutateAsync({
+        lead_ids: candidateLeadIds,
+        workspace_id: workspaceId,
+        list_id: list?.id || undefined,
+      });
+      setActiveEnrichmentJobId(result.job_id);
+      showSuccessToast(
+        'Email enrichment started',
+        `${result.lead_count} leads queued. ${result.usage.credits_remaining} credits remaining this month.`
+      );
+    } catch (error) {
+      showErrorToast(
+        'Unable to start enrichment',
+        error instanceof Error ? error.message : undefined
+      );
+    }
+  };
+
   const [isExporting, setIsExporting] = useState(false);
 
   const handleExportCSV = async () => {
@@ -978,29 +1184,7 @@ function LeadListDetail({
     setIsExporting(true);
 
     try {
-      // Fetch all leads by paginating through the API
-      const allLeads: Lead[] = [];
-      const batchSize = 500;
-      let offset = 0;
-
-      while (offset < totalLeads) {
-        const params = new URLSearchParams();
-        if (list?.id) params.append('list_id', list.id);
-        if (filterMeta?.search) params.append('search', filterMeta.search);
-        if (filterMeta?.status) params.append('status', filterMeta.status);
-        if (filterMeta?.hasEmail !== undefined)
-          params.append('has_email', filterMeta.hasEmail.toString());
-        if (filterMeta?.inCampaign !== undefined)
-          params.append('in_campaign', filterMeta.inCampaign.toString());
-        if (filterMeta?.importedOnly !== undefined && filterMeta.importedOnly)
-          params.append('imported_only', 'true');
-        params.append('limit', batchSize.toString());
-        params.append('offset', offset.toString());
-
-        const response = await api.get<LeadListResponse>(`/leads?${params}`);
-        allLeads.push(...response.data.leads);
-        offset += batchSize;
-      }
+      const allLeads = await fetchAllMatchingLeads();
 
       // Define CSV headers
       const headers = [
@@ -1102,9 +1286,48 @@ function LeadListDetail({
                 <div className="mt-1 flex items-center gap-4 text-sm text-[#64748B]">
                   <span>{list ? `${list.lead_count} leads` : `${totalLeads} matching leads`}</span>
                 </div>
+                {enrichmentUsage ? (
+                  <div className="mt-2 inline-flex items-center gap-2 rounded-full bg-[#F8FAFC] px-3 py-1 text-xs text-[#64748B]">
+                    <span>
+                      {enrichmentUsage.credits_used} / {enrichmentUsage.monthly_limit} enrichments
+                      used this month
+                    </span>
+                    <span className="text-[#94A3B8]">•</span>
+                    <span>{enrichmentUsage.credits_remaining} remaining</span>
+                  </div>
+                ) : null}
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-3">
+              {list ? (
+                <button
+                  onClick={handleEnrichCurrentView}
+                  disabled={
+                    totalLeads === 0 ||
+                    enrichLeadsMutation.isPending ||
+                    !workspaceId ||
+                    enrichmentUsage?.credits_remaining === 0
+                  }
+                  className="flex items-center gap-2 rounded-lg border border-[#E2E8F0] px-4 py-2 text-sm font-medium text-[#1E293B] transition-colors hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {enrichLeadsMutation.isPending ? (
+                    <LoadingSpinner className="h-4 w-4" />
+                  ) : (
+                    <SparkleIcon className="h-4 w-4" />
+                  )}
+                  Enrich Emails
+                </button>
+              ) : null}
+              {list ? (
+                <button
+                  onClick={handleExcludeNoEmailFound}
+                  disabled={removeFromListMutation.isPending || totalLeads === 0}
+                  className="flex items-center gap-2 rounded-lg border border-[#E2E8F0] px-4 py-2 text-sm font-medium text-[#64748B] transition-colors hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <TrashIcon className="h-4 w-4" />
+                  Exclude No-Email Leads
+                </button>
+              ) : null}
               <button
                 onClick={handleExportCSV}
                 disabled={totalLeads === 0 || isExporting}
@@ -1129,6 +1352,33 @@ function LeadListDetail({
               ) : null}
             </div>
           </div>
+          {enrichmentJob && activeEnrichmentJobId ? (
+            <div className="mt-4 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-medium text-[#1E293B]">Email enrichment running</p>
+                  <p className="text-xs text-[#64748B]">
+                    {enrichmentJob.enriched_count} found, {enrichmentJob.no_email_count} not found,
+                    {enrichmentJob.failed_count} failed
+                  </p>
+                </div>
+                <div className="min-w-[180px]">
+                  <div className="mb-2 h-2 overflow-hidden rounded-full bg-[#E2E8F0]">
+                    <div
+                      className="h-full rounded-full bg-[#FF6B35] transition-all"
+                      style={{ width: `${Math.max(enrichmentJob.progress, 4)}%` }}
+                    />
+                  </div>
+                  <div className="text-right text-xs text-[#64748B]">
+                    {Math.round(enrichmentJob.progress)}%
+                  </div>
+                </div>
+              </div>
+              <p className="mt-2 text-xs text-[#94A3B8]">
+                Only successful email finds count against the monthly workspace cap.
+              </p>
+            </div>
+          ) : null}
           {!list && filterMeta ? (
             <div className="mt-4 flex flex-wrap gap-2">
               {filterMeta.status ? (
@@ -1143,7 +1393,27 @@ function LeadListDetail({
               ) : null}
               {filterMeta.hasEmail === false ? (
                 <span className="rounded-full bg-[#F8FAFC] px-3 py-1 text-xs font-medium text-[#475569]">
-                  No email
+                  Missing email
+                </span>
+              ) : null}
+              {filterMeta.enrichmentStatus === 'not_enriched' ? (
+                <span className="rounded-full bg-[#F8FAFC] px-3 py-1 text-xs font-medium text-[#475569]">
+                  Needs enrichment
+                </span>
+              ) : null}
+              {filterMeta.enrichmentStatus === 'pending' ? (
+                <span className="rounded-full bg-[#F8FAFC] px-3 py-1 text-xs font-medium text-[#475569]">
+                  Enrichment pending
+                </span>
+              ) : null}
+              {filterMeta.enrichmentStatus === 'no_email_found' ? (
+                <span className="rounded-full bg-[#F8FAFC] px-3 py-1 text-xs font-medium text-[#475569]">
+                  No email found
+                </span>
+              ) : null}
+              {filterMeta.enrichmentStatus === 'failed' ? (
+                <span className="rounded-full bg-[#F8FAFC] px-3 py-1 text-xs font-medium text-[#475569]">
+                  Enrichment failed
                 </span>
               ) : null}
               {filterMeta.inCampaign === true ? (
@@ -1185,6 +1455,32 @@ function LeadListDetail({
               </button>
             </div>
             <div className="flex items-center gap-2">
+              <button
+                onClick={handleEnrichSelected}
+                disabled={
+                  enrichLeadsMutation.isPending ||
+                  !workspaceId ||
+                  enrichmentUsage?.credits_remaining === 0
+                }
+                className="flex items-center gap-2 rounded-lg border border-[#E2E8F0] bg-white px-3 py-1.5 text-sm font-medium text-[#1E293B] transition-colors hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {enrichLeadsMutation.isPending ? (
+                  <LoadingSpinner className="h-4 w-4" />
+                ) : (
+                  <SparkleIcon className="h-4 w-4" />
+                )}
+                Enrich selected
+              </button>
+              {list ? (
+                <button
+                  onClick={handleRemoveSelectedFromList}
+                  disabled={removeFromListMutation.isPending}
+                  className="flex items-center gap-2 rounded-lg border border-[#E2E8F0] bg-white px-3 py-1.5 text-sm font-medium text-[#64748B] transition-colors hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <ListIcon className="h-4 w-4" />
+                  Remove from list
+                </button>
+              ) : null}
               <button
                 onClick={() => setShowDeleteModal(true)}
                 className="flex items-center gap-2 rounded-lg border border-[#EF4444]/20 bg-white px-3 py-1.5 text-sm font-medium text-[#EF4444] transition-colors hover:bg-[#FEF2F2]"
@@ -1456,6 +1752,46 @@ function LeadRow({
   };
 
   const status = statusColors[lead.status] || statusColors.new;
+  const emailState = (() => {
+    if (lead.email) {
+      return {
+        dot: 'bg-[#22C55E]',
+        label: lead.email,
+        sublabel: 'Email found',
+        text: 'text-[#1E293B]',
+      };
+    }
+    if (lead.enrichment_status === 'pending') {
+      return {
+        dot: 'bg-[#F59E0B]',
+        label: 'Pending',
+        sublabel: 'Enrichment running',
+        text: 'text-[#92400E]',
+      };
+    }
+    if (lead.enrichment_status === 'no_email_found') {
+      return {
+        dot: 'bg-[#94A3B8]',
+        label: 'Not found',
+        sublabel: 'No email available',
+        text: 'text-[#475569]',
+      };
+    }
+    if (lead.enrichment_status === 'failed') {
+      return {
+        dot: 'bg-[#EF4444]',
+        label: 'Needs retry',
+        sublabel: getUserFacingEnrichmentFailure(lead.enrichment_error),
+        text: 'text-[#B91C1C]',
+      };
+    }
+    return {
+      dot: 'bg-[#CBD5E1]',
+      label: 'Not enriched',
+      sublabel: 'Ready for lookup',
+      text: 'text-[#64748B]',
+    };
+  })();
 
   return (
     <tr className="transition-colors hover:bg-[#F8FAFC]">
@@ -1496,11 +1832,15 @@ function LeadRow({
       <td className="px-6 py-4 text-[#1E293B]">{lead.company || '-'}</td>
       <td className="px-6 py-4 text-[#64748B]">{lead.location || '-'}</td>
       <td className="px-6 py-4">
-        {lead.email ? (
-          <span className="text-[#1E293B]">{lead.email}</span>
-        ) : (
-          <span className="text-sm text-[#94A3B8]">-</span>
-        )}
+        <div className="min-w-[180px]">
+          <div className="flex items-center gap-2">
+            <span className={`h-2.5 w-2.5 rounded-full ${emailState.dot}`} />
+            <span className={`text-sm font-medium ${emailState.text}`}>{emailState.label}</span>
+          </div>
+          <p className="mt-1 text-xs text-[#94A3B8]" title={emailState.sublabel}>
+            {emailState.sublabel}
+          </p>
+        </div>
       </td>
       <td className="px-6 py-4">
         {lead.linkedin_url ? (

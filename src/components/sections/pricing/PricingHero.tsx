@@ -61,7 +61,7 @@ export function PricingHero() {
           >
             LinkedIn + Email + Enrichment + AI Reply Agent. All in one platform.
             <br className="hidden md:block" />
-            No per-action limits. No credits. No extra tools.
+            No per-action fees. 300 successful enrichments per workspace each month. No extra tools.
           </motion.p>
         </motion.div>
       </Container>

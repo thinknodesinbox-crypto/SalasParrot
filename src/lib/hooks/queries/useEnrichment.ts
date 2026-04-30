@@ -6,6 +6,7 @@ import type {
   EnrichmentJobStatus,
   EnrichLeadsRequest,
   EnrichLeadsResponse,
+  WorkspaceEnrichmentUsage,
 } from '../../types';
 
 interface EnrichmentJobFilters {
@@ -19,17 +20,24 @@ export const useEnrichLeads = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (leadIds: string[]) => {
+    mutationFn: async (data: EnrichLeadsRequest) => {
       const response = await api.post<EnrichLeadsResponse>('/leads/enrich', {
-        lead_ids: leadIds,
+        lead_ids: data.lead_ids,
+        workspace_id: data.workspace_id,
+        list_id: data.list_id,
       } as EnrichLeadsRequest);
       return response.data;
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       // Invalidate leads to show updated enrichment_status
       queryClient.invalidateQueries({ queryKey: queryKeys.leads.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.leadLists.all });
       queryClient.invalidateQueries({ queryKey: ['enrichmentJobs'] });
+      if (variables.workspace_id) {
+        queryClient.invalidateQueries({
+          queryKey: ['enrichmentUsage', variables.workspace_id],
+        });
+      }
     },
     onError: (error) => {
       throw new Error(getErrorMessage(error));
@@ -88,10 +96,24 @@ export const useEnrichmentJobWithPolling = (jobId: string | null) => {
         // Invalidate leads to show updated data
         queryClient.invalidateQueries({ queryKey: queryKeys.leads.all });
         queryClient.invalidateQueries({ queryKey: queryKeys.leadLists.all });
+        queryClient.invalidateQueries({ queryKey: ['enrichmentUsage'] });
         return false;
       }
       // Poll every 3 seconds while processing
       return 3000;
     },
+  });
+};
+
+export const useEnrichmentUsage = (workspaceId?: string | null) => {
+  return useQuery({
+    queryKey: ['enrichmentUsage', workspaceId],
+    queryFn: async () => {
+      const response = await api.get<WorkspaceEnrichmentUsage>(
+        `/enrichment/usage?workspace_id=${workspaceId}`
+      );
+      return response.data;
+    },
+    enabled: !!workspaceId,
   });
 };

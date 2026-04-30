@@ -18,7 +18,7 @@ const faqs = [
   {
     question: 'How does email enrichment work?',
     answer:
-      'Import leads from Sales Navigator or CSV. We find and verify emails in the background. Included in every plan, no credits, no per-email charges.',
+      "Import leads from Sales Navigator or CSV. We find and verify emails in the background. Each workspace gets 300 successful enrichments per month, and failed lookups don't use credits.",
   },
   {
     question: 'What integrations do you support?',

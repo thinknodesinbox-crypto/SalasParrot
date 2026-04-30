@@ -10,6 +10,7 @@ import type {
   LeadListMergeResponse,
   LeadListResponse,
   LeadListsResponse,
+  EnrichmentStatus,
   LeadStatus,
   ImportJob,
   ImportJobStartRequest,
@@ -28,8 +29,11 @@ interface LeadFilters {
   status?: LeadStatus;
   search?: string;
   has_email?: boolean;
+  enrichment_status?: EnrichmentStatus;
   in_campaign?: boolean;
   imported_only?: boolean;
+  sort_by?: 'created_at' | 'email_actionability' | 'name' | 'company';
+  sort_order?: 'asc' | 'desc';
   limit?: number;
   offset?: number;
 }
@@ -239,10 +243,13 @@ export const useLeads = (filters?: LeadFilters) => {
       if (filters?.search) params.append('search', filters.search);
       if (filters?.has_email !== undefined)
         params.append('has_email', filters.has_email.toString());
+      if (filters?.enrichment_status) params.append('enrichment_status', filters.enrichment_status);
       if (filters?.in_campaign !== undefined)
         params.append('in_campaign', filters.in_campaign.toString());
       if (filters?.imported_only !== undefined)
         params.append('imported_only', filters.imported_only.toString());
+      if (filters?.sort_by) params.append('sort_by', filters.sort_by);
+      if (filters?.sort_order) params.append('sort_order', filters.sort_order);
       if (filters?.limit) params.append('limit', filters.limit.toString());
       if (filters?.offset) params.append('offset', filters.offset.toString());
 
@@ -343,6 +350,23 @@ export const useDeleteLeads = () => {
   return useMutation({
     mutationFn: async (leadIds: string[]) => {
       await api.post('/leads/bulk/delete', { lead_ids: leadIds });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.leads.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.leadLists.all });
+    },
+    onError: (error) => {
+      throw new Error(getErrorMessage(error));
+    },
+  });
+};
+
+export const useRemoveLeadsFromList = () => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (leadIds: string[]) => {
+      await api.post('/leads/bulk/remove-from-list', { lead_ids: leadIds });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.leads.all });

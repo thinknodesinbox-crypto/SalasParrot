@@ -1874,8 +1874,8 @@ function CreateCampaignModal({
                               Email enrichment cap
                             </p>
                             <p className="mt-0.5 text-xs text-[#B45309]">
-                              Successful email enrichments are capped at 300 per campaign. Only
-                              enrichments that return an email count toward the cap.
+                              Successful email enrichments are capped at 300 per workspace each
+                              month. Only enrichments that return an email count toward the cap.
                             </p>
                           </div>
                         </div>
@@ -2532,8 +2532,8 @@ function CreateCampaignModal({
                           {hasEmailSteps && (
                             <div className="rounded-lg border border-[#F59E0B]/20 bg-[#FFFBEB] px-3 py-2">
                               <p className="text-xs text-[#92400E]">
-                                Successful email enrichments are capped at 300 per campaign. Only
-                                enrichments that return an email count toward the cap.
+                                Successful email enrichments are capped at 300 per workspace each
+                                month. Only enrichments that return an email count toward the cap.
                               </p>
                             </div>
                           )}
@@ -3246,8 +3246,8 @@ function CampaignDetailDrawer({
 
                     {emailOnlyCampaign && (
                       <div className="rounded-md border border-[#F59E0B]/20 bg-[#FFFBEB] px-3 py-2 text-xs text-[#92400E]">
-                        Successful email enrichments are capped at 300 per campaign. Only
-                        enrichments that return an email count toward the cap.
+                        Successful email enrichments are capped at 300 per workspace each month.
+                        Only enrichments that return an email count toward the cap.
                       </div>
                     )}
                   </div>

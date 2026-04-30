@@ -13,7 +13,7 @@ const PRICE_PER_SENDER = 99;
 const growthBullets = [
   'Unlimited LinkedIn outreach (safe daily limits applied)',
   'Unlimited email follow-ups',
-  'Unlimited email enrichment. No credits.',
+  '300 successful email enrichments per workspace each month.',
   'AI Reply Agent. Handles responses, books meetings.',
   'Unified inbox. LinkedIn and email in one place.',
   'Dedicated proxy per account. Your account stays safe.',

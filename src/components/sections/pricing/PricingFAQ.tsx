@@ -8,7 +8,7 @@ const faqs = [
   {
     question: 'What does "unlimited" actually mean?',
     answer:
-      "We don't charge per action, per email, or per enrichment. You get unlimited LinkedIn actions (we auto-apply safe daily limits to protect your account, typically 80-100 connections/day), unlimited email sending through your connected mailbox, and unlimited email enrichment with no credits. Your price is your price. No hidden usage fees.",
+      "We don't charge per action or per outbound email. You get unlimited LinkedIn actions within safe daily limits, unlimited sending through your connected mailbox, and 300 successful email enrichments per workspace each month. Failed email lookups don't consume credits.",
   },
   {
     question: 'What\'s a "sender"?',
@@ -33,7 +33,7 @@ const faqs = [
   {
     question: 'How does email enrichment work?',
     answer:
-      'Import leads from Sales Navigator or CSV. We find and verify business emails automatically in the background. Included in every plan. No credits, no per-email charges.',
+      "Import leads from Sales Navigator or CSV. We find and verify business emails automatically in the background. Each workspace gets 300 successful enrichments per month, and failed lookups don't use credits.",
   },
   {
     question: 'Can I connect my own email?',

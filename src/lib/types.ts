@@ -690,6 +690,7 @@ export interface Lead {
   tags: string[] | null;
   enrichment_status: EnrichmentStatus;
   enriched_at: string | null;
+  enrichment_error: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -1241,13 +1242,27 @@ export interface EnrichmentJob {
   processed_count: number;
   enriched_count: number;
   failed_count: number;
+  no_email_count: number;
+  credits_used: number;
   progress: number;
   created_at: string;
   completed_at: string | null;
 }
 
+export interface WorkspaceEnrichmentUsage {
+  workspace_id: string;
+  timezone: string;
+  monthly_limit: number;
+  credits_used: number;
+  credits_remaining: number;
+  month_started_at: string;
+  month_ends_at: string;
+}
+
 export interface EnrichLeadsRequest {
   lead_ids: string[];
+  workspace_id?: string;
+  list_id?: string;
 }
 
 export interface EnrichLeadsResponse {
@@ -1255,6 +1270,7 @@ export interface EnrichLeadsResponse {
   status: string;
   lead_count: number;
   message: string;
+  usage: WorkspaceEnrichmentUsage;
 }
 
 // Admin types

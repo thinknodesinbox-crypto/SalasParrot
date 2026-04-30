@@ -76,8 +76,8 @@ function HomePage() {
 
         {/* Feature 3 - White background, image right */}
         <Feature
-          headline="Find anyone's email. No credits. Ever."
-          body="Import from Sales Navigator or CSV. Verified emails found automatically, included in every plan."
+          headline="Find anyone's email without wasting credits."
+          body="Import from Sales Navigator or CSV. Verified emails are found automatically, and only successful finds count against your workspace's monthly enrichment allotment."
           imagePosition="right"
           background="white"
           panel={<LeadEnrichmentPanel variant="feature" />}

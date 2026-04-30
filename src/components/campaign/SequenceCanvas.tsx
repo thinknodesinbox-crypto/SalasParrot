@@ -2077,8 +2077,8 @@ export function NodeConfigPanel({
             </p>
             <div className="rounded-md border border-[#A855F7]/20 bg-white/70 px-3 py-2">
               <p className="text-xs text-[#6D28D9]">
-                Successful email enrichments are capped at 300 per campaign. Only enrichments that
-                return an email count toward the cap.
+                Successful email enrichments are capped at 300 per workspace each month. Only
+                enrichments that return an email count toward the cap.
               </p>
             </div>
           </div>
