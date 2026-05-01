@@ -118,6 +118,23 @@ export {
   useCancelImport,
 } from './useLeads';
 
+export {
+  useDiscoverySearches,
+  useDiscoverySearch,
+  usePreviewDiscoverySearch,
+  useCreateDiscoverySearch,
+  useUpdateDiscoverySearch,
+  useDuplicateDiscoverySearch,
+  usePauseDiscoverySearch,
+  useResumeDiscoverySearch,
+  useRunDiscoverySearch,
+  useDiscoveryRuns,
+  useDiscoveryRun,
+  useDiscoveryRunResults,
+  useSaveDiscoveryResultsToList,
+  useDismissDiscoveryResults,
+} from './useDiscovery';
+
 // Accounts (LinkedIn & Email)
 export {
   useLinkedInAccounts,

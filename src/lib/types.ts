@@ -286,6 +286,11 @@ export type AssistantActionType =
   | 'create_lead_list'
   | 'rename_lead_list'
   | 'merge_lead_lists'
+  | 'create_discovery_search'
+  | 'run_discovery_search'
+  | 'pause_discovery_search'
+  | 'resume_discovery_search'
+  | 'refine_discovery_search'
   | 'create_marketing_list'
   | 'rename_marketing_list';
 
@@ -300,6 +305,8 @@ export interface AssistantActionTargetRef {
   conversation_name?: string | null;
   lead_list_id?: string | null;
   lead_list_name?: string | null;
+  discovery_search_id?: string | null;
+  discovery_search_name?: string | null;
   marketing_list_id?: string | null;
   marketing_list_name?: string | null;
   draft_message_id?: string | null;
@@ -700,6 +707,140 @@ export interface LeadListResponse {
   total: number;
   limit: number;
   offset: number;
+}
+
+export type DiscoverySearchType = 'intent' | 'event';
+export type DiscoveryConfigurationMode = 'ai' | 'manual';
+export type DiscoverySearchStatus = 'draft' | 'active' | 'paused' | 'archived';
+export type DiscoveryScheduleType = 'weekly' | 'biweekly' | 'custom';
+export type DiscoveryRunStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+export type DiscoveryResultStatus =
+  | 'new'
+  | 'already_in_workspace'
+  | 'already_in_list'
+  | 'saved_to_list'
+  | 'dismissed';
+
+export interface SavedDiscoverySearch {
+  id: string;
+  workspace_id: string;
+  created_by_user_id: string;
+  destination_list_id: string | null;
+  name: string;
+  search_type: DiscoverySearchType;
+  configuration_mode: DiscoveryConfigurationMode;
+  criteria_json: Record<string, unknown>;
+  source_config_json: Record<string, unknown>;
+  schedule_enabled: boolean;
+  schedule_type: DiscoveryScheduleType | null;
+  schedule_config_json: Record<string, unknown>;
+  timezone: string;
+  status: DiscoverySearchStatus;
+  last_run_at: string | null;
+  next_run_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DiscoveryRun {
+  id: string;
+  saved_search_id: string;
+  workspace_id: string;
+  triggered_by_user_id: string | null;
+  trigger_type: string;
+  status: DiscoveryRunStatus;
+  source_summary_json: Record<string, unknown>;
+  summary_json: Record<string, unknown>;
+  error_message: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DiscoveryResult {
+  id: string;
+  run_id: string;
+  candidate_id: string;
+  existing_lead_id: string | null;
+  saved_lead_id: string | null;
+  score: number;
+  match_reasons_json: Array<string | Record<string, unknown>>;
+  event_summary: string | null;
+  intent_summary: string | null;
+  confidence_label: string | null;
+  source_types: string[];
+  source_urls: string[];
+  status: DiscoveryResultStatus;
+  created_at: string;
+  updated_at: string;
+  person_name: string | null;
+  company_name: string | null;
+  title: string | null;
+  location: string | null;
+  linkedin_url: string | null;
+  company_website: string | null;
+  candidate_payload_json: Record<string, unknown>;
+}
+
+export interface DiscoverySearchListResponse {
+  items: SavedDiscoverySearch[];
+}
+
+export interface DiscoveryRunListResponse {
+  items: DiscoveryRun[];
+}
+
+export interface DiscoveryResultListResponse {
+  items: DiscoveryResult[];
+}
+
+export interface DiscoverySearchPreview {
+  name: string;
+  summary: string;
+  warnings: string[];
+  normalized_criteria: Record<string, unknown>;
+  normalized_sources: Record<string, unknown>;
+  next_run_at: string | null;
+}
+
+export interface DiscoverySearchCreateRequest {
+  workspace_id: string;
+  name: string;
+  search_type: DiscoverySearchType;
+  configuration_mode?: DiscoveryConfigurationMode;
+  criteria_json?: Record<string, unknown>;
+  source_config_json?: Record<string, unknown>;
+  destination_list_id?: string | null;
+  schedule_enabled?: boolean;
+  schedule_type?: DiscoveryScheduleType | null;
+  schedule_config_json?: Record<string, unknown>;
+  timezone?: string | null;
+  status?: DiscoverySearchStatus;
+}
+
+export interface DiscoverySearchUpdateRequest {
+  name?: string;
+  search_type?: DiscoverySearchType;
+  configuration_mode?: DiscoveryConfigurationMode;
+  criteria_json?: Record<string, unknown>;
+  source_config_json?: Record<string, unknown>;
+  destination_list_id?: string | null;
+  schedule_enabled?: boolean;
+  schedule_type?: DiscoveryScheduleType | null;
+  schedule_config_json?: Record<string, unknown>;
+  timezone?: string | null;
+  status?: DiscoverySearchStatus;
+}
+
+export type DiscoverySearchPreviewRequest = DiscoverySearchCreateRequest;
+
+export interface DiscoveryBulkActionResponse {
+  updated_count: number;
+  created_lead_ids: string[];
+  moved_lead_ids: string[];
+  skipped_count: number;
+  message: string;
 }
 
 // LinkedIn Account types

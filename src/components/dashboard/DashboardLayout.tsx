@@ -20,6 +20,7 @@ const navigation = [
   { name: 'Assistant', href: '/dashboard/assistant', icon: 'assistant' },
   { name: 'Accounts', href: '/dashboard/accounts', icon: 'accounts' },
   { name: 'Leads', href: '/dashboard/leads', icon: 'leads' },
+  { name: 'Discovery', href: '/dashboard/discovery', icon: 'discovery' },
   { name: 'Campaigns', href: '/dashboard/campaigns', icon: 'campaigns' },
   { name: 'Inbox', href: '/dashboard/inbox', icon: 'inbox' },
   { name: 'Analytics', href: '/dashboard/analytics', icon: 'analytics' },
@@ -562,6 +563,7 @@ function NavItem({
     assistant: <AssistantIcon />,
     accounts: <AccountsIcon />,
     leads: <LeadsIcon />,
+    discovery: <DiscoveryIcon />,
     campaigns: <CampaignsIcon />,
     emailMarketing: <EmailMarketingIcon />,
     inbox: <InboxIcon />,
@@ -676,6 +678,25 @@ function LeadsIcon() {
         strokeLinejoin="round"
         d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z"
       />
+    </svg>
+  );
+}
+
+function DiscoveryIcon() {
+  return (
+    <svg
+      className="h-5 w-5"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={1.5}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M9.568 3.75c.7-1.186 2.164-1.186 2.864 0l1.1 1.864a1.65 1.65 0 001.113.785l2.113.48c1.343.305 1.796 1.954.878 2.885l-1.442 1.462a1.65 1.65 0 00-.457 1.374l.207 2.116c.13 1.337-1.054 2.347-2.287 1.845l-1.95-.793a1.65 1.65 0 00-1.242 0l-1.95.793c-1.233.502-2.418-.508-2.287-1.845l.207-2.116a1.65 1.65 0 00-.457-1.374L4.25 9.98c-.918-.931-.465-2.58.878-2.885l2.113-.48a1.65 1.65 0 001.113-.785l1.214-2.08z"
+      />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 8.25v3.75m0 3h.008v.008H12V15z" />
     </svg>
   );
 }

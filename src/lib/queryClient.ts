@@ -63,6 +63,21 @@ export const queryKeys = {
     detail: (id: string) => ['leads', 'detail', id] as const,
   },
 
+  // Discovery
+  discovery: {
+    all: ['discovery'] as const,
+    searches: (workspaceId?: string | null, filters?: unknown) =>
+      ['discovery', 'searches', workspaceId, filters] as const,
+    search: (workspaceId?: string | null, searchId?: string | null) =>
+      ['discovery', 'search', workspaceId, searchId] as const,
+    runs: (workspaceId?: string | null, searchId?: string | null) =>
+      ['discovery', 'runs', workspaceId, searchId] as const,
+    run: (workspaceId?: string | null, runId?: string | null) =>
+      ['discovery', 'run', workspaceId, runId] as const,
+    results: (workspaceId?: string | null, runId?: string | null, status?: string | null) =>
+      ['discovery', 'results', workspaceId, runId, status] as const,
+  },
+
   // LinkedIn Accounts
   linkedinAccounts: {
     all: ['linkedin-accounts'] as const,
