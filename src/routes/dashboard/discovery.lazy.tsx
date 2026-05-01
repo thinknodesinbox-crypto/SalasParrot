@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import {
   useCreateDiscoverySearch,
+  useCreateLeadList,
   useDiscoveryRun,
   useDiscoveryRunResults,
   useDiscoveryRuns,
@@ -43,79 +44,87 @@ export const Route = createLazyFileRoute('/dashboard/discovery')({
 });
 
 const defaultForm: DiscoveryFormState = {
-  name: '',
-  searchType: 'intent',
   description: '',
-  keywords: '',
-  targetTitles: '',
-  locations: '',
-  eventTypes: '',
-  webEnabled: true,
-  webMaxResults: '10',
-  linkedinEnabled: false,
   linkedinAccountId: '',
-  linkedinSearchParams: '',
-  linkedinMaxResults: '25',
   destinationListId: '',
-  scheduleEnabled: false,
-  scheduleType: 'weekly',
-  scheduleTime: '09:00',
-  scheduleDayOfWeek: '0',
-  scheduleIntervalDays: '14',
-  status: 'draft',
+  scheduleIntervalDays: '0',
 };
 
-function parseCsvList(value: string) {
-  return value
-    .split(',')
-    .map((item) => item.trim())
-    .filter(Boolean);
+function inferSearchType(description: string): 'intent' | 'event' {
+  return /\b(funding|funded|raised|launch|launched|hire|hiring|appointed|promoted|acquired|acquisition|expansion|expanding|partnership|merged|opening|opened)\b/i.test(
+    description
+  )
+    ? 'event'
+    : 'intent';
+}
+
+function buildGeneratedSearchName(description: string, searchType: 'intent' | 'event') {
+  const cleaned = description.replace(/\s+/g, ' ').trim().replace(/[.]+$/, '');
+  if (!cleaned) {
+    return searchType === 'event' ? 'Event Discovery Search' : 'Intent Discovery Search';
+  }
+
+  return cleaned.length > 72 ? `${cleaned.slice(0, 69).trimEnd()}...` : cleaned;
+}
+
+function buildLinkedInSearchParams(form: DiscoveryFormState): Record<string, unknown> {
+  const fallbackDescription = form.description.trim().replace(/\s+/g, ' ');
+  const keywordText = fallbackDescription.slice(0, 180);
+
+  if (!keywordText) return {};
+
+  return {
+    api: 'classic',
+    category: 'people',
+    network_distance: [2, 3],
+    keywords: keywordText,
+  };
 }
 
 function buildPayload(form: DiscoveryFormState, workspaceId: string): DiscoverySearchCreateRequest {
-  let linkedInSearchParams: Record<string, unknown> = {};
-  if (form.linkedinSearchParams.trim()) {
-    try {
-      linkedInSearchParams = JSON.parse(form.linkedinSearchParams);
-    } catch {
-      linkedInSearchParams = {};
-    }
-  }
+  const searchType = inferSearchType(form.description);
+  const scheduleIntervalDays = Number(form.scheduleIntervalDays || 0);
+  const linkedInSearchParams = buildLinkedInSearchParams(form);
+  const linkedInEnabled = Boolean(form.linkedinAccountId);
   return {
     workspace_id: workspaceId,
-    name: form.name,
-    search_type: form.searchType,
+    name: buildGeneratedSearchName(form.description, searchType),
+    search_type: searchType,
     configuration_mode: 'manual',
     criteria_json: {
       description: form.description,
-      keywords: parseCsvList(form.keywords),
-      target_titles: parseCsvList(form.targetTitles),
-      locations: parseCsvList(form.locations),
-      event_types: parseCsvList(form.eventTypes),
     },
     source_config_json: {
       web: {
-        enabled: form.webEnabled,
-        max_results: Number(form.webMaxResults || 10),
+        enabled: true,
+        max_results: 10,
       },
       linkedin: {
-        enabled: form.linkedinEnabled,
+        enabled: linkedInEnabled,
         linkedin_account_id: form.linkedinAccountId || null,
-        max_results: Number(form.linkedinMaxResults || 25),
+        max_results: 25,
         search_params: linkedInSearchParams,
       },
     },
     destination_list_id: form.destinationListId || null,
-    schedule_enabled: form.scheduleEnabled,
-    schedule_type: form.scheduleEnabled ? form.scheduleType : null,
-    schedule_config_json: form.scheduleEnabled
-      ? {
-          time: form.scheduleTime || '09:00',
-          day_of_week: Number(form.scheduleDayOfWeek || 0),
-          interval_days: Number(form.scheduleIntervalDays || 14),
-        }
-      : {},
-    status: form.status,
+    schedule_enabled: scheduleIntervalDays > 0,
+    schedule_type:
+      scheduleIntervalDays === 7
+        ? 'weekly'
+        : scheduleIntervalDays === 14
+          ? 'biweekly'
+          : scheduleIntervalDays > 0
+            ? 'custom'
+            : null,
+    schedule_config_json:
+      scheduleIntervalDays > 0
+        ? {
+            time: '09:00',
+            day_of_week: 0,
+            interval_days: scheduleIntervalDays,
+          }
+        : {},
+    status: 'active',
   };
 }
 
@@ -127,35 +136,41 @@ function hydrateForm(search: SavedDiscoverySearch | null | undefined): Discovery
     typeof sources.linkedin === 'object' && sources.linkedin !== null
       ? (sources.linkedin as Record<string, unknown>)
       : {};
-  const webSource =
-    typeof sources.web === 'object' && sources.web !== null
-      ? (sources.web as Record<string, unknown>)
-      : {};
   const scheduleConfig = search.schedule_config_json || {};
   return {
-    name: search.name || '',
-    searchType: search.search_type,
     description: String(criteria.description || ''),
-    keywords: Array.isArray(criteria.keywords) ? criteria.keywords.join(', ') : '',
-    targetTitles: Array.isArray(criteria.target_titles) ? criteria.target_titles.join(', ') : '',
-    locations: Array.isArray(criteria.locations) ? criteria.locations.join(', ') : '',
-    eventTypes: Array.isArray(criteria.event_types) ? criteria.event_types.join(', ') : '',
-    webEnabled: webSource.enabled !== false,
-    webMaxResults: String(webSource.max_results || 10),
-    linkedinEnabled: linkedInSource.enabled === true,
     linkedinAccountId: String(linkedInSource.linkedin_account_id || ''),
-    linkedinSearchParams: linkedInSource.search_params
-      ? JSON.stringify(linkedInSource.search_params, null, 2)
-      : '',
-    linkedinMaxResults: String(linkedInSource.max_results || 25),
     destinationListId: search.destination_list_id || '',
-    scheduleEnabled: search.schedule_enabled,
-    scheduleType: search.schedule_type || 'weekly',
-    scheduleTime: String(scheduleConfig.time || '09:00'),
-    scheduleDayOfWeek: String(scheduleConfig.day_of_week ?? 0),
-    scheduleIntervalDays: String(scheduleConfig.interval_days || 14),
-    status: search.status,
+    scheduleIntervalDays: search.schedule_enabled
+      ? String(
+          search.schedule_type === 'weekly'
+            ? 7
+            : search.schedule_type === 'biweekly'
+              ? 14
+              : scheduleConfig.interval_days || 21
+        )
+      : '0',
   };
+}
+
+function getSourceLabels(sourceConfig: Record<string, unknown> | null | undefined) {
+  if (!sourceConfig) return [];
+  const labels: string[] = [];
+  if (
+    typeof sourceConfig.web === 'object' &&
+    sourceConfig.web !== null &&
+    (sourceConfig.web as Record<string, unknown>).enabled !== false
+  ) {
+    labels.push('Web');
+  }
+  if (
+    typeof sourceConfig.linkedin === 'object' &&
+    sourceConfig.linkedin !== null &&
+    (sourceConfig.linkedin as Record<string, unknown>).enabled === true
+  ) {
+    labels.push('LinkedIn');
+  }
+  return labels;
 }
 
 function DiscoveryPage() {
@@ -173,6 +188,7 @@ function DiscoveryPage() {
   const [selectedResultIds, setSelectedResultIds] = useState<string[]>([]);
   const [activeResultId, setActiveResultId] = useState<string | null>(null);
   const [preview, setPreview] = useState<DiscoverySearchPreview | null>(null);
+  const [builderOpen, setBuilderOpen] = useState(true);
 
   const { data: leadListsResponse } = useLeadLists(
     workspaceId ? { workspace_id: workspaceId } : undefined
@@ -197,6 +213,7 @@ function DiscoveryPage() {
 
   const previewSearchMutation = usePreviewDiscoverySearch();
   const createSearchMutation = useCreateDiscoverySearch();
+  const createLeadListMutation = useCreateLeadList();
   const updateSearchMutation = useUpdateDiscoverySearch(workspaceId, routeSearch.searchId);
   const runSearchMutation = useRunDiscoverySearch(workspaceId, routeSearch.searchId);
   const duplicateSearchMutation = useDuplicateDiscoverySearch(workspaceId, routeSearch.searchId);
@@ -220,13 +237,44 @@ function DiscoveryPage() {
     setActiveResultId(results[0]?.id || null);
   }, [selectedRunId, results]);
 
+  useEffect(() => {
+    setBuilderOpen(!routeSearch.searchId);
+  }, [routeSearch.searchId]);
+
+  useEffect(() => {
+    if (!linkedInAccounts.length) return;
+    setForm((current) =>
+      current.linkedinAccountId
+        ? current
+        : { ...current, linkedinAccountId: linkedInAccounts[0].id }
+    );
+  }, [linkedInAccounts]);
+
   const activeResult = useMemo(
     () => results.find((item) => item.id === activeResultId) || results[0] || null,
     [activeResultId, results]
   );
+  const isRunActive = activeRun?.status === 'pending' || activeRun?.status === 'running';
+  const searchSourceLabels = useMemo(
+    () => getSourceLabels(activeSearch?.source_config_json as Record<string, unknown> | undefined),
+    [activeSearch]
+  );
 
   const handleFormChange = (next: Partial<DiscoveryFormState>) => {
     setForm((current) => ({ ...current, ...next }));
+  };
+
+  const handleCreateNew = () => {
+    setPreview(null);
+    setForm(defaultForm);
+    setBuilderOpen(true);
+    navigate({
+      to: '/dashboard/discovery',
+      search: {
+        searchId: undefined,
+        runId: undefined,
+      },
+    });
   };
 
   const handlePreview = async () => {
@@ -236,6 +284,21 @@ function DiscoveryPage() {
       setPreview(nextPreview);
     } catch (error) {
       showErrorToast(error instanceof Error ? error.message : 'Unable to preview discovery search');
+    }
+  };
+
+  const handleCreateLeadList = async (name: string) => {
+    if (!workspaceId || !name.trim()) return;
+    try {
+      const leadList = await createLeadListMutation.mutateAsync({
+        name: name.trim(),
+        workspace_id: workspaceId,
+        source: 'discovery',
+      });
+      setForm((current) => ({ ...current, destinationListId: leadList.id }));
+      showSuccessToast(`Created list "${leadList.name}".`);
+    } catch (error) {
+      showErrorToast(error instanceof Error ? error.message : 'Unable to create lead list');
     }
   };
 
@@ -277,6 +340,7 @@ function DiscoveryPage() {
       showSuccessToast(
         mode === 'save_run' ? 'Discovery search saved and started.' : 'Discovery search saved.'
       );
+      setBuilderOpen(false);
     } catch (error) {
       showErrorToast(error instanceof Error ? error.message : 'Unable to save discovery search');
     }
@@ -391,28 +455,14 @@ function DiscoveryPage() {
             Continuous intent and event-driven lead discovery across LinkedIn and web search.
           </p>
         </div>
-        {activeSearch ? (
+        {!builderOpen ? (
           <div className="flex flex-wrap items-center gap-3">
             <button
               type="button"
-              onClick={handleRunExistingSearch}
-              className="rounded-xl bg-[#FF6B35] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-[#EA580C]"
-            >
-              Run now
-            </button>
-            <button
-              type="button"
-              onClick={handlePauseResume}
+              onClick={handleCreateNew}
               className="rounded-xl border border-[#CBD5E1] px-4 py-2.5 text-sm font-medium text-[#334155] transition hover:bg-[#F8FAFC]"
             >
-              {activeSearch.status === 'paused' ? 'Resume' : 'Pause'}
-            </button>
-            <button
-              type="button"
-              onClick={handleDuplicate}
-              className="rounded-xl border border-[#CBD5E1] px-4 py-2.5 text-sm font-medium text-[#334155] transition hover:bg-[#F8FAFC]"
-            >
-              Duplicate
+              New search
             </button>
           </div>
         ) : null}
@@ -456,15 +506,23 @@ function DiscoveryPage() {
                       className={`w-full rounded-xl border p-3 text-left transition ${isActive ? 'border-[#FDBA74] bg-[#FFF7ED]' : 'border-[#E2E8F0] bg-white hover:bg-[#F8FAFC]'}`}
                     >
                       <div className="flex items-center justify-between gap-3">
-                        <div className="font-medium text-[#1E293B]">{search.name}</div>
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`h-2.5 w-2.5 rounded-full ${routeSearch.searchId === search.id && isRunActive ? 'bg-[#F59E0B]' : search.status === 'active' ? 'bg-[#10B981]' : search.status === 'paused' ? 'bg-[#94A3B8]' : 'bg-[#CBD5E1]'}`}
+                          />
+                          <div className="font-medium text-[#1E293B]">{search.name}</div>
+                        </div>
                         <span className="rounded-full bg-[#F1F5F9] px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-[#64748B]">
-                          {search.status}
+                          {routeSearch.searchId === search.id && isRunActive
+                            ? 'running'
+                            : search.status}
                         </span>
                       </div>
                       <div className="mt-1 text-xs text-[#64748B]">
                         {search.search_type} •{' '}
-                        {Object.keys(search.source_config_json || {}).join(', ') ||
-                          'sources pending'}
+                        {getSourceLabels(
+                          search.source_config_json as Record<string, unknown> | undefined
+                        ).join(' + ') || 'sources pending'}
                       </div>
                       <div className="mt-2 text-[11px] text-[#94A3B8]">
                         {search.next_run_at
@@ -524,18 +582,103 @@ function DiscoveryPage() {
         </div>
 
         <div className="space-y-6">
-          <DiscoverySearchBuilder
-            form={form}
-            onChange={handleFormChange}
-            onPreview={handlePreview}
-            onSave={handleSave}
-            preview={preview}
-            isPreviewing={previewSearchMutation.isPending}
-            isSaving={createSearchMutation.isPending || updateSearchMutation.isPending}
-            leadLists={leadLists}
-            linkedInAccounts={linkedInAccounts}
-            editingSearch={activeSearch}
-          />
+          {!activeSearch || builderOpen ? (
+            <DiscoverySearchBuilder
+              form={form}
+              onChange={handleFormChange}
+              onPreview={handlePreview}
+              onSave={handleSave}
+              onCreateLeadList={handleCreateLeadList}
+              preview={preview}
+              isPreviewing={previewSearchMutation.isPending}
+              isSaving={createSearchMutation.isPending || updateSearchMutation.isPending}
+              isCreatingLeadList={createLeadListMutation.isPending}
+              leadLists={leadLists}
+              linkedInAccounts={linkedInAccounts}
+              editingSearch={activeSearch}
+            />
+          ) : (
+            <div className="rounded-2xl border border-[#E2E8F0] bg-white p-6">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <div className="text-xs font-semibold uppercase tracking-wide text-[#94A3B8]">
+                    Search setup
+                  </div>
+                  <h2 className="mt-2 text-xl font-semibold text-[#1E293B]">{activeSearch.name}</h2>
+                  <p className="mt-2 text-sm text-[#64748B]">
+                    {String(
+                      activeSearch.criteria_json.description ||
+                        'Ready to search for qualified leads.'
+                    )}
+                  </p>
+                  <p className="mt-2 text-xs text-[#94A3B8]">
+                    Discovery always uses web search and automatically adds LinkedIn when an account
+                    is connected.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={handleRunExistingSearch}
+                    disabled={isRunActive}
+                    className="rounded-xl bg-[#FF6B35] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-[#EA580C] disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {isRunActive ? 'Run in progress' : 'Run now'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBuilderOpen(true)}
+                    className="rounded-xl border border-[#CBD5E1] px-4 py-2.5 text-sm font-medium text-[#334155] transition hover:bg-[#F8FAFC]"
+                  >
+                    Edit setup
+                  </button>
+                </div>
+              </div>
+
+              <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                <SetupMetaCard
+                  label="Search type"
+                  value={activeSearch.search_type === 'intent' ? 'Intent-based' : 'Event-driven'}
+                />
+                <SetupMetaCard
+                  label="Sources"
+                  value={searchSourceLabels.join(' + ') || 'Not configured'}
+                />
+                <SetupMetaCard
+                  label="Destination"
+                  value={
+                    leadLists.find((list) => list.id === activeSearch.destination_list_id)?.name ||
+                    'No destination list'
+                  }
+                />
+                <SetupMetaCard
+                  label="Schedule"
+                  value={
+                    activeSearch.schedule_enabled
+                      ? `${activeSearch.schedule_type || 'scheduled'} in ${activeSearch.timezone}`
+                      : 'Run manually'
+                  }
+                />
+              </div>
+
+              <div className="mt-5 flex flex-wrap gap-3 text-sm">
+                <button
+                  type="button"
+                  onClick={handlePauseResume}
+                  className="rounded-lg border border-[#CBD5E1] px-3 py-2 font-medium text-[#334155] transition hover:bg-[#F8FAFC]"
+                >
+                  {activeSearch.status === 'paused' ? 'Resume schedule' : 'Pause schedule'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDuplicate}
+                  className="rounded-lg border border-[#CBD5E1] px-3 py-2 font-medium text-[#334155] transition hover:bg-[#F8FAFC]"
+                >
+                  Duplicate search
+                </button>
+              </div>
+            </div>
+          )}
 
           {activeRun ? (
             <div className="space-y-4 rounded-2xl border border-[#E2E8F0] bg-white p-6">
@@ -543,64 +686,74 @@ function DiscoveryPage() {
                 <div>
                   <h2 className="text-lg font-semibold text-[#1E293B]">Results Workspace</h2>
                   <p className="mt-1 text-sm text-[#64748B]">
-                    {activeRun.status === 'running' || activeRun.status === 'pending'
-                      ? 'Collecting candidates from LinkedIn and web sources...'
+                    {isRunActive
+                      ? 'This run is active. Results will appear here automatically.'
                       : activeRun.error_message || 'Review, save, or dismiss discovery results.'}
                   </p>
                 </div>
-                <div className="flex flex-wrap gap-3">
-                  <select
-                    value={resultStatusFilter}
-                    onChange={(event) =>
-                      setResultStatusFilter(event.target.value as DiscoveryResultStatus | 'all')
-                    }
-                    className="rounded-xl border border-[#CBD5E1] px-3 py-2.5 text-sm text-[#334155]"
-                  >
-                    <option value="all">All results</option>
-                    <option value="new">New</option>
-                    <option value="already_in_workspace">Already in workspace</option>
-                    <option value="already_in_list">Already in list</option>
-                    <option value="saved_to_list">Saved to list</option>
-                    <option value="dismissed">Dismissed</option>
-                  </select>
-                  <button
-                    type="button"
-                    onClick={handleSaveSelected}
-                    disabled={
-                      saveResultsMutation.isPending ||
-                      (!selectedResultIds.length && !results.length)
-                    }
-                    className="rounded-xl bg-[#1E293B] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-[#0F172A] disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    Save to list
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleDismissSelected}
-                    disabled={dismissResultsMutation.isPending || selectedResultIds.length === 0}
-                    className="rounded-xl border border-[#CBD5E1] px-4 py-2.5 text-sm font-medium text-[#334155] transition hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    Dismiss selected
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleEnrichSaved}
-                    disabled={enrichLeadsMutation.isPending}
-                    className="rounded-xl border border-[#CBD5E1] px-4 py-2.5 text-sm font-medium text-[#334155] transition hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    Enrich saved leads
-                  </button>
-                  {activeSearch?.destination_list_id ? (
-                    <Link
-                      to="/dashboard/leads"
-                      search={{ listId: activeSearch.destination_list_id }}
-                      className="rounded-xl border border-[#CBD5E1] px-4 py-2.5 text-sm font-medium text-[#334155] transition hover:bg-[#F8FAFC]"
+                {isRunActive ? null : (
+                  <div className="flex flex-wrap gap-3">
+                    <select
+                      value={resultStatusFilter}
+                      onChange={(event) =>
+                        setResultStatusFilter(event.target.value as DiscoveryResultStatus | 'all')
+                      }
+                      className="rounded-xl border border-[#CBD5E1] px-3 py-2.5 text-sm text-[#334155]"
                     >
-                      Open destination list
-                    </Link>
-                  ) : null}
-                </div>
+                      <option value="all">All results</option>
+                      <option value="new">New</option>
+                      <option value="already_in_workspace">Already in workspace</option>
+                      <option value="already_in_list">Already in list</option>
+                      <option value="saved_to_list">Saved to list</option>
+                      <option value="dismissed">Dismissed</option>
+                    </select>
+                    <button
+                      type="button"
+                      onClick={handleSaveSelected}
+                      disabled={
+                        saveResultsMutation.isPending ||
+                        (!selectedResultIds.length && !results.length)
+                      }
+                      className="rounded-xl bg-[#1E293B] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-[#0F172A] disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      Save to list
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleDismissSelected}
+                      disabled={dismissResultsMutation.isPending || selectedResultIds.length === 0}
+                      className="rounded-xl border border-[#CBD5E1] px-4 py-2.5 text-sm font-medium text-[#334155] transition hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      Dismiss selected
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleEnrichSaved}
+                      disabled={enrichLeadsMutation.isPending}
+                      className="rounded-xl border border-[#CBD5E1] px-4 py-2.5 text-sm font-medium text-[#334155] transition hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      Enrich saved leads
+                    </button>
+                    {activeSearch?.destination_list_id ? (
+                      <Link
+                        to="/dashboard/leads"
+                        search={{ listId: activeSearch.destination_list_id }}
+                        className="rounded-xl border border-[#CBD5E1] px-4 py-2.5 text-sm font-medium text-[#334155] transition hover:bg-[#F8FAFC]"
+                      >
+                        Open destination list
+                      </Link>
+                    ) : null}
+                  </div>
+                )}
               </div>
+
+              {isRunActive ? (
+                <RunningStatePanel
+                  runStatus={activeRun.status}
+                  createdAt={activeRun.created_at}
+                  sourceLabels={searchSourceLabels}
+                />
+              ) : null}
 
               <div className="grid gap-4 md:grid-cols-3">
                 <StatCard
@@ -638,13 +791,20 @@ function DiscoveryPage() {
                   onToggle={toggleSelection}
                   onSelectResult={setActiveResultId}
                   activeResultId={activeResultId}
+                  isLoading={isRunActive}
                 />
-                <DiscoveryResultPanel result={activeResult} />
+                {isRunActive ? (
+                  <LoadingResultPanel />
+                ) : (
+                  <DiscoveryResultPanel result={activeResult} />
+                )}
               </div>
             </div>
           ) : (
             <div className="rounded-2xl border border-dashed border-[#CBD5E1] bg-white p-8 text-sm text-[#64748B]">
-              Pick a search and run it to open the results workspace.
+              {!activeSearch
+                ? 'Create your first discovery search to start a guided setup and result-review workflow.'
+                : 'Run this search to open the results workspace.'}
             </div>
           )}
         </div>
@@ -658,6 +818,120 @@ function StatCard({ label, value }: { label: string; value: string }) {
     <div className="rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
       <div className="text-xs font-semibold uppercase tracking-wide text-[#94A3B8]">{label}</div>
       <div className="mt-2 text-2xl font-semibold text-[#1E293B]">{value}</div>
+    </div>
+  );
+}
+
+function SetupMetaCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
+      <div className="text-xs font-semibold uppercase tracking-wide text-[#94A3B8]">{label}</div>
+      <div className="mt-2 text-sm font-medium text-[#1E293B]">{value}</div>
+    </div>
+  );
+}
+
+function RunningStatePanel({
+  runStatus,
+  createdAt,
+  sourceLabels,
+}: {
+  runStatus: string;
+  createdAt: string;
+  sourceLabels: string[];
+}) {
+  const phaseLabel =
+    runStatus === 'pending'
+      ? 'Queued for processing'
+      : 'Searching sources, scoring candidates, and deduplicating results';
+
+  return (
+    <div className="rounded-2xl border border-[#FCD34D] bg-[#FFFBEB] p-5">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-[#F59E0B]" />
+            <span className="text-sm font-semibold text-[#92400E]">
+              {runStatus === 'pending' ? 'Run queued' : 'Run in progress'}
+            </span>
+          </div>
+          <p className="mt-2 text-sm text-[#78350F]">{phaseLabel}</p>
+          <p className="mt-2 text-xs text-[#A16207]">
+            Started {new Date(createdAt).toLocaleString()}. This view refreshes automatically every
+            few seconds.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {sourceLabels.map((label) => (
+            <span
+              key={label}
+              className="rounded-full bg-white px-3 py-1 text-xs font-medium text-[#92400E]"
+            >
+              {label}
+            </span>
+          ))}
+        </div>
+      </div>
+      <div className="mt-4 grid gap-3 md:grid-cols-3">
+        <ProgressCard
+          label="1. Collect"
+          description="Pulling signals from the selected sources."
+          active
+        />
+        <ProgressCard
+          label="2. Score"
+          description="Evaluating fit, freshness, and actionability."
+          active={runStatus === 'running'}
+        />
+        <ProgressCard
+          label="3. Results"
+          description="Preparing the ranked workspace view."
+          active={runStatus === 'running'}
+        />
+      </div>
+    </div>
+  );
+}
+
+function ProgressCard({
+  label,
+  description,
+  active,
+}: {
+  label: string;
+  description: string;
+  active: boolean;
+}) {
+  return (
+    <div className="rounded-2xl border border-[#FDE68A] bg-white p-4">
+      <div className="text-sm font-semibold text-[#92400E]">{label}</div>
+      <div className="mt-1 text-sm text-[#A16207]">{description}</div>
+      <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-[#FEF3C7]">
+        <div
+          className={`h-full rounded-full ${active ? 'w-3/4 animate-pulse bg-[#F59E0B]' : 'w-1/3 bg-[#FCD34D]'}`}
+        />
+      </div>
+    </div>
+  );
+}
+
+function LoadingResultPanel() {
+  return (
+    <div className="space-y-5 rounded-2xl border border-[#E2E8F0] bg-white p-6">
+      <div>
+        <div className="h-6 w-40 animate-pulse rounded bg-[#E2E8F0]" />
+        <div className="mt-2 h-4 w-56 animate-pulse rounded bg-[#F1F5F9]" />
+      </div>
+      <div className="space-y-3">
+        <div className="h-4 w-28 animate-pulse rounded bg-[#E2E8F0]" />
+        <div className="h-4 w-full animate-pulse rounded bg-[#F1F5F9]" />
+        <div className="h-4 w-5/6 animate-pulse rounded bg-[#F1F5F9]" />
+      </div>
+      <div className="space-y-3">
+        <div className="h-4 w-20 animate-pulse rounded bg-[#E2E8F0]" />
+        <div className="h-10 w-full animate-pulse rounded-xl bg-[#F8FAFC]" />
+        <div className="h-10 w-full animate-pulse rounded-xl bg-[#F8FAFC]" />
+      </div>
     </div>
   );
 }
