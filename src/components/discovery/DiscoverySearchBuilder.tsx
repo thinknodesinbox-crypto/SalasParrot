@@ -1,8 +1,7 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type {
   DiscoveryScheduleType,
   DiscoverySearchPreview,
-  DiscoverySearchStatus,
   DiscoverySearchType,
   LeadList,
   LinkedInAccount,
@@ -10,26 +9,10 @@ import type {
 } from '@/lib/types';
 
 export interface DiscoveryFormState {
-  name: string;
-  searchType: DiscoverySearchType;
   description: string;
-  keywords: string;
-  targetTitles: string;
-  locations: string;
-  eventTypes: string;
-  webEnabled: boolean;
-  webMaxResults: string;
-  linkedinEnabled: boolean;
   linkedinAccountId: string;
-  linkedinSearchParams: string;
-  linkedinMaxResults: string;
   destinationListId: string;
-  scheduleEnabled: boolean;
-  scheduleType: DiscoveryScheduleType;
-  scheduleTime: string;
-  scheduleDayOfWeek: string;
   scheduleIntervalDays: string;
-  status: DiscoverySearchStatus;
 }
 
 interface DiscoverySearchBuilderProps {
@@ -37,42 +20,63 @@ interface DiscoverySearchBuilderProps {
   onChange: (next: Partial<DiscoveryFormState>) => void;
   onPreview: () => void;
   onSave: (mode: 'save' | 'save_run') => void;
+  onCreateLeadList: (name: string) => Promise<void>;
   preview: DiscoverySearchPreview | null;
   isPreviewing: boolean;
   isSaving: boolean;
+  isCreatingLeadList: boolean;
   leadLists: LeadList[];
   linkedInAccounts: LinkedInAccount[];
   editingSearch?: SavedDiscoverySearch | null;
 }
-
-const dayOptions = [
-  { value: '0', label: 'Monday' },
-  { value: '1', label: 'Tuesday' },
-  { value: '2', label: 'Wednesday' },
-  { value: '3', label: 'Thursday' },
-  { value: '4', label: 'Friday' },
-  { value: '5', label: 'Saturday' },
-  { value: '6', label: 'Sunday' },
-];
 
 export function DiscoverySearchBuilder({
   form,
   onChange,
   onPreview,
   onSave,
+  onCreateLeadList,
   preview,
   isPreviewing,
   isSaving,
+  isCreatingLeadList,
   leadLists,
   linkedInAccounts,
   editingSearch,
 }: DiscoverySearchBuilderProps) {
+  const [destinationMode, setDestinationMode] = useState<'existing' | 'new'>(
+    form.destinationListId ? 'existing' : 'new'
+  );
+  const [newListName, setNewListName] = useState('');
   const destinationLabel = useMemo(
     () =>
       leadLists.find((list) => list.id === form.destinationListId)?.name ||
       'No destination selected',
     [form.destinationListId, leadLists]
   );
+  const generatedSearchType: DiscoverySearchType =
+    /\b(funding|funded|raised|launch|launched|hire|hiring|appointed|promoted|acquired|acquisition|expansion|expanding|partnership|merged|opening|opened)\b/i.test(
+      form.description
+    )
+      ? 'event'
+      : 'intent';
+  const generatedName = buildGeneratedSearchName(form.description, generatedSearchType);
+  const scheduleType = inferScheduleType(form.scheduleIntervalDays);
+  const scheduleEnabled = scheduleType !== 'once';
+  const activeLinkedInAccount =
+    linkedInAccounts.find((account) => account.id === form.linkedinAccountId) ||
+    linkedInAccounts[0];
+  const linkedInEnabled = Boolean(activeLinkedInAccount);
+
+  useEffect(() => {
+    setDestinationMode(form.destinationListId ? 'existing' : 'new');
+  }, [form.destinationListId]);
+
+  useEffect(() => {
+    if (!newListName.trim()) {
+      setNewListName(generatedName);
+    }
+  }, [generatedName, newListName]);
 
   return (
     <div className="space-y-5 rounded-2xl border border-[#E2E8F0] bg-white p-6">
@@ -82,271 +86,215 @@ export function DiscoverySearchBuilder({
             {editingSearch ? 'Edit Discovery Search' : 'New Discovery Search'}
           </h2>
           <p className="mt-1 text-sm text-[#64748B]">
-            Build a recurring intent or event-driven discovery search across LinkedIn and the web.
+            Describe the leads you want, choose where results should go, and discovery will handle
+            the sourcing automatically.
           </p>
         </div>
-        <span className="rounded-full bg-[#FFF7ED] px-3 py-1 text-xs font-medium text-[#C2410C]">
-          Separate from lead imports
-        </span>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2">
-        <label className="space-y-2">
-          <span className="text-sm font-medium text-[#334155]">Search name</span>
-          <input
-            value={form.name}
-            onChange={(event) => onChange({ name: event.target.value })}
-            className="w-full rounded-xl border border-[#CBD5E1] px-4 py-3 text-sm outline-none transition focus:border-[#FF6B35]"
-            placeholder="Pipeline expansion monitor"
-          />
-        </label>
-
-        <label className="space-y-2">
-          <span className="text-sm font-medium text-[#334155]">Search type</span>
-          <select
-            value={form.searchType}
-            onChange={(event) =>
-              onChange({ searchType: event.target.value as DiscoverySearchType })
-            }
-            className="w-full rounded-xl border border-[#CBD5E1] px-4 py-3 text-sm outline-none transition focus:border-[#FF6B35]"
-          >
-            <option value="intent">Intent-based</option>
-            <option value="event">Event-driven</option>
-          </select>
-        </label>
       </div>
 
       <label className="space-y-2">
-        <span className="text-sm font-medium text-[#334155]">Search description</span>
+        <span className="text-sm font-medium text-[#334155]">What are you looking for?</span>
         <textarea
           value={form.description}
           onChange={(event) => onChange({ description: event.target.value })}
           rows={4}
           className="w-full rounded-xl border border-[#CBD5E1] px-4 py-3 text-sm outline-none transition focus:border-[#FF6B35]"
-          placeholder="Find VPs of Revenue at B2B SaaS companies showing expansion or hiring signals in Europe."
+          placeholder="Find VPs of Sales at recently funded B2B SaaS companies in Europe."
         />
       </label>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <label className="space-y-2">
-          <span className="text-sm font-medium text-[#334155]">Keywords</span>
-          <input
-            value={form.keywords}
-            onChange={(event) => onChange({ keywords: event.target.value })}
-            className="w-full rounded-xl border border-[#CBD5E1] px-4 py-3 text-sm outline-none transition focus:border-[#FF6B35]"
-            placeholder="revenue operations, expansion, hiring"
-          />
-        </label>
-        <label className="space-y-2">
-          <span className="text-sm font-medium text-[#334155]">Target titles</span>
-          <input
-            value={form.targetTitles}
-            onChange={(event) => onChange({ targetTitles: event.target.value })}
-            className="w-full rounded-xl border border-[#CBD5E1] px-4 py-3 text-sm outline-none transition focus:border-[#FF6B35]"
-            placeholder="VP Sales, Head of Growth"
-          />
-        </label>
-        <label className="space-y-2">
-          <span className="text-sm font-medium text-[#334155]">Locations</span>
-          <input
-            value={form.locations}
-            onChange={(event) => onChange({ locations: event.target.value })}
-            className="w-full rounded-xl border border-[#CBD5E1] px-4 py-3 text-sm outline-none transition focus:border-[#FF6B35]"
-            placeholder="London, Berlin"
-          />
-        </label>
-        <label className="space-y-2">
-          <span className="text-sm font-medium text-[#334155]">Event types</span>
-          <input
-            value={form.eventTypes}
-            onChange={(event) => onChange({ eventTypes: event.target.value })}
-            className="w-full rounded-xl border border-[#CBD5E1] px-4 py-3 text-sm outline-none transition focus:border-[#FF6B35]"
-            placeholder="funding, hiring, launch"
-          />
-        </label>
+      <div className="rounded-2xl bg-[#F8FAFC] p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="text-sm font-medium text-[#334155]">Search summary</div>
+            <div className="mt-1 text-sm text-[#475569]">
+              Saved as <span className="font-medium text-[#1E293B]">{generatedName}</span>
+            </div>
+          </div>
+          <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-[#64748B]">
+            {generatedSearchType === 'event' ? 'Event-driven' : 'Intent-based'}
+          </span>
+        </div>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <div className="rounded-2xl border border-[#E2E8F0] p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="font-medium text-[#1E293B]">Web Search Source</h3>
-              <p className="mt-1 text-sm text-[#64748B]">
-                Use GPT web search to surface public signals.
-              </p>
-            </div>
-            <input
-              type="checkbox"
-              checked={form.webEnabled}
-              onChange={(event) => onChange({ webEnabled: event.target.checked })}
-              className="h-4 w-4 rounded border-[#CBD5E1] text-[#FF6B35] focus:ring-[#FF6B35]"
-            />
-          </div>
+      <div className="rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
+        <div className="text-sm font-medium text-[#334155]">Search coverage</div>
+        <div className="mt-2 flex flex-wrap gap-2">
+          <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-[#334155]">
+            Web included
+          </span>
+          <span
+            className={`rounded-full px-3 py-1 text-xs font-medium ${
+              linkedInEnabled ? 'bg-white text-[#334155]' : 'bg-[#E2E8F0] text-[#64748B]'
+            }`}
+          >
+            {linkedInEnabled ? 'LinkedIn included' : 'LinkedIn not connected'}
+          </span>
+        </div>
+        <p className="mt-3 text-sm text-[#64748B]">
+          Discovery always searches the web. If you have a LinkedIn account connected, it adds
+          LinkedIn profile discovery automatically.
+        </p>
+        {linkedInAccounts.length > 1 ? (
           <label className="mt-4 block space-y-2">
-            <span className="text-sm font-medium text-[#334155]">Max web results</span>
-            <input
-              type="number"
-              min={1}
-              max={25}
-              value={form.webMaxResults}
-              onChange={(event) => onChange({ webMaxResults: event.target.value })}
-              className="w-full rounded-xl border border-[#CBD5E1] px-4 py-3 text-sm outline-none transition focus:border-[#FF6B35]"
-            />
+            <span className="text-sm font-medium text-[#334155]">LinkedIn account to use</span>
+            <select
+              value={form.linkedinAccountId}
+              onChange={(event) => onChange({ linkedinAccountId: event.target.value })}
+              className="w-full rounded-xl border border-[#CBD5E1] bg-white px-4 py-3 text-sm outline-none transition focus:border-[#FF6B35]"
+            >
+              {linkedInAccounts.map((account) => (
+                <option key={account.id} value={account.id}>
+                  {account.name || account.profile_url || account.id}
+                </option>
+              ))}
+            </select>
           </label>
-        </div>
+        ) : activeLinkedInAccount ? (
+          <div className="mt-3 text-xs text-[#64748B]">
+            Using LinkedIn account:{' '}
+            <span className="font-medium text-[#334155]">
+              {activeLinkedInAccount.name ||
+                activeLinkedInAccount.profile_url ||
+                activeLinkedInAccount.id}
+            </span>
+          </div>
+        ) : (
+          <div className="mt-3 text-xs text-[#64748B]">
+            Connect a LinkedIn account to add LinkedIn sourcing. Until then, discovery will use web
+            search only.
+          </div>
+        )}
+      </div>
 
-        <div className="rounded-2xl border border-[#E2E8F0] p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="font-medium text-[#1E293B]">LinkedIn Source</h3>
-              <p className="mt-1 text-sm text-[#64748B]">
-                Use a connected LinkedIn account with structured search params.
-              </p>
+      <label className="space-y-2">
+        <span className="text-sm font-medium text-[#334155]">Destination list</span>
+        <div className="space-y-3 rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
+          <div className="grid gap-3 md:grid-cols-2">
+            <button
+              type="button"
+              onClick={() => setDestinationMode('new')}
+              className={`rounded-2xl border p-4 text-left transition ${
+                destinationMode === 'new'
+                  ? 'border-[#FDBA74] bg-[#FFF7ED]'
+                  : 'border-[#E2E8F0] bg-white hover:bg-[#F8FAFC]'
+              }`}
+            >
+              <div className="font-medium text-[#1E293B]">Create new list</div>
+              <div className="mt-1 text-sm text-[#64748B]">
+                Start a fresh destination list from this discovery search.
+              </div>
+            </button>
+            <button
+              type="button"
+              onClick={() => setDestinationMode('existing')}
+              disabled={!leadLists.length}
+              className={`rounded-2xl border p-4 text-left transition ${
+                destinationMode === 'existing'
+                  ? 'border-[#FDBA74] bg-[#FFF7ED]'
+                  : 'border-[#E2E8F0] bg-white hover:bg-[#F8FAFC]'
+              } disabled:cursor-not-allowed disabled:opacity-50`}
+            >
+              <div className="font-medium text-[#1E293B]">Use existing list</div>
+              <div className="mt-1 text-sm text-[#64748B]">
+                Add discovered leads into a list you already have.
+              </div>
+            </button>
+          </div>
+
+          {destinationMode === 'new' ? (
+            <div className="space-y-3">
+              <label className="space-y-2">
+                <span className="text-sm font-medium text-[#334155]">New list name</span>
+                <input
+                  value={newListName}
+                  onChange={(event) => setNewListName(event.target.value)}
+                  className="w-full rounded-xl border border-[#CBD5E1] bg-white px-4 py-3 text-sm outline-none transition focus:border-[#FF6B35]"
+                  placeholder="Discovery list"
+                />
+              </label>
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => void onCreateLeadList(newListName)}
+                  disabled={isCreatingLeadList || !newListName.trim()}
+                  className="rounded-xl border border-[#CBD5E1] bg-white px-4 py-2.5 text-sm font-medium text-[#334155] transition hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isCreatingLeadList ? 'Creating list...' : 'Create list'}
+                </button>
+                <div className="text-xs text-[#64748B]">
+                  {form.destinationListId
+                    ? `Selected list: ${destinationLabel}`
+                    : 'Create the list here, then discovery will use it automatically.'}
+                </div>
+              </div>
             </div>
-            <input
-              type="checkbox"
-              checked={form.linkedinEnabled}
-              onChange={(event) => onChange({ linkedinEnabled: event.target.checked })}
-              className="h-4 w-4 rounded border-[#CBD5E1] text-[#FF6B35] focus:ring-[#FF6B35]"
-            />
-          </div>
-          <div className="mt-4 grid gap-4">
-            <label className="space-y-2">
-              <span className="text-sm font-medium text-[#334155]">LinkedIn account</span>
-              <select
-                value={form.linkedinAccountId}
-                onChange={(event) => onChange({ linkedinAccountId: event.target.value })}
-                className="w-full rounded-xl border border-[#CBD5E1] px-4 py-3 text-sm outline-none transition focus:border-[#FF6B35]"
-              >
-                <option value="">Select an account</option>
-                {linkedInAccounts.map((account) => (
-                  <option key={account.id} value={account.id}>
-                    {account.name || account.profile_url || account.id}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="space-y-2">
-              <span className="text-sm font-medium text-[#334155]">
-                LinkedIn search params JSON
-              </span>
-              <textarea
-                value={form.linkedinSearchParams}
-                onChange={(event) => onChange({ linkedinSearchParams: event.target.value })}
-                rows={5}
-                className="w-full rounded-xl border border-[#CBD5E1] px-4 py-3 font-mono text-xs outline-none transition focus:border-[#FF6B35]"
-                placeholder='{"api":"classic","category":"people","keywords":"vp sales"}'
-              />
-            </label>
-            <label className="space-y-2">
-              <span className="text-sm font-medium text-[#334155]">Max LinkedIn results</span>
-              <input
-                type="number"
-                min={1}
-                max={50}
-                value={form.linkedinMaxResults}
-                onChange={(event) => onChange({ linkedinMaxResults: event.target.value })}
-                className="w-full rounded-xl border border-[#CBD5E1] px-4 py-3 text-sm outline-none transition focus:border-[#FF6B35]"
-              />
-            </label>
-          </div>
+          ) : (
+            <select
+              value={form.destinationListId}
+              onChange={(event) => onChange({ destinationListId: event.target.value })}
+              className="w-full rounded-xl border border-[#CBD5E1] bg-white px-4 py-3 text-sm outline-none transition focus:border-[#FF6B35]"
+            >
+              <option value="">Select a list</option>
+              {leadLists.map((list) => (
+                <option key={list.id} value={list.id}>
+                  {list.name}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2">
-        <label className="space-y-2">
-          <span className="text-sm font-medium text-[#334155]">Destination list</span>
-          <select
-            value={form.destinationListId}
-            onChange={(event) => onChange({ destinationListId: event.target.value })}
-            className="w-full rounded-xl border border-[#CBD5E1] px-4 py-3 text-sm outline-none transition focus:border-[#FF6B35]"
-          >
-            <option value="">No list selected</option>
-            {leadLists.map((list) => (
-              <option key={list.id} value={list.id}>
-                {list.name}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="space-y-2">
-          <span className="text-sm font-medium text-[#334155]">Initial status</span>
-          <select
-            value={form.status}
-            onChange={(event) => onChange({ status: event.target.value as DiscoverySearchStatus })}
-            className="w-full rounded-xl border border-[#CBD5E1] px-4 py-3 text-sm outline-none transition focus:border-[#FF6B35]"
-          >
-            <option value="draft">Draft</option>
-            <option value="active">Active</option>
-            <option value="paused">Paused</option>
-          </select>
-        </label>
-      </div>
+      </label>
 
       <div className="rounded-2xl border border-[#E2E8F0] p-4">
-        <div className="flex items-center justify-between">
+        <div>
           <div>
             <h3 className="font-medium text-[#1E293B]">Scheduling</h3>
             <p className="mt-1 text-sm text-[#64748B]">
-              Weekly, bi-weekly, or a custom interval in the workspace timezone.
+              Keep this as a one-time search or let it run on a simple cadence.
             </p>
           </div>
-          <input
-            type="checkbox"
-            checked={form.scheduleEnabled}
-            onChange={(event) => onChange({ scheduleEnabled: event.target.checked })}
-            className="h-4 w-4 rounded border-[#CBD5E1] text-[#FF6B35] focus:ring-[#FF6B35]"
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-4">
+          <ScheduleOptionCard
+            label="Run once"
+            description="No recurring schedule"
+            active={!scheduleEnabled}
+            onClick={() => onChange({ scheduleIntervalDays: '0' })}
+          />
+          <ScheduleOptionCard
+            label="Weekly"
+            description="Runs every week"
+            active={scheduleType === 'weekly'}
+            onClick={() => onChange({ scheduleIntervalDays: '7' })}
+          />
+          <ScheduleOptionCard
+            label="Bi-weekly"
+            description="Runs every two weeks"
+            active={scheduleType === 'biweekly'}
+            onClick={() => onChange({ scheduleIntervalDays: '14' })}
+          />
+          <ScheduleOptionCard
+            label="Custom"
+            description="Choose your own interval"
+            active={scheduleType === 'custom'}
+            onClick={() => onChange({ scheduleIntervalDays: form.scheduleIntervalDays || '21' })}
           />
         </div>
-        {form.scheduleEnabled ? (
-          <div className="mt-4 grid gap-4 md:grid-cols-4">
+        {scheduleType === 'custom' ? (
+          <div className="mt-4">
             <label className="space-y-2">
-              <span className="text-sm font-medium text-[#334155]">Cadence</span>
-              <select
-                value={form.scheduleType}
-                onChange={(event) =>
-                  onChange({ scheduleType: event.target.value as DiscoveryScheduleType })
-                }
-                className="w-full rounded-xl border border-[#CBD5E1] px-4 py-3 text-sm outline-none transition focus:border-[#FF6B35]"
-              >
-                <option value="weekly">Weekly</option>
-                <option value="biweekly">Bi-weekly</option>
-                <option value="custom">Custom</option>
-              </select>
-            </label>
-            <label className="space-y-2">
-              <span className="text-sm font-medium text-[#334155]">Time</span>
-              <input
-                type="time"
-                value={form.scheduleTime}
-                onChange={(event) => onChange({ scheduleTime: event.target.value })}
-                className="w-full rounded-xl border border-[#CBD5E1] px-4 py-3 text-sm outline-none transition focus:border-[#FF6B35]"
-              />
-            </label>
-            <label className="space-y-2">
-              <span className="text-sm font-medium text-[#334155]">Day</span>
-              <select
-                value={form.scheduleDayOfWeek}
-                onChange={(event) => onChange({ scheduleDayOfWeek: event.target.value })}
-                className="w-full rounded-xl border border-[#CBD5E1] px-4 py-3 text-sm outline-none transition focus:border-[#FF6B35]"
-              >
-                {dayOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="space-y-2">
-              <span className="text-sm font-medium text-[#334155]">Custom interval days</span>
-              <input
-                type="number"
-                min={1}
-                value={form.scheduleIntervalDays}
-                onChange={(event) => onChange({ scheduleIntervalDays: event.target.value })}
-                className="w-full rounded-xl border border-[#CBD5E1] px-4 py-3 text-sm outline-none transition focus:border-[#FF6B35]"
-              />
+              <span className="text-sm font-medium text-[#334155]">Repeat every</span>
+              <div className="flex items-center gap-3">
+                <input
+                  type="number"
+                  min={1}
+                  value={form.scheduleIntervalDays}
+                  onChange={(event) => onChange({ scheduleIntervalDays: event.target.value })}
+                  className="w-28 rounded-xl border border-[#CBD5E1] px-4 py-3 text-sm outline-none transition focus:border-[#FF6B35]"
+                />
+                <span className="text-sm text-[#64748B]">days</span>
+              </div>
             </label>
           </div>
         ) : null}
@@ -355,7 +303,8 @@ export function DiscoverySearchBuilder({
       <div className="rounded-2xl bg-[#F8FAFC] p-4">
         <div className="text-sm font-medium text-[#334155]">Preview</div>
         <div className="mt-2 text-sm text-[#475569]">
-          {preview?.summary || `Results will flow into ${destinationLabel}.`}
+          {preview?.summary ||
+            `Saved as ${generatedName}. Results will flow into ${destinationLabel}.`}
         </div>
         {preview?.next_run_at ? (
           <div className="mt-2 text-xs text-[#64748B]">
@@ -396,5 +345,48 @@ export function DiscoverySearchBuilder({
         </button>
       </div>
     </div>
+  );
+}
+
+function inferScheduleType(scheduleIntervalDays: string): DiscoveryScheduleType | 'once' {
+  const days = Number(scheduleIntervalDays || 0);
+  if (!days) return 'once';
+  if (days === 7) return 'weekly';
+  if (days === 14) return 'biweekly';
+  return 'custom';
+}
+
+function buildGeneratedSearchName(description: string, searchType: DiscoverySearchType) {
+  const cleaned = description.replace(/\s+/g, ' ').trim().replace(/[.]+$/, '');
+  if (!cleaned) {
+    return searchType === 'event' ? 'Event Discovery Search' : 'Intent Discovery Search';
+  }
+
+  const title = cleaned.length > 72 ? `${cleaned.slice(0, 69).trimEnd()}...` : cleaned;
+  return title;
+}
+
+function ScheduleOptionCard({
+  label,
+  description,
+  active,
+  onClick,
+}: {
+  label: string;
+  description: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-2xl border p-4 text-left transition ${
+        active ? 'border-[#FDBA74] bg-[#FFF7ED]' : 'border-[#E2E8F0] bg-white hover:bg-[#F8FAFC]'
+      }`}
+    >
+      <div className="font-medium text-[#1E293B]">{label}</div>
+      <div className="mt-1 text-sm text-[#64748B]">{description}</div>
+    </button>
   );
 }
