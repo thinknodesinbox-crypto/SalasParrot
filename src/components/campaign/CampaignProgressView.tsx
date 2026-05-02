@@ -632,7 +632,7 @@ function StepFunnelVisualization({
                       {step.leads_completed} {stepCopy.completedLabel}
                     </span>
                     {etaText && <span className="ml-1 text-[10px] text-[#94A3B8]">~{etaText}</span>}
-                    <InfoTooltip content={stepCopy.tooltip} />
+                    <InfoTooltip content={stepCopy.tooltip} align="right" />
                   </span>
                 </div>
                 <div className="h-5 w-full overflow-hidden rounded-md bg-[#F1F5F9]">
@@ -815,7 +815,13 @@ function getStepProgressCopy(stepType: string): {
   );
 }
 
-function InfoTooltip({ content }: { content: string }) {
+function InfoTooltip({
+  content,
+  align = 'center',
+}: {
+  content: string;
+  align?: 'center' | 'right';
+}) {
   return (
     <span className="group relative inline-flex">
       <button
@@ -827,7 +833,9 @@ function InfoTooltip({ content }: { content: string }) {
       </button>
       <span
         role="tooltip"
-        className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-2 w-56 -translate-x-1/2 rounded-md bg-[#0F172A] px-2.5 py-2 text-left text-[11px] font-normal leading-snug text-white opacity-0 shadow-lg transition group-focus-within:opacity-100 group-hover:opacity-100"
+        className={`pointer-events-none absolute bottom-full z-30 mb-2 w-56 rounded-md bg-[#0F172A] px-2.5 py-2 text-left text-[11px] font-normal leading-snug text-white opacity-0 shadow-lg transition group-focus-within:opacity-100 group-hover:opacity-100 ${
+          align === 'right' ? 'right-0' : 'left-1/2 -translate-x-1/2'
+        }`}
       >
         {content}
       </span>

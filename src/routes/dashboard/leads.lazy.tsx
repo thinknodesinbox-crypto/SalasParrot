@@ -363,19 +363,30 @@ type StatusFilter =
   | 'qualified'
   | 'not_interested';
 
-function getUserFacingEnrichmentFailure(error: string | null | undefined): string {
+type EnrichmentFailureInfo = { label: string; sublabel: string };
+
+function getUserFacingEnrichmentFailure(error: string | null | undefined): EnrichmentFailureInfo {
   const message = (error || '').trim();
-  if (!message) return 'Enrichment failed. Retry later.';
-  if (message.includes('monthly limit')) return message;
+  if (message.includes('monthly limit')) {
+    return { label: 'Limit reached', sublabel: 'Monthly enrichment limit hit' };
+  }
   if (
     message.startsWith('API error:') ||
-    message.includes('Server disconnected without sending a response') ||
+    message.includes('Server disconnected') ||
     message.includes('Cloudflare') ||
     message.includes('Access denied')
   ) {
-    return 'Enrichment service unavailable. Retry later.';
+    return { label: 'Needs retry', sublabel: 'Service error — retry later' };
   }
-  return 'Enrichment failed. Retry later.';
+  if (
+    message.includes('No email found') ||
+    message.includes('No valid company') ||
+    message.includes('No company') ||
+    message.includes('No name available')
+  ) {
+    return { label: 'No email found', sublabel: 'Could not find an email for this lead' };
+  }
+  return { label: 'Needs retry', sublabel: 'Enrichment failed — retry later' };
 }
 
 function LeadsPage() {
@@ -1778,10 +1789,11 @@ function LeadRow({
       };
     }
     if (lead.enrichment_status === 'failed') {
+      const { label, sublabel } = getUserFacingEnrichmentFailure(lead.enrichment_error);
       return {
         dot: 'bg-[#EF4444]',
-        label: 'Needs retry',
-        sublabel: getUserFacingEnrichmentFailure(lead.enrichment_error),
+        label,
+        sublabel,
         text: 'text-[#B91C1C]',
       };
     }
