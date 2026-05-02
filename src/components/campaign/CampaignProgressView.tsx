@@ -34,6 +34,29 @@ export function CampaignProgressView({ campaignId }: CampaignProgressViewProps) 
     return <LoadingSkeleton />;
   }
 
+  const stepTypes = new Set<StepProgressItem['step_type']>(
+    (progress?.steps_breakdown || []).map((step) => step.step_type)
+  );
+  const linkedInStepTypes: StepProgressItem['step_type'][] = [
+    'connection_request',
+    'message',
+    'inmail',
+    'profile_view',
+  ];
+  const emailStepTypes: StepProgressItem['step_type'][] = ['email', 'email_followup', 'enrichment'];
+  const hasLinkedInSteps = linkedInStepTypes.some((stepType) => stepTypes.has(stepType));
+  const hasEmailSteps = emailStepTypes.some((stepType) => stepTypes.has(stepType));
+  const isEmailOnly = hasEmailSteps && !hasLinkedInSteps;
+  const statusCounts = metrics?.leads_by_status || {};
+  const totalLeads = metrics?.total_leads || 0;
+  const newLeads = statusCounts.new || 0;
+  const errorLeads = statusCounts.error || 0;
+  const awaitingResponse = statusCounts.contacted || 0;
+  const repliedLeads = (statusCounts.replied || 0) + (statusCounts.qualified || 0);
+  const contactedLeads = Math.max(totalLeads - newLeads - errorLeads, 0);
+  const acceptedLeads = statusCounts.accepted || 0;
+  const notInterestedLeads = statusCounts.not_interested || 0;
+
   // Derive sender limit text for Today card
   const senderLimitText = metrics?.sender_activity?.length
     ? (() => {
@@ -78,37 +101,43 @@ export function CampaignProgressView({ campaignId }: CampaignProgressViewProps) 
 
       {/* Metrics Cards */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <MetricCard label="Total Leads" value={metrics?.total_leads || 0} icon={<UsersIcon />} />
         <MetricCard
-          label="Accepted"
-          value={
-            (metrics?.leads_by_status?.accepted || 0) +
-            (metrics?.leads_by_status?.replied || 0) +
-            (metrics?.leads_by_status?.qualified || 0)
-          }
-          subtitle={`${metrics?.leads_by_status?.contacted || 0} awaiting response`}
+          label="Total Leads"
+          value={totalLeads}
+          icon={<UsersIcon />}
+          tooltip="Leads currently assigned to this campaign."
+        />
+        <MetricCard
+          label={isEmailOnly ? 'Contacted' : 'Accepted'}
+          value={isEmailOnly ? contactedLeads : acceptedLeads}
+          subtitle={`${awaitingResponse} awaiting ${isEmailOnly ? 'reply' : 'response'}`}
           icon={<CheckIcon />}
           color="green"
+          tooltip={
+            isEmailOnly
+              ? 'Email-only campaigns show contacted leads here instead of LinkedIn accepts.'
+              : 'LinkedIn leads that accepted a connection request.'
+          }
         />
         <MetricCard
-          label="Replied"
-          value={
-            (metrics?.leads_by_status?.replied || 0) + (metrics?.leads_by_status?.qualified || 0)
-          }
-          subtitle={
-            metrics?.leads_by_status?.not_interested
-              ? `${metrics.leads_by_status.not_interested} not interested`
-              : undefined
-          }
+          label="Replies"
+          value={repliedLeads}
+          subtitle={notInterestedLeads ? `${notInterestedLeads} not interested` : undefined}
           icon={<ClockIcon />}
           color="blue"
+          tooltip="Leads that replied or were marked qualified."
         />
         <MetricCard
-          label="Sent Today"
+          label={isEmailOnly ? 'Emails Today' : 'Sent Today'}
           value={metrics?.actions_today || 0}
           subtitle={senderLimitText}
           icon={<TrendingUpIcon />}
           color="purple"
+          tooltip={
+            isEmailOnly
+              ? 'Outbound campaign emails sent today. Sender limits may include usage from other campaigns.'
+              : 'Campaign outreach actions sent today across LinkedIn and email.'
+          }
         />
       </div>
 
@@ -357,6 +386,7 @@ function MetricCard({
   icon,
   color = 'gray',
   pulse = false,
+  tooltip,
 }: {
   label: string;
   value: number | string;
@@ -364,6 +394,7 @@ function MetricCard({
   icon: React.ReactNode;
   color?: 'gray' | 'green' | 'blue' | 'purple' | 'orange';
   pulse?: boolean;
+  tooltip?: string;
 }) {
   const colorClasses = {
     gray: 'bg-[#F8FAFC] text-[#64748B]',
@@ -377,7 +408,7 @@ function MetricCard({
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
-      className="relative overflow-hidden rounded-xl border border-[#E2E8F0] bg-white p-3"
+      className="relative overflow-visible rounded-xl border border-[#E2E8F0] bg-white p-3"
     >
       {pulse && (
         <motion.div
@@ -388,7 +419,10 @@ function MetricCard({
       )}
       <div className={`mb-1.5 inline-flex rounded-lg p-1.5 ${colorClasses[color]}`}>{icon}</div>
       <p className="text-xl font-bold text-[#1E293B]">{value}</p>
-      <p className="text-xs text-[#64748B]">{label}</p>
+      <div className="flex items-center gap-1">
+        <p className="text-xs text-[#64748B]">{label}</p>
+        {tooltip && <InfoTooltip content={tooltip} />}
+      </div>
       {subtitle && <p className="text-[10px] text-[#94A3B8]">{subtitle}</p>}
     </motion.div>
   );
@@ -536,6 +570,7 @@ function StepFunnelVisualization({
     is_connected: 'Connected?',
     accepted: 'Accepted?',
     replied: 'Replied?',
+    email_replied: 'Email Replied?',
     has_email: 'Has Email?',
     email_opened: 'Email Opened?',
     email_link_clicked: 'Link Clicked?',
@@ -547,10 +582,14 @@ function StepFunnelVisualization({
 
   return (
     <div className="rounded-xl border border-[#E2E8F0] bg-white p-5">
-      <h3 className="mb-3 text-base font-semibold text-[#1E293B]">Sequence Funnel</h3>
+      <div className="mb-3 flex items-center gap-1.5">
+        <h3 className="text-base font-semibold text-[#1E293B]">Sequence Progress</h3>
+        <InfoTooltip content="Shows where leads are in the sequence. The left count is currently at that step; the right count has already moved past it." />
+      </div>
       <div className="space-y-2">
         {visibleSteps.map((step, index) => {
           const isActive = step.leads_at_step > 0;
+          const stepCopy = getStepProgressCopy(step.step_type);
 
           // Estimate time to process active leads at current rate
           const etaText =
@@ -584,15 +623,16 @@ function StepFunnelVisualization({
                       />
                     )}
                   </span>
-                  <span className="text-[#64748B]">
+                  <span className="flex items-center gap-1 text-[#64748B]">
                     <span className={isActive ? 'font-semibold text-[#3B82F6]' : ''}>
-                      {step.leads_at_step} queued
+                      {step.leads_at_step} {stepCopy.activeLabel}
                     </span>
                     {' / '}
                     <span className={step.leads_completed > 0 ? 'text-[#22C55E]' : ''}>
-                      {step.leads_completed} completed
+                      {step.leads_completed} {stepCopy.completedLabel}
                     </span>
                     {etaText && <span className="ml-1 text-[10px] text-[#94A3B8]">~{etaText}</span>}
+                    <InfoTooltip content={stepCopy.tooltip} />
                   </span>
                 </div>
                 <div className="h-5 w-full overflow-hidden rounded-md bg-[#F1F5F9]">
@@ -727,6 +767,74 @@ function ActivityFeed({ activity }: { activity: CampaignActivity }) {
 }
 
 /* ─── Utilities ─── */
+function getStepProgressCopy(stepType: string): {
+  activeLabel: string;
+  completedLabel: string;
+  tooltip: string;
+} {
+  const copy: Record<string, { activeLabel: string; completedLabel: string; tooltip: string }> = {
+    enrichment: {
+      activeLabel: 'checking',
+      completedLabel: 'checked',
+      tooltip:
+        'Checking means email enrichment is running now. Checked means enrichment finished, failed, found no email, or was skipped because an email already exists.',
+    },
+    wait: {
+      activeLabel: 'waiting',
+      completedLabel: 'moved on',
+      tooltip:
+        'Waiting means the lead is paused until the delay ends. Moved on means the wait finished and the lead advanced.',
+    },
+    condition: {
+      activeLabel: 'evaluating',
+      completedLabel: 'routed',
+      tooltip:
+        'Evaluating means the condition is being checked. Routed means the lead was sent down the matching branch.',
+    },
+    email: {
+      activeLabel: 'ready',
+      completedLabel: 'sent',
+      tooltip:
+        'Ready means the lead is at this email step. Sent means the email step finished for that lead.',
+    },
+    email_followup: {
+      activeLabel: 'ready',
+      completedLabel: 'sent',
+      tooltip:
+        'Ready means the lead is at this follow-up step. Sent means the follow-up step finished for that lead.',
+    },
+  };
+
+  return (
+    copy[stepType] || {
+      activeLabel: 'at step',
+      completedLabel: 'moved on',
+      tooltip:
+        'At step means the lead is currently here. Moved on means this step finished and the lead advanced.',
+    }
+  );
+}
+
+function InfoTooltip({ content }: { content: string }) {
+  return (
+    <span className="group relative inline-flex">
+      <button
+        type="button"
+        aria-label={content}
+        className="inline-flex h-4 w-4 items-center justify-center rounded-full text-[#94A3B8] outline-none transition hover:text-[#475569] focus-visible:ring-2 focus-visible:ring-[#3B82F6]/40"
+      >
+        <InfoCircleIcon />
+      </button>
+      <span
+        role="tooltip"
+        className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-2 w-56 -translate-x-1/2 rounded-md bg-[#0F172A] px-2.5 py-2 text-left text-[11px] font-normal leading-snug text-white opacity-0 shadow-lg transition group-focus-within:opacity-100 group-hover:opacity-100"
+      >
+        {content}
+      </span>
+    </span>
+  );
+}
+
 function formatTimeAgo(dateStr: string): string {
   // Backend sends UTC timestamps without 'Z' suffix — append it so JS parses as UTC
   const date = new Date(dateStr.endsWith('Z') ? dateStr : dateStr + 'Z');
@@ -765,6 +873,19 @@ function LoadingSkeleton() {
 }
 
 /* ─── Icons ─── */
+function InfoCircleIcon() {
+  return (
+    <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M13 16h-1v-4h-1m1-4h.01M12 21a9 9 0 100-18 9 9 0 000 18z"
+      />
+    </svg>
+  );
+}
+
 function UsersIcon() {
   return (
     <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
