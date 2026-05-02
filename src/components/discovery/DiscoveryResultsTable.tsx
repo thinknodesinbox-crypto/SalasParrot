@@ -1,4 +1,43 @@
+import { useState } from 'react';
+
 import type { DiscoveryResult } from '@/lib/types';
+
+function getInitials(name: string | null | undefined): string {
+  if (!name) return '?';
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0][0].toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+function CandidateAvatar({
+  name,
+  avatarUrl,
+  size = 'sm',
+}: {
+  name: string | null | undefined;
+  avatarUrl: string | null | undefined;
+  size?: 'sm' | 'lg';
+}) {
+  const [imgError, setImgError] = useState(false);
+  const dim = size === 'lg' ? 'h-12 w-12 text-base' : 'h-8 w-8 text-xs';
+  if (avatarUrl && !imgError) {
+    return (
+      <img
+        src={avatarUrl}
+        alt={name || ''}
+        onError={() => setImgError(true)}
+        className={`${dim} flex-shrink-0 rounded-full object-cover`}
+      />
+    );
+  }
+  return (
+    <div
+      className={`${dim} flex flex-shrink-0 items-center justify-center rounded-full bg-[#E2E8F0] font-semibold text-[#475569]`}
+    >
+      {getInitials(name)}
+    </div>
+  );
+}
 
 interface DiscoveryResultsTableProps {
   results: DiscoveryResult[];
@@ -101,15 +140,26 @@ export function DiscoveryResultsTable({
                       />
                     </td>
                     <td className="px-4 py-3">
-                      <div className="font-medium text-[#1E293B]">
-                        {result.person_name || 'Unnamed lead'}
-                      </div>
-                      <div className="text-sm text-[#64748B]">
-                        {[result.title, result.company_name].filter(Boolean).join(' @ ') ||
-                          'No role/company yet'}
-                      </div>
-                      <div className="text-xs text-[#94A3B8]">
-                        {result.location || 'Unknown location'}
+                      <div className="flex items-center gap-3">
+                        <CandidateAvatar
+                          name={result.person_name || result.company_name}
+                          avatarUrl={
+                            (result.candidate_payload_json as Record<string, unknown>)
+                              ?.avatar_url as string | undefined
+                          }
+                        />
+                        <div>
+                          <div className="font-medium text-[#1E293B]">
+                            {result.person_name || 'Unnamed lead'}
+                          </div>
+                          <div className="text-sm text-[#64748B]">
+                            {[result.title, result.company_name].filter(Boolean).join(' @ ') ||
+                              'No role/company yet'}
+                          </div>
+                          <div className="text-xs text-[#94A3B8]">
+                            {result.location || 'Unknown location'}
+                          </div>
+                        </div>
                       </div>
                     </td>
                     <td className="px-4 py-3 text-sm text-[#475569]">

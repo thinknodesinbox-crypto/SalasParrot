@@ -97,7 +97,7 @@ function buildPayload(form: DiscoveryFormState, workspaceId: string): DiscoveryS
     source_config_json: {
       web: {
         enabled: true,
-        max_results: 10,
+        max_results: 25,
       },
       linkedin: {
         enabled: linkedInEnabled,

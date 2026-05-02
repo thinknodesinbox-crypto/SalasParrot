@@ -1,4 +1,38 @@
+import { useState } from 'react';
+
 import type { DiscoveryResult } from '@/lib/types';
+
+function getInitials(name: string | null | undefined): string {
+  if (!name) return '?';
+  const parts = name.trim().split(/\s+/);
+  if (parts.length === 1) return parts[0][0].toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+function CandidateAvatar({
+  name,
+  avatarUrl,
+}: {
+  name: string | null | undefined;
+  avatarUrl: string | null | undefined;
+}) {
+  const [imgError, setImgError] = useState(false);
+  if (avatarUrl && !imgError) {
+    return (
+      <img
+        src={avatarUrl}
+        alt={name || ''}
+        onError={() => setImgError(true)}
+        className="h-14 w-14 flex-shrink-0 rounded-full object-cover"
+      />
+    );
+  }
+  return (
+    <div className="flex h-14 w-14 flex-shrink-0 items-center justify-center rounded-full bg-[#E2E8F0] text-lg font-semibold text-[#475569]">
+      {getInitials(name)}
+    </div>
+  );
+}
 
 interface DiscoveryResultPanelProps {
   result: DiscoveryResult | null;
@@ -17,14 +51,24 @@ export function DiscoveryResultPanel({ result }: DiscoveryResultPanelProps) {
 
   return (
     <div className="space-y-5 rounded-2xl border border-[#E2E8F0] bg-white p-6">
-      <div>
-        <h3 className="text-lg font-semibold text-[#1E293B]">
-          {result.person_name || result.company_name || 'Discovery result'}
-        </h3>
-        <p className="mt-1 text-sm text-[#64748B]">
-          {[result.title, result.company_name].filter(Boolean).join(' @ ') ||
-            'No role/company summary yet'}
-        </p>
+      <div className="flex items-center gap-4">
+        <CandidateAvatar
+          name={result.person_name || result.company_name}
+          avatarUrl={
+            (result.candidate_payload_json as Record<string, unknown>)?.avatar_url as
+              | string
+              | undefined
+          }
+        />
+        <div>
+          <h3 className="text-lg font-semibold text-[#1E293B]">
+            {result.person_name || result.company_name || 'Discovery result'}
+          </h3>
+          <p className="mt-0.5 text-sm text-[#64748B]">
+            {[result.title, result.company_name].filter(Boolean).join(' @ ') ||
+              'No role/company summary yet'}
+          </p>
+        </div>
       </div>
 
       {result.event_summary ? (
