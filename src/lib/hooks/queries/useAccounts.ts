@@ -505,7 +505,7 @@ export const useConnectEmailMicrosoft = () => {
 
 interface AuthConfig {
   gmail_auth_method: 'unipile' | 'custom';
-  microsoft_auth_method: 'custom';
+  microsoft_auth_method: 'unipile' | 'custom';
   imap_auth_method: 'custom';
 }
 
@@ -562,6 +562,25 @@ export const useInitGmailHostedAuth = () => {
       if (params?.syncMode) searchParams.append('sync_mode', params.syncMode);
       const response = await api.get<OAuthInitResponse>(
         `/email-accounts/oauth/gmail/hosted-auth-link?${searchParams}`
+      );
+      return response.data;
+    },
+    onError: (error) => {
+      throw new Error(getErrorMessage(error));
+    },
+  });
+};
+
+// Outlook Unipile Hosted Auth (when MICROSOFT_AUTH_METHOD is "unipile")
+export const useInitOutlookHostedAuth = () => {
+  return useMutation({
+    mutationFn: async (params?: OAuthInitParams) => {
+      const searchParams = new URLSearchParams();
+      if (params?.workspaceId) searchParams.append('workspace_id', params.workspaceId);
+      if (params?.returnUrl) searchParams.append('return_url', params.returnUrl);
+      if (params?.syncMode) searchParams.append('sync_mode', params.syncMode);
+      const response = await api.get<OAuthInitResponse>(
+        `/email-accounts/oauth/outlook/hosted-auth-link?${searchParams}`
       );
       return response.data;
     },

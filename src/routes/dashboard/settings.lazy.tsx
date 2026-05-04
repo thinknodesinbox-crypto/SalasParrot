@@ -27,6 +27,7 @@ import {
   useConnectEmailIMAP,
   useInitGoogleOAuth,
   useInitMicrosoftOAuth,
+  useInitOutlookHostedAuth,
   useInitGmailHostedAuth,
   useEmailAuthConfig,
   useCalendarAccounts,
@@ -4893,6 +4894,7 @@ function ConnectEmailModal({ onClose }: { onClose: () => void }) {
   const initGoogleOAuth = useInitGoogleOAuth();
   const initGmailHostedAuth = useInitGmailHostedAuth();
   const initMicrosoftOAuth = useInitMicrosoftOAuth();
+  const initOutlookHostedAuth = useInitOutlookHostedAuth();
   const { data: authConfig } = useEmailAuthConfig();
 
   const handleGoogleOAuth = async () => {
@@ -4920,10 +4922,11 @@ function ConnectEmailModal({ onClose }: { onClose: () => void }) {
     setError('');
     setStep('loading');
     try {
-      // Pass current URL so user returns here after OAuth
       const returnUrl = window.location.href.split('?')[0];
-      const result = await initMicrosoftOAuth.mutateAsync({ returnUrl });
-      // Redirect to Microsoft OAuth consent screen
+      const isHostedAuth = authConfig?.microsoft_auth_method === 'unipile';
+      const result = isHostedAuth
+        ? await initOutlookHostedAuth.mutateAsync({ returnUrl })
+        : await initMicrosoftOAuth.mutateAsync({ returnUrl });
       window.location.href = result.url;
     } catch (err) {
       setError(getErrorMessage(err));

@@ -165,6 +165,7 @@ export {
   useInitGoogleOAuth,
   useInitMicrosoftOAuth,
   useInitGmailHostedAuth,
+  useInitOutlookHostedAuth,
   // Calendar Accounts
   useCalendarAccounts,
   useDeleteCalendarAccount,
