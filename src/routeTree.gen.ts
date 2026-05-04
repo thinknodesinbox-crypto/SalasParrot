@@ -8,369 +8,392 @@
 // You should NOT make any changes in this file as it will be overwritten.
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
-import { Route as rootRouteImport } from './routes/__root';
-import { Route as TermsRouteImport } from './routes/terms';
-import { Route as SignupRouteImport } from './routes/signup';
-import { Route as PrivacyRouteImport } from './routes/privacy';
-import { Route as PricingRouteImport } from './routes/pricing';
-import { Route as OnboardingRouteImport } from './routes/onboarding';
-import { Route as LoginRouteImport } from './routes/login';
-import { Route as IntegrationsRouteImport } from './routes/integrations';
-import { Route as HelpRouteImport } from './routes/help';
-import { Route as DashboardRouteImport } from './routes/dashboard';
-import { Route as ContactRouteImport } from './routes/contact';
-import { Route as AdminRouteImport } from './routes/admin';
-import { Route as AboutRouteImport } from './routes/about';
-import { Route as IndexRouteImport } from './routes/index';
-import { Route as DashboardIndexRouteImport } from './routes/dashboard/index';
-import { Route as AdminIndexRouteImport } from './routes/admin/index';
-import { Route as DocsApiRouteImport } from './routes/docs.api';
-import { Route as DashboardSettingsRouteImport } from './routes/dashboard/settings';
-import { Route as DashboardNotificationsRouteImport } from './routes/dashboard/notifications';
-import { Route as DashboardLeadsRouteImport } from './routes/dashboard/leads';
-import { Route as DashboardInboxRouteImport } from './routes/dashboard/inbox';
-import { Route as DashboardHelpRouteImport } from './routes/dashboard/help';
-import { Route as DashboardEmailMarketingRouteImport } from './routes/dashboard/email-marketing';
-import { Route as DashboardDiscoveryRouteImport } from './routes/dashboard/discovery';
-import { Route as DashboardCampaignsRouteImport } from './routes/dashboard/campaigns';
-import { Route as DashboardAssistantRouteImport } from './routes/dashboard/assistant';
-import { Route as DashboardAnalyticsRouteImport } from './routes/dashboard/analytics';
-import { Route as DashboardAccountsRouteImport } from './routes/dashboard/accounts';
-import { Route as AssistantHandoffTokenRouteImport } from './routes/assistant-handoff.$token';
-import { Route as AdminUsersRouteImport } from './routes/admin/users';
-import { Route as AdminPartnersRouteImport } from './routes/admin/partners';
-import { Route as AcceptInviteTokenRouteImport } from './routes/accept-invite.$token';
-import { Route as DashboardEmailMarketingIndexRouteImport } from './routes/dashboard/email-marketing.index';
-import { Route as DashboardEmailMarketingTemplatesRouteImport } from './routes/dashboard/email-marketing.templates';
-import { Route as DashboardEmailMarketingSuppressionsRouteImport } from './routes/dashboard/email-marketing.suppressions';
-import { Route as DashboardEmailMarketingListsRouteImport } from './routes/dashboard/email-marketing.lists';
-import { Route as DashboardEmailMarketingContactsRouteImport } from './routes/dashboard/email-marketing.contacts';
-import { Route as DashboardEmailMarketingBroadcastsRouteImport } from './routes/dashboard/email-marketing.broadcasts';
-import { Route as DashboardEmailMarketingListsListIdRouteImport } from './routes/dashboard/email-marketing.lists.$listId';
-import { Route as DashboardEmailMarketingContactsContactIdRouteImport } from './routes/dashboard/email-marketing.contacts.$contactId';
+import { Route as rootRouteImport } from './routes/__root'
+import { Route as TermsRouteImport } from './routes/terms'
+import { Route as SignupRouteImport } from './routes/signup'
+import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as PricingRouteImport } from './routes/pricing'
+import { Route as OnboardingRouteImport } from './routes/onboarding'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as IntegrationsRouteImport } from './routes/integrations'
+import { Route as HelpRouteImport } from './routes/help'
+import { Route as DashboardRouteImport } from './routes/dashboard'
+import { Route as ContactRouteImport } from './routes/contact'
+import { Route as AdminRouteImport } from './routes/admin'
+import { Route as AboutRouteImport } from './routes/about'
+import { Route as IndexRouteImport } from './routes/index'
+import { Route as DashboardIndexRouteImport } from './routes/dashboard/index'
+import { Route as AdminIndexRouteImport } from './routes/admin/index'
+import { Route as DocsApiRouteImport } from './routes/docs.api'
+import { Route as DashboardSettingsRouteImport } from './routes/dashboard/settings'
+import { Route as DashboardNotificationsRouteImport } from './routes/dashboard/notifications'
+import { Route as DashboardLeadsRouteImport } from './routes/dashboard/leads'
+import { Route as DashboardInboxRouteImport } from './routes/dashboard/inbox'
+import { Route as DashboardHelpRouteImport } from './routes/dashboard/help'
+import { Route as DashboardEmailMarketingRouteImport } from './routes/dashboard/email-marketing'
+import { Route as DashboardDiscoveryRouteImport } from './routes/dashboard/discovery'
+import { Route as DashboardCampaignsRouteImport } from './routes/dashboard/campaigns'
+import { Route as DashboardAssistantRouteImport } from './routes/dashboard/assistant'
+import { Route as DashboardAnalyticsRouteImport } from './routes/dashboard/analytics'
+import { Route as DashboardAccountsRouteImport } from './routes/dashboard/accounts'
+import { Route as AssistantHandoffTokenRouteImport } from './routes/assistant-handoff.$token'
+import { Route as AdminUsersRouteImport } from './routes/admin/users'
+import { Route as AdminPartnersRouteImport } from './routes/admin/partners'
+import { Route as AcceptInviteTokenRouteImport } from './routes/accept-invite.$token'
+import { Route as DashboardEmailMarketingIndexRouteImport } from './routes/dashboard/email-marketing.index'
+import { Route as DashboardEmailMarketingTemplatesRouteImport } from './routes/dashboard/email-marketing.templates'
+import { Route as DashboardEmailMarketingSuppressionsRouteImport } from './routes/dashboard/email-marketing.suppressions'
+import { Route as DashboardEmailMarketingListsRouteImport } from './routes/dashboard/email-marketing.lists'
+import { Route as DashboardEmailMarketingContactsRouteImport } from './routes/dashboard/email-marketing.contacts'
+import { Route as DashboardEmailMarketingBroadcastsRouteImport } from './routes/dashboard/email-marketing.broadcasts'
+import { Route as DashboardEmailMarketingListsListIdRouteImport } from './routes/dashboard/email-marketing.lists.$listId'
+import { Route as DashboardEmailMarketingContactsContactIdRouteImport } from './routes/dashboard/email-marketing.contacts.$contactId'
 
 const TermsRoute = TermsRouteImport.update({
   id: '/terms',
   path: '/terms',
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const SignupRoute = SignupRouteImport.update({
   id: '/signup',
   path: '/signup',
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const PrivacyRoute = PrivacyRouteImport.update({
   id: '/privacy',
   path: '/privacy',
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const PricingRoute = PricingRouteImport.update({
   id: '/pricing',
   path: '/pricing',
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const OnboardingRoute = OnboardingRouteImport.update({
   id: '/onboarding',
   path: '/onboarding',
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const IntegrationsRoute = IntegrationsRouteImport.update({
   id: '/integrations',
   path: '/integrations',
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const HelpRoute = HelpRouteImport.update({
   id: '/help',
   path: '/help',
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const DashboardRoute = DashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const ContactRoute = ContactRouteImport.update({
   id: '/contact',
   path: '/contact',
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const AdminRoute = AdminRouteImport.update({
   id: '/admin',
   path: '/admin',
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const AboutRoute = AboutRouteImport.update({
   id: '/about',
   path: '/about',
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const DashboardIndexRoute = DashboardIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => DashboardRoute,
-} as any);
+} as any)
 const AdminIndexRoute = AdminIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AdminRoute,
-} as any);
+} as any)
 const DocsApiRoute = DocsApiRouteImport.update({
   id: '/docs/api',
   path: '/docs/api',
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const DashboardSettingsRoute = DashboardSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
   getParentRoute: () => DashboardRoute,
-} as any).lazy(() => import('./routes/dashboard/settings.lazy').then((d) => d.Route));
+} as any).lazy(() =>
+  import('./routes/dashboard/settings.lazy').then((d) => d.Route),
+)
 const DashboardNotificationsRoute = DashboardNotificationsRouteImport.update({
   id: '/notifications',
   path: '/notifications',
   getParentRoute: () => DashboardRoute,
-} as any);
+} as any)
 const DashboardLeadsRoute = DashboardLeadsRouteImport.update({
   id: '/leads',
   path: '/leads',
   getParentRoute: () => DashboardRoute,
-} as any).lazy(() => import('./routes/dashboard/leads.lazy').then((d) => d.Route));
+} as any).lazy(() =>
+  import('./routes/dashboard/leads.lazy').then((d) => d.Route),
+)
 const DashboardInboxRoute = DashboardInboxRouteImport.update({
   id: '/inbox',
   path: '/inbox',
   getParentRoute: () => DashboardRoute,
-} as any).lazy(() => import('./routes/dashboard/inbox.lazy').then((d) => d.Route));
+} as any).lazy(() =>
+  import('./routes/dashboard/inbox.lazy').then((d) => d.Route),
+)
 const DashboardHelpRoute = DashboardHelpRouteImport.update({
   id: '/help',
   path: '/help',
   getParentRoute: () => DashboardRoute,
-} as any);
+} as any)
 const DashboardEmailMarketingRoute = DashboardEmailMarketingRouteImport.update({
   id: '/email-marketing',
   path: '/email-marketing',
   getParentRoute: () => DashboardRoute,
-} as any).lazy(() => import('./routes/dashboard/email-marketing.lazy').then((d) => d.Route));
+} as any).lazy(() =>
+  import('./routes/dashboard/email-marketing.lazy').then((d) => d.Route),
+)
 const DashboardDiscoveryRoute = DashboardDiscoveryRouteImport.update({
   id: '/discovery',
   path: '/discovery',
   getParentRoute: () => DashboardRoute,
-} as any).lazy(() => import('./routes/dashboard/discovery.lazy').then((d) => d.Route));
+} as any).lazy(() =>
+  import('./routes/dashboard/discovery.lazy').then((d) => d.Route),
+)
 const DashboardCampaignsRoute = DashboardCampaignsRouteImport.update({
   id: '/campaigns',
   path: '/campaigns',
   getParentRoute: () => DashboardRoute,
-} as any).lazy(() => import('./routes/dashboard/campaigns.lazy').then((d) => d.Route));
+} as any).lazy(() =>
+  import('./routes/dashboard/campaigns.lazy').then((d) => d.Route),
+)
 const DashboardAssistantRoute = DashboardAssistantRouteImport.update({
   id: '/assistant',
   path: '/assistant',
   getParentRoute: () => DashboardRoute,
-} as any).lazy(() => import('./routes/dashboard/assistant.lazy').then((d) => d.Route));
+} as any).lazy(() =>
+  import('./routes/dashboard/assistant.lazy').then((d) => d.Route),
+)
 const DashboardAnalyticsRoute = DashboardAnalyticsRouteImport.update({
   id: '/analytics',
   path: '/analytics',
   getParentRoute: () => DashboardRoute,
-} as any).lazy(() => import('./routes/dashboard/analytics.lazy').then((d) => d.Route));
+} as any).lazy(() =>
+  import('./routes/dashboard/analytics.lazy').then((d) => d.Route),
+)
 const DashboardAccountsRoute = DashboardAccountsRouteImport.update({
   id: '/accounts',
   path: '/accounts',
   getParentRoute: () => DashboardRoute,
-} as any).lazy(() => import('./routes/dashboard/accounts.lazy').then((d) => d.Route));
+} as any).lazy(() =>
+  import('./routes/dashboard/accounts.lazy').then((d) => d.Route),
+)
 const AssistantHandoffTokenRoute = AssistantHandoffTokenRouteImport.update({
   id: '/assistant-handoff/$token',
   path: '/assistant-handoff/$token',
   getParentRoute: () => rootRouteImport,
-} as any);
+} as any)
 const AdminUsersRoute = AdminUsersRouteImport.update({
   id: '/users',
   path: '/users',
   getParentRoute: () => AdminRoute,
-} as any);
+} as any)
 const AdminPartnersRoute = AdminPartnersRouteImport.update({
   id: '/partners',
   path: '/partners',
   getParentRoute: () => AdminRoute,
-} as any);
+} as any)
 const AcceptInviteTokenRoute = AcceptInviteTokenRouteImport.update({
   id: '/accept-invite/$token',
   path: '/accept-invite/$token',
   getParentRoute: () => rootRouteImport,
-} as any);
-const DashboardEmailMarketingIndexRoute = DashboardEmailMarketingIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => DashboardEmailMarketingRoute,
-} as any);
-const DashboardEmailMarketingTemplatesRoute = DashboardEmailMarketingTemplatesRouteImport.update({
-  id: '/templates',
-  path: '/templates',
-  getParentRoute: () => DashboardEmailMarketingRoute,
-} as any);
+} as any)
+const DashboardEmailMarketingIndexRoute =
+  DashboardEmailMarketingIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => DashboardEmailMarketingRoute,
+  } as any)
+const DashboardEmailMarketingTemplatesRoute =
+  DashboardEmailMarketingTemplatesRouteImport.update({
+    id: '/templates',
+    path: '/templates',
+    getParentRoute: () => DashboardEmailMarketingRoute,
+  } as any)
 const DashboardEmailMarketingSuppressionsRoute =
   DashboardEmailMarketingSuppressionsRouteImport.update({
     id: '/suppressions',
     path: '/suppressions',
     getParentRoute: () => DashboardEmailMarketingRoute,
-  } as any);
-const DashboardEmailMarketingListsRoute = DashboardEmailMarketingListsRouteImport.update({
-  id: '/lists',
-  path: '/lists',
-  getParentRoute: () => DashboardEmailMarketingRoute,
-} as any);
-const DashboardEmailMarketingContactsRoute = DashboardEmailMarketingContactsRouteImport.update({
-  id: '/contacts',
-  path: '/contacts',
-  getParentRoute: () => DashboardEmailMarketingRoute,
-} as any);
-const DashboardEmailMarketingBroadcastsRoute = DashboardEmailMarketingBroadcastsRouteImport.update({
-  id: '/broadcasts',
-  path: '/broadcasts',
-  getParentRoute: () => DashboardEmailMarketingRoute,
-} as any);
+  } as any)
+const DashboardEmailMarketingListsRoute =
+  DashboardEmailMarketingListsRouteImport.update({
+    id: '/lists',
+    path: '/lists',
+    getParentRoute: () => DashboardEmailMarketingRoute,
+  } as any)
+const DashboardEmailMarketingContactsRoute =
+  DashboardEmailMarketingContactsRouteImport.update({
+    id: '/contacts',
+    path: '/contacts',
+    getParentRoute: () => DashboardEmailMarketingRoute,
+  } as any)
+const DashboardEmailMarketingBroadcastsRoute =
+  DashboardEmailMarketingBroadcastsRouteImport.update({
+    id: '/broadcasts',
+    path: '/broadcasts',
+    getParentRoute: () => DashboardEmailMarketingRoute,
+  } as any)
 const DashboardEmailMarketingListsListIdRoute =
   DashboardEmailMarketingListsListIdRouteImport.update({
     id: '/$listId',
     path: '/$listId',
     getParentRoute: () => DashboardEmailMarketingListsRoute,
-  } as any);
+  } as any)
 const DashboardEmailMarketingContactsContactIdRoute =
   DashboardEmailMarketingContactsContactIdRouteImport.update({
     id: '/$contactId',
     path: '/$contactId',
     getParentRoute: () => DashboardEmailMarketingContactsRoute,
-  } as any);
+  } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute;
-  '/about': typeof AboutRoute;
-  '/admin': typeof AdminRouteWithChildren;
-  '/contact': typeof ContactRoute;
-  '/dashboard': typeof DashboardRouteWithChildren;
-  '/help': typeof HelpRoute;
-  '/integrations': typeof IntegrationsRoute;
-  '/login': typeof LoginRoute;
-  '/onboarding': typeof OnboardingRoute;
-  '/pricing': typeof PricingRoute;
-  '/privacy': typeof PrivacyRoute;
-  '/signup': typeof SignupRoute;
-  '/terms': typeof TermsRoute;
-  '/accept-invite/$token': typeof AcceptInviteTokenRoute;
-  '/admin/partners': typeof AdminPartnersRoute;
-  '/admin/users': typeof AdminUsersRoute;
-  '/assistant-handoff/$token': typeof AssistantHandoffTokenRoute;
-  '/dashboard/accounts': typeof DashboardAccountsRoute;
-  '/dashboard/analytics': typeof DashboardAnalyticsRoute;
-  '/dashboard/assistant': typeof DashboardAssistantRoute;
-  '/dashboard/campaigns': typeof DashboardCampaignsRoute;
-  '/dashboard/discovery': typeof DashboardDiscoveryRoute;
-  '/dashboard/email-marketing': typeof DashboardEmailMarketingRouteWithChildren;
-  '/dashboard/help': typeof DashboardHelpRoute;
-  '/dashboard/inbox': typeof DashboardInboxRoute;
-  '/dashboard/leads': typeof DashboardLeadsRoute;
-  '/dashboard/notifications': typeof DashboardNotificationsRoute;
-  '/dashboard/settings': typeof DashboardSettingsRoute;
-  '/docs/api': typeof DocsApiRoute;
-  '/admin/': typeof AdminIndexRoute;
-  '/dashboard/': typeof DashboardIndexRoute;
-  '/dashboard/email-marketing/broadcasts': typeof DashboardEmailMarketingBroadcastsRoute;
-  '/dashboard/email-marketing/contacts': typeof DashboardEmailMarketingContactsRouteWithChildren;
-  '/dashboard/email-marketing/lists': typeof DashboardEmailMarketingListsRouteWithChildren;
-  '/dashboard/email-marketing/suppressions': typeof DashboardEmailMarketingSuppressionsRoute;
-  '/dashboard/email-marketing/templates': typeof DashboardEmailMarketingTemplatesRoute;
-  '/dashboard/email-marketing/': typeof DashboardEmailMarketingIndexRoute;
-  '/dashboard/email-marketing/contacts/$contactId': typeof DashboardEmailMarketingContactsContactIdRoute;
-  '/dashboard/email-marketing/lists/$listId': typeof DashboardEmailMarketingListsListIdRoute;
+  '/': typeof IndexRoute
+  '/about': typeof AboutRoute
+  '/admin': typeof AdminRouteWithChildren
+  '/contact': typeof ContactRoute
+  '/dashboard': typeof DashboardRouteWithChildren
+  '/help': typeof HelpRoute
+  '/integrations': typeof IntegrationsRoute
+  '/login': typeof LoginRoute
+  '/onboarding': typeof OnboardingRoute
+  '/pricing': typeof PricingRoute
+  '/privacy': typeof PrivacyRoute
+  '/signup': typeof SignupRoute
+  '/terms': typeof TermsRoute
+  '/accept-invite/$token': typeof AcceptInviteTokenRoute
+  '/admin/partners': typeof AdminPartnersRoute
+  '/admin/users': typeof AdminUsersRoute
+  '/assistant-handoff/$token': typeof AssistantHandoffTokenRoute
+  '/dashboard/accounts': typeof DashboardAccountsRoute
+  '/dashboard/analytics': typeof DashboardAnalyticsRoute
+  '/dashboard/assistant': typeof DashboardAssistantRoute
+  '/dashboard/campaigns': typeof DashboardCampaignsRoute
+  '/dashboard/discovery': typeof DashboardDiscoveryRoute
+  '/dashboard/email-marketing': typeof DashboardEmailMarketingRouteWithChildren
+  '/dashboard/help': typeof DashboardHelpRoute
+  '/dashboard/inbox': typeof DashboardInboxRoute
+  '/dashboard/leads': typeof DashboardLeadsRoute
+  '/dashboard/notifications': typeof DashboardNotificationsRoute
+  '/dashboard/settings': typeof DashboardSettingsRoute
+  '/docs/api': typeof DocsApiRoute
+  '/admin/': typeof AdminIndexRoute
+  '/dashboard/': typeof DashboardIndexRoute
+  '/dashboard/email-marketing/broadcasts': typeof DashboardEmailMarketingBroadcastsRoute
+  '/dashboard/email-marketing/contacts': typeof DashboardEmailMarketingContactsRouteWithChildren
+  '/dashboard/email-marketing/lists': typeof DashboardEmailMarketingListsRouteWithChildren
+  '/dashboard/email-marketing/suppressions': typeof DashboardEmailMarketingSuppressionsRoute
+  '/dashboard/email-marketing/templates': typeof DashboardEmailMarketingTemplatesRoute
+  '/dashboard/email-marketing/': typeof DashboardEmailMarketingIndexRoute
+  '/dashboard/email-marketing/contacts/$contactId': typeof DashboardEmailMarketingContactsContactIdRoute
+  '/dashboard/email-marketing/lists/$listId': typeof DashboardEmailMarketingListsListIdRoute
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute;
-  '/about': typeof AboutRoute;
-  '/contact': typeof ContactRoute;
-  '/help': typeof HelpRoute;
-  '/integrations': typeof IntegrationsRoute;
-  '/login': typeof LoginRoute;
-  '/onboarding': typeof OnboardingRoute;
-  '/pricing': typeof PricingRoute;
-  '/privacy': typeof PrivacyRoute;
-  '/signup': typeof SignupRoute;
-  '/terms': typeof TermsRoute;
-  '/accept-invite/$token': typeof AcceptInviteTokenRoute;
-  '/admin/partners': typeof AdminPartnersRoute;
-  '/admin/users': typeof AdminUsersRoute;
-  '/assistant-handoff/$token': typeof AssistantHandoffTokenRoute;
-  '/dashboard/accounts': typeof DashboardAccountsRoute;
-  '/dashboard/analytics': typeof DashboardAnalyticsRoute;
-  '/dashboard/assistant': typeof DashboardAssistantRoute;
-  '/dashboard/campaigns': typeof DashboardCampaignsRoute;
-  '/dashboard/discovery': typeof DashboardDiscoveryRoute;
-  '/dashboard/help': typeof DashboardHelpRoute;
-  '/dashboard/inbox': typeof DashboardInboxRoute;
-  '/dashboard/leads': typeof DashboardLeadsRoute;
-  '/dashboard/notifications': typeof DashboardNotificationsRoute;
-  '/dashboard/settings': typeof DashboardSettingsRoute;
-  '/docs/api': typeof DocsApiRoute;
-  '/admin': typeof AdminIndexRoute;
-  '/dashboard': typeof DashboardIndexRoute;
-  '/dashboard/email-marketing/broadcasts': typeof DashboardEmailMarketingBroadcastsRoute;
-  '/dashboard/email-marketing/contacts': typeof DashboardEmailMarketingContactsRouteWithChildren;
-  '/dashboard/email-marketing/lists': typeof DashboardEmailMarketingListsRouteWithChildren;
-  '/dashboard/email-marketing/suppressions': typeof DashboardEmailMarketingSuppressionsRoute;
-  '/dashboard/email-marketing/templates': typeof DashboardEmailMarketingTemplatesRoute;
-  '/dashboard/email-marketing': typeof DashboardEmailMarketingIndexRoute;
-  '/dashboard/email-marketing/contacts/$contactId': typeof DashboardEmailMarketingContactsContactIdRoute;
-  '/dashboard/email-marketing/lists/$listId': typeof DashboardEmailMarketingListsListIdRoute;
+  '/': typeof IndexRoute
+  '/about': typeof AboutRoute
+  '/contact': typeof ContactRoute
+  '/help': typeof HelpRoute
+  '/integrations': typeof IntegrationsRoute
+  '/login': typeof LoginRoute
+  '/onboarding': typeof OnboardingRoute
+  '/pricing': typeof PricingRoute
+  '/privacy': typeof PrivacyRoute
+  '/signup': typeof SignupRoute
+  '/terms': typeof TermsRoute
+  '/accept-invite/$token': typeof AcceptInviteTokenRoute
+  '/admin/partners': typeof AdminPartnersRoute
+  '/admin/users': typeof AdminUsersRoute
+  '/assistant-handoff/$token': typeof AssistantHandoffTokenRoute
+  '/dashboard/accounts': typeof DashboardAccountsRoute
+  '/dashboard/analytics': typeof DashboardAnalyticsRoute
+  '/dashboard/assistant': typeof DashboardAssistantRoute
+  '/dashboard/campaigns': typeof DashboardCampaignsRoute
+  '/dashboard/discovery': typeof DashboardDiscoveryRoute
+  '/dashboard/help': typeof DashboardHelpRoute
+  '/dashboard/inbox': typeof DashboardInboxRoute
+  '/dashboard/leads': typeof DashboardLeadsRoute
+  '/dashboard/notifications': typeof DashboardNotificationsRoute
+  '/dashboard/settings': typeof DashboardSettingsRoute
+  '/docs/api': typeof DocsApiRoute
+  '/admin': typeof AdminIndexRoute
+  '/dashboard': typeof DashboardIndexRoute
+  '/dashboard/email-marketing/broadcasts': typeof DashboardEmailMarketingBroadcastsRoute
+  '/dashboard/email-marketing/contacts': typeof DashboardEmailMarketingContactsRouteWithChildren
+  '/dashboard/email-marketing/lists': typeof DashboardEmailMarketingListsRouteWithChildren
+  '/dashboard/email-marketing/suppressions': typeof DashboardEmailMarketingSuppressionsRoute
+  '/dashboard/email-marketing/templates': typeof DashboardEmailMarketingTemplatesRoute
+  '/dashboard/email-marketing': typeof DashboardEmailMarketingIndexRoute
+  '/dashboard/email-marketing/contacts/$contactId': typeof DashboardEmailMarketingContactsContactIdRoute
+  '/dashboard/email-marketing/lists/$listId': typeof DashboardEmailMarketingListsListIdRoute
 }
 export interface FileRoutesById {
-  __root__: typeof rootRouteImport;
-  '/': typeof IndexRoute;
-  '/about': typeof AboutRoute;
-  '/admin': typeof AdminRouteWithChildren;
-  '/contact': typeof ContactRoute;
-  '/dashboard': typeof DashboardRouteWithChildren;
-  '/help': typeof HelpRoute;
-  '/integrations': typeof IntegrationsRoute;
-  '/login': typeof LoginRoute;
-  '/onboarding': typeof OnboardingRoute;
-  '/pricing': typeof PricingRoute;
-  '/privacy': typeof PrivacyRoute;
-  '/signup': typeof SignupRoute;
-  '/terms': typeof TermsRoute;
-  '/accept-invite/$token': typeof AcceptInviteTokenRoute;
-  '/admin/partners': typeof AdminPartnersRoute;
-  '/admin/users': typeof AdminUsersRoute;
-  '/assistant-handoff/$token': typeof AssistantHandoffTokenRoute;
-  '/dashboard/accounts': typeof DashboardAccountsRoute;
-  '/dashboard/analytics': typeof DashboardAnalyticsRoute;
-  '/dashboard/assistant': typeof DashboardAssistantRoute;
-  '/dashboard/campaigns': typeof DashboardCampaignsRoute;
-  '/dashboard/discovery': typeof DashboardDiscoveryRoute;
-  '/dashboard/email-marketing': typeof DashboardEmailMarketingRouteWithChildren;
-  '/dashboard/help': typeof DashboardHelpRoute;
-  '/dashboard/inbox': typeof DashboardInboxRoute;
-  '/dashboard/leads': typeof DashboardLeadsRoute;
-  '/dashboard/notifications': typeof DashboardNotificationsRoute;
-  '/dashboard/settings': typeof DashboardSettingsRoute;
-  '/docs/api': typeof DocsApiRoute;
-  '/admin/': typeof AdminIndexRoute;
-  '/dashboard/': typeof DashboardIndexRoute;
-  '/dashboard/email-marketing/broadcasts': typeof DashboardEmailMarketingBroadcastsRoute;
-  '/dashboard/email-marketing/contacts': typeof DashboardEmailMarketingContactsRouteWithChildren;
-  '/dashboard/email-marketing/lists': typeof DashboardEmailMarketingListsRouteWithChildren;
-  '/dashboard/email-marketing/suppressions': typeof DashboardEmailMarketingSuppressionsRoute;
-  '/dashboard/email-marketing/templates': typeof DashboardEmailMarketingTemplatesRoute;
-  '/dashboard/email-marketing/': typeof DashboardEmailMarketingIndexRoute;
-  '/dashboard/email-marketing/contacts/$contactId': typeof DashboardEmailMarketingContactsContactIdRoute;
-  '/dashboard/email-marketing/lists/$listId': typeof DashboardEmailMarketingListsListIdRoute;
+  __root__: typeof rootRouteImport
+  '/': typeof IndexRoute
+  '/about': typeof AboutRoute
+  '/admin': typeof AdminRouteWithChildren
+  '/contact': typeof ContactRoute
+  '/dashboard': typeof DashboardRouteWithChildren
+  '/help': typeof HelpRoute
+  '/integrations': typeof IntegrationsRoute
+  '/login': typeof LoginRoute
+  '/onboarding': typeof OnboardingRoute
+  '/pricing': typeof PricingRoute
+  '/privacy': typeof PrivacyRoute
+  '/signup': typeof SignupRoute
+  '/terms': typeof TermsRoute
+  '/accept-invite/$token': typeof AcceptInviteTokenRoute
+  '/admin/partners': typeof AdminPartnersRoute
+  '/admin/users': typeof AdminUsersRoute
+  '/assistant-handoff/$token': typeof AssistantHandoffTokenRoute
+  '/dashboard/accounts': typeof DashboardAccountsRoute
+  '/dashboard/analytics': typeof DashboardAnalyticsRoute
+  '/dashboard/assistant': typeof DashboardAssistantRoute
+  '/dashboard/campaigns': typeof DashboardCampaignsRoute
+  '/dashboard/discovery': typeof DashboardDiscoveryRoute
+  '/dashboard/email-marketing': typeof DashboardEmailMarketingRouteWithChildren
+  '/dashboard/help': typeof DashboardHelpRoute
+  '/dashboard/inbox': typeof DashboardInboxRoute
+  '/dashboard/leads': typeof DashboardLeadsRoute
+  '/dashboard/notifications': typeof DashboardNotificationsRoute
+  '/dashboard/settings': typeof DashboardSettingsRoute
+  '/docs/api': typeof DocsApiRoute
+  '/admin/': typeof AdminIndexRoute
+  '/dashboard/': typeof DashboardIndexRoute
+  '/dashboard/email-marketing/broadcasts': typeof DashboardEmailMarketingBroadcastsRoute
+  '/dashboard/email-marketing/contacts': typeof DashboardEmailMarketingContactsRouteWithChildren
+  '/dashboard/email-marketing/lists': typeof DashboardEmailMarketingListsRouteWithChildren
+  '/dashboard/email-marketing/suppressions': typeof DashboardEmailMarketingSuppressionsRoute
+  '/dashboard/email-marketing/templates': typeof DashboardEmailMarketingTemplatesRoute
+  '/dashboard/email-marketing/': typeof DashboardEmailMarketingIndexRoute
+  '/dashboard/email-marketing/contacts/$contactId': typeof DashboardEmailMarketingContactsContactIdRoute
+  '/dashboard/email-marketing/lists/$listId': typeof DashboardEmailMarketingListsListIdRoute
 }
 export interface FileRouteTypes {
-  fileRoutesByFullPath: FileRoutesByFullPath;
+  fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
     | '/about'
@@ -410,8 +433,8 @@ export interface FileRouteTypes {
     | '/dashboard/email-marketing/templates'
     | '/dashboard/email-marketing/'
     | '/dashboard/email-marketing/contacts/$contactId'
-    | '/dashboard/email-marketing/lists/$listId';
-  fileRoutesByTo: FileRoutesByTo;
+    | '/dashboard/email-marketing/lists/$listId'
+  fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/about'
@@ -448,7 +471,7 @@ export interface FileRouteTypes {
     | '/dashboard/email-marketing/templates'
     | '/dashboard/email-marketing'
     | '/dashboard/email-marketing/contacts/$contactId'
-    | '/dashboard/email-marketing/lists/$listId';
+    | '/dashboard/email-marketing/lists/$listId'
   id:
     | '__root__'
     | '/'
@@ -489,379 +512,392 @@ export interface FileRouteTypes {
     | '/dashboard/email-marketing/templates'
     | '/dashboard/email-marketing/'
     | '/dashboard/email-marketing/contacts/$contactId'
-    | '/dashboard/email-marketing/lists/$listId';
-  fileRoutesById: FileRoutesById;
+    | '/dashboard/email-marketing/lists/$listId'
+  fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute;
-  AboutRoute: typeof AboutRoute;
-  AdminRoute: typeof AdminRouteWithChildren;
-  ContactRoute: typeof ContactRoute;
-  DashboardRoute: typeof DashboardRouteWithChildren;
-  HelpRoute: typeof HelpRoute;
-  IntegrationsRoute: typeof IntegrationsRoute;
-  LoginRoute: typeof LoginRoute;
-  OnboardingRoute: typeof OnboardingRoute;
-  PricingRoute: typeof PricingRoute;
-  PrivacyRoute: typeof PrivacyRoute;
-  SignupRoute: typeof SignupRoute;
-  TermsRoute: typeof TermsRoute;
-  AcceptInviteTokenRoute: typeof AcceptInviteTokenRoute;
-  AssistantHandoffTokenRoute: typeof AssistantHandoffTokenRoute;
-  DocsApiRoute: typeof DocsApiRoute;
+  IndexRoute: typeof IndexRoute
+  AboutRoute: typeof AboutRoute
+  AdminRoute: typeof AdminRouteWithChildren
+  ContactRoute: typeof ContactRoute
+  DashboardRoute: typeof DashboardRouteWithChildren
+  HelpRoute: typeof HelpRoute
+  IntegrationsRoute: typeof IntegrationsRoute
+  LoginRoute: typeof LoginRoute
+  OnboardingRoute: typeof OnboardingRoute
+  PricingRoute: typeof PricingRoute
+  PrivacyRoute: typeof PrivacyRoute
+  SignupRoute: typeof SignupRoute
+  TermsRoute: typeof TermsRoute
+  AcceptInviteTokenRoute: typeof AcceptInviteTokenRoute
+  AssistantHandoffTokenRoute: typeof AssistantHandoffTokenRoute
+  DocsApiRoute: typeof DocsApiRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
     '/terms': {
-      id: '/terms';
-      path: '/terms';
-      fullPath: '/terms';
-      preLoaderRoute: typeof TermsRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/signup': {
-      id: '/signup';
-      path: '/signup';
-      fullPath: '/signup';
-      preLoaderRoute: typeof SignupRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
+      id: '/signup'
+      path: '/signup'
+      fullPath: '/signup'
+      preLoaderRoute: typeof SignupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/privacy': {
-      id: '/privacy';
-      path: '/privacy';
-      fullPath: '/privacy';
-      preLoaderRoute: typeof PrivacyRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/pricing': {
-      id: '/pricing';
-      path: '/pricing';
-      fullPath: '/pricing';
-      preLoaderRoute: typeof PricingRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
+      id: '/pricing'
+      path: '/pricing'
+      fullPath: '/pricing'
+      preLoaderRoute: typeof PricingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/onboarding': {
-      id: '/onboarding';
-      path: '/onboarding';
-      fullPath: '/onboarding';
-      preLoaderRoute: typeof OnboardingRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
+      id: '/onboarding'
+      path: '/onboarding'
+      fullPath: '/onboarding'
+      preLoaderRoute: typeof OnboardingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/login': {
-      id: '/login';
-      path: '/login';
-      fullPath: '/login';
-      preLoaderRoute: typeof LoginRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/integrations': {
-      id: '/integrations';
-      path: '/integrations';
-      fullPath: '/integrations';
-      preLoaderRoute: typeof IntegrationsRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
+      id: '/integrations'
+      path: '/integrations'
+      fullPath: '/integrations'
+      preLoaderRoute: typeof IntegrationsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/help': {
-      id: '/help';
-      path: '/help';
-      fullPath: '/help';
-      preLoaderRoute: typeof HelpRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
+      id: '/help'
+      path: '/help'
+      fullPath: '/help'
+      preLoaderRoute: typeof HelpRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/dashboard': {
-      id: '/dashboard';
-      path: '/dashboard';
-      fullPath: '/dashboard';
-      preLoaderRoute: typeof DashboardRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
+      id: '/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof DashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/contact': {
-      id: '/contact';
-      path: '/contact';
-      fullPath: '/contact';
-      preLoaderRoute: typeof ContactRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
+      id: '/contact'
+      path: '/contact'
+      fullPath: '/contact'
+      preLoaderRoute: typeof ContactRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin': {
-      id: '/admin';
-      path: '/admin';
-      fullPath: '/admin';
-      preLoaderRoute: typeof AdminRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
+      id: '/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AdminRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/about': {
-      id: '/about';
-      path: '/about';
-      fullPath: '/about';
-      preLoaderRoute: typeof AboutRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
+      id: '/about'
+      path: '/about'
+      fullPath: '/about'
+      preLoaderRoute: typeof AboutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
-      id: '/';
-      path: '/';
-      fullPath: '/';
-      preLoaderRoute: typeof IndexRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/dashboard/': {
-      id: '/dashboard/';
-      path: '/';
-      fullPath: '/dashboard/';
-      preLoaderRoute: typeof DashboardIndexRouteImport;
-      parentRoute: typeof DashboardRoute;
-    };
+      id: '/dashboard/'
+      path: '/'
+      fullPath: '/dashboard/'
+      preLoaderRoute: typeof DashboardIndexRouteImport
+      parentRoute: typeof DashboardRoute
+    }
     '/admin/': {
-      id: '/admin/';
-      path: '/';
-      fullPath: '/admin/';
-      preLoaderRoute: typeof AdminIndexRouteImport;
-      parentRoute: typeof AdminRoute;
-    };
+      id: '/admin/'
+      path: '/'
+      fullPath: '/admin/'
+      preLoaderRoute: typeof AdminIndexRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/docs/api': {
-      id: '/docs/api';
-      path: '/docs/api';
-      fullPath: '/docs/api';
-      preLoaderRoute: typeof DocsApiRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
+      id: '/docs/api'
+      path: '/docs/api'
+      fullPath: '/docs/api'
+      preLoaderRoute: typeof DocsApiRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/dashboard/settings': {
-      id: '/dashboard/settings';
-      path: '/settings';
-      fullPath: '/dashboard/settings';
-      preLoaderRoute: typeof DashboardSettingsRouteImport;
-      parentRoute: typeof DashboardRoute;
-    };
+      id: '/dashboard/settings'
+      path: '/settings'
+      fullPath: '/dashboard/settings'
+      preLoaderRoute: typeof DashboardSettingsRouteImport
+      parentRoute: typeof DashboardRoute
+    }
     '/dashboard/notifications': {
-      id: '/dashboard/notifications';
-      path: '/notifications';
-      fullPath: '/dashboard/notifications';
-      preLoaderRoute: typeof DashboardNotificationsRouteImport;
-      parentRoute: typeof DashboardRoute;
-    };
+      id: '/dashboard/notifications'
+      path: '/notifications'
+      fullPath: '/dashboard/notifications'
+      preLoaderRoute: typeof DashboardNotificationsRouteImport
+      parentRoute: typeof DashboardRoute
+    }
     '/dashboard/leads': {
-      id: '/dashboard/leads';
-      path: '/leads';
-      fullPath: '/dashboard/leads';
-      preLoaderRoute: typeof DashboardLeadsRouteImport;
-      parentRoute: typeof DashboardRoute;
-    };
+      id: '/dashboard/leads'
+      path: '/leads'
+      fullPath: '/dashboard/leads'
+      preLoaderRoute: typeof DashboardLeadsRouteImport
+      parentRoute: typeof DashboardRoute
+    }
     '/dashboard/inbox': {
-      id: '/dashboard/inbox';
-      path: '/inbox';
-      fullPath: '/dashboard/inbox';
-      preLoaderRoute: typeof DashboardInboxRouteImport;
-      parentRoute: typeof DashboardRoute;
-    };
+      id: '/dashboard/inbox'
+      path: '/inbox'
+      fullPath: '/dashboard/inbox'
+      preLoaderRoute: typeof DashboardInboxRouteImport
+      parentRoute: typeof DashboardRoute
+    }
     '/dashboard/help': {
-      id: '/dashboard/help';
-      path: '/help';
-      fullPath: '/dashboard/help';
-      preLoaderRoute: typeof DashboardHelpRouteImport;
-      parentRoute: typeof DashboardRoute;
-    };
+      id: '/dashboard/help'
+      path: '/help'
+      fullPath: '/dashboard/help'
+      preLoaderRoute: typeof DashboardHelpRouteImport
+      parentRoute: typeof DashboardRoute
+    }
     '/dashboard/email-marketing': {
-      id: '/dashboard/email-marketing';
-      path: '/email-marketing';
-      fullPath: '/dashboard/email-marketing';
-      preLoaderRoute: typeof DashboardEmailMarketingRouteImport;
-      parentRoute: typeof DashboardRoute;
-    };
+      id: '/dashboard/email-marketing'
+      path: '/email-marketing'
+      fullPath: '/dashboard/email-marketing'
+      preLoaderRoute: typeof DashboardEmailMarketingRouteImport
+      parentRoute: typeof DashboardRoute
+    }
     '/dashboard/discovery': {
-      id: '/dashboard/discovery';
-      path: '/discovery';
-      fullPath: '/dashboard/discovery';
-      preLoaderRoute: typeof DashboardDiscoveryRouteImport;
-      parentRoute: typeof DashboardRoute;
-    };
+      id: '/dashboard/discovery'
+      path: '/discovery'
+      fullPath: '/dashboard/discovery'
+      preLoaderRoute: typeof DashboardDiscoveryRouteImport
+      parentRoute: typeof DashboardRoute
+    }
     '/dashboard/campaigns': {
-      id: '/dashboard/campaigns';
-      path: '/campaigns';
-      fullPath: '/dashboard/campaigns';
-      preLoaderRoute: typeof DashboardCampaignsRouteImport;
-      parentRoute: typeof DashboardRoute;
-    };
+      id: '/dashboard/campaigns'
+      path: '/campaigns'
+      fullPath: '/dashboard/campaigns'
+      preLoaderRoute: typeof DashboardCampaignsRouteImport
+      parentRoute: typeof DashboardRoute
+    }
     '/dashboard/assistant': {
-      id: '/dashboard/assistant';
-      path: '/assistant';
-      fullPath: '/dashboard/assistant';
-      preLoaderRoute: typeof DashboardAssistantRouteImport;
-      parentRoute: typeof DashboardRoute;
-    };
+      id: '/dashboard/assistant'
+      path: '/assistant'
+      fullPath: '/dashboard/assistant'
+      preLoaderRoute: typeof DashboardAssistantRouteImport
+      parentRoute: typeof DashboardRoute
+    }
     '/dashboard/analytics': {
-      id: '/dashboard/analytics';
-      path: '/analytics';
-      fullPath: '/dashboard/analytics';
-      preLoaderRoute: typeof DashboardAnalyticsRouteImport;
-      parentRoute: typeof DashboardRoute;
-    };
+      id: '/dashboard/analytics'
+      path: '/analytics'
+      fullPath: '/dashboard/analytics'
+      preLoaderRoute: typeof DashboardAnalyticsRouteImport
+      parentRoute: typeof DashboardRoute
+    }
     '/dashboard/accounts': {
-      id: '/dashboard/accounts';
-      path: '/accounts';
-      fullPath: '/dashboard/accounts';
-      preLoaderRoute: typeof DashboardAccountsRouteImport;
-      parentRoute: typeof DashboardRoute;
-    };
+      id: '/dashboard/accounts'
+      path: '/accounts'
+      fullPath: '/dashboard/accounts'
+      preLoaderRoute: typeof DashboardAccountsRouteImport
+      parentRoute: typeof DashboardRoute
+    }
     '/assistant-handoff/$token': {
-      id: '/assistant-handoff/$token';
-      path: '/assistant-handoff/$token';
-      fullPath: '/assistant-handoff/$token';
-      preLoaderRoute: typeof AssistantHandoffTokenRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
+      id: '/assistant-handoff/$token'
+      path: '/assistant-handoff/$token'
+      fullPath: '/assistant-handoff/$token'
+      preLoaderRoute: typeof AssistantHandoffTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/users': {
-      id: '/admin/users';
-      path: '/users';
-      fullPath: '/admin/users';
-      preLoaderRoute: typeof AdminUsersRouteImport;
-      parentRoute: typeof AdminRoute;
-    };
+      id: '/admin/users'
+      path: '/users'
+      fullPath: '/admin/users'
+      preLoaderRoute: typeof AdminUsersRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/partners': {
-      id: '/admin/partners';
-      path: '/partners';
-      fullPath: '/admin/partners';
-      preLoaderRoute: typeof AdminPartnersRouteImport;
-      parentRoute: typeof AdminRoute;
-    };
+      id: '/admin/partners'
+      path: '/partners'
+      fullPath: '/admin/partners'
+      preLoaderRoute: typeof AdminPartnersRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/accept-invite/$token': {
-      id: '/accept-invite/$token';
-      path: '/accept-invite/$token';
-      fullPath: '/accept-invite/$token';
-      preLoaderRoute: typeof AcceptInviteTokenRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
+      id: '/accept-invite/$token'
+      path: '/accept-invite/$token'
+      fullPath: '/accept-invite/$token'
+      preLoaderRoute: typeof AcceptInviteTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/dashboard/email-marketing/': {
-      id: '/dashboard/email-marketing/';
-      path: '/';
-      fullPath: '/dashboard/email-marketing/';
-      preLoaderRoute: typeof DashboardEmailMarketingIndexRouteImport;
-      parentRoute: typeof DashboardEmailMarketingRoute;
-    };
+      id: '/dashboard/email-marketing/'
+      path: '/'
+      fullPath: '/dashboard/email-marketing/'
+      preLoaderRoute: typeof DashboardEmailMarketingIndexRouteImport
+      parentRoute: typeof DashboardEmailMarketingRoute
+    }
     '/dashboard/email-marketing/templates': {
-      id: '/dashboard/email-marketing/templates';
-      path: '/templates';
-      fullPath: '/dashboard/email-marketing/templates';
-      preLoaderRoute: typeof DashboardEmailMarketingTemplatesRouteImport;
-      parentRoute: typeof DashboardEmailMarketingRoute;
-    };
+      id: '/dashboard/email-marketing/templates'
+      path: '/templates'
+      fullPath: '/dashboard/email-marketing/templates'
+      preLoaderRoute: typeof DashboardEmailMarketingTemplatesRouteImport
+      parentRoute: typeof DashboardEmailMarketingRoute
+    }
     '/dashboard/email-marketing/suppressions': {
-      id: '/dashboard/email-marketing/suppressions';
-      path: '/suppressions';
-      fullPath: '/dashboard/email-marketing/suppressions';
-      preLoaderRoute: typeof DashboardEmailMarketingSuppressionsRouteImport;
-      parentRoute: typeof DashboardEmailMarketingRoute;
-    };
+      id: '/dashboard/email-marketing/suppressions'
+      path: '/suppressions'
+      fullPath: '/dashboard/email-marketing/suppressions'
+      preLoaderRoute: typeof DashboardEmailMarketingSuppressionsRouteImport
+      parentRoute: typeof DashboardEmailMarketingRoute
+    }
     '/dashboard/email-marketing/lists': {
-      id: '/dashboard/email-marketing/lists';
-      path: '/lists';
-      fullPath: '/dashboard/email-marketing/lists';
-      preLoaderRoute: typeof DashboardEmailMarketingListsRouteImport;
-      parentRoute: typeof DashboardEmailMarketingRoute;
-    };
+      id: '/dashboard/email-marketing/lists'
+      path: '/lists'
+      fullPath: '/dashboard/email-marketing/lists'
+      preLoaderRoute: typeof DashboardEmailMarketingListsRouteImport
+      parentRoute: typeof DashboardEmailMarketingRoute
+    }
     '/dashboard/email-marketing/contacts': {
-      id: '/dashboard/email-marketing/contacts';
-      path: '/contacts';
-      fullPath: '/dashboard/email-marketing/contacts';
-      preLoaderRoute: typeof DashboardEmailMarketingContactsRouteImport;
-      parentRoute: typeof DashboardEmailMarketingRoute;
-    };
+      id: '/dashboard/email-marketing/contacts'
+      path: '/contacts'
+      fullPath: '/dashboard/email-marketing/contacts'
+      preLoaderRoute: typeof DashboardEmailMarketingContactsRouteImport
+      parentRoute: typeof DashboardEmailMarketingRoute
+    }
     '/dashboard/email-marketing/broadcasts': {
-      id: '/dashboard/email-marketing/broadcasts';
-      path: '/broadcasts';
-      fullPath: '/dashboard/email-marketing/broadcasts';
-      preLoaderRoute: typeof DashboardEmailMarketingBroadcastsRouteImport;
-      parentRoute: typeof DashboardEmailMarketingRoute;
-    };
+      id: '/dashboard/email-marketing/broadcasts'
+      path: '/broadcasts'
+      fullPath: '/dashboard/email-marketing/broadcasts'
+      preLoaderRoute: typeof DashboardEmailMarketingBroadcastsRouteImport
+      parentRoute: typeof DashboardEmailMarketingRoute
+    }
     '/dashboard/email-marketing/lists/$listId': {
-      id: '/dashboard/email-marketing/lists/$listId';
-      path: '/$listId';
-      fullPath: '/dashboard/email-marketing/lists/$listId';
-      preLoaderRoute: typeof DashboardEmailMarketingListsListIdRouteImport;
-      parentRoute: typeof DashboardEmailMarketingListsRoute;
-    };
+      id: '/dashboard/email-marketing/lists/$listId'
+      path: '/$listId'
+      fullPath: '/dashboard/email-marketing/lists/$listId'
+      preLoaderRoute: typeof DashboardEmailMarketingListsListIdRouteImport
+      parentRoute: typeof DashboardEmailMarketingListsRoute
+    }
     '/dashboard/email-marketing/contacts/$contactId': {
-      id: '/dashboard/email-marketing/contacts/$contactId';
-      path: '/$contactId';
-      fullPath: '/dashboard/email-marketing/contacts/$contactId';
-      preLoaderRoute: typeof DashboardEmailMarketingContactsContactIdRouteImport;
-      parentRoute: typeof DashboardEmailMarketingContactsRoute;
-    };
+      id: '/dashboard/email-marketing/contacts/$contactId'
+      path: '/$contactId'
+      fullPath: '/dashboard/email-marketing/contacts/$contactId'
+      preLoaderRoute: typeof DashboardEmailMarketingContactsContactIdRouteImport
+      parentRoute: typeof DashboardEmailMarketingContactsRoute
+    }
   }
 }
 
 interface AdminRouteChildren {
-  AdminPartnersRoute: typeof AdminPartnersRoute;
-  AdminUsersRoute: typeof AdminUsersRoute;
-  AdminIndexRoute: typeof AdminIndexRoute;
+  AdminPartnersRoute: typeof AdminPartnersRoute
+  AdminUsersRoute: typeof AdminUsersRoute
+  AdminIndexRoute: typeof AdminIndexRoute
 }
 
 const AdminRouteChildren: AdminRouteChildren = {
   AdminPartnersRoute: AdminPartnersRoute,
   AdminUsersRoute: AdminUsersRoute,
   AdminIndexRoute: AdminIndexRoute,
-};
-
-const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren);
-
-interface DashboardEmailMarketingContactsRouteChildren {
-  DashboardEmailMarketingContactsContactIdRoute: typeof DashboardEmailMarketingContactsContactIdRoute;
 }
 
-const DashboardEmailMarketingContactsRouteChildren: DashboardEmailMarketingContactsRouteChildren = {
-  DashboardEmailMarketingContactsContactIdRoute: DashboardEmailMarketingContactsContactIdRoute,
-};
+const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
+
+interface DashboardEmailMarketingContactsRouteChildren {
+  DashboardEmailMarketingContactsContactIdRoute: typeof DashboardEmailMarketingContactsContactIdRoute
+}
+
+const DashboardEmailMarketingContactsRouteChildren: DashboardEmailMarketingContactsRouteChildren =
+  {
+    DashboardEmailMarketingContactsContactIdRoute:
+      DashboardEmailMarketingContactsContactIdRoute,
+  }
 
 const DashboardEmailMarketingContactsRouteWithChildren =
   DashboardEmailMarketingContactsRoute._addFileChildren(
-    DashboardEmailMarketingContactsRouteChildren
-  );
+    DashboardEmailMarketingContactsRouteChildren,
+  )
 
 interface DashboardEmailMarketingListsRouteChildren {
-  DashboardEmailMarketingListsListIdRoute: typeof DashboardEmailMarketingListsListIdRoute;
+  DashboardEmailMarketingListsListIdRoute: typeof DashboardEmailMarketingListsListIdRoute
 }
 
-const DashboardEmailMarketingListsRouteChildren: DashboardEmailMarketingListsRouteChildren = {
-  DashboardEmailMarketingListsListIdRoute: DashboardEmailMarketingListsListIdRoute,
-};
+const DashboardEmailMarketingListsRouteChildren: DashboardEmailMarketingListsRouteChildren =
+  {
+    DashboardEmailMarketingListsListIdRoute:
+      DashboardEmailMarketingListsListIdRoute,
+  }
 
 const DashboardEmailMarketingListsRouteWithChildren =
-  DashboardEmailMarketingListsRoute._addFileChildren(DashboardEmailMarketingListsRouteChildren);
+  DashboardEmailMarketingListsRoute._addFileChildren(
+    DashboardEmailMarketingListsRouteChildren,
+  )
 
 interface DashboardEmailMarketingRouteChildren {
-  DashboardEmailMarketingBroadcastsRoute: typeof DashboardEmailMarketingBroadcastsRoute;
-  DashboardEmailMarketingContactsRoute: typeof DashboardEmailMarketingContactsRouteWithChildren;
-  DashboardEmailMarketingListsRoute: typeof DashboardEmailMarketingListsRouteWithChildren;
-  DashboardEmailMarketingSuppressionsRoute: typeof DashboardEmailMarketingSuppressionsRoute;
-  DashboardEmailMarketingTemplatesRoute: typeof DashboardEmailMarketingTemplatesRoute;
-  DashboardEmailMarketingIndexRoute: typeof DashboardEmailMarketingIndexRoute;
+  DashboardEmailMarketingBroadcastsRoute: typeof DashboardEmailMarketingBroadcastsRoute
+  DashboardEmailMarketingContactsRoute: typeof DashboardEmailMarketingContactsRouteWithChildren
+  DashboardEmailMarketingListsRoute: typeof DashboardEmailMarketingListsRouteWithChildren
+  DashboardEmailMarketingSuppressionsRoute: typeof DashboardEmailMarketingSuppressionsRoute
+  DashboardEmailMarketingTemplatesRoute: typeof DashboardEmailMarketingTemplatesRoute
+  DashboardEmailMarketingIndexRoute: typeof DashboardEmailMarketingIndexRoute
 }
 
-const DashboardEmailMarketingRouteChildren: DashboardEmailMarketingRouteChildren = {
-  DashboardEmailMarketingBroadcastsRoute: DashboardEmailMarketingBroadcastsRoute,
-  DashboardEmailMarketingContactsRoute: DashboardEmailMarketingContactsRouteWithChildren,
-  DashboardEmailMarketingListsRoute: DashboardEmailMarketingListsRouteWithChildren,
-  DashboardEmailMarketingSuppressionsRoute: DashboardEmailMarketingSuppressionsRoute,
-  DashboardEmailMarketingTemplatesRoute: DashboardEmailMarketingTemplatesRoute,
-  DashboardEmailMarketingIndexRoute: DashboardEmailMarketingIndexRoute,
-};
+const DashboardEmailMarketingRouteChildren: DashboardEmailMarketingRouteChildren =
+  {
+    DashboardEmailMarketingBroadcastsRoute:
+      DashboardEmailMarketingBroadcastsRoute,
+    DashboardEmailMarketingContactsRoute:
+      DashboardEmailMarketingContactsRouteWithChildren,
+    DashboardEmailMarketingListsRoute:
+      DashboardEmailMarketingListsRouteWithChildren,
+    DashboardEmailMarketingSuppressionsRoute:
+      DashboardEmailMarketingSuppressionsRoute,
+    DashboardEmailMarketingTemplatesRoute:
+      DashboardEmailMarketingTemplatesRoute,
+    DashboardEmailMarketingIndexRoute: DashboardEmailMarketingIndexRoute,
+  }
 
-const DashboardEmailMarketingRouteWithChildren = DashboardEmailMarketingRoute._addFileChildren(
-  DashboardEmailMarketingRouteChildren
-);
+const DashboardEmailMarketingRouteWithChildren =
+  DashboardEmailMarketingRoute._addFileChildren(
+    DashboardEmailMarketingRouteChildren,
+  )
 
 interface DashboardRouteChildren {
-  DashboardAccountsRoute: typeof DashboardAccountsRoute;
-  DashboardAnalyticsRoute: typeof DashboardAnalyticsRoute;
-  DashboardAssistantRoute: typeof DashboardAssistantRoute;
-  DashboardCampaignsRoute: typeof DashboardCampaignsRoute;
-  DashboardDiscoveryRoute: typeof DashboardDiscoveryRoute;
-  DashboardEmailMarketingRoute: typeof DashboardEmailMarketingRouteWithChildren;
-  DashboardHelpRoute: typeof DashboardHelpRoute;
-  DashboardInboxRoute: typeof DashboardInboxRoute;
-  DashboardLeadsRoute: typeof DashboardLeadsRoute;
-  DashboardNotificationsRoute: typeof DashboardNotificationsRoute;
-  DashboardSettingsRoute: typeof DashboardSettingsRoute;
-  DashboardIndexRoute: typeof DashboardIndexRoute;
+  DashboardAccountsRoute: typeof DashboardAccountsRoute
+  DashboardAnalyticsRoute: typeof DashboardAnalyticsRoute
+  DashboardAssistantRoute: typeof DashboardAssistantRoute
+  DashboardCampaignsRoute: typeof DashboardCampaignsRoute
+  DashboardDiscoveryRoute: typeof DashboardDiscoveryRoute
+  DashboardEmailMarketingRoute: typeof DashboardEmailMarketingRouteWithChildren
+  DashboardHelpRoute: typeof DashboardHelpRoute
+  DashboardInboxRoute: typeof DashboardInboxRoute
+  DashboardLeadsRoute: typeof DashboardLeadsRoute
+  DashboardNotificationsRoute: typeof DashboardNotificationsRoute
+  DashboardSettingsRoute: typeof DashboardSettingsRoute
+  DashboardIndexRoute: typeof DashboardIndexRoute
 }
 
 const DashboardRouteChildren: DashboardRouteChildren = {
@@ -877,9 +913,11 @@ const DashboardRouteChildren: DashboardRouteChildren = {
   DashboardNotificationsRoute: DashboardNotificationsRoute,
   DashboardSettingsRoute: DashboardSettingsRoute,
   DashboardIndexRoute: DashboardIndexRoute,
-};
+}
 
-const DashboardRouteWithChildren = DashboardRoute._addFileChildren(DashboardRouteChildren);
+const DashboardRouteWithChildren = DashboardRoute._addFileChildren(
+  DashboardRouteChildren,
+)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
@@ -898,7 +936,7 @@ const rootRouteChildren: RootRouteChildren = {
   AcceptInviteTokenRoute: AcceptInviteTokenRoute,
   AssistantHandoffTokenRoute: AssistantHandoffTokenRoute,
   DocsApiRoute: DocsApiRoute,
-};
+}
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
-  ._addFileTypes<FileRouteTypes>();
+  ._addFileTypes<FileRouteTypes>()
