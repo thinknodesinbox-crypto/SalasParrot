@@ -182,7 +182,7 @@ export function NotificationBell() {
   const notifications = notificationsData?.notifications || [];
 
   return (
-    <div className="relative" ref={dropdownRef}>
+    <div className="relative z-[90]" ref={dropdownRef}>
       {/* Bell Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
@@ -207,7 +207,7 @@ export function NotificationBell() {
 
       {/* Dropdown */}
       {isOpen && (
-        <div className="absolute right-0 z-50 mt-2 w-80 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-lg">
+        <div className="absolute right-0 z-[95] mt-2 w-80 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-[0_24px_60px_rgba(15,23,42,0.16)]">
           {/* Header */}
           <div className="flex items-center justify-between border-b border-gray-200 px-4 py-3">
             <h3 className="text-sm font-semibold text-gray-900">Notifications</h3>

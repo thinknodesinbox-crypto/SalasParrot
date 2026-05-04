@@ -4,10 +4,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const invalidateQueries = vi.fn();
 const createThreadMutateAsync = vi.fn();
 const sendMessageMutateAsync = vi.fn();
-const approveActionMutate = vi.fn();
-const rejectActionMutate = vi.fn();
-const editActionMutate = vi.fn();
-const executeActionMutate = vi.fn();
+const approveActionMutateAsync = vi.fn();
+const rejectActionMutateAsync = vi.fn();
+const editActionMutateAsync = vi.fn();
+const executeActionMutateAsync = vi.fn();
 const createQrTransferMutate = vi.fn();
 const createQrTransferReset = vi.fn();
 
@@ -125,10 +125,10 @@ describe('AssistantShell', () => {
     invalidateQueries.mockReset();
     createThreadMutateAsync.mockReset();
     sendMessageMutateAsync.mockReset();
-    approveActionMutate.mockReset();
-    rejectActionMutate.mockReset();
-    editActionMutate.mockReset();
-    executeActionMutate.mockReset();
+    approveActionMutateAsync.mockReset();
+    rejectActionMutateAsync.mockReset();
+    editActionMutateAsync.mockReset();
+    executeActionMutateAsync.mockReset();
     createQrTransferMutate.mockReset();
     createQrTransferReset.mockReset();
 
@@ -169,19 +169,19 @@ describe('AssistantShell', () => {
       isPending: false,
     });
     useApproveAssistantActionMock.mockReturnValue({
-      mutate: approveActionMutate,
+      mutateAsync: approveActionMutateAsync,
       isPending: false,
     });
     useRejectAssistantActionMock.mockReturnValue({
-      mutate: rejectActionMutate,
+      mutateAsync: rejectActionMutateAsync,
       isPending: false,
     });
     useEditAssistantActionMock.mockReturnValue({
-      mutate: editActionMutate,
+      mutateAsync: editActionMutateAsync,
       isPending: false,
     });
     useExecuteAssistantActionMock.mockReturnValue({
-      mutate: executeActionMutate,
+      mutateAsync: executeActionMutateAsync,
       isPending: false,
     });
     useCreateAssistantQrTransferMock.mockReturnValue({
@@ -210,13 +210,17 @@ describe('AssistantShell', () => {
     expect(screen.getByTestId('action-title')).toHaveTextContent('Pause campaign');
 
     fireEvent.click(screen.getByText('Approve action'));
-    expect(approveActionMutate).toHaveBeenCalledWith({
-      actionId: 'action-1',
-      note: 'Looks good.',
+    await waitFor(() => {
+      expect(approveActionMutateAsync).toHaveBeenCalledWith({
+        actionId: 'action-1',
+        note: 'Looks good.',
+      });
     });
 
     fireEvent.click(screen.getByText('Execute action'));
-    expect(executeActionMutate).toHaveBeenCalledWith({ actionId: 'action-1' });
+    await waitFor(() => {
+      expect(executeActionMutateAsync).toHaveBeenCalledWith({ actionId: 'action-1' });
+    });
   });
 
   it('creates a thread before sending when no active thread exists', async () => {
@@ -233,7 +237,7 @@ describe('AssistantShell', () => {
 
     await waitFor(() => {
       expect(createThreadMutateAsync).toHaveBeenCalledWith({
-        title: 'What needs attention in Acme today?',
+        title: 'pause campaign Apollo Enterprise',
       });
     });
     await waitFor(() => {

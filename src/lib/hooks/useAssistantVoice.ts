@@ -33,6 +33,28 @@ export function useAssistantVoice({
   threadId,
   onTranscriptSaved,
 }: UseAssistantVoiceOptions) {
+  const getFriendlyVoiceError = (message: string | null | undefined) => {
+    const cleaned = message?.trim();
+    if (!cleaned) return 'Voice mode could not start. Please try again.';
+    const lower = cleaned.toLowerCase();
+    if (lower.includes('status code 400')) {
+      return 'Voice mode could not start with the current workspace setup.';
+    }
+    if (lower.includes('status code 401') || lower.includes('unauthorized')) {
+      return 'Your session needs to be refreshed before voice mode can start.';
+    }
+    if (lower.includes('status code 403') || lower.includes('permission')) {
+      return 'Voice mode is not enabled for this workspace or account yet.';
+    }
+    if (lower.includes('status code 429') || lower.includes('rate limit')) {
+      return 'Voice mode is busy right now. Wait a moment, then try again.';
+    }
+    if (lower.includes('failed to fetch') || lower.includes('network')) {
+      return 'The connection dropped before voice mode could start.';
+    }
+    return cleaned;
+  };
+
   const getVoiceCapability = (): VoiceCapability => {
     if (typeof window === 'undefined') {
       return { supported: false, reason: 'Voice chat is only available in the browser.' };
@@ -195,9 +217,17 @@ export function useAssistantVoice({
     isStoppingRef.current = false;
   };
 
+  const clearError = () => {
+    setError(null);
+    if (status === 'error') {
+      setStatus('idle');
+    }
+  };
+
   const start = async (options?: StartVoiceOptions) => {
     const targetWorkspaceId = options?.workspaceId ?? workspaceId;
     const targetThreadId = options?.threadId ?? threadId;
+    setError(null);
     if (
       !targetWorkspaceId ||
       !targetThreadId ||
@@ -396,7 +426,7 @@ export function useAssistantVoice({
           return;
         }
       }
-      setError(err instanceof Error ? err.message : 'Voice connection failed.');
+      setError(getFriendlyVoiceError(err instanceof Error ? err.message : null));
     }
   };
 
@@ -477,5 +507,6 @@ export function useAssistantVoice({
     isConnected: status === 'connected',
     start,
     stop,
+    clearError,
   };
 }

@@ -29,6 +29,7 @@ import type {
   ImportType,
 } from '../../lib/types';
 import { api } from '../../lib/api';
+import { getLeadMappingPreviewLabel, LEAD_MAPPING_OPTIONS } from '../../lib/leadImportMapping';
 import { validateImportURL, validateProfileURLsBatch } from '../../lib/linkedinValidation';
 import { showErrorToast, showSuccessToast } from '../../lib/toast';
 import { useWorkspaceStore } from '../../lib/workspace';
@@ -59,7 +60,7 @@ type LeadCoreField =
   | 'headline'
   | 'location';
 
-type LeadMappingTarget = LeadCoreField | '__keep__' | '__ignore__';
+type LeadMappingTarget = LeadCoreField | '__split_full_name__' | '__keep__' | '__ignore__';
 
 type LeadMappingSuggestion = {
   target: LeadMappingTarget;
@@ -142,11 +143,110 @@ function scoreLeadHeaderAgainstSynonym(header: string, synonym: string): number 
   return Math.min(0.88, tokenScore * 0.7 + coverageBoost * 0.18);
 }
 
-function getLeadColumnSuggestion(header: string): LeadMappingSuggestion {
+function looksLikeEmailValue(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+}
+
+function looksLikeLinkedInUrlValue(value: string) {
+  return /linkedin\.com\/(in|pub|sales\/lead|recruiter)/i.test(value.trim());
+}
+
+function looksLikeFullNameValue(value: string) {
+  const normalized = value.trim().replace(/\s+/g, ' ');
+  if (!normalized || looksLikeEmailValue(normalized) || /^https?:\/\//i.test(normalized)) {
+    return false;
+  }
+  const parts = normalized
+    .split(' ')
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (parts.length < 2 || parts.length > 4) return false;
+  return parts.every((part) => /^[A-Za-zÀ-ÿ'`.-]{2,}$/.test(part));
+}
+
+function looksLikeSingleNamePartValue(value: string) {
+  const normalized = value.trim();
+  return /^[A-Za-zÀ-ÿ'`.-]{2,}$/.test(normalized);
+}
+
+function looksLikeJobTitleValue(value: string) {
+  const normalized = value.trim().toLowerCase();
+  if (!normalized || normalized.length > 90) return false;
+  return [
+    'ceo',
+    'cto',
+    'cfo',
+    'coo',
+    'founder',
+    'owner',
+    'president',
+    'vp',
+    'vice president',
+    'head',
+    'director',
+    'manager',
+    'lead',
+    'engineer',
+    'developer',
+    'consultant',
+    'marketing',
+    'sales',
+    'revenue',
+    'operations',
+    'finance',
+  ].some((keyword) => normalized.includes(keyword));
+}
+
+function looksLikeHeadlineValue(value: string) {
+  const normalized = value.trim().toLowerCase();
+  if (!normalized || normalized.length < 18) return false;
+  return normalized.includes(' at ') || normalized.includes(' | ') || looksLikeJobTitleValue(value);
+}
+
+function looksLikeLocationValue(value: string) {
+  const normalized = value.trim();
+  if (!normalized || looksLikeEmailValue(normalized) || /^https?:\/\//i.test(normalized)) {
+    return false;
+  }
+  const parts = normalized
+    .split(',')
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (parts.length >= 2 && parts.every((part) => /^[A-Za-zÀ-ÿ.' -]{2,}$/.test(part))) {
+    return true;
+  }
+  const words = normalized.split(/\s+/).filter(Boolean);
+  return words.length <= 4 && words.every((word) => /^[A-Za-zÀ-ÿ.'-]{2,}$/.test(word));
+}
+
+function looksLikeCompanyValue(value: string) {
+  const normalized = value.trim().toLowerCase();
+  if (!normalized || looksLikeEmailValue(normalized) || /^https?:\/\//i.test(normalized)) {
+    return false;
+  }
+  return (
+    ['inc', 'llc', 'ltd', 'limited', 'corp', 'company', 'gmbh', 'plc', 'group'].some((keyword) =>
+      normalized.includes(keyword)
+    ) ||
+    (!looksLikeJobTitleValue(value) && normalized.split(/\s+/).length <= 6)
+  );
+}
+
+function ratioOf(values: string[], predicate: (value: string) => boolean) {
+  if (!values.length) return 0;
+  return values.filter(predicate).length / values.length;
+}
+
+function getLeadColumnSuggestion(
+  header: string,
+  sampleValues: string[] = []
+): LeadMappingSuggestion {
   const normalizedHeader = normalizeLeadHeader(header);
   let bestField: LeadCoreField | null = null;
   let bestScore = 0;
   let bestReason = 'Will stay as a custom field.';
+  let splitNameScore = 0;
+  let splitNameReason = '';
 
   (Object.entries(LEAD_FIELD_SYNONYMS) as Array<[LeadCoreField, string[]]>).forEach(
     ([field, synonyms]) => {
@@ -164,6 +264,66 @@ function getLeadColumnSuggestion(header: string): LeadMappingSuggestion {
     }
   );
 
+  const populatedSampleValues = sampleValues
+    .map((value) => value.trim())
+    .filter(Boolean)
+    .slice(0, 8);
+  if (populatedSampleValues.length > 0) {
+    const emailRatio = ratioOf(populatedSampleValues, looksLikeEmailValue);
+    const linkedInRatio = ratioOf(populatedSampleValues, looksLikeLinkedInUrlValue);
+    const fullNameRatio = ratioOf(populatedSampleValues, looksLikeFullNameValue);
+    const singleNameRatio = ratioOf(populatedSampleValues, looksLikeSingleNamePartValue);
+    const titleRatio = ratioOf(populatedSampleValues, looksLikeJobTitleValue);
+    const headlineRatio = ratioOf(populatedSampleValues, looksLikeHeadlineValue);
+    const locationRatio = ratioOf(populatedSampleValues, looksLikeLocationValue);
+    const companyRatio = ratioOf(populatedSampleValues, looksLikeCompanyValue);
+
+    if (emailRatio >= 0.6 && bestScore < 0.97) {
+      bestField = 'email';
+      bestScore = 0.97;
+      bestReason = 'Sample values look like email addresses.';
+    }
+    if (linkedInRatio >= 0.6 && bestScore < 0.97) {
+      bestField = 'linkedin_url';
+      bestScore = 0.97;
+      bestReason = 'Sample values look like LinkedIn profile URLs.';
+    }
+    if (fullNameRatio >= 0.6) {
+      splitNameScore = normalizedHeader.includes('name') ? 0.98 : 0.9;
+      splitNameReason = 'Sample values look like full names that can be split automatically.';
+    }
+    if (titleRatio >= 0.5 && bestScore < 0.86) {
+      bestField = 'title';
+      bestScore = 0.86;
+      bestReason = 'Sample values look like job titles.';
+    }
+    if (headlineRatio >= 0.5 && bestScore < 0.82) {
+      bestField = 'headline';
+      bestScore = 0.82;
+      bestReason = 'Sample values look like LinkedIn headlines.';
+    }
+    if (locationRatio >= 0.5 && bestScore < 0.78) {
+      bestField = 'location';
+      bestScore = 0.78;
+      bestReason = 'Sample values look like locations.';
+    }
+    if (companyRatio >= 0.5 && bestScore < 0.76) {
+      bestField = 'company';
+      bestScore = 0.76;
+      bestReason = 'Sample values look like company names.';
+    }
+    if (singleNameRatio >= 0.7 && normalizedHeader.includes('first') && bestScore < 0.9) {
+      bestField = 'first_name';
+      bestScore = 0.9;
+      bestReason = 'Sample values look like first names.';
+    }
+    if (singleNameRatio >= 0.7 && normalizedHeader.includes('last') && bestScore < 0.9) {
+      bestField = 'last_name';
+      bestScore = 0.9;
+      bestReason = 'Sample values look like last names.';
+    }
+  }
+
   if (normalizedHeader.includes('mail') && bestScore < 0.9) {
     bestField = 'email';
     bestScore = 0.9;
@@ -177,6 +337,15 @@ function getLeadColumnSuggestion(header: string): LeadMappingSuggestion {
     bestField = 'linkedin_url';
     bestScore = 0.9;
     bestReason = 'Detected LinkedIn profile-style wording.';
+  }
+
+  if (splitNameScore >= bestScore && splitNameScore >= 0.75) {
+    return {
+      target: '__split_full_name__',
+      confidence: splitNameScore >= 0.92 ? 'high' : splitNameScore >= 0.75 ? 'medium' : 'low',
+      score: splitNameScore,
+      reason: splitNameReason,
+    };
   }
 
   if (!bestField || bestScore < 0.45) {
@@ -193,6 +362,67 @@ function getLeadColumnSuggestion(header: string): LeadMappingSuggestion {
     confidence: bestScore >= 0.9 ? 'high' : bestScore >= 0.7 ? 'medium' : 'low',
     score: bestScore,
     reason: bestReason,
+  };
+}
+
+function autoMapLeadColumns(headers: string[], rows: string[][]) {
+  const suggestions = Object.fromEntries(
+    headers.map((header, index) => {
+      const sampleValues = rows.map((row) => row[index] || '');
+      return [header, getLeadColumnSuggestion(header, sampleValues)];
+    })
+  ) as Record<string, LeadMappingSuggestion>;
+
+  const assigned = new Set<LeadMappingTarget>();
+  const headersByStrength = [...headers].sort(
+    (left, right) => suggestions[right].score - suggestions[left].score
+  );
+
+  headersByStrength.forEach((header) => {
+    const suggestion = suggestions[header];
+    const target = suggestion.target;
+    if (target === '__keep__' || target === '__ignore__') return;
+    if (
+      target === '__split_full_name__' &&
+      (assigned.has('first_name') || assigned.has('last_name'))
+    ) {
+      suggestions[header] = {
+        target: '__keep__',
+        confidence: 'low',
+        score: suggestion.score,
+        reason: 'Separate first and last name columns matched more strongly.',
+      };
+      return;
+    }
+    if (assigned.has(target)) {
+      suggestions[header] = {
+        target: '__keep__',
+        confidence: 'low',
+        score: suggestion.score,
+        reason: `Another column matched ${String(target).replace(/_/g, ' ')} more strongly.`,
+      };
+      return;
+    }
+    assigned.add(target);
+  });
+
+  return suggestions;
+}
+
+function splitFullName(value: string) {
+  const normalized = value.trim().replace(/\s+/g, ' ');
+  if (!normalized) return { firstName: '', lastName: '' };
+  if (normalized.includes(',')) {
+    const [lastName, firstName] = normalized.split(',').map((part) => part.trim());
+    return { firstName: firstName || '', lastName: lastName || '' };
+  }
+  const parts = normalized.split(' ');
+  if (parts.length === 1) {
+    return { firstName: parts[0], lastName: '' };
+  }
+  return {
+    firstName: parts.slice(0, -1).join(' '),
+    lastName: parts.slice(-1).join(' '),
   };
 }
 
@@ -2718,16 +2948,14 @@ function ImportMethodConfig({
       }
       const headers = parseLeadDelimitedLine(lines[0], delimiter);
       const rows = lines.slice(1, 6).map((line) => parseLeadDelimitedLine(line, delimiter));
-      const suggestions = Object.fromEntries(
-        headers.map((header) => [header, getLeadColumnSuggestion(header)])
-      );
+      const suggestions = autoMapLeadColumns(headers, rows);
       setCsvPreviewHeaders(headers);
       setCsvPreviewRows(rows);
       setMappingSuggestions(suggestions);
       setColumnMapping(
         Object.fromEntries(headers.map((header) => [header, suggestions[header].target]))
       );
-      setMappingConfirmed(false);
+      setMappingConfirmed(true);
     };
     reader.readAsText(file);
   };
@@ -2744,12 +2972,22 @@ function ImportMethodConfig({
     const keptIndices = sourceHeaders
       .map((header, index) => ({ header, index, target: mapping[header] || '__keep__' }))
       .filter((item) => item.target !== '__ignore__');
-    const mappedHeaders = keptIndices.map((item) =>
-      item.target === '__keep__' ? item.header : item.target
-    );
+    const mappedHeaders = keptIndices.flatMap((item) => {
+      if (item.target === '__split_full_name__') return ['first_name', 'last_name'];
+      return [item.target === '__keep__' ? item.header : item.target];
+    });
     const remappedRows = lines.slice(1).map((line) => {
       const cells = parseLeadDelimitedLine(line, delimiter);
-      return keptIndices.map((item) => escapeLeadCsvCell(cells[item.index] || '')).join(',');
+      return keptIndices
+        .flatMap((item) => {
+          const value = cells[item.index] || '';
+          if (item.target === '__split_full_name__') {
+            const split = splitFullName(value);
+            return [escapeLeadCsvCell(split.firstName), escapeLeadCsvCell(split.lastName)];
+          }
+          return [escapeLeadCsvCell(value)];
+        })
+        .join(',');
     });
     const remapped = [mappedHeaders.map(escapeLeadCsvCell).join(','), ...remappedRows].join('\n');
     return new File([remapped], file.name, { type: 'text/csv' });
@@ -3110,16 +3348,13 @@ function ImportMethodConfig({
               <div>
                 <p className="text-sm font-medium text-[#1E293B]">Review smart field mapping</p>
                 <p className="mt-1 text-xs text-[#64748B]">
-                  We auto-detected the most likely Parrot fields. Confirm before import.
+                  We auto-detected the most likely Parrot fields. Change anything you want, or
+                  import as-is.
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => setMappingConfirmed(true)}
-                className="rounded-lg border border-[#FF6B35] px-3 py-2 text-sm font-medium text-[#FF6B35] hover:bg-[#FFF7ED]"
-              >
-                Confirm Mapping
-              </button>
+              <span className="rounded-full border border-[#DCFCE7] bg-[#F0FDF4] px-3 py-1 text-xs font-semibold text-[#166534]">
+                Auto-mapped
+              </span>
             </div>
 
             <div className="mt-4 grid gap-3 md:grid-cols-2">
@@ -3150,20 +3385,15 @@ function ImportMethodConfig({
                         ...current,
                         [header]: e.target.value as LeadMappingTarget,
                       }));
-                      setMappingConfirmed(false);
+                      setMappingConfirmed(true);
                     }}
                     className="mt-2 w-full rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm focus:border-[#FF6B35] focus:outline-none"
                   >
-                    <option value="linkedin_url">LinkedIn URL</option>
-                    <option value="email">Email</option>
-                    <option value="first_name">First name</option>
-                    <option value="last_name">Last name</option>
-                    <option value="company">Company</option>
-                    <option value="title">Title</option>
-                    <option value="headline">Headline</option>
-                    <option value="location">Location</option>
-                    <option value="__keep__">Keep as custom field</option>
-                    <option value="__ignore__">Ignore this column</option>
+                    {LEAD_MAPPING_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
                   </select>
                 </div>
               ))}
@@ -3175,11 +3405,7 @@ function ImportMethodConfig({
                   <tr className="border-b border-[#E2E8F0] text-[#64748B]">
                     {csvPreviewHeaders.map((header) => (
                       <th key={header} className="px-2 py-2 font-medium">
-                        {columnMapping[header] === '__keep__'
-                          ? header
-                          : columnMapping[header] === '__ignore__'
-                            ? `${header} (ignored)`
-                            : columnMapping[header] || header}
+                        {getLeadMappingPreviewLabel(header, columnMapping[header])}
                       </th>
                     ))}
                   </tr>
@@ -3212,14 +3438,10 @@ function ImportMethodConfig({
             const mappedFile = await buildMappedLeadCsvFile(csvFile, columnMapping);
             onCSVImport(mappedFile);
           }}
-          disabled={
-            !csvFile ||
-            !mappingConfirmed ||
-            (listDestinationMode === 'new' ? !listName.trim() : !targetListId)
-          }
+          disabled={!csvFile || (listDestinationMode === 'new' ? !listName.trim() : !targetListId)}
           className="w-full rounded-xl bg-[#FF6B35] py-3.5 font-semibold text-white hover:bg-[#E85A2A] disabled:cursor-not-allowed disabled:opacity-50"
         >
-          {mappingConfirmed ? 'Import Leads' : 'Confirm mapping to import'}
+          {mappingConfirmed ? 'Import Leads' : 'Loading mapping...'}
         </button>
       </div>
     );

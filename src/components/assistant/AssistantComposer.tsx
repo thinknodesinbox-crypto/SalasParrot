@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Mic } from 'lucide-react';
+import { ArrowUp, Mic } from 'lucide-react';
 
 interface AssistantComposerProps {
   disabled?: boolean;
@@ -15,6 +15,8 @@ interface AssistantComposerProps {
     visualReason?: string | null;
   } | null;
   voiceActionState?: 'awaiting_confirmation' | 'approved' | null;
+  variant?: 'drawer' | 'page';
+  hideVoiceControls?: boolean;
   onApproveVoiceAction?: () => void;
   onExecuteVoiceAction?: () => void;
   onRejectVoiceAction?: () => void;
@@ -31,6 +33,8 @@ export function AssistantComposer({
   voiceUnavailableReason = null,
   voiceReview = null,
   voiceActionState = null,
+  variant = 'drawer',
+  hideVoiceControls = false,
   onApproveVoiceAction,
   onExecuteVoiceAction,
   onRejectVoiceAction,
@@ -38,6 +42,7 @@ export function AssistantComposer({
   onSend,
 }: AssistantComposerProps) {
   const [value, setValue] = useState('');
+  const isPage = variant === 'page';
   const voiceStatusLabel = isVoiceConnecting
     ? 'Connecting voice assistant'
     : isVoiceActive
@@ -52,9 +57,13 @@ export function AssistantComposer({
   };
 
   return (
-    <div className="border-t border-[#E2E8F0] bg-white p-4">
-      {(isVoiceConnecting || isVoiceActive) && (
-        <div className="mb-3 flex items-center justify-between rounded-xl border border-[#FED7AA] bg-[#FFF7ED] px-4 py-3">
+    <div
+      className={`border-t border-[#E2E8F0] bg-white ${
+        isPage ? 'px-5 pb-5 pt-4 md:px-6 md:pb-6' : 'p-4'
+      }`}
+    >
+      {!hideVoiceControls && (isVoiceConnecting || isVoiceActive) && (
+        <div className="mb-3 flex items-center justify-between rounded-2xl border border-[#FED7AA] bg-[#FFF7ED] px-4 py-3">
           <div className="flex items-center gap-3">
             <div className="flex items-end gap-1">
               <span
@@ -84,18 +93,18 @@ export function AssistantComposer({
           <button
             type="button"
             onClick={onToggleVoice}
-            className="rounded-lg bg-[#1E293B] px-3 py-2 text-xs font-semibold uppercase tracking-wide text-white"
+            className="rounded-xl bg-[#1E293B] px-3 py-2 text-xs font-semibold uppercase tracking-wide text-white"
           >
             Stop
           </button>
         </div>
       )}
 
-      {isVoiceActive && voiceReview?.spokenSummary ? (
-        <div className="mb-3 rounded-xl border border-[#E9D5FF] bg-[#FAF5FF] px-4 py-3">
+      {!hideVoiceControls && isVoiceActive && voiceReview?.spokenSummary ? (
+        <div className="mb-3 rounded-2xl border border-[#E9D5FF] bg-[#FAF5FF] px-4 py-3">
           <div className="text-sm font-semibold text-[#6D28D9]">
             {voiceReview.requiresVisualReview
-              ? 'Review In Chat To Continue'
+              ? 'Review in chat to continue'
               : voiceActionState === 'approved'
                 ? 'Ready to execute by voice'
                 : 'Pending voice confirmation'}
@@ -111,7 +120,7 @@ export function AssistantComposer({
               <button
                 type="button"
                 onClick={onApproveVoiceAction}
-                className="rounded-lg bg-[#6D28D9] px-3 py-2 text-xs font-semibold uppercase tracking-wide text-white"
+                className="rounded-xl bg-[#6D28D9] px-3 py-2 text-xs font-semibold uppercase tracking-wide text-white"
               >
                 Approve
               </button>
@@ -120,7 +129,7 @@ export function AssistantComposer({
               <button
                 type="button"
                 onClick={onExecuteVoiceAction}
-                className="rounded-lg bg-[#FF6B35] px-3 py-2 text-xs font-semibold uppercase tracking-wide text-white"
+                className="rounded-xl bg-[#FF6B35] px-3 py-2 text-xs font-semibold uppercase tracking-wide text-white"
               >
                 Execute
               </button>
@@ -128,7 +137,7 @@ export function AssistantComposer({
             <button
               type="button"
               onClick={onRejectVoiceAction}
-              className="rounded-lg border border-[#D8B4FE] bg-white px-3 py-2 text-xs font-semibold uppercase tracking-wide text-[#6D28D9]"
+              className="rounded-xl border border-[#D8B4FE] bg-white px-3 py-2 text-xs font-semibold uppercase tracking-wide text-[#6D28D9]"
             >
               Cancel
             </button>
@@ -136,48 +145,64 @@ export function AssistantComposer({
         </div>
       ) : null}
 
-      <div className="flex gap-3">
-        <textarea
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              void handleSubmit();
+      <div className={isPage ? 'rounded-[28px] border border-[#E2E8F0] bg-[#FCFDFE] p-4' : ''}>
+        <div className="flex gap-3">
+          <textarea
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                void handleSubmit();
+              }
+            }}
+            disabled={disabled || isSending}
+            placeholder={
+              disabled
+                ? 'Select a workspace to start'
+                : isPage
+                  ? 'Ask about campaigns, pipeline, inbox changes, or what needs attention next.'
+                  : 'Ask what is going on in this workspace right now'
             }
-          }}
-          disabled={disabled || isSending}
-          placeholder={
-            disabled
-              ? 'Select a workspace to start'
-              : 'Ask what is going on in this workspace right now'
-          }
-          className="min-h-[84px] flex-1 rounded-xl border border-[#E2E8F0] px-4 py-3 text-sm text-[#1E293B] focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20 disabled:bg-[#F8FAFC]"
-        />
-        {!isVoiceActive && !isVoiceConnecting ? (
+            className={`flex-1 resize-none text-sm text-[#1E293B] placeholder:text-[#94A3B8] focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/15 disabled:bg-[#F8FAFC] ${
+              isPage
+                ? 'min-h-[104px] rounded-[24px] border border-[#E2E8F0] bg-white px-5 py-4 text-[15px]'
+                : 'min-h-[84px] rounded-xl border border-[#E2E8F0] px-4 py-3'
+            }`}
+          />
+          {!hideVoiceControls && !isVoiceActive && !isVoiceConnecting ? (
+            <button
+              type="button"
+              onClick={onToggleVoice}
+              disabled={isVoiceDisabled || !onToggleVoice}
+              aria-label="Start voice chat"
+              title={voiceUnavailableReason ? voiceUnavailableReason : 'Start voice chat'}
+              className={`self-end text-[#1E293B] transition-colors disabled:cursor-not-allowed disabled:border-[#E2E8F0] disabled:bg-[#E2E8F0] disabled:text-[#94A3B8] ${
+                isPage
+                  ? 'rounded-2xl border border-[#E2E8F0] bg-white px-4 py-3 hover:bg-[#F8FAFC]'
+                  : 'rounded-xl border border-[#E2E8F0] bg-white px-3 py-3 hover:bg-[#F8FAFC]'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <Mic className="h-5 w-5" />
+                <span className="hidden text-sm font-medium sm:inline">Voice</span>
+              </div>
+            </button>
+          ) : null}
           <button
-            type="button"
-            onClick={onToggleVoice}
-            disabled={isVoiceDisabled || !onToggleVoice}
-            aria-label="Start voice chat"
-            title={voiceUnavailableReason ? voiceUnavailableReason : 'Start voice chat'}
-            className="self-end rounded-xl border border-[#E2E8F0] bg-white px-3 py-3 text-[#1E293B] transition-colors hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:border-[#E2E8F0] disabled:bg-[#E2E8F0] disabled:text-[#94A3B8]"
+            onClick={() => void handleSubmit()}
+            disabled={disabled || isSending || !value.trim()}
+            className={`self-end text-sm font-medium text-white transition-colors disabled:cursor-not-allowed disabled:bg-[#CBD5E1] ${
+              isPage
+                ? 'inline-flex h-12 w-12 items-center justify-center rounded-full bg-[#0F172A] hover:bg-[#1E293B]'
+                : 'rounded-xl bg-[#FF6B35] px-4 py-3 hover:bg-[#E85A2A]'
+            }`}
           >
-            <div className="flex items-center gap-2">
-              <Mic className="h-5 w-5" />
-              <span className="hidden text-sm font-medium sm:inline">Voice</span>
-            </div>
+            {isPage ? <ArrowUp className="h-4 w-4" /> : isSending ? 'Sending...' : 'Send'}
           </button>
-        ) : null}
-        <button
-          onClick={() => void handleSubmit()}
-          disabled={disabled || isSending || !value.trim()}
-          className="self-end rounded-xl bg-[#FF6B35] px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-[#E85A2A] disabled:cursor-not-allowed disabled:bg-[#CBD5E1]"
-        >
-          {isSending ? 'Sending...' : 'Send'}
-        </button>
+        </div>
       </div>
-      {voiceUnavailableReason ? (
+      {!hideVoiceControls && voiceUnavailableReason ? (
         <p className="mt-3 text-xs text-[#B45309]">{voiceUnavailableReason}</p>
       ) : null}
     </div>
