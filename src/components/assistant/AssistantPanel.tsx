@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useQueryClient } from '@tanstack/react-query';
-import { Loader2, Mic, PhoneOff, Sparkles } from 'lucide-react';
+import { Loader2, MessageCircle, Mic, PhoneOff, Sparkles } from 'lucide-react';
 import { queryKeys } from '@/lib/queryClient';
 import { useCurrentWorkspace } from '@/lib/workspace';
 import { useAssistantUiStore } from '@/lib/assistantUi';
@@ -107,34 +107,64 @@ function VoiceOrb({
   isConnecting,
   disabled,
   unavailableReason,
+  showLabel = true,
+  size = 'default',
   onToggle,
 }: {
   isActive: boolean;
   isConnecting: boolean;
   disabled: boolean;
   unavailableReason?: string | null;
+  showLabel?: boolean;
+  size?: 'default' | 'compact';
   onToggle: () => void;
 }) {
   const label = isConnecting ? 'Connecting' : isActive ? 'Listening' : 'Voice';
+  const isUnavailable = disabled || Boolean(unavailableReason);
   const title = disabled
     ? 'Select a workspace to use voice'
     : unavailableReason || (isActive ? 'Stop voice mode' : 'Start voice mode');
+  const isCompact = size === 'compact';
+  const isLiveVisual = isActive || isConnecting;
+  const shouldShowHoverPreview = !isLiveVisual && !isUnavailable;
 
   return (
-    <div className="pointer-events-auto flex flex-col items-center">
+    <div className="group/voice pointer-events-auto relative flex flex-col items-center">
+      <AnimatePresence>
+        {shouldShowHoverPreview ? (
+          <motion.div
+            initial={{ opacity: 0, y: 6, scale: 0.96 }}
+            animate={{ y: [4, 0, 4], scale: [0.98, 1, 0.98] }}
+            exit={{ opacity: 0, y: 6, scale: 0.96 }}
+            transition={{ duration: 2.8, repeat: Infinity, ease: 'easeInOut' }}
+            className={`bg-white/96 pointer-events-none absolute left-1/2 z-20 -translate-x-1/2 rounded-full border border-[#D6E8FF] px-3.5 py-2 text-xs font-semibold text-[#0F172A] opacity-0 shadow-[0_18px_44px_rgba(15,23,42,0.12)] backdrop-blur transition-all duration-200 group-hover/voice:-translate-y-1 group-hover/voice:opacity-100 ${
+              isCompact ? '-top-12 whitespace-nowrap' : '-top-14 whitespace-nowrap'
+            }`}
+          >
+            <span className="flex items-center gap-2">
+              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#EFF6FF] text-[#2563EB]">
+                <MessageCircle className="h-3.5 w-3.5" />
+              </span>
+              Click to start talking to me
+            </span>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
       <button
         type="button"
         onClick={onToggle}
-        disabled={disabled || Boolean(unavailableReason)}
+        disabled={isUnavailable}
         title={title}
         aria-label={isActive ? 'Stop voice mode' : 'Start voice mode'}
-        className={`group relative flex h-20 w-20 items-center justify-center rounded-full transition-all disabled:cursor-not-allowed ${
-          isActive || isConnecting
+        className={`group relative flex items-center justify-center rounded-full transition-all disabled:cursor-not-allowed ${
+          isCompact ? 'h-16 w-16' : 'h-20 w-20'
+        } ${
+          isLiveVisual
             ? 'border border-[#DBF4FF]/80 bg-[#CFF4FF] text-white shadow-[0_26px_80px_rgba(56,189,248,0.36)]'
             : 'border border-[#E2E8F0] bg-white text-[#0F172A] shadow-[0_18px_45px_rgba(15,23,42,0.12)] hover:-translate-y-0.5 hover:border-[#CBD5E1]'
         }`}
       >
-        {isActive || isConnecting ? (
+        {isLiveVisual ? (
           <>
             <motion.span
               className="absolute inset-[-18px] rounded-full bg-[#7DD3FC]/20 blur-2xl"
@@ -164,24 +194,28 @@ function VoiceOrb({
               }}
             >
               <motion.span
-                className="absolute -left-5 top-5 h-16 w-16 rounded-full bg-[#0284C7]/45 blur-xl"
+                className={`absolute rounded-full bg-[#0284C7]/45 blur-xl ${isCompact ? '-left-4 top-4 h-12 w-12' : '-left-5 top-5 h-16 w-16'}`}
                 animate={{ x: [0, 10, -4, 0], y: [0, -7, 5, 0], opacity: [0.35, 0.62, 0.4] }}
                 transition={{ duration: 3.2, repeat: Infinity, ease: 'easeInOut' }}
               />
               <motion.span
-                className="bg-white/72 absolute -right-3 -top-2 h-14 w-14 rounded-full blur-lg"
+                className={`bg-white/72 absolute rounded-full blur-lg ${isCompact ? '-right-2 -top-1 h-10 w-10' : '-right-3 -top-2 h-14 w-14'}`}
                 animate={{ x: [0, -7, 4, 0], y: [0, 8, -4, 0], opacity: [0.72, 0.42, 0.78] }}
                 transition={{ duration: 2.6, repeat: Infinity, ease: 'easeInOut' }}
               />
               <motion.span
-                className="absolute bottom-0 left-1/2 h-11 w-16 -translate-x-1/2 rounded-full bg-[#38BDF8]/55 blur-md"
+                className={`absolute bottom-0 left-1/2 -translate-x-1/2 rounded-full bg-[#38BDF8]/55 blur-md ${isCompact ? 'h-8 w-12' : 'h-11 w-16'}`}
                 animate={{ scaleX: [1, 1.18, 0.94, 1], opacity: [0.5, 0.82, 0.55] }}
                 transition={{ duration: 2.1, repeat: Infinity, ease: 'easeInOut' }}
               />
               <span className="absolute inset-0 rounded-full bg-[radial-gradient(circle_at_44%_16%,rgba(255,255,255,0.76),rgba(255,255,255,0.1)_32%,transparent_58%)]" />
             </motion.span>
-            <span className="border-white/28 absolute inset-[7px] rounded-full border" />
-            <span className="relative flex h-9 w-9 items-center justify-center rounded-full bg-white/10 text-white/90 opacity-0 backdrop-blur-sm transition-opacity group-hover:opacity-100">
+            <span
+              className={`border-white/28 absolute rounded-full border ${isCompact ? 'inset-[6px]' : 'inset-[7px]'}`}
+            />
+            <span
+              className={`relative flex items-center justify-center rounded-full bg-white/10 text-white/90 opacity-0 backdrop-blur-sm transition-opacity group-hover:opacity-100 ${isCompact ? 'h-8 w-8' : 'h-9 w-9'}`}
+            >
               {isConnecting ? (
                 <Loader2 className="h-5 w-5 animate-spin" />
               ) : (
@@ -190,14 +224,69 @@ function VoiceOrb({
             </span>
           </>
         ) : (
-          <span className="relative flex h-14 w-14 items-center justify-center rounded-full bg-[#F8FAFC]">
-            <Mic className="h-7 w-7" />
-          </span>
+          <>
+            <motion.span
+              className={`bg-[#7DD3FC]/16 pointer-events-none absolute inset-[-14px] rounded-full opacity-0 blur-2xl transition duration-300 group-hover/voice:opacity-100 ${
+                isUnavailable ? '' : ''
+              }`}
+              animate={{
+                scale: [0.94, 1.08, 0.98],
+                opacity: [0.05, 0.26, 0.08],
+              }}
+              transition={{ duration: 2.6, repeat: Infinity, ease: 'easeInOut' }}
+            />
+            <motion.span
+              className="absolute inset-[-7px] rounded-full border border-[#BAE6FD]/50 opacity-0 transition duration-300 group-hover/voice:opacity-100"
+              animate={{ scale: [1, 1.18, 1], opacity: [0.08, 0.3, 0.08] }}
+              transition={{ duration: 1.9, repeat: Infinity, ease: 'easeOut' }}
+            />
+            <motion.span
+              className="absolute inset-0 overflow-hidden rounded-full opacity-0 transition duration-300 group-hover/voice:opacity-100"
+              animate={{
+                borderRadius: [
+                  '50% 50% 48% 52%',
+                  '46% 54% 53% 47%',
+                  '53% 47% 46% 54%',
+                  '50% 50% 48% 52%',
+                ],
+                scale: [1, 1.05, 0.99, 1.03, 1],
+              }}
+              transition={{ duration: 2.8, repeat: Infinity, ease: 'easeInOut' }}
+            >
+              <span className="absolute inset-0 rounded-full bg-[radial-gradient(circle_at_62%_20%,rgba(240,253,255,0.98)_0%,rgba(224,249,255,0.88)_24%,rgba(125,211,252,0.9)_50%,rgba(14,165,233,0.9)_74%,rgba(2,132,199,0.95)_100%)]" />
+              <motion.span
+                className={`absolute rounded-full bg-[#0284C7]/45 blur-xl ${isCompact ? '-left-4 top-4 h-12 w-12' : '-left-5 top-5 h-16 w-16'}`}
+                animate={{ x: [0, 10, -4, 0], y: [0, -7, 5, 0], opacity: [0.3, 0.62, 0.4] }}
+                transition={{ duration: 3.2, repeat: Infinity, ease: 'easeInOut' }}
+              />
+              <motion.span
+                className={`bg-white/72 absolute rounded-full blur-lg ${isCompact ? '-right-2 -top-1 h-10 w-10' : '-right-3 -top-2 h-14 w-14'}`}
+                animate={{ x: [0, -7, 4, 0], y: [0, 8, -4, 0], opacity: [0.68, 0.42, 0.76] }}
+                transition={{ duration: 2.6, repeat: Infinity, ease: 'easeInOut' }}
+              />
+              <motion.span
+                className={`absolute bottom-0 left-1/2 -translate-x-1/2 rounded-full bg-[#38BDF8]/55 blur-md ${isCompact ? 'h-8 w-12' : 'h-11 w-16'}`}
+                animate={{ scaleX: [1, 1.18, 0.94, 1], opacity: [0.48, 0.82, 0.55] }}
+                transition={{ duration: 2.1, repeat: Infinity, ease: 'easeInOut' }}
+              />
+              <span className="absolute inset-0 rounded-full bg-[radial-gradient(circle_at_44%_16%,rgba(255,255,255,0.76),rgba(255,255,255,0.1)_32%,transparent_58%)]" />
+            </motion.span>
+            <span className="border-white/28 absolute inset-[6px] rounded-full border opacity-0 transition duration-300 group-hover/voice:opacity-100" />
+            <motion.span
+              className={`relative flex items-center justify-center rounded-full bg-[#F8FAFC] transition duration-300 ${
+                isCompact ? 'h-11 w-11' : 'h-14 w-14'
+              } ${shouldShowHoverPreview ? 'group-hover/voice:scale-[0.88] group-hover/voice:bg-white/10 group-hover/voice:text-white/90' : ''}`}
+            >
+              <Mic className={isCompact ? 'h-6 w-6' : 'h-7 w-7'} />
+            </motion.span>
+          </>
         )}
       </button>
-      <div className="bg-white/92 mt-2 rounded-full border border-[#E2E8F0] px-3 py-1.5 text-xs font-semibold text-[#475569] shadow-sm backdrop-blur">
-        {label}
-      </div>
+      {showLabel ? (
+        <div className="bg-white/92 mt-2 rounded-full border border-[#E2E8F0] px-3 py-1.5 text-xs font-semibold text-[#475569] shadow-sm backdrop-blur">
+          {label}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -616,6 +705,54 @@ export function AssistantPanel({
 
   const voiceHeaderStatus =
     voice.status === 'connecting' ? 'Connecting' : isVoiceActive ? 'Live' : null;
+  const isPageEmptyState =
+    mode === 'page' &&
+    messages.length === 0 &&
+    !voice.liveUserTranscript &&
+    !voice.liveAssistantTranscript &&
+    !pendingUserMessage &&
+    !sendMessage.isPending &&
+    !createThread.isPending;
+  const shouldFloatPageVoice = mode === 'page' && !isPageEmptyState;
+  const pageHeroVoice = (
+    <div className="flex flex-col items-center">
+      <VoiceOrb
+        isActive={isVoiceActive}
+        isConnecting={voice.status === 'connecting'}
+        disabled={!currentWorkspaceId}
+        unavailableReason={!voiceCapability.supported ? voiceCapability.reason : null}
+        showLabel={false}
+        onToggle={() => void handleToggleVoice()}
+      />
+      <AnimatePresence>
+        {voice.error ? (
+          <motion.div
+            role="alert"
+            initial={{ opacity: 0, y: -6, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -6, scale: 0.98 }}
+            transition={{ duration: 0.18 }}
+            className="pointer-events-auto mt-4 flex max-w-[min(92vw,420px)] items-start gap-3 rounded-2xl border border-[#FED7AA] bg-white/95 px-4 py-3 text-left shadow-[0_18px_45px_rgba(15,23,42,0.12)] backdrop-blur"
+          >
+            <div className="mt-1 h-2 w-2 flex-shrink-0 rounded-full bg-[#F97316]" />
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-semibold text-[#9A3412]">Voice could not start</div>
+              <div className="mt-1 text-sm leading-5 text-[#C2410C]">
+                {humanizeVoiceError(voice.error)}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => voice.clearError()}
+              className="pointer-events-auto rounded-full px-2 py-1 text-xs font-semibold text-[#9A3412] hover:bg-[#FFF7ED]"
+            >
+              Dismiss
+            </button>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+    </div>
+  );
 
   if (mode === 'page') {
     return (
@@ -623,82 +760,86 @@ export function AssistantPanel({
         <section>
           <div className="relative min-w-0">
             <div className="overflow-hidden rounded-[30px] border border-[#E2E8F0] bg-white shadow-[0_24px_60px_rgba(15,23,42,0.08)]">
-              <div className="relative flex h-[calc(100vh-4.75rem)] min-h-[620px] flex-col bg-[linear-gradient(180deg,#FFFFFF_0%,#FBFDFF_100%)] md:h-[calc(100vh-5.5rem)]">
-                <div className="pointer-events-none absolute left-1/2 top-4 z-10 flex -translate-x-1/2 flex-col items-center">
-                  <VoiceOrb
-                    isActive={isVoiceActive}
-                    isConnecting={voice.status === 'connecting'}
-                    disabled={!currentWorkspaceId}
-                    unavailableReason={!voiceCapability.supported ? voiceCapability.reason : null}
-                    onToggle={() => void handleToggleVoice()}
-                  />
-                  <AnimatePresence>
-                    {voice.error ? (
-                      <motion.div
-                        role="alert"
-                        initial={{ opacity: 0, y: -6, scale: 0.98 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, y: -6, scale: 0.98 }}
-                        transition={{ duration: 0.18 }}
-                        className="pointer-events-auto mt-2 flex max-w-[min(92vw,460px)] items-start gap-3 rounded-2xl border border-[#FED7AA] bg-white/95 px-4 py-3 text-left shadow-[0_18px_45px_rgba(15,23,42,0.12)] backdrop-blur"
-                      >
-                        <div className="mt-1 h-2 w-2 flex-shrink-0 rounded-full bg-[#F97316]" />
-                        <div className="min-w-0 flex-1">
-                          <div className="text-sm font-semibold text-[#9A3412]">
-                            Voice could not start
-                          </div>
-                          <div className="mt-1 text-sm leading-5 text-[#C2410C]">
-                            {humanizeVoiceError(voice.error)}
-                          </div>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => voice.clearError()}
-                          className="pointer-events-auto rounded-full px-2 py-1 text-xs font-semibold text-[#9A3412] hover:bg-[#FFF7ED]"
-                        >
-                          Dismiss
-                        </button>
-                      </motion.div>
-                    ) : null}
-                  </AnimatePresence>
-                  {isVoiceActive && latestVoiceReview?.spokenSummary ? (
-                    <VoiceReviewCard
-                      review={latestVoiceReview}
-                      actionState={
-                        latestVoiceReviewAction?.status === 'awaiting_confirmation' ||
-                        latestVoiceReviewAction?.status === 'approved'
-                          ? latestVoiceReviewAction.status
-                          : null
-                      }
-                      onApprove={() => {
-                        if (latestVoiceReviewAction?.status === 'awaiting_confirmation') {
-                          void handleApproveAction(latestVoiceReviewAction.id);
-                        }
-                      }}
-                      onExecute={() => {
-                        if (latestVoiceReviewAction?.status === 'approved') {
-                          void handleExecuteAction(latestVoiceReviewAction.id);
-                        }
-                      }}
-                      onCancel={() => {
-                        if (
-                          latestVoiceReviewAction &&
-                          latestVoiceReviewAction.status !== 'executed' &&
-                          latestVoiceReviewAction.status !== 'rejected'
-                        ) {
-                          void handleRejectAction(latestVoiceReviewAction.id);
-                        }
-                      }}
+              <div className="relative flex h-[calc(100vh-2rem)] min-h-[680px] flex-col bg-[linear-gradient(180deg,#FFFFFF_0%,#FBFDFF_100%)] md:h-[calc(100vh-2.5rem)]">
+                {shouldFloatPageVoice ? (
+                  <div className="pointer-events-none absolute left-1/2 top-4 z-10 flex -translate-x-1/2 flex-col items-center">
+                    <VoiceOrb
+                      isActive={isVoiceActive}
+                      isConnecting={voice.status === 'connecting'}
+                      disabled={!currentWorkspaceId}
+                      unavailableReason={!voiceCapability.supported ? voiceCapability.reason : null}
+                      showLabel={false}
+                      size="compact"
+                      onToggle={() => void handleToggleVoice()}
                     />
-                  ) : null}
-                </div>
+                    <AnimatePresence>
+                      {voice.error ? (
+                        <motion.div
+                          role="alert"
+                          initial={{ opacity: 0, y: -6, scale: 0.98 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          exit={{ opacity: 0, y: -6, scale: 0.98 }}
+                          transition={{ duration: 0.18 }}
+                          className="pointer-events-auto mt-2 flex max-w-[min(92vw,460px)] items-start gap-3 rounded-2xl border border-[#FED7AA] bg-white/95 px-4 py-3 text-left shadow-[0_18px_45px_rgba(15,23,42,0.12)] backdrop-blur"
+                        >
+                          <div className="mt-1 h-2 w-2 flex-shrink-0 rounded-full bg-[#F97316]" />
+                          <div className="min-w-0 flex-1">
+                            <div className="text-sm font-semibold text-[#9A3412]">
+                              Voice could not start
+                            </div>
+                            <div className="mt-1 text-sm leading-5 text-[#C2410C]">
+                              {humanizeVoiceError(voice.error)}
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => voice.clearError()}
+                            className="pointer-events-auto rounded-full px-2 py-1 text-xs font-semibold text-[#9A3412] hover:bg-[#FFF7ED]"
+                          >
+                            Dismiss
+                          </button>
+                        </motion.div>
+                      ) : null}
+                    </AnimatePresence>
+                    {isVoiceActive && latestVoiceReview?.spokenSummary ? (
+                      <VoiceReviewCard
+                        review={latestVoiceReview}
+                        actionState={
+                          latestVoiceReviewAction?.status === 'awaiting_confirmation' ||
+                          latestVoiceReviewAction?.status === 'approved'
+                            ? latestVoiceReviewAction.status
+                            : null
+                        }
+                        onApprove={() => {
+                          if (latestVoiceReviewAction?.status === 'awaiting_confirmation') {
+                            void handleApproveAction(latestVoiceReviewAction.id);
+                          }
+                        }}
+                        onExecute={() => {
+                          if (latestVoiceReviewAction?.status === 'approved') {
+                            void handleExecuteAction(latestVoiceReviewAction.id);
+                          }
+                        }}
+                        onCancel={() => {
+                          if (
+                            latestVoiceReviewAction &&
+                            latestVoiceReviewAction.status !== 'executed' &&
+                            latestVoiceReviewAction.status !== 'rejected'
+                          ) {
+                            void handleRejectAction(latestVoiceReviewAction.id);
+                          }
+                        }}
+                      />
+                    ) : null}
+                  </div>
+                ) : null}
 
-                <div className="absolute right-4 top-4 z-20 flex items-center gap-2">
+                <div className="absolute right-4 top-4 z-20 flex items-center gap-2 md:right-5 md:top-5">
                   <button
                     type="button"
                     onClick={() => void handleCreateThread()}
                     disabled={createThread.isPending || sendMessage.isPending}
-                    className="bg-white/94 rounded-full border border-[#E2E8F0] px-3 py-2 text-xs font-semibold text-[#475569] shadow-sm backdrop-blur transition-colors hover:bg-white disabled:cursor-wait disabled:text-[#94A3B8]"
+                    className="bg-white/94 rounded-full border border-[#E2E8F0] px-3.5 py-2 text-xs font-semibold text-[#475569] shadow-[0_10px_28px_rgba(15,23,42,0.08)] backdrop-blur transition-colors hover:bg-white disabled:cursor-wait disabled:text-[#94A3B8]"
                   >
                     New
                   </button>
@@ -709,15 +850,20 @@ export function AssistantPanel({
                       createQrTransfer.mutate();
                     }}
                     disabled={!activeThreadId || !currentWorkspaceId}
-                    className="bg-white/94 rounded-full border border-[#E2E8F0] px-3 py-2 text-xs font-semibold text-[#475569] shadow-sm backdrop-blur transition-colors hover:bg-white disabled:cursor-not-allowed disabled:text-[#94A3B8]"
+                    className="bg-white/94 rounded-full border border-[#E2E8F0] px-3.5 py-2 text-xs font-semibold text-[#475569] shadow-[0_10px_28px_rgba(15,23,42,0.08)] backdrop-blur transition-colors hover:bg-white disabled:cursor-not-allowed disabled:text-[#94A3B8]"
                   >
                     Mobile
                   </button>
                 </div>
 
-                <div className="min-h-0 flex-1 pt-20 md:pt-[5.5rem]">
+                <div
+                  className={`min-h-0 flex-1 ${
+                    isPageEmptyState ? 'pt-5 md:pt-6' : 'pt-16 md:pt-20'
+                  }`}
+                >
                   <AssistantMessageList
                     variant="page"
+                    pageHero={isPageEmptyState ? pageHeroVoice : undefined}
                     suggestedPrompts={pageStarterPrompts}
                     suggestedPromptsDisabled={sendMessage.isPending || createThread.isPending}
                     onUseSuggestedPrompt={(prompt) => void handleSendMessage(prompt)}

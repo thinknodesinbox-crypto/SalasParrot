@@ -129,12 +129,16 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   useEffect(() => {
     if (!isWorkspaceRoute) return;
     setDesktopWorkspaceOpen(true);
+    setDesktopAssistantOpen(false);
     setMobileWorkspaceOpen(true);
+    setMobileAssistantOpen(false);
   }, [isWorkspaceRoute]);
 
   useEffect(() => {
     if (!isAssistantPage) return;
+    setDesktopWorkspaceOpen(false);
     setDesktopAssistantOpen(true);
+    setMobileWorkspaceOpen(false);
     setMobileAssistantOpen(true);
   }, [isAssistantPage]);
 
@@ -298,9 +302,16 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                 if (sidebarCollapsed) {
                   setSidebarCollapsed(false);
                   setDesktopWorkspaceOpen(true);
+                  setDesktopAssistantOpen(false);
                   return;
                 }
-                setDesktopWorkspaceOpen((open) => !open);
+                setDesktopWorkspaceOpen((open) => {
+                  const next = !open;
+                  if (next) {
+                    setDesktopAssistantOpen(false);
+                  }
+                  return next;
+                });
               }}
             />
           </div>
@@ -318,15 +329,23 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                 if (sidebarCollapsed) {
                   setSidebarCollapsed(false);
                   setDesktopAssistantOpen(true);
+                  setDesktopWorkspaceOpen(false);
                   navigate({ to: '/dashboard/assistant' } as never);
                   return;
                 }
                 if (!isAssistantPage) {
                   navigate({ to: '/dashboard/assistant' } as never);
                   setDesktopAssistantOpen(true);
+                  setDesktopWorkspaceOpen(false);
                   return;
                 }
-                setDesktopAssistantOpen((open) => !open);
+                setDesktopAssistantOpen((open) => {
+                  const next = !open;
+                  if (next) {
+                    setDesktopWorkspaceOpen(false);
+                  }
+                  return next;
+                });
               }}
             />
           </div>
@@ -410,7 +429,15 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                   collapsed={false}
                   currentPath={currentPath}
                   currentTab={currentAccountsTab}
-                  onToggle={() => setMobileWorkspaceOpen((open) => !open)}
+                  onToggle={() =>
+                    setMobileWorkspaceOpen((open) => {
+                      const next = !open;
+                      if (next) {
+                        setMobileAssistantOpen(false);
+                      }
+                      return next;
+                    })
+                  }
                 />
               </div>
 
@@ -427,9 +454,16 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                     if (!isAssistantPage) {
                       navigate({ to: '/dashboard/assistant' } as never);
                       setMobileAssistantOpen(true);
+                      setMobileWorkspaceOpen(false);
                       return;
                     }
-                    setMobileAssistantOpen((open) => !open);
+                    setMobileAssistantOpen((open) => {
+                      const next = !open;
+                      if (next) {
+                        setMobileWorkspaceOpen(false);
+                      }
+                      return next;
+                    });
                   }}
                 />
               </div>
@@ -498,7 +532,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         <main
           className={
             isAssistantPage
-              ? 'flex-1 px-4 pb-4 pt-2 md:px-6 md:pb-6 md:pt-2'
+              ? 'flex-1 px-2 pb-2 pt-0 md:px-3 md:pb-3 md:pt-0'
               : 'flex-1 p-4 pt-3 md:p-6 md:pt-4'
           }
         >

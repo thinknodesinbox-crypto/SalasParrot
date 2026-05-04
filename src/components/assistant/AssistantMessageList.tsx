@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import type { ReactNode } from 'react';
 import type { AssistantAction, AssistantMessage } from '@/lib/types';
 import { AssistantActionCard } from './AssistantActionCard';
 import { AssistantInsightCard } from './AssistantInsightCard';
@@ -40,6 +41,7 @@ interface AssistantMessageListProps {
   error?: string | null;
   isResponding?: boolean;
   variant?: 'drawer' | 'page';
+  pageHero?: ReactNode;
   suggestedPrompts?: string[];
   suggestedPromptsDisabled?: boolean;
   onUseSuggestedPrompt?: (prompt: string) => void;
@@ -64,6 +66,7 @@ export function AssistantMessageList({
   error = null,
   isResponding = false,
   variant = 'drawer',
+  pageHero,
   suggestedPrompts = [],
   suggestedPromptsDisabled = false,
   onUseSuggestedPrompt,
@@ -160,50 +163,53 @@ export function AssistantMessageList({
     }
 
     return (
-      <div className="flex h-full items-start justify-center px-6 pb-6 pt-3 md:px-10 md:pt-4">
-        <div className="w-full max-w-3xl">
-          <div className="mx-auto max-w-xl text-center">
-            <h3 className="text-2xl font-semibold tracking-tight text-[#0F172A] md:text-3xl">
-              What should SalesParrot look into?
-            </h3>
-            <p className="mt-2 text-sm leading-6 text-[#64748B]">
-              Choose a starting point or type your own question below.
-            </p>
-          </div>
+      <div className="h-full overflow-y-auto">
+        <div className="flex min-h-full items-start justify-center px-6 pb-12 pt-2 md:px-10 md:pb-16 md:pt-4">
+          <div className="w-full max-w-5xl">
+            {pageHero ? <div className="mb-8 md:mb-10">{pageHero}</div> : null}
 
-          {suggestedPrompts.length > 0 ? (
-            <div className="mt-5 grid gap-2 md:grid-cols-3">
-              {suggestedPrompts.slice(0, 3).map((prompt, index) => (
-                <button
-                  key={prompt}
-                  type="button"
-                  disabled={suggestedPromptsDisabled}
-                  onClick={() => onUseSuggestedPrompt?.(prompt)}
-                  className={`group rounded-[20px] border px-4 py-4 text-left transition-all ${
-                    index === 0
-                      ? 'border-[#0F172A] bg-[#0F172A] text-white shadow-[0_18px_42px_rgba(15,23,42,0.12)]'
-                      : 'border-[#E2E8F0] bg-white text-[#0F172A] hover:-translate-y-0.5 hover:border-[#CBD5E1] hover:shadow-[0_16px_40px_rgba(15,23,42,0.08)]'
-                  } disabled:cursor-wait disabled:opacity-60`}
-                >
-                  <div
-                    className={`text-xs font-semibold uppercase tracking-[0.22em] ${
-                      index === 0 ? 'text-white/60' : 'text-[#94A3B8]'
-                    }`}
-                  >
-                    {index === 0 ? 'Suggested' : 'Ask'}
-                  </div>
-                  <div className="mt-2 line-clamp-3 text-sm font-semibold leading-6">{prompt}</div>
-                  <div
-                    className={`mt-3 text-xs font-semibold ${
-                      index === 0 ? 'text-white/70' : 'text-[#FF6B35]'
-                    }`}
-                  >
-                    Ask this
-                  </div>
-                </button>
-              ))}
+            <div className="mx-auto max-w-[46rem] text-center">
+              <h3 className="text-[2rem] font-semibold tracking-[-0.04em] text-[#0F172A] md:text-[3.2rem] md:leading-[1.02]">
+                What should SalesParrot look into?
+              </h3>
             </div>
-          ) : null}
+
+            {suggestedPrompts.length > 0 ? (
+              <div className="mx-auto mt-8 grid max-w-[60rem] gap-3 md:mt-10 md:grid-cols-3">
+                {suggestedPrompts.slice(0, 3).map((prompt, index) => (
+                  <button
+                    key={prompt}
+                    type="button"
+                    disabled={suggestedPromptsDisabled}
+                    onClick={() => onUseSuggestedPrompt?.(prompt)}
+                    className={`group rounded-[24px] border px-5 py-5 text-left transition-all ${
+                      index === 0
+                        ? 'border-[#0F172A] bg-[#0F172A] text-white shadow-[0_20px_48px_rgba(15,23,42,0.14)]'
+                        : 'border-[#E2E8F0] bg-white text-[#0F172A] hover:-translate-y-0.5 hover:border-[#CBD5E1] hover:shadow-[0_18px_42px_rgba(15,23,42,0.08)]'
+                    } disabled:cursor-wait disabled:opacity-60`}
+                  >
+                    <div
+                      className={`text-xs font-semibold uppercase tracking-[0.22em] ${
+                        index === 0 ? 'text-white/60' : 'text-[#94A3B8]'
+                      }`}
+                    >
+                      {index === 0 ? 'Suggested' : 'Ask'}
+                    </div>
+                    <div className="mt-3 line-clamp-3 text-[15px] font-semibold leading-7">
+                      {prompt}
+                    </div>
+                    <div
+                      className={`mt-5 text-xs font-semibold ${
+                        index === 0 ? 'text-white/70' : 'text-[#FF6B35]'
+                      }`}
+                    >
+                      Ask this
+                    </div>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
         </div>
       </div>
     );
