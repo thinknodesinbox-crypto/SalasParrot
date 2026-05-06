@@ -578,13 +578,16 @@ function StepFunnelVisualization({
 
   // Filter out 'end' steps from funnel
   const visibleSteps = steps.filter((s) => s.step_type !== 'end');
-  const maxLeads = Math.max(...visibleSteps.map((s) => s.leads_at_step + s.leads_completed), 1);
+  const maxLeads = Math.max(
+    ...visibleSteps.map((s) => s.leads_at_step + s.leads_completed + s.leads_skipped),
+    1
+  );
 
   return (
     <div className="rounded-xl border border-[#E2E8F0] bg-white p-5">
       <div className="mb-3 flex items-center gap-1.5">
         <h3 className="text-base font-semibold text-[#1E293B]">Sequence Progress</h3>
-        <InfoTooltip content="Shows where leads are in the sequence. The left count is currently at that step; the right count has already moved past it." />
+        <InfoTooltip content="Shows where leads are in the sequence. Ready means the lead is currently at that step. Sent means the action actually happened. Skipped means the lead moved past the step without the action happening." />
       </div>
       <div className="space-y-2">
         {visibleSteps.map((step, index) => {
@@ -631,6 +634,14 @@ function StepFunnelVisualization({
                     <span className={step.leads_completed > 0 ? 'text-[#22C55E]' : ''}>
                       {step.leads_completed} {stepCopy.completedLabel}
                     </span>
+                    {step.leads_skipped > 0 && (
+                      <>
+                        {' / '}
+                        <span className="text-[#F59E0B]">
+                          {step.leads_skipped} {stepCopy.skippedLabel}
+                        </span>
+                      </>
+                    )}
                     {etaText && <span className="ml-1 text-[10px] text-[#94A3B8]">~{etaText}</span>}
                     <InfoTooltip content={stepCopy.tooltip} align="right" />
                   </span>
@@ -644,6 +655,17 @@ function StepFunnelVisualization({
                         initial={{ width: 0 }}
                         animate={{
                           width: `${maxLeads > 0 ? (step.leads_completed / maxLeads) * 100 : 0}%`,
+                        }}
+                        transition={{ duration: 0.3, delay: index * 0.05 }}
+                      />
+                    )}
+                    {/* Skipped portion */}
+                    {step.leads_skipped > 0 && (
+                      <motion.div
+                        className="h-full bg-[#F59E0B]/55"
+                        initial={{ width: 0 }}
+                        animate={{
+                          width: `${maxLeads > 0 ? (step.leads_skipped / maxLeads) * 100 : 0}%`,
                         }}
                         transition={{ duration: 0.3, delay: index * 0.05 }}
                       />
@@ -770,38 +792,47 @@ function ActivityFeed({ activity }: { activity: CampaignActivity }) {
 function getStepProgressCopy(stepType: string): {
   activeLabel: string;
   completedLabel: string;
+  skippedLabel: string;
   tooltip: string;
 } {
-  const copy: Record<string, { activeLabel: string; completedLabel: string; tooltip: string }> = {
+  const copy: Record<
+    string,
+    { activeLabel: string; completedLabel: string; skippedLabel: string; tooltip: string }
+  > = {
     enrichment: {
       activeLabel: 'checking',
       completedLabel: 'checked',
+      skippedLabel: 'skipped',
       tooltip:
         'Checking means email enrichment is running now. Checked means enrichment finished, failed, found no email, or was skipped because an email already exists.',
     },
     wait: {
       activeLabel: 'waiting',
       completedLabel: 'moved on',
+      skippedLabel: 'skipped',
       tooltip:
         'Waiting means the lead is paused until the delay ends. Moved on means the wait finished and the lead advanced.',
     },
     condition: {
       activeLabel: 'evaluating',
       completedLabel: 'routed',
+      skippedLabel: 'skipped',
       tooltip:
         'Evaluating means the condition is being checked. Routed means the lead was sent down the matching branch.',
     },
     email: {
       activeLabel: 'ready',
       completedLabel: 'sent',
+      skippedLabel: 'skipped (no email)',
       tooltip:
-        'Ready means the lead is at this email step. Sent means the email step finished for that lead.',
+        'Ready means the lead is at this email step. Sent means an email was actually sent. Skipped (no email) means the lead had no usable email address, so the sequence advanced without sending anything.',
     },
     email_followup: {
       activeLabel: 'ready',
       completedLabel: 'sent',
+      skippedLabel: 'skipped (no email)',
       tooltip:
-        'Ready means the lead is at this follow-up step. Sent means the follow-up step finished for that lead.',
+        'Ready means the lead is at this follow-up step. Sent means a follow-up email was actually sent. Skipped (no email) means the lead had no usable email address, so the sequence advanced without sending anything.',
     },
   };
 
@@ -809,6 +840,7 @@ function getStepProgressCopy(stepType: string): {
     copy[stepType] || {
       activeLabel: 'at step',
       completedLabel: 'moved on',
+      skippedLabel: 'skipped',
       tooltip:
         'At step means the lead is currently here. Moved on means this step finished and the lead advanced.',
     }

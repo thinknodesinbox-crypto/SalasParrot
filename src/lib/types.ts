@@ -1668,6 +1668,7 @@ export interface StepProgressItem {
   step_config?: Record<string, unknown> | null;
   leads_at_step: number;
   leads_completed: number;
+  leads_skipped: number;
   leads_in_progress: number;
 }
 
