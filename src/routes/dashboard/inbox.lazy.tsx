@@ -13,6 +13,7 @@ import {
   useReplySuggestions,
 } from '@/lib/hooks/queries';
 import { SuggestedDraftsPanel } from '@/components/ai/SuggestedDraftsPanel';
+import { useCurrentWorkspace } from '@/lib/workspace';
 import type { Conversation, Message, Channel, ReplySuggestionsResponse } from '@/lib/types';
 
 // Configure DOMPurify to add target="_blank" and rel="noopener noreferrer" to all links
@@ -47,6 +48,7 @@ function formatRelativeTime(dateString: string | null): string {
 function InboxPage() {
   const navigate = useNavigate();
   const { conversationId, senderId, campaignId } = useSearch({ from: '/dashboard/inbox' });
+  const { currentWorkspaceId } = useCurrentWorkspace();
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(
     conversationId ?? null
   );
@@ -55,7 +57,7 @@ function InboxPage() {
   const [replyText, setReplyText] = useState('');
   const [selectedSenderId, setSelectedSenderId] = useState<string>(senderId ?? '');
   const [selectedCampaignId, setSelectedCampaignId] = useState<string>(campaignId ?? '');
-  const lastReplySuggestionSignature = useRef<string | null>(null);
+  const lastReplySuggestionConversationId = useRef<string | null>(null);
 
   // Fetch accounts and campaigns for filter dropdowns
   const { data: linkedInAccounts = [] } = useLinkedInAccounts();
@@ -89,6 +91,7 @@ function InboxPage() {
     error,
     refetch,
   } = useConversations({
+    workspace_id: currentWorkspaceId || undefined,
     channel_filter: filter !== 'all' && filter !== 'unread' ? (filter as Channel) : undefined,
     sender_id: selectedSenderId || undefined,
     campaign_id: selectedCampaignId || undefined,
@@ -97,14 +100,16 @@ function InboxPage() {
 
   // Fetch selected conversation with messages
   const { data: selectedConversation, isLoading: isLoadingConversation } = useConversation(
-    selectedConversationId || ''
+    selectedConversationId || '',
+    currentWorkspaceId || undefined
   );
 
   // Mutations
-  const sendReply = useSendReply(selectedConversationId || '');
+  const sendReply = useSendReply(selectedConversationId || '', currentWorkspaceId || undefined);
   const markAsReadMutation = useMarkAsRead(selectedConversationId || '');
   const {
     mutate: requestReplySuggestionsMutation,
+    reset: resetReplySuggestions,
     data: replySuggestionData,
     error: replySuggestionErrorValue,
     isPending: isReplySuggestionsPending,
@@ -134,6 +139,20 @@ function InboxPage() {
   useEffect(() => {
     setSelectedCampaignId(campaignId ?? '');
   }, [campaignId]);
+
+  useEffect(() => {
+    lastReplySuggestionConversationId.current = null;
+    setSelectedConversationId(null);
+    setReplyText('');
+    setSelectedSenderId('');
+    setSelectedCampaignId('');
+    resetReplySuggestions();
+    navigate({
+      to: '/dashboard/inbox',
+      search: {},
+      replace: true,
+    } as never);
+  }, [currentWorkspaceId, navigate, resetReplySuggestions]);
 
   // Handle selecting a conversation
   const handleSelectConversation = (conversationId: string) => {
@@ -165,30 +184,27 @@ function InboxPage() {
     }
   };
 
-  const requestReplySuggestions = (options?: { force?: boolean }) => {
+  const requestReplySuggestions = () => {
     if (!selectedConversationId) return;
-    const payload = {
+    requestReplySuggestionsMutation({
       conversation_id: selectedConversationId,
       current_draft: replyText || undefined,
-    };
-    const signature = JSON.stringify(payload);
-    if (!options?.force && lastReplySuggestionSignature.current === signature) return;
-    lastReplySuggestionSignature.current = signature;
-    requestReplySuggestionsMutation(payload);
+    }).catch(() => {
+      // Errors are surfaced through hook state.
+    });
   };
 
   useEffect(() => {
     if (!selectedConversationId) {
-      lastReplySuggestionSignature.current = null;
+      lastReplySuggestionConversationId.current = null;
+      resetReplySuggestions();
       return;
     }
-
-    const timeoutId = window.setTimeout(() => {
-      requestReplySuggestions();
-    }, 500);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [selectedConversationId, replyText]);
+    if (lastReplySuggestionConversationId.current === selectedConversationId) return;
+    lastReplySuggestionConversationId.current = selectedConversationId;
+    resetReplySuggestions();
+    requestReplySuggestions();
+  }, [selectedConversationId, resetReplySuggestions]);
 
   const replySuggestionError =
     replySuggestionErrorValue instanceof Error ? replySuggestionErrorValue.message : null;
@@ -801,29 +817,6 @@ function InboxPage() {
 
               {/* Reply Input */}
               <div className="border-t border-[#E2E8F0] p-4">
-                <div className="mb-3 flex items-center gap-2">
-                  <span className="text-sm text-[#64748B]">Reply via:</span>
-                  <button
-                    className={`flex items-center gap-1.5 rounded-lg px-3 py-1 text-sm font-medium ${
-                      selectedConversation.channel === 'linkedin'
-                        ? 'bg-[#0A66C2] text-white'
-                        : 'bg-[#F8FAFC] text-[#64748B] hover:bg-[#EFF6FF]'
-                    }`}
-                  >
-                    <LinkedInIcon className="h-3.5 w-3.5" />
-                    LinkedIn
-                  </button>
-                  <button
-                    className={`flex items-center gap-1.5 rounded-lg px-3 py-1 text-sm font-medium ${
-                      selectedConversation.channel === 'email'
-                        ? 'bg-[#14B8A6] text-white'
-                        : 'bg-[#F8FAFC] text-[#64748B] hover:bg-[#F0FDFA]'
-                    }`}
-                  >
-                    <EmailIcon className="h-3.5 w-3.5" />
-                    Email
-                  </button>
-                </div>
                 {selectedConversation.channel === 'email' ? (
                   <div className="flex flex-col gap-3">
                     <SuggestedDraftsPanel
@@ -831,7 +824,8 @@ function InboxPage() {
                       isLoading={isReplySuggestionsPending}
                       error={replySuggestionError}
                       onApply={(draft) => setReplyText(draft.message)}
-                      onRegenerate={() => requestReplySuggestions({ force: true })}
+                      onRegenerate={() => requestReplySuggestions()}
+                      variant="compact"
                       surface="inbox_reply"
                       suggestionType="reply"
                       feedbackContext={{
@@ -867,7 +861,8 @@ function InboxPage() {
                       isLoading={isReplySuggestionsPending}
                       error={replySuggestionError}
                       onApply={(draft) => setReplyText(draft.message)}
-                      onRegenerate={() => requestReplySuggestions({ force: true })}
+                      onRegenerate={() => requestReplySuggestions()}
+                      variant="compact"
                       surface="inbox_reply"
                       suggestionType="reply"
                       feedbackContext={{

@@ -1200,6 +1200,7 @@ export function StepPalette({
   selectedNodeId?: string | null;
 }) {
   const canAddStep = !!selectedNodeId;
+  const [showStepCatalog, setShowStepCatalog] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
   const [showSaveForm, setShowSaveForm] = useState(false);
   const [saveName, setSaveName] = useState('');
@@ -1286,44 +1287,74 @@ export function StepPalette({
       </div>
 
       <div className="flex-1 space-y-4 overflow-y-auto p-3">
-        {stepCategories.map((category) => (
-          <div key={category.title}>
-            <p className="mb-2 px-1 text-[10px] font-semibold uppercase tracking-wider text-[#94A3B8]">
-              {category.title}
-            </p>
-            <div className="space-y-1.5">
-              {category.steps.map((step) => (
-                <motion.button
-                  key={step.type}
-                  onClick={() => canAddStep && onAddStep(step.type)}
-                  disabled={!canAddStep}
-                  className={`group flex w-full items-center gap-2.5 rounded-lg border border-[#E2E8F0] p-2.5 text-left transition-all ${
-                    canAddStep
-                      ? 'bg-white hover:border-[#FF6B35]/40 hover:shadow-sm'
-                      : 'cursor-not-allowed bg-[#F8FAFC] opacity-50'
-                  }`}
-                  whileHover={canAddStep ? { scale: 1.02, x: 2 } : {}}
-                  whileTap={canAddStep ? { scale: 0.98 } : {}}
-                >
-                  <div
-                    className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg transition-colors"
-                    style={{
-                      backgroundColor: `${category.color}15`,
-                      color: category.color,
-                    }}
-                  >
-                    {step.icon}
-                  </div>
-                  <span
-                    className={`text-sm font-medium transition-colors ${canAddStep ? 'text-[#1E293B] group-hover:text-[#FF6B35]' : 'text-[#94A3B8]'}`}
-                  >
-                    {step.label}
-                  </span>
-                </motion.button>
-              ))}
+        <div className="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC]">
+          <button
+            onClick={() => setShowStepCatalog((current) => !current)}
+            className="flex w-full items-center gap-3 px-3 py-3 text-left transition-colors hover:bg-[#F1F5F9]"
+          >
+            <div className="flex-1">
+              <p className="text-sm font-medium text-[#1E293B]">Step Library</p>
+              <p className="mt-0.5 text-xs text-[#64748B]">
+                {showStepCatalog ? 'Hide step options' : 'Show step options'}
+              </p>
             </div>
-          </div>
-        ))}
+            <ChevronIcon
+              className={`h-4 w-4 text-[#64748B] transition-transform ${showStepCatalog ? 'rotate-180' : ''}`}
+            />
+          </button>
+
+          <AnimatePresence initial={false}>
+            {showStepCatalog && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: 'auto', opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                className="overflow-hidden"
+              >
+                <div className="space-y-4 border-t border-[#E2E8F0] p-3">
+                  {stepCategories.map((category) => (
+                    <div key={category.title}>
+                      <p className="mb-2 px-1 text-[10px] font-semibold uppercase tracking-wider text-[#94A3B8]">
+                        {category.title}
+                      </p>
+                      <div className="space-y-1.5">
+                        {category.steps.map((step) => (
+                          <motion.button
+                            key={step.type}
+                            onClick={() => canAddStep && onAddStep(step.type)}
+                            disabled={!canAddStep}
+                            className={`group flex w-full items-center gap-2.5 rounded-lg border border-[#E2E8F0] p-2.5 text-left transition-all ${
+                              canAddStep
+                                ? 'bg-white hover:border-[#FF6B35]/40 hover:shadow-sm'
+                                : 'cursor-not-allowed bg-[#F8FAFC] opacity-50'
+                            }`}
+                            whileHover={canAddStep ? { scale: 1.02, x: 2 } : {}}
+                            whileTap={canAddStep ? { scale: 0.98 } : {}}
+                          >
+                            <div
+                              className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg transition-colors"
+                              style={{
+                                backgroundColor: `${category.color}15`,
+                                color: category.color,
+                              }}
+                            >
+                              {step.icon}
+                            </div>
+                            <span
+                              className={`text-sm font-medium transition-colors ${canAddStep ? 'text-[#1E293B] group-hover:text-[#FF6B35]' : 'text-[#94A3B8]'}`}
+                            >
+                              {step.label}
+                            </span>
+                          </motion.button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
 
         {/* Templates Section */}
         {onApplyTemplate && (
@@ -1596,9 +1627,10 @@ export function NodeConfigPanel({
 }) {
   const nodeConfig = getNodeConfig(node.type);
   const messageRef = useRef<HTMLTextAreaElement>(null);
-  const lastSuggestionRequestSignature = useRef<string | null>(null);
+  const lastSuggestedNodeId = useRef<string | null>(null);
   const {
     mutate: requestSequenceSuggestionsMutation,
+    reset: resetSequenceSuggestions,
     data: sequenceSuggestionData,
     error: sequenceSuggestionErrorValue,
     isPending: isSequenceSuggestionsPending,
@@ -1658,46 +1690,46 @@ export function NodeConfigPanel({
     });
   };
 
-  const requestSequenceSuggestions = useCallback(
-    (options?: { force?: boolean }) => {
-      if (!supportsSuggestions || !suggestionContext?.workspaceId) return;
-      const payload = {
-        workspace_id: suggestionContext.workspaceId,
-        lead_list_id: suggestionContext.leadListId || undefined,
-        campaign_id: suggestionContext.campaignId || undefined,
-        step_type: node.type,
-        current_message: node.data.message || undefined,
-        current_subject: node.data.subject || undefined,
-      };
-      const signature = JSON.stringify(payload);
-      if (!options?.force && lastSuggestionRequestSignature.current === signature) return;
-      lastSuggestionRequestSignature.current = signature;
-      requestSequenceSuggestionsMutation(payload);
-    },
-    [
-      requestSequenceSuggestionsMutation,
-      suggestionContext?.workspaceId,
-      suggestionContext?.leadListId,
-      suggestionContext?.campaignId,
-      supportsSuggestions,
-      node.type,
-      node.data.message,
-      node.data.subject,
-    ]
-  );
+  const requestSequenceSuggestions = useCallback(() => {
+    if (!supportsSuggestions || !suggestionContext?.workspaceId) return;
+    requestSequenceSuggestionsMutation({
+      workspace_id: suggestionContext.workspaceId,
+      lead_list_id: suggestionContext.leadListId || undefined,
+      campaign_id: suggestionContext.campaignId || undefined,
+      step_type: node.type,
+      current_message: node.data.message || undefined,
+      current_subject: node.data.subject || undefined,
+    }).catch(() => {
+      // Errors are surfaced through hook state.
+    });
+  }, [
+    requestSequenceSuggestionsMutation,
+    suggestionContext?.workspaceId,
+    suggestionContext?.leadListId,
+    suggestionContext?.campaignId,
+    supportsSuggestions,
+    node.type,
+    node.data.message,
+    node.data.subject,
+  ]);
 
   useEffect(() => {
     if (!supportsSuggestions || !suggestionContext?.workspaceId) {
-      lastSuggestionRequestSignature.current = null;
+      lastSuggestedNodeId.current = null;
+      resetSequenceSuggestions();
       return;
     }
-
-    const timeoutId = window.setTimeout(() => {
-      requestSequenceSuggestions();
-    }, 500);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [node.id, requestSequenceSuggestions]);
+    if (lastSuggestedNodeId.current === node.id) return;
+    lastSuggestedNodeId.current = node.id;
+    resetSequenceSuggestions();
+    requestSequenceSuggestions();
+  }, [
+    node.id,
+    requestSequenceSuggestions,
+    resetSequenceSuggestions,
+    supportsSuggestions,
+    suggestionContext?.workspaceId,
+  ]);
 
   const applySuggestedDraft = useCallback(
     (draft: { subject?: string | null; message: string }) => {
@@ -1811,7 +1843,7 @@ export function NodeConfigPanel({
       </div>
 
       {/* Content */}
-      <div className="flex-1 space-y-4 overflow-y-auto p-4">
+      <div className="flex-1 space-y-4 overflow-y-auto p-4 pb-24">
         {/* Delay Configuration */}
         {node.type === 'delay' && (
           <>
@@ -1902,7 +1934,7 @@ export function NodeConfigPanel({
                 isLoading={isSequenceSuggestionsPending}
                 error={suggestionError}
                 onApply={applySuggestedDraft}
-                onRegenerate={() => requestSequenceSuggestions({ force: true })}
+                onRegenerate={() => requestSequenceSuggestions()}
                 surface="sequence_builder"
                 suggestionType={node.type}
                 feedbackContext={{
@@ -1957,7 +1989,7 @@ export function NodeConfigPanel({
               isLoading={isSequenceSuggestionsPending}
               error={suggestionError}
               onApply={applySuggestedDraft}
-              onRegenerate={() => requestSequenceSuggestions({ force: true })}
+              onRegenerate={() => requestSequenceSuggestions()}
               surface="sequence_builder"
               suggestionType={node.type}
               feedbackContext={{
@@ -2004,7 +2036,7 @@ export function NodeConfigPanel({
               isLoading={isSequenceSuggestionsPending}
               error={suggestionError}
               onApply={applySuggestedDraft}
-              onRegenerate={() => requestSequenceSuggestions({ force: true })}
+              onRegenerate={() => requestSequenceSuggestions()}
               surface="sequence_builder"
               suggestionType={node.type}
               feedbackContext={{
@@ -2246,7 +2278,7 @@ export function NodeConfigPanel({
       </div>
 
       {/* Footer */}
-      <div className="border-t border-[#E2E8F0] p-4">
+      <div className="sticky bottom-0 border-t border-[#E2E8F0] bg-white/95 p-4 backdrop-blur supports-[backdrop-filter]:bg-white/85">
         <button
           onClick={onClose}
           className="w-full rounded-lg bg-[#FF6B35] py-2 text-sm font-medium text-white transition-colors hover:bg-[#E85A2A]"

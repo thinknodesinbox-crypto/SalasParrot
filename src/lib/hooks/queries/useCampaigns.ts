@@ -60,7 +60,10 @@ export const useCampaigns = (filters?: CampaignFilters) => {
   const workspaceId = filters?.workspace_id ?? currentWorkspaceId ?? undefined;
 
   return useQuery({
-    queryKey: queryKeys.campaigns.list(filters),
+    queryKey: queryKeys.campaigns.list({
+      ...filters,
+      workspace_id: workspaceId,
+    }),
     queryFn: async () => {
       const params = new URLSearchParams();
       if (workspaceId) params.append('workspace_id', workspaceId);

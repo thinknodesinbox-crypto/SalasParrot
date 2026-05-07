@@ -1128,6 +1128,14 @@ function CreateCampaignModal({
   ];
 
   const currentStepIndex = stepConfigs.findIndex((s) => s.id === step);
+  const nextStepButtonLabel =
+    {
+      name: 'Choose Leads',
+      leads: 'Build Sequence',
+      sequence: 'Select Senders',
+      senders: 'Review Campaign',
+      review: 'Continue',
+    }[step] || 'Continue';
 
   // Validate sequence and show warning dialog if needed
   const handleSaveWithValidation = (startImmediately = false) => {
@@ -1519,8 +1527,8 @@ function CreateCampaignModal({
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 20 }}
           onClick={(e) => e.stopPropagation()}
-          className={`flex max-h-[95vh] w-full flex-col overflow-hidden rounded-2xl bg-white shadow-xl ${
-            step === 'sequence' ? 'max-w-[95vw]' : 'max-w-3xl'
+          className={`flex w-full flex-col overflow-hidden rounded-2xl bg-white shadow-xl ${
+            step === 'sequence' ? 'h-[95vh] max-w-[95vw]' : 'max-h-[95vh] max-w-3xl'
           }`}
         >
           {/* Header */}
@@ -1579,7 +1587,9 @@ function CreateCampaignModal({
               </div>
 
               {/* Content */}
-              <div className={`flex-1 overflow-y-auto ${step === 'sequence' ? 'p-6' : 'p-6'}`}>
+              <div
+                className={`flex-1 ${step === 'sequence' ? 'flex min-h-0 flex-col overflow-hidden p-6' : 'overflow-y-auto p-6'}`}
+              >
                 <AnimatePresence mode="wait">
                   {step === 'name' && (
                     <motion.div
@@ -1822,7 +1832,7 @@ function CreateCampaignModal({
                       initial={{ opacity: 0, x: 20 }}
                       animate={{ opacity: 1, x: 0 }}
                       exit={{ opacity: 0, x: -20 }}
-                      className="-m-6 h-full"
+                      className="-m-6 flex h-full min-h-0 flex-col"
                     >
                       {/* Sequence Validation Warnings */}
                       {!isSequenceValid && sequenceValidation.errors.length > 0 && (
@@ -1972,7 +1982,7 @@ function CreateCampaignModal({
                       </div>
 
                       {/* Desktop Layout - Side by side */}
-                      <div className="hidden h-[80vh] max-h-[900px] min-h-[600px] overflow-hidden rounded-lg border border-[#E2E8F0] bg-[#FAFBFC] lg:flex">
+                      <div className="hidden min-h-0 flex-1 overflow-hidden rounded-lg border border-[#E2E8F0] bg-[#FAFBFC] lg:flex">
                         {/* Step Palette / Edit Guidance Panel */}
                         {isActiveCampaign ? (
                           <div className="w-72 flex-shrink-0 overflow-y-auto border-r border-[#E2E8F0] bg-white p-4">
@@ -2775,7 +2785,7 @@ function CreateCampaignModal({
                         }
                         className="rounded-lg bg-[#FF6B35] px-6 py-2 font-medium text-white hover:bg-[#E85A2A] disabled:opacity-50"
                       >
-                        Continue
+                        {nextStepButtonLabel}
                       </button>
                     </>
                   )}

@@ -1,6 +1,6 @@
 import { createLazyFileRoute } from '@tanstack/react-router';
 import { motion } from 'framer-motion';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   useAnalyticsOverviewStats,
   useChannelPerformance,
@@ -9,16 +9,24 @@ import {
   useReplyRateTrend,
   useDashboardChart,
 } from '../../lib/hooks/queries';
+import { useCurrentWorkspace } from '../../lib/workspace';
 
 export const Route = createLazyFileRoute('/dashboard/analytics')({
   component: AnalyticsPage,
 });
 
 function AnalyticsPage() {
+  const { currentWorkspaceId } = useCurrentWorkspace();
   const [dateRange, setDateRange] = useState('30d');
   const [activeTab, setActiveTab] = useState<'overview' | 'campaigns' | 'senders'>('overview');
   const [selectedCampaignId, setSelectedCampaignId] = useState<string | undefined>();
   const [selectedSenderId, setSelectedSenderId] = useState<string | undefined>();
+
+  useEffect(() => {
+    setActiveTab('overview');
+    setSelectedCampaignId(undefined);
+    setSelectedSenderId(undefined);
+  }, [currentWorkspaceId]);
 
   // Derive scope from active tab
   const campaignId = activeTab === 'campaigns' ? selectedCampaignId : undefined;
