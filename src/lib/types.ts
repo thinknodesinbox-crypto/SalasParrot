@@ -836,7 +836,10 @@ export interface DiscoveryResult {
   person_name: string | null;
   company_name: string | null;
   title: string | null;
+  headline?: string | null;
   location: string | null;
+  email?: string | null;
+  tags?: string[];
   linkedin_url: string | null;
   company_website: string | null;
   candidate_payload_json: Record<string, unknown>;

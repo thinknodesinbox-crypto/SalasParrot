@@ -634,6 +634,7 @@ function LeadsPage() {
   const [emailFilter, setEmailFilter] = useState<EmailFilter>('all');
   const [campaignFilter, setCampaignFilter] = useState<CampaignFilter>('all');
   const [importedOnly, setImportedOnly] = useState(false);
+  const [discoveryOnly, setDiscoveryOnly] = useState(false);
   const [editingList, setEditingList] = useState<LeadList | null>(null);
   const [deletingList, setDeletingList] = useState<LeadList | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -648,10 +649,12 @@ function LeadsPage() {
     );
     setCampaignFilter(routeSearch.campaign ?? 'all');
     setImportedOnly(Boolean(routeSearch.importedOnly));
+    setDiscoveryOnly(Boolean(routeSearch.discoveryOnly));
     setCurrentPage(1);
     setListSearchQuery('');
   }, [
     routeSearch.campaign,
+    routeSearch.discoveryOnly,
     routeSearch.email,
     routeSearch.importedOnly,
     routeSearch.listId,
@@ -688,7 +691,8 @@ function LeadsPage() {
     statusFilter !== 'all' ||
     emailFilter !== 'all' ||
     campaignFilter !== 'all' ||
-    importedOnly;
+    importedOnly ||
+    discoveryOnly;
 
   // Build filters for useLeads
   const leadFilters = isLeadResultsView
@@ -720,6 +724,7 @@ function LeadsPage() {
                   : undefined,
         in_campaign: campaignFilter === 'all' ? undefined : campaignFilter === 'in_campaign',
         imported_only: importedOnly || undefined,
+        discovery_only: discoveryOnly || undefined,
         sort_by: selectedListId ? ('email_actionability' as const) : undefined,
         limit: LEADS_PER_PAGE,
         offset: (currentPage - 1) * LEADS_PER_PAGE,
@@ -741,6 +746,7 @@ function LeadsPage() {
     setEmailFilter('all');
     setCampaignFilter('all');
     setImportedOnly(false);
+    setDiscoveryOnly(false);
   };
 
   const openLeadList = (id: string) => {
@@ -752,6 +758,7 @@ function LeadsPage() {
     setEmailFilter('all');
     setCampaignFilter('all');
     setImportedOnly(false);
+    setDiscoveryOnly(false);
   };
 
   const isLoading = listsLoading;
@@ -880,6 +887,19 @@ function LeadsPage() {
               <option value="in_campaign">In Campaign</option>
               <option value="not_in_campaign">Not in Campaign</option>
             </select>
+            <button
+              onClick={() => {
+                setDiscoveryOnly((current) => !current);
+                setCurrentPage(1);
+              }}
+              className={`min-w-[110px] rounded-lg border px-3 py-2.5 text-sm font-medium transition-colors ${
+                discoveryOnly
+                  ? 'border-[#BFDBFE] bg-[#EFF6FF] text-[#1D4ED8]'
+                  : 'border-[#E2E8F0] bg-white text-[#64748B] hover:bg-[#F8FAFC]'
+              }`}
+            >
+              Discovery
+            </button>
             {importedOnly ? (
               <div className="inline-flex items-center rounded-lg border border-[#BFDBFE] bg-[#EFF6FF] px-3 py-2.5 text-sm font-medium text-[#1D4ED8]">
                 Imported Only
@@ -943,6 +963,7 @@ function LeadsPage() {
                       : undefined,
             inCampaign: campaignFilter === 'all' ? undefined : campaignFilter === 'in_campaign',
             importedOnly,
+            discoveryOnly,
           }}
         />
       ) : lists.length === 0 && listSearchQuery ? (
@@ -1217,11 +1238,18 @@ function LeadListsGrid({
               <span>{list.lead_count} leads</span>
             </div>
             <div className="mt-3 flex items-center justify-between">
-              {list.source && (
-                <span className="rounded bg-[#F8FAFC] px-2 py-0.5 text-xs text-[#94A3B8]">
-                  {list.source}
-                </span>
-              )}
+              <div className="flex items-center gap-2">
+                {list.source && (
+                  <span className="rounded bg-[#F8FAFC] px-2 py-0.5 text-xs text-[#94A3B8]">
+                    {list.source}
+                  </span>
+                )}
+                {list.source === 'discovery' ? (
+                  <span className="rounded bg-[#F0FDF4] px-2 py-0.5 text-xs font-medium text-[#15803D]">
+                    Discovery
+                  </span>
+                ) : null}
+              </div>
               <span className="text-xs text-[#94A3B8]">{formatDate(list.created_at)}</span>
             </div>
           </button>
@@ -1259,6 +1287,7 @@ function LeadListDetail({
     enrichmentStatus?: 'not_enriched' | 'pending' | 'no_email_found' | 'failed';
     inCampaign?: boolean;
     importedOnly?: boolean;
+    discoveryOnly?: boolean;
   };
 }) {
   const currentWorkspaceId = useWorkspaceStore((s) => s.currentWorkspaceId);
@@ -1300,6 +1329,8 @@ function LeadListDetail({
       params.append('in_campaign', filterMeta.inCampaign.toString());
     if (filterMeta?.importedOnly !== undefined && filterMeta.importedOnly)
       params.append('imported_only', 'true');
+    if (filterMeta?.discoveryOnly !== undefined && filterMeta.discoveryOnly)
+      params.append('discovery_only', 'true');
     if (list?.id) params.append('sort_by', 'email_actionability');
     params.append('limit', limit.toString());
     params.append('offset', offset.toString());
@@ -1670,6 +1701,11 @@ function LeadListDetail({
               {filterMeta.importedOnly ? (
                 <span className="rounded-full bg-[#EFF6FF] px-3 py-1 text-xs font-medium text-[#1D4ED8]">
                   Imported only
+                </span>
+              ) : null}
+              {filterMeta.discoveryOnly ? (
+                <span className="rounded-full bg-[#F0FDF4] px-3 py-1 text-xs font-medium text-[#15803D]">
+                  Discovery
                 </span>
               ) : null}
               {filterMeta.search ? (
@@ -2068,6 +2104,11 @@ function LeadRow({
             >
               {lead.headline || lead.title}
             </p>
+            {lead.tags?.includes('Discovery') ? (
+              <span className="mt-1 inline-flex rounded-full bg-[#F0FDF4] px-2 py-0.5 text-[11px] font-medium text-[#15803D]">
+                Discovery
+              </span>
+            ) : null}
           </div>
         </div>
       </td>

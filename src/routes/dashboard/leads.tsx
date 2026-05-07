@@ -7,6 +7,7 @@ type LeadsSearch = {
   campaign?: 'all' | 'in_campaign' | 'not_in_campaign';
   search?: string;
   importedOnly?: boolean;
+  discoveryOnly?: boolean;
 };
 
 export const Route = createFileRoute('/dashboard/leads')({
@@ -30,5 +31,6 @@ export const Route = createFileRoute('/dashboard/leads')({
         : undefined,
     search: typeof search.search === 'string' ? search.search : undefined,
     importedOnly: search.importedOnly === true || search.importedOnly === 'true',
+    discoveryOnly: search.discoveryOnly === true || search.discoveryOnly === 'true',
   }),
 });

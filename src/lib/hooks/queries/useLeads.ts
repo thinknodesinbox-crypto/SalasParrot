@@ -32,6 +32,7 @@ interface LeadFilters {
   enrichment_status?: EnrichmentStatus;
   in_campaign?: boolean;
   imported_only?: boolean;
+  discovery_only?: boolean;
   sort_by?: 'created_at' | 'email_actionability' | 'name' | 'company';
   sort_order?: 'asc' | 'desc';
   limit?: number;
@@ -248,6 +249,8 @@ export const useLeads = (filters?: LeadFilters) => {
         params.append('in_campaign', filters.in_campaign.toString());
       if (filters?.imported_only !== undefined)
         params.append('imported_only', filters.imported_only.toString());
+      if (filters?.discovery_only !== undefined)
+        params.append('discovery_only', filters.discovery_only.toString());
       if (filters?.sort_by) params.append('sort_by', filters.sort_by);
       if (filters?.sort_order) params.append('sort_order', filters.sort_order);
       if (filters?.limit) params.append('limit', filters.limit.toString());

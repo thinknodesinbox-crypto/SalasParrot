@@ -10,6 +10,8 @@ import type {
 
 export interface DiscoveryFormState {
   description: string;
+  targetWebsites: string;
+  specialInstructions: string;
   linkedinAccountId: string;
   destinationListId: string;
   scheduleIntervalDays: string;
@@ -103,6 +105,38 @@ export function DiscoverySearchBuilder({
         />
       </label>
 
+      <div className="grid gap-4 lg:grid-cols-2">
+        <label className="space-y-2">
+          <span className="text-sm font-medium text-[#334155]">Target websites</span>
+          <textarea
+            value={form.targetWebsites}
+            onChange={(event) => onChange({ targetWebsites: event.target.value })}
+            rows={4}
+            className="w-full rounded-xl border border-[#CBD5E1] px-4 py-3 text-sm outline-none transition focus:border-[#FF6B35]"
+            placeholder="acme.com&#10;stripe.com&#10;notion.so"
+          />
+          <p className="text-xs text-[#64748B]">
+            One domain or URL per line. Discovery will prioritize people and companies tied to these
+            websites.
+          </p>
+        </label>
+
+        <label className="space-y-2">
+          <span className="text-sm font-medium text-[#334155]">Special instructions</span>
+          <textarea
+            value={form.specialInstructions}
+            onChange={(event) => onChange({ specialInstructions: event.target.value })}
+            rows={4}
+            className="w-full rounded-xl border border-[#CBD5E1] px-4 py-3 text-sm outline-none transition focus:border-[#FF6B35]"
+            placeholder="Prioritize direct owners of the problem, avoid agencies, and prefer companies actively hiring."
+          />
+          <p className="text-xs text-[#64748B]">
+            Add exclusions, seniority guidance, niche context, or anything that should improve match
+            quality.
+          </p>
+        </label>
+      </div>
+
       <div className="rounded-2xl bg-[#F8FAFC] p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
@@ -123,6 +157,11 @@ export function DiscoverySearchBuilder({
           <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-[#334155]">
             Web included
           </span>
+          {form.targetWebsites.trim() ? (
+            <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-[#334155]">
+              Website targeting enabled
+            </span>
+          ) : null}
           <span
             className={`rounded-full px-3 py-1 text-xs font-medium ${
               linkedInEnabled ? 'bg-white text-[#334155]' : 'bg-[#E2E8F0] text-[#64748B]'
@@ -133,7 +172,8 @@ export function DiscoverySearchBuilder({
         </div>
         <p className="mt-3 text-sm text-[#64748B]">
           Discovery always searches the web. If you have a LinkedIn account connected, it adds
-          LinkedIn profile discovery automatically.
+          LinkedIn profile discovery automatically. When target websites are provided, Discovery
+          uses them to narrow results and increase relevance.
         </p>
         {linkedInAccounts.length > 1 ? (
           <label className="mt-4 block space-y-2">

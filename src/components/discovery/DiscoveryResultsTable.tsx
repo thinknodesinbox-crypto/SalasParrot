@@ -80,9 +80,12 @@ export function DiscoveryResultsTable({
           <thead className="bg-[#F8FAFC]">
             <tr className="text-left text-xs font-medium uppercase tracking-wide text-[#64748B]">
               <th className="px-4 py-3">Pick</th>
+              <th className="px-4 py-3">#</th>
               <th className="px-4 py-3">Lead</th>
-              <th className="px-4 py-3">Why</th>
-              <th className="px-4 py-3">Sources</th>
+              <th className="px-4 py-3">Company</th>
+              <th className="px-4 py-3">Location</th>
+              <th className="px-4 py-3">Match</th>
+              <th className="px-4 py-3">Profile</th>
               <th className="px-4 py-3">Status</th>
               <th className="px-4 py-3">Score</th>
             </tr>
@@ -95,15 +98,24 @@ export function DiscoveryResultsTable({
                       <div className="h-4 w-4 animate-pulse rounded bg-[#E2E8F0]" />
                     </td>
                     <td className="px-4 py-3">
+                      <div className="h-4 w-6 animate-pulse rounded bg-[#E2E8F0]" />
+                    </td>
+                    <td className="px-4 py-3">
                       <div className="h-4 w-32 animate-pulse rounded bg-[#E2E8F0]" />
                       <div className="mt-2 h-3 w-48 animate-pulse rounded bg-[#F1F5F9]" />
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="h-4 w-28 animate-pulse rounded bg-[#E2E8F0]" />
                       <div className="mt-2 h-3 w-24 animate-pulse rounded bg-[#F1F5F9]" />
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="h-3 w-24 animate-pulse rounded bg-[#F1F5F9]" />
                     </td>
                     <td className="px-4 py-3">
                       <div className="h-3 w-44 animate-pulse rounded bg-[#F1F5F9]" />
                     </td>
                     <td className="px-4 py-3">
-                      <div className="h-3 w-20 animate-pulse rounded bg-[#F1F5F9]" />
+                      <div className="h-3 w-16 animate-pulse rounded bg-[#F1F5F9]" />
                     </td>
                     <td className="px-4 py-3">
                       <div className="h-6 w-20 animate-pulse rounded-full bg-[#F1F5F9]" />
@@ -116,14 +128,32 @@ export function DiscoveryResultsTable({
               : null}
             {!isLoading && results.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-12 text-center text-sm text-[#64748B]">
+                <td colSpan={9} className="px-4 py-12 text-center text-sm text-[#64748B]">
                   No results yet. Run a search or change the filter to see candidates here.
                 </td>
               </tr>
             ) : null}
             {!isLoading &&
-              results.map((result) => {
+              results.map((result, index) => {
                 const isActive = activeResultId === result.id;
+                const candidatePayload = result.candidate_payload_json as Record<string, unknown>;
+                const headline =
+                  (candidatePayload?.headline as string | undefined) ||
+                  result.headline ||
+                  result.title ||
+                  '';
+                const companySummary = [
+                  result.title,
+                  result.company_website,
+                  result.source_types.length ? result.source_types.join(', ') : null,
+                ]
+                  .filter(Boolean)
+                  .join(' · ');
+                const topMatchReason =
+                  result.match_reasons_json
+                    .slice(0, 2)
+                    .map((reason) => String(reason))
+                    .join(' · ') || 'Reason not available';
                 return (
                   <tr
                     key={result.id}
@@ -139,6 +169,7 @@ export function DiscoveryResultsTable({
                         className="h-4 w-4 rounded border-[#CBD5E1] text-[#FF6B35] focus:ring-[#FF6B35]"
                       />
                     </td>
+                    <td className="px-4 py-3 text-sm text-[#64748B]">{index + 1}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
                         <CandidateAvatar
@@ -152,24 +183,53 @@ export function DiscoveryResultsTable({
                           <div className="font-medium text-[#1E293B]">
                             {result.person_name || 'Unnamed lead'}
                           </div>
-                          <div className="text-sm text-[#64748B]">
-                            {[result.title, result.company_name].filter(Boolean).join(' @ ') ||
-                              'No role/company yet'}
-                          </div>
-                          <div className="text-xs text-[#94A3B8]">
-                            {result.location || 'Unknown location'}
+                          <div className="max-w-[220px] truncate text-sm text-[#64748B]">
+                            {headline || 'No headline yet'}
                           </div>
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-sm text-[#475569]">
-                      {result.match_reasons_json
-                        .slice(0, 2)
-                        .map((reason) => String(reason))
-                        .join(' · ') || 'Reason not available'}
+                    <td className="px-4 py-3">
+                      <div className="font-medium text-[#1E293B]">{result.company_name || '-'}</div>
+                      <div className="max-w-[220px] truncate text-xs text-[#94A3B8]">
+                        {companySummary || 'No company details yet'}
+                      </div>
                     </td>
-                    <td className="px-4 py-3 text-xs text-[#64748B]">
-                      {result.source_types.join(', ') || 'n/a'}
+                    <td className="px-4 py-3 text-sm text-[#64748B]">{result.location || '-'}</td>
+                    <td className="px-4 py-3 text-sm text-[#475569]">
+                      <div className="max-w-[260px]">
+                        <div className="font-medium text-[#1E293B]">
+                          {result.confidence_label
+                            ? `${result.confidence_label[0].toUpperCase()}${result.confidence_label.slice(1)} confidence`
+                            : 'Candidate match'}
+                        </div>
+                        <div className="mt-1 text-xs text-[#64748B]">{topMatchReason}</div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      {result.linkedin_url ? (
+                        <a
+                          href={result.linkedin_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(event) => event.stopPropagation()}
+                          className="inline-flex items-center gap-1.5 text-sm text-[#0A66C2] hover:text-[#004182] hover:underline"
+                        >
+                          <span>View</span>
+                        </a>
+                      ) : result.company_website ? (
+                        <a
+                          href={result.company_website}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(event) => event.stopPropagation()}
+                          className="inline-flex items-center gap-1.5 text-sm text-[#0A66C2] hover:text-[#004182] hover:underline"
+                        >
+                          <span>Website</span>
+                        </a>
+                      ) : (
+                        <span className="text-sm text-[#94A3B8]">-</span>
+                      )}
                     </td>
                     <td className="px-4 py-3">
                       <span className="rounded-full bg-[#F1F5F9] px-2.5 py-1 text-xs font-medium text-[#475569]">

@@ -45,6 +45,8 @@ export const Route = createLazyFileRoute('/dashboard/discovery')({
 
 const defaultForm: DiscoveryFormState = {
   description: '',
+  targetWebsites: '',
+  specialInstructions: '',
   linkedinAccountId: '',
   destinationListId: '',
   scheduleIntervalDays: '0',
@@ -81,11 +83,23 @@ function buildLinkedInSearchParams(form: DiscoveryFormState): Record<string, unk
   };
 }
 
+function parseTargetWebsites(rawValue: string): string[] {
+  return Array.from(
+    new Set(
+      rawValue
+        .split(/\n|,/)
+        .map((value) => value.trim())
+        .filter(Boolean)
+    )
+  );
+}
+
 function buildPayload(form: DiscoveryFormState, workspaceId: string): DiscoverySearchCreateRequest {
   const searchType = inferSearchType(form.description);
   const scheduleIntervalDays = Number(form.scheduleIntervalDays || 0);
   const linkedInSearchParams = buildLinkedInSearchParams(form);
   const linkedInEnabled = Boolean(form.linkedinAccountId);
+  const targetWebsites = parseTargetWebsites(form.targetWebsites);
   return {
     workspace_id: workspaceId,
     name: buildGeneratedSearchName(form.description, searchType),
@@ -93,11 +107,15 @@ function buildPayload(form: DiscoveryFormState, workspaceId: string): DiscoveryS
     configuration_mode: 'manual',
     criteria_json: {
       description: form.description,
+      target_websites: targetWebsites,
+      special_instructions: form.specialInstructions.trim() || null,
     },
     source_config_json: {
       web: {
         enabled: true,
         max_results: 25,
+        target_websites: targetWebsites,
+        use_crawl4ai: targetWebsites.length > 0,
       },
       linkedin: {
         enabled: linkedInEnabled,
@@ -139,6 +157,10 @@ function hydrateForm(search: SavedDiscoverySearch | null | undefined): Discovery
   const scheduleConfig = search.schedule_config_json || {};
   return {
     description: String(criteria.description || ''),
+    targetWebsites: Array.isArray(criteria.target_websites)
+      ? criteria.target_websites.map((value) => String(value)).join('\n')
+      : '',
+    specialInstructions: String(criteria.special_instructions || ''),
     linkedinAccountId: String(linkedInSource.linkedin_account_id || ''),
     destinationListId: search.destination_list_id || '',
     scheduleIntervalDays: search.schedule_enabled
@@ -337,9 +359,11 @@ function DiscoveryPage() {
           },
         });
       }
-      showSuccessToast(
-        mode === 'save_run' ? 'Discovery search saved and started.' : 'Discovery search saved.'
-      );
+      if (mode === 'save_run') {
+        showSuccessToast('Search started', 'Leads will be available on the Leads page.');
+      } else {
+        showSuccessToast('Discovery search saved.');
+      }
       setBuilderOpen(false);
     } catch (error) {
       showErrorToast(error instanceof Error ? error.message : 'Unable to save discovery search');
@@ -354,7 +378,7 @@ function DiscoveryPage() {
         to: '/dashboard/discovery',
         search: { searchId: routeSearch.searchId, runId: run.id },
       });
-      showSuccessToast('Discovery run started.');
+      showSuccessToast('Search started', 'Leads will be available on the Leads page.');
     } catch (error) {
       showErrorToast(error instanceof Error ? error.message : 'Unable to start discovery run');
     }

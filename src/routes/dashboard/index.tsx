@@ -1287,6 +1287,8 @@ function DashboardHome() {
   const [homeCsvImportError, setHomeCsvImportError] = useState<string | null>(null);
   const [discoverySetupOpen, setDiscoverySetupOpen] = useState(false);
   const [discoveryBriefDraft, setDiscoveryBriefDraft] = useState('');
+  const [discoveryTargetWebsitesDraft, setDiscoveryTargetWebsitesDraft] = useState('');
+  const [discoverySpecialInstructionsDraft, setDiscoverySpecialInstructionsDraft] = useState('');
   const [discoveryListMode, setDiscoveryListMode] = useState<'new' | 'existing'>('new');
   const [discoveryDestinationListId, setDiscoveryDestinationListId] = useState('');
   const [discoveryNewListName, setDiscoveryNewListName] = useState('');
@@ -1299,6 +1301,7 @@ function DashboardHome() {
     searchId: string;
     runId: string;
     searchName: string;
+    listId: string | null;
     listName: string | null;
   } | null>(null);
 
@@ -1644,6 +1647,8 @@ function DashboardHome() {
   const resetDiscoverySetup = useCallback(() => {
     setDiscoverySetupOpen(false);
     setDiscoveryBriefDraft('');
+    setDiscoveryTargetWebsitesDraft('');
+    setDiscoverySpecialInstructionsDraft('');
     setDiscoveryListMode('new');
     setDiscoveryDestinationListId('');
     setDiscoveryNewListName('');
@@ -1664,6 +1669,8 @@ function DashboardHome() {
       }
 
       setDiscoveryBriefDraft(trimmedPrompt);
+      setDiscoveryTargetWebsitesDraft('');
+      setDiscoverySpecialInstructionsDraft('');
       setDiscoveryListMode('new');
       setDiscoveryDestinationListId('');
       setDiscoveryNewListName(buildInlineDiscoverySearchName(trimmedPrompt));
@@ -1689,6 +1696,8 @@ function DashboardHome() {
       try {
         const payload = buildInlineDiscoveryPayload({
           description,
+          targetWebsites: discoveryTargetWebsitesDraft,
+          specialInstructions: discoverySpecialInstructionsDraft,
           linkedinAccountId: selectedLinkedInAccount?.id ?? '',
           destinationListId: destinationListId ?? null,
           scheduleIntervalDays: discoveryScheduleIntervalDays,
@@ -1711,7 +1720,13 @@ function DashboardHome() {
         setDiscoveryPreviewing(false);
       }
     },
-    [currentWorkspaceId, discoveryScheduleIntervalDays, selectedLinkedInAccount]
+    [
+      currentWorkspaceId,
+      discoveryScheduleIntervalDays,
+      discoverySpecialInstructionsDraft,
+      discoveryTargetWebsitesDraft,
+      selectedLinkedInAccount,
+    ]
   );
 
   const handleStartInlineDiscovery = useCallback(async () => {
@@ -1752,6 +1767,8 @@ function DashboardHome() {
 
       const payload = buildInlineDiscoveryPayload({
         description,
+        targetWebsites: discoveryTargetWebsitesDraft,
+        specialInstructions: discoverySpecialInstructionsDraft,
         linkedinAccountId: selectedLinkedInAccount?.id ?? '',
         destinationListId,
         scheduleIntervalDays: discoveryScheduleIntervalDays,
@@ -1778,9 +1795,10 @@ function DashboardHome() {
         searchId: created.data.id,
         runId: run.data.id,
         searchName: created.data.name,
+        listId: destinationListId,
         listName: destinationListName,
       });
-      toast.success('Discovery started.');
+      toast.success('Search started. Leads will be available on the Leads page.');
     } catch (error) {
       setDiscoveryError(
         error instanceof Error ? error.message : 'Unable to start discovery right now.'
@@ -1795,6 +1813,8 @@ function DashboardHome() {
     discoveryListMode,
     discoveryNewListName,
     discoveryScheduleIntervalDays,
+    discoverySpecialInstructionsDraft,
+    discoveryTargetWebsitesDraft,
     leadLists,
     queryClient,
     selectedLinkedInAccount,
@@ -1816,6 +1836,8 @@ function DashboardHome() {
     discoveryDestinationListId,
     discoveryListMode,
     discoverySetupOpen,
+    discoverySpecialInstructionsDraft,
+    discoveryTargetWebsitesDraft,
     previewInlineDiscovery,
   ]);
 
@@ -3178,6 +3200,10 @@ function DashboardHome() {
         open={discoverySetupOpen}
         brief={discoveryBriefDraft}
         onChangeBrief={setDiscoveryBriefDraft}
+        targetWebsites={discoveryTargetWebsitesDraft}
+        onChangeTargetWebsites={setDiscoveryTargetWebsitesDraft}
+        specialInstructions={discoverySpecialInstructionsDraft}
+        onChangeSpecialInstructions={setDiscoverySpecialInstructionsDraft}
         sourceCoverage={discoverySourceCoverage}
         linkedInConnected={hasLinkedInConnected}
         listMode={discoveryListMode}
@@ -3196,14 +3222,14 @@ function DashboardHome() {
         started={discoveryStarted}
         onClose={resetDiscoverySetup}
         onStart={handleStartInlineDiscovery}
-        onOpenDiscovery={() => {
+        onOpenLeads={() => {
           if (!discoveryStarted) return;
           resetDiscoverySetup();
           void navigate({
-            to: '/dashboard/discovery',
+            to: '/dashboard/leads',
             search: {
-              searchId: discoveryStarted.searchId,
-              runId: discoveryStarted.runId,
+              listId: discoveryStarted.listId || undefined,
+              discoveryOnly: true,
             } as never,
           } as never);
         }}
@@ -3280,14 +3306,29 @@ function buildInlineDiscoveryLinkedInSearchParams(description: string): Record<s
   };
 }
 
+function parseInlineDiscoveryTargetWebsites(rawValue: string): string[] {
+  return Array.from(
+    new Set(
+      rawValue
+        .split(/\n|,/)
+        .map((value) => value.trim())
+        .filter(Boolean)
+    )
+  );
+}
+
 function buildInlineDiscoveryPayload({
   description,
+  targetWebsites,
+  specialInstructions,
   linkedinAccountId,
   destinationListId,
   scheduleIntervalDays,
   workspaceId,
 }: {
   description: string;
+  targetWebsites: string;
+  specialInstructions: string;
   linkedinAccountId: string;
   destinationListId?: string | null;
   scheduleIntervalDays: string;
@@ -3296,6 +3337,7 @@ function buildInlineDiscoveryPayload({
   const searchType = inferInlineDiscoverySearchType(description);
   const intervalDays = Number(scheduleIntervalDays || 0);
   const linkedInEnabled = Boolean(linkedinAccountId);
+  const normalizedTargetWebsites = parseInlineDiscoveryTargetWebsites(targetWebsites);
 
   return {
     workspace_id: workspaceId,
@@ -3304,11 +3346,15 @@ function buildInlineDiscoveryPayload({
     configuration_mode: 'manual',
     criteria_json: {
       description,
+      target_websites: normalizedTargetWebsites,
+      special_instructions: specialInstructions.trim() || null,
     },
     source_config_json: {
       web: {
         enabled: true,
         max_results: 25,
+        target_websites: normalizedTargetWebsites,
+        use_crawl4ai: normalizedTargetWebsites.length > 0,
       },
       linkedin: {
         enabled: linkedInEnabled,
@@ -3343,6 +3389,10 @@ function InlineDiscoverySetupModal({
   open,
   brief,
   onChangeBrief,
+  targetWebsites,
+  onChangeTargetWebsites,
+  specialInstructions,
+  onChangeSpecialInstructions,
   sourceCoverage,
   linkedInConnected,
   listMode,
@@ -3361,11 +3411,15 @@ function InlineDiscoverySetupModal({
   started,
   onClose,
   onStart,
-  onOpenDiscovery,
+  onOpenLeads,
 }: {
   open: boolean;
   brief: string;
   onChangeBrief: (value: string) => void;
+  targetWebsites: string;
+  onChangeTargetWebsites: (value: string) => void;
+  specialInstructions: string;
+  onChangeSpecialInstructions: (value: string) => void;
   sourceCoverage: string[];
   linkedInConnected: boolean;
   listMode: 'new' | 'existing';
@@ -3385,11 +3439,12 @@ function InlineDiscoverySetupModal({
     searchId: string;
     runId: string;
     searchName: string;
+    listId: string | null;
     listName: string | null;
   } | null;
   onClose: () => void;
   onStart: () => void;
-  onOpenDiscovery: () => void;
+  onOpenLeads: () => void;
 }) {
   if (!open || typeof document === 'undefined') return null;
 
@@ -3419,11 +3474,11 @@ function InlineDiscoverySetupModal({
                 </span>
               </div>
               <h2 className="mt-3 text-2xl font-semibold text-[#0F172A]">
-                {started ? 'Discovery is running' : 'Set up this discovery search'}
+                {started ? 'Search started' : 'Set up this discovery search'}
               </h2>
               <p className="mt-2 text-sm leading-6 text-[#64748B]">
                 {started
-                  ? 'Parrot has started the search. You can close this and let it continue in the background, or open the full Discovery workspace later.'
+                  ? 'Parrot has started the search. Leads will be available on the Leads page when results are saved.'
                   : 'Keep this lightweight: confirm the brief, choose where results should land, and start the run.'}
               </p>
             </div>
@@ -3448,7 +3503,7 @@ function InlineDiscoverySetupModal({
                 <h3 className="mt-3 text-2xl font-semibold text-[#0F172A]">{started.searchName}</h3>
                 <p className="mt-3 text-sm leading-6 text-[#475569]">
                   Parrot is now scanning the sources below and will push matched results into your
-                  destination list as the run completes.
+                  destination list as the run completes, so they can be worked from Leads.
                 </p>
                 <div className="mt-5 flex flex-wrap gap-2">
                   {sourceCoverage.map((item) => (
@@ -3477,8 +3532,10 @@ function InlineDiscoverySetupModal({
                   </p>
                   <div className="mt-3 space-y-3 text-sm leading-6 text-[#475569]">
                     <p>1. Parrot collects candidates from the selected sources.</p>
-                    <p>2. Results land in the destination list and can feed campaigns.</p>
-                    <p>3. You can open the full Discovery view later to review and save results.</p>
+                    <p>2. Results are saved into Leads and tagged as Discovery.</p>
+                    <p>
+                      3. You can open the Leads page to review, enrich, and use them in campaigns.
+                    </p>
                   </div>
                 </div>
               </div>
@@ -3499,6 +3556,45 @@ function InlineDiscoverySetupModal({
                       className="mt-3 min-h-[148px] w-full resize-none rounded-[22px] border border-[#E2E8F0] bg-white px-4 py-4 text-base leading-7 text-[#0F172A] outline-none transition-colors focus:border-[#FF6B35]"
                     />
                   </label>
+                </div>
+
+                <div className="grid gap-4 lg:grid-cols-2">
+                  <div className="rounded-[26px] border border-[#E2E8F0] bg-[#FCFDFE] p-5">
+                    <label className="block">
+                      <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#94A3B8]">
+                        Target websites
+                      </span>
+                      <textarea
+                        value={targetWebsites}
+                        onChange={(event) => onChangeTargetWebsites(event.target.value)}
+                        rows={4}
+                        placeholder="stripe.com&#10;notion.so&#10;rippling.com"
+                        className="mt-3 min-h-[120px] w-full resize-none rounded-[22px] border border-[#E2E8F0] bg-white px-4 py-4 text-sm leading-6 text-[#0F172A] outline-none transition-colors focus:border-[#FF6B35]"
+                      />
+                      <p className="mt-2 text-xs leading-5 text-[#64748B]">
+                        One URL or domain per line. Discovery will prioritize companies and people
+                        tied to these sites.
+                      </p>
+                    </label>
+                  </div>
+
+                  <div className="rounded-[26px] border border-[#E2E8F0] bg-[#FCFDFE] p-5">
+                    <label className="block">
+                      <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#94A3B8]">
+                        Special instructions
+                      </span>
+                      <textarea
+                        value={specialInstructions}
+                        onChange={(event) => onChangeSpecialInstructions(event.target.value)}
+                        rows={4}
+                        placeholder="Prioritize direct decision-makers, avoid agencies, and favor companies with active hiring or expansion signals."
+                        className="mt-3 min-h-[120px] w-full resize-none rounded-[22px] border border-[#E2E8F0] bg-white px-4 py-4 text-sm leading-6 text-[#0F172A] outline-none transition-colors focus:border-[#FF6B35]"
+                      />
+                      <p className="mt-2 text-xs leading-5 text-[#64748B]">
+                        Add exclusions, seniority guidance, or niche context to improve match rate.
+                      </p>
+                    </label>
+                  </div>
                 </div>
 
                 <div className="rounded-[26px] border border-[#E2E8F0] bg-[#FCFDFE] p-5">
@@ -3569,6 +3665,11 @@ function InlineDiscoverySetupModal({
                         {item}
                       </span>
                     ))}
+                    {targetWebsites.trim() ? (
+                      <span className="rounded-full border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-1.5 text-xs font-medium text-[#475569]">
+                        Website targeting enabled
+                      </span>
+                    ) : null}
                   </div>
                   {!linkedInConnected ? (
                     <p className="mt-3 text-sm leading-6 text-[#64748B]">
@@ -3656,10 +3757,10 @@ function InlineDiscoverySetupModal({
               {started ? (
                 <button
                   type="button"
-                  onClick={onOpenDiscovery}
+                  onClick={onOpenLeads}
                   className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#0F172A] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#1E293B]"
                 >
-                  Open Discovery
+                  Open Leads
                   <ArrowUpRightIcon />
                 </button>
               ) : (
