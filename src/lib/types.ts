@@ -593,6 +593,65 @@ export interface CampaignWithDetails extends Campaign {
   lead_count: number;
 }
 
+export interface CampaignTestRecipientInput {
+  email?: string | null;
+  linkedin_url?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+  company?: string | null;
+  title?: string | null;
+}
+
+export interface CampaignTestRecipient extends CampaignTestRecipientInput {
+  id: string;
+  email: string | null;
+  linkedin_url: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  company: string | null;
+  title: string | null;
+  created_at: string;
+}
+
+export interface CampaignTestResult {
+  id: string;
+  recipient_id: string;
+  campaign_step_id: string | null;
+  step_order: number;
+  step_type: string;
+  channel: 'email' | 'linkedin' | 'system';
+  status: 'sent' | 'failed' | 'skipped' | 'simulated';
+  subject: string | null;
+  content: string | null;
+  error: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface CampaignTestRun {
+  id: string;
+  campaign_id: string;
+  workspace_id: string;
+  created_by_user_id: string;
+  status: 'running' | 'completed' | 'failed';
+  error: string | null;
+  recipient_count: number;
+  total_results: number;
+  total_sent: number;
+  total_failed: number;
+  total_skipped: number;
+  total_simulated: number;
+  started_at: string | null;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CampaignTestRunDetail extends CampaignTestRun {
+  recipients: CampaignTestRecipient[];
+  results: CampaignTestResult[];
+}
+
 export interface SequenceTemplate {
   id: string;
   user_id: string;

@@ -4,10 +4,13 @@ import { queryKeys } from '../../queryClient';
 import { useWorkspaceStore } from '../../workspace';
 import type {
   Campaign,
+  CampaignTestRun,
+  CampaignTestRunDetail,
   CampaignWithDetails,
   CampaignStep,
   CampaignSender,
   CampaignStatus,
+  CampaignTestRecipientInput,
   StepType,
   SequenceTemplate,
 } from '../../types';
@@ -361,6 +364,51 @@ export const useLeadAvailabilityPreview = (listId: string | null) => {
       return response.data;
     },
     enabled: !!listId,
+  });
+};
+
+export const useCampaignTestRuns = (campaignId: string) => {
+  return useQuery({
+    queryKey: queryKeys.campaigns.testRuns(campaignId),
+    queryFn: async () => {
+      const response = await api.get<CampaignTestRun[]>(`/campaigns/${campaignId}/test-runs`);
+      return response.data;
+    },
+    enabled: !!campaignId,
+  });
+};
+
+export const useCampaignTestRun = (campaignId: string, testRunId: string | null) => {
+  return useQuery({
+    queryKey: queryKeys.campaigns.testRun(campaignId, testRunId || ''),
+    queryFn: async () => {
+      const response = await api.get<CampaignTestRunDetail>(
+        `/campaigns/${campaignId}/test-runs/${testRunId}`
+      );
+      return response.data;
+    },
+    enabled: !!campaignId && !!testRunId,
+  });
+};
+
+export const useSendCampaignTestRun = (campaignId: string) => {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (recipients: CampaignTestRecipientInput[]) => {
+      const response = await api.post<CampaignTestRunDetail>(`/campaigns/${campaignId}/test-runs`, {
+        recipients,
+      });
+      return response.data;
+    },
+    onSuccess: (run) => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.campaigns.testRuns(campaignId) });
+      queryClient.setQueryData(queryKeys.campaigns.testRun(campaignId, run.id), run);
+      queryClient.invalidateQueries({ queryKey: queryKeys.campaigns.detail(campaignId) });
+    },
+    onError: (error) => {
+      throw new Error(getErrorMessage(error));
+    },
   });
 };
 

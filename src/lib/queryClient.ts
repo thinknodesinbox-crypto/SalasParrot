@@ -43,6 +43,9 @@ export const queryKeys = {
     detail: (id: string) => ['campaigns', 'detail', id] as const,
     steps: (campaignId: string) => ['campaigns', campaignId, 'steps'] as const,
     senders: (campaignId: string) => ['campaigns', campaignId, 'senders'] as const,
+    testRuns: (campaignId: string) => ['campaigns', campaignId, 'test-runs'] as const,
+    testRun: (campaignId: string, testRunId: string) =>
+      ['campaigns', campaignId, 'test-runs', testRunId] as const,
     metrics: (campaignId: string) => ['campaigns', campaignId, 'metrics'] as const,
     progress: (campaignId: string) => ['campaigns', campaignId, 'progress'] as const,
     leadBreakdown: (campaignId: string) => ['campaigns', campaignId, 'lead-breakdown'] as const,

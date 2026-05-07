@@ -25,13 +25,21 @@ import {
   useLinkedInAccounts,
   useEmailAccounts,
   useLeadAvailabilityPreview,
+  useCampaignTestRuns,
+  useCampaignTestRun,
+  useSendCampaignTestRun,
   useSequenceTemplates,
   useSaveSequenceTemplate,
   useDeleteSequenceTemplate,
   useWorkspace,
 } from '../../lib/hooks/queries';
 import { useCurrentWorkspace } from '../../lib/workspace';
-import type { Campaign, CampaignStatus } from '../../lib/types';
+import type {
+  Campaign,
+  CampaignStatus,
+  CampaignTestRecipientInput,
+  CampaignTestRun,
+} from '../../lib/types';
 import { api } from '@/lib/api';
 import {
   prepareNodesForSave,
@@ -2620,6 +2628,22 @@ function CreateCampaignModal({
                             </div>
                           </div>
                         )}
+
+                        {!isActiveCampaign && (
+                          <div className="flex items-start gap-3 rounded-xl border border-[#3B82F6]/20 bg-[#F0F9FF] p-4">
+                            <InfoIcon className="mt-0.5 h-5 w-5 flex-shrink-0 text-[#3B82F6]" />
+                            <div>
+                              <p className="text-sm font-medium text-[#1E40AF]">
+                                Need to test before launch?
+                              </p>
+                              <p className="text-xs text-[#3B82F6]">
+                                Save this campaign as a draft first, then open the campaign drawer
+                                and use Test Outreach to send labeled test versions without
+                                affecting live metrics or lead state.
+                              </p>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </motion.div>
                   )}
@@ -2795,9 +2819,16 @@ function CampaignDetailDrawer({
   const resumeCampaign = useResumeCampaign(campaign.id);
   const deleteCampaign = useDeleteCampaign();
   const cloneCampaign = useCloneCampaign();
+  const sendCampaignTestRun = useSendCampaignTestRun(campaign.id);
+  const { data: campaignTestRuns = [] } = useCampaignTestRuns(campaign.id);
   const [showCloneDialog, setShowCloneDialog] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [cloneName, setCloneName] = useState('');
+  const [selectedTestRunId, setSelectedTestRunId] = useState<string | null>(null);
+  const [testRecipients, setTestRecipients] = useState<CampaignTestRecipientInput[]>([
+    { first_name: '', company: '', email: '', linkedin_url: '' },
+  ]);
+  const { data: selectedTestRun } = useCampaignTestRun(campaign.id, selectedTestRunId);
 
   const updateCampaign = useUpdateCampaign(campaign.id);
   const { data: linkedInAccounts = [] } = useLinkedInAccounts();
@@ -2837,6 +2868,12 @@ function CampaignDetailDrawer({
   const [dailyLimitInput, setDailyLimitInput] = useState<string>('');
   const [dailyEmailLimitInput, setDailyEmailLimitInput] = useState<string>('');
   const [controlsInitialized, setControlsInitialized] = useState(false);
+
+  useEffect(() => {
+    if (!selectedTestRunId && campaignTestRuns.length > 0) {
+      setSelectedTestRunId(campaignTestRuns[0].id);
+    }
+  }, [campaignTestRuns, selectedTestRunId]);
 
   // Sync local state with campaign data (only on initial load / after external changes)
   useEffect(() => {
@@ -2894,6 +2931,51 @@ function CampaignDetailDrawer({
       onClose();
     } catch {
       // Error handled by mutation
+    }
+  };
+
+  const updateTestRecipient = (
+    index: number,
+    field: keyof CampaignTestRecipientInput,
+    value: string
+  ) => {
+    setTestRecipients((current) =>
+      current.map((recipient, recipientIndex) =>
+        recipientIndex === index ? { ...recipient, [field]: value } : recipient
+      )
+    );
+  };
+
+  const normalizedTestRecipients = testRecipients
+    .map((recipient) => ({
+      first_name: recipient.first_name?.trim() || undefined,
+      company: recipient.company?.trim() || undefined,
+      email: recipient.email?.trim() || undefined,
+      linkedin_url: recipient.linkedin_url?.trim() || undefined,
+    }))
+    .filter((recipient) => recipient.email || recipient.linkedin_url);
+
+  const handleSendTestOutreach = async () => {
+    if (normalizedTestRecipients.length === 0) {
+      showErrorToast(
+        'Test recipients required',
+        'Add at least one email address, LinkedIn URL, or both before sending a test run.'
+      );
+      return;
+    }
+
+    try {
+      const run = await sendCampaignTestRun.mutateAsync(normalizedTestRecipients);
+      setSelectedTestRunId(run.id);
+      showSuccessToast(
+        'Test outreach sent',
+        `Recorded ${run.total_results} test result${run.total_results === 1 ? '' : 's'} for review.`
+      );
+    } catch (error) {
+      showErrorToast(
+        'Test outreach failed',
+        error instanceof Error ? error.message : 'Unable to send test outreach right now.'
+      );
     }
   };
 
@@ -3055,6 +3137,247 @@ function CampaignDetailDrawer({
           {/* Content */}
           <div className="flex-1 overflow-y-auto p-6">
             <div className="space-y-6">
+              <div>
+                <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-[#64748B]">
+                  Test Outreach
+                </h3>
+                <div className="space-y-4 rounded-lg border border-[#E2E8F0] bg-white p-4">
+                  <div>
+                    <p className="text-sm font-medium text-[#1E293B]">
+                      Send a labeled test run before launch
+                    </p>
+                    <p className="mt-1 text-xs text-[#64748B]">
+                      Test runs are recorded separately and do not change live campaign metrics or
+                      production lead state.
+                    </p>
+                  </div>
+
+                  <div className="space-y-3">
+                    {testRecipients.map((recipient, index) => (
+                      <div
+                        key={`test-recipient-${index}`}
+                        className="rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] p-3"
+                      >
+                        <div className="grid gap-3 md:grid-cols-2">
+                          <input
+                            type="text"
+                            value={recipient.first_name || ''}
+                            onChange={(event) =>
+                              updateTestRecipient(index, 'first_name', event.target.value)
+                            }
+                            placeholder="First name (optional)"
+                            className="rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-sm focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+                          />
+                          <input
+                            type="text"
+                            value={recipient.company || ''}
+                            onChange={(event) =>
+                              updateTestRecipient(index, 'company', event.target.value)
+                            }
+                            placeholder="Company (optional)"
+                            className="rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-sm focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+                          />
+                          <input
+                            type="email"
+                            value={recipient.email || ''}
+                            onChange={(event) =>
+                              updateTestRecipient(index, 'email', event.target.value)
+                            }
+                            placeholder="Email address"
+                            className="rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-sm focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+                          />
+                          <input
+                            type="text"
+                            value={recipient.linkedin_url || ''}
+                            onChange={(event) =>
+                              updateTestRecipient(index, 'linkedin_url', event.target.value)
+                            }
+                            placeholder="LinkedIn profile URL"
+                            className="rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-sm focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+                          />
+                        </div>
+                        <div className="mt-3 flex items-center justify-between">
+                          <p className="text-xs text-[#64748B]">
+                            Each row can use email, LinkedIn, or both.
+                          </p>
+                          {testRecipients.length > 1 && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setTestRecipients((current) =>
+                                  current.filter((_, recipientIndex) => recipientIndex !== index)
+                                )
+                              }
+                              className="text-xs font-medium text-[#EF4444] hover:text-[#DC2626]"
+                            >
+                              Remove
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setTestRecipients((current) => [
+                          ...current,
+                          { first_name: '', company: '', email: '', linkedin_url: '' },
+                        ])
+                      }
+                      className="rounded-lg border border-[#E2E8F0] px-3 py-2 text-sm font-medium text-[#64748B] hover:bg-[#F8FAFC]"
+                    >
+                      Add Recipient
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void handleSendTestOutreach()}
+                      disabled={sendCampaignTestRun.isPending}
+                      className="rounded-lg bg-[#0F766E] px-4 py-2 text-sm font-medium text-white hover:bg-[#115E59] disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {sendCampaignTestRun.isPending ? 'Sending Test...' : 'Send Test Outreach'}
+                    </button>
+                  </div>
+
+                  {campaignTestRuns.length > 0 && (
+                    <div className="space-y-3 border-t border-[#F1F5F9] pt-4">
+                      <div className="flex flex-wrap gap-2">
+                        {campaignTestRuns.slice(0, 6).map((run: CampaignTestRun) => (
+                          <button
+                            key={run.id}
+                            type="button"
+                            onClick={() => setSelectedTestRunId(run.id)}
+                            className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+                              selectedTestRunId === run.id
+                                ? 'bg-[#0F766E] text-white'
+                                : 'bg-[#F8FAFC] text-[#475569] hover:bg-[#E2E8F0]'
+                            }`}
+                          >
+                            {new Date(run.created_at).toLocaleString()}
+                          </button>
+                        ))}
+                      </div>
+
+                      {selectedTestRun && (
+                        <div className="space-y-4 rounded-lg border border-[#E2E8F0] bg-[#F8FAFC] p-4">
+                          <div className="grid gap-3 md:grid-cols-4">
+                            <div>
+                              <p className="text-xs uppercase tracking-wide text-[#64748B]">
+                                Recipients
+                              </p>
+                              <p className="mt-1 text-sm font-semibold text-[#1E293B]">
+                                {selectedTestRun.recipient_count}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-xs uppercase tracking-wide text-[#64748B]">Sent</p>
+                              <p className="mt-1 text-sm font-semibold text-[#166534]">
+                                {selectedTestRun.total_sent}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-xs uppercase tracking-wide text-[#64748B]">
+                                Simulated
+                              </p>
+                              <p className="mt-1 text-sm font-semibold text-[#92400E]">
+                                {selectedTestRun.total_simulated}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-xs uppercase tracking-wide text-[#64748B]">
+                                Failed
+                              </p>
+                              <p className="mt-1 text-sm font-semibold text-[#B91C1C]">
+                                {selectedTestRun.total_failed}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="space-y-3">
+                            {selectedTestRun.recipients.map((recipient) => {
+                              const recipientResults = selectedTestRun.results.filter(
+                                (result) => result.recipient_id === recipient.id
+                              );
+                              const recipientLabel =
+                                recipient.email || recipient.linkedin_url || 'Test recipient';
+
+                              return (
+                                <div
+                                  key={recipient.id}
+                                  className="rounded-lg border border-[#E2E8F0] bg-white p-3"
+                                >
+                                  <div className="mb-3">
+                                    <p className="text-sm font-semibold text-[#1E293B]">
+                                      {recipient.first_name
+                                        ? `${recipient.first_name}${recipient.company ? ` · ${recipient.company}` : ''}`
+                                        : recipientLabel}
+                                    </p>
+                                    {recipient.first_name && (
+                                      <p className="mt-1 text-xs text-[#64748B]">
+                                        {recipientLabel}
+                                      </p>
+                                    )}
+                                  </div>
+                                  <div className="space-y-3">
+                                    {recipientResults.map((result) => (
+                                      <div
+                                        key={result.id}
+                                        className="rounded-md border border-[#E2E8F0] bg-[#F8FAFC] p-3"
+                                      >
+                                        <div className="flex flex-wrap items-center justify-between gap-2">
+                                          <div className="flex items-center gap-2">
+                                            <span className="text-xs font-semibold uppercase tracking-wide text-[#64748B]">
+                                              Step {result.step_order + 1}
+                                            </span>
+                                            <span className="text-sm font-medium text-[#1E293B]">
+                                              {result.step_type.replace(/_/g, ' ')}
+                                            </span>
+                                          </div>
+                                          <span
+                                            className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                                              result.status === 'sent'
+                                                ? 'bg-[#DCFCE7] text-[#166534]'
+                                                : result.status === 'failed'
+                                                  ? 'bg-[#FEE2E2] text-[#B91C1C]'
+                                                  : result.status === 'simulated'
+                                                    ? 'bg-[#FEF3C7] text-[#92400E]'
+                                                    : 'bg-[#E2E8F0] text-[#475569]'
+                                            }`}
+                                          >
+                                            {result.status}
+                                          </span>
+                                        </div>
+                                        {result.subject && (
+                                          <p className="mt-2 text-xs font-medium text-[#334155]">
+                                            Subject: {result.subject}
+                                          </p>
+                                        )}
+                                        {result.content && (
+                                          <pre className="mt-2 whitespace-pre-wrap rounded-md bg-white p-3 text-xs leading-5 text-[#334155]">
+                                            {result.content}
+                                          </pre>
+                                        )}
+                                        {result.error && (
+                                          <p className="mt-2 text-xs text-[#B91C1C]">
+                                            {result.error}
+                                          </p>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+
               {/* Campaign Controls */}
               {campaign.status !== 'completed' && (
                 <div>
