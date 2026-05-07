@@ -9,7 +9,8 @@ vi.mock('@/lib/hooks/queries', async (importOriginal) => {
   return {
     ...actual,
     useSequenceStepSuggestions: () => ({
-      mutate: vi.fn(),
+      mutate: vi.fn().mockResolvedValue(undefined),
+      reset: vi.fn(),
       data: null,
       error: null,
       isPending: false,
