@@ -3,8 +3,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { SEQUENCE_TEMPLATES } from './sequenceTemplates';
 import { SuggestedDraftsPanel } from '@/components/ai/SuggestedDraftsPanel';
 import { LazyRichTextEditor } from '@/components/ui/LazyRichTextEditor';
-import { useSequenceStepSuggestions } from '@/lib/hooks/queries';
-import { useLeadListContextKeys } from '@/lib/hooks/queries/useLeads';
+import { useSequenceStepSuggestions, useLeadListContextKeys } from '@/lib/hooks/queries';
 import type {
   PersonalizationMode,
   PersonalizationProvider,

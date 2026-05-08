@@ -19,6 +19,12 @@ vi.mock('@/lib/hooks/queries', async (importOriginal) => {
       mutate: vi.fn(),
       isPending: false,
     }),
+    useLeadListContextKeys: () => ({
+      data: [],
+      isLoading: false,
+      isError: false,
+      error: null,
+    }),
   };
 });
 

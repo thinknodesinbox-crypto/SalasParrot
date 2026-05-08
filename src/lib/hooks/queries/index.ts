@@ -93,6 +93,7 @@ export type {
 export {
   useLeadLists,
   useLeadList,
+  useLeadListContextKeys,
   useCreateLeadList,
   useUpdateLeadList,
   useDeleteLeadList,
@@ -100,6 +101,7 @@ export {
   useMergeLeadLists,
   useImportLeadsFromCSV,
 } from './useLeads';
+export type { LeadListContextKey } from './useLeads';
 
 // Leads
 export {
