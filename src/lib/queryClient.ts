@@ -57,6 +57,7 @@ export const queryKeys = {
     all: ['lead-lists'] as const,
     list: (filters?: unknown) => ['lead-lists', 'list', filters] as const,
     detail: (id: string) => ['lead-lists', 'detail', id] as const,
+    contextKeys: (id: string) => ['lead-lists', 'context-keys', id] as const,
   },
 
   // Leads

@@ -46,7 +46,9 @@ interface CreateLeadData {
   headline?: string;
   company?: string;
   title?: string;
+  location?: string;
   email?: string;
+  context_field?: string;
   campaign_id?: string;
   workspace_id?: string;
   list_id?: string;
@@ -58,7 +60,9 @@ interface UpdateLeadData {
   headline?: string;
   company?: string;
   title?: string;
+  location?: string;
   email?: string;
+  context_field?: string;
   status?: LeadStatus;
   tags?: string[];
 }
@@ -103,6 +107,25 @@ export const useLeadList = (listId: string) => {
       return response.data;
     },
     enabled: !!listId,
+  });
+};
+
+export interface LeadListContextKey {
+  key: string;
+  sample: string | null;
+}
+
+export const useLeadListContextKeys = (listId: string | null | undefined) => {
+  return useQuery({
+    queryKey: queryKeys.leadLists.contextKeys(listId ?? ''),
+    queryFn: async () => {
+      const response = await api.get<{ keys: LeadListContextKey[] }>(
+        `/leads/lists/${listId}/context-keys`
+      );
+      return response.data.keys;
+    },
+    enabled: !!listId,
+    staleTime: 60_000,
   });
 };
 

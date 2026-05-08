@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import type {
   DiscoveryScheduleType,
   DiscoverySearchPreview,
@@ -80,11 +80,34 @@ export function DiscoverySearchBuilder({
     }
   }, [generatedName, newListName]);
 
+  const parsedDomains = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          form.targetWebsites
+            .split(/[\n,]/)
+            .map((value) => cleanDomain(value))
+            .filter(Boolean)
+        )
+      ),
+    [form.targetWebsites]
+  );
+
+  const appendInstruction = (text: string) => {
+    const current = form.specialInstructions.trim();
+    const next = current ? `${current}\n${text}` : text;
+    onChange({ specialInstructions: next });
+  };
+
   return (
-    <div className="space-y-5 rounded-2xl border border-[#E2E8F0] bg-white p-6">
-      <div className="flex items-start justify-between gap-4">
+    <div className="space-y-6 rounded-2xl border border-[#E2E8F0] bg-white p-6 shadow-sm">
+      <div className="flex items-start justify-between gap-4 border-b border-[#F1F5F9] pb-5">
         <div>
-          <h2 className="text-xl font-semibold text-[#1E293B]">
+          <div className="inline-flex items-center gap-2 rounded-full bg-[#FFF7ED] px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-[#FF6B35]">
+            <span className="h-1.5 w-1.5 rounded-full bg-[#FF6B35]" aria-hidden="true" />
+            Discovery
+          </div>
+          <h2 className="mt-2 text-xl font-semibold text-[#1E293B]">
             {editingSearch ? 'Edit Discovery Search' : 'New Discovery Search'}
           </h2>
           <p className="mt-1 text-sm text-[#64748B]">
@@ -94,81 +117,140 @@ export function DiscoverySearchBuilder({
         </div>
       </div>
 
-      <label className="space-y-2">
-        <span className="text-sm font-medium text-[#334155]">What are you looking for?</span>
+      <label className="block space-y-2">
+        <span className="flex items-center gap-2 text-sm font-medium text-[#334155]">
+          <span className="text-base" aria-hidden="true">
+            🎯
+          </span>
+          What are you looking for?
+        </span>
         <textarea
           value={form.description}
           onChange={(event) => onChange({ description: event.target.value })}
           rows={4}
-          className="w-full rounded-xl border border-[#CBD5E1] px-4 py-3 text-sm outline-none transition focus:border-[#FF6B35]"
+          className="w-full rounded-xl border border-[#CBD5E1] bg-white px-4 py-3 text-sm leading-relaxed text-[#1E293B] outline-none transition placeholder:text-[#94A3B8] focus:border-[#FF6B35] focus:ring-2 focus:ring-[#FF6B35]/15"
           placeholder="Find VPs of Sales at recently funded B2B SaaS companies in Europe."
         />
       </label>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <label className="space-y-2">
-          <span className="text-sm font-medium text-[#334155]">Target websites</span>
+        <FieldCard
+          icon="🌐"
+          title="Target websites"
+          subtitle="Discovery will prioritize people and companies tied to these websites."
+          accent={parsedDomains.length > 0}
+          badge={
+            parsedDomains.length > 0
+              ? `${parsedDomains.length} domain${parsedDomains.length === 1 ? '' : 's'}`
+              : 'Optional'
+          }
+        >
           <textarea
             value={form.targetWebsites}
             onChange={(event) => onChange({ targetWebsites: event.target.value })}
             rows={4}
-            className="w-full rounded-xl border border-[#CBD5E1] px-4 py-3 text-sm outline-none transition focus:border-[#FF6B35]"
-            placeholder="acme.com&#10;stripe.com&#10;notion.so"
+            className="w-full rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 font-mono text-[13px] text-[#1E293B] outline-none transition placeholder:font-sans placeholder:text-[#94A3B8] focus:border-[#FF6B35] focus:ring-2 focus:ring-[#FF6B35]/15"
+            placeholder={'acme.com\nstripe.com\nnotion.so'}
           />
-          <p className="text-xs text-[#64748B]">
-            One domain or URL per line. Discovery will prioritize people and companies tied to these
-            websites.
-          </p>
-        </label>
+          {parsedDomains.length > 0 ? (
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {parsedDomains.map((domain) => (
+                <span
+                  key={domain}
+                  className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-[11px] font-medium text-[#0F172A] ring-1 ring-[#E2E8F0]"
+                >
+                  <span className="h-1.5 w-1.5 rounded-full bg-[#14B8A6]" aria-hidden="true" />
+                  {domain}
+                </span>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-3 text-[11px] text-[#94A3B8]">
+              One domain per line. Commas also work.
+            </p>
+          )}
+        </FieldCard>
 
-        <label className="space-y-2">
-          <span className="text-sm font-medium text-[#334155]">Special instructions</span>
+        <FieldCard
+          icon="✨"
+          title="Special instructions"
+          subtitle="Add exclusions, seniority guidance, niche context, or anything that should improve match quality."
+          accent={form.specialInstructions.trim().length > 0}
+          badge="Optional"
+        >
           <textarea
             value={form.specialInstructions}
             onChange={(event) => onChange({ specialInstructions: event.target.value })}
             rows={4}
-            className="w-full rounded-xl border border-[#CBD5E1] px-4 py-3 text-sm outline-none transition focus:border-[#FF6B35]"
+            className="w-full rounded-lg border border-[#E2E8F0] bg-white px-3 py-2 text-sm leading-relaxed text-[#1E293B] outline-none transition placeholder:text-[#94A3B8] focus:border-[#FF6B35] focus:ring-2 focus:ring-[#FF6B35]/15"
             placeholder="Prioritize direct owners of the problem, avoid agencies, and prefer companies actively hiring."
           />
-          <p className="text-xs text-[#64748B]">
-            Add exclusions, seniority guidance, niche context, or anything that should improve match
-            quality.
-          </p>
-        </label>
-      </div>
-
-      <div className="rounded-2xl bg-[#F8FAFC] p-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <div className="text-sm font-medium text-[#334155]">Search summary</div>
-            <div className="mt-1 text-sm text-[#475569]">
-              Saved as <span className="font-medium text-[#1E293B]">{generatedName}</span>
+          <div className="mt-3">
+            <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-[#94A3B8]">
+              Quick add
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {INSTRUCTION_SUGGESTIONS.map((text) => (
+                <button
+                  key={text}
+                  type="button"
+                  onClick={() => appendInstruction(text)}
+                  className="rounded-full bg-white px-2.5 py-1 text-[11px] font-medium text-[#475569] ring-1 ring-[#E2E8F0] transition hover:bg-[#F8FAFC] hover:text-[#1E293B]"
+                >
+                  + {text}
+                </button>
+              ))}
             </div>
           </div>
-          <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-[#64748B]">
+        </FieldCard>
+      </div>
+
+      <div className="rounded-2xl border border-[#E2E8F0] bg-gradient-to-br from-[#F8FAFC] to-white p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-[#94A3B8]">
+              Search summary
+            </div>
+            <div className="mt-1 text-sm text-[#475569]">
+              Saved as <span className="font-semibold text-[#1E293B]">{generatedName}</span>
+            </div>
+          </div>
+          <span
+            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${
+              generatedSearchType === 'event'
+                ? 'bg-[#FFF7ED] text-[#C2410C]'
+                : 'bg-[#ECFEFF] text-[#0E7490]'
+            }`}
+          >
+            <span
+              className={`h-1.5 w-1.5 rounded-full ${
+                generatedSearchType === 'event' ? 'bg-[#F97316]' : 'bg-[#14B8A6]'
+              }`}
+              aria-hidden="true"
+            />
             {generatedSearchType === 'event' ? 'Event-driven' : 'Intent-based'}
           </span>
         </div>
       </div>
 
-      <div className="rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
-        <div className="text-sm font-medium text-[#334155]">Search coverage</div>
+      <div className="rounded-2xl border border-[#E2E8F0] bg-white p-4">
+        <div className="flex items-center justify-between gap-3">
+          <div className="text-[11px] font-semibold uppercase tracking-wide text-[#94A3B8]">
+            Search coverage
+          </div>
+        </div>
         <div className="mt-2 flex flex-wrap gap-2">
-          <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-[#334155]">
-            Web included
-          </span>
-          {form.targetWebsites.trim() ? (
-            <span className="rounded-full bg-white px-3 py-1 text-xs font-medium text-[#334155]">
-              Website targeting enabled
-            </span>
-          ) : null}
-          <span
-            className={`rounded-full px-3 py-1 text-xs font-medium ${
-              linkedInEnabled ? 'bg-white text-[#334155]' : 'bg-[#E2E8F0] text-[#64748B]'
-            }`}
-          >
-            {linkedInEnabled ? 'LinkedIn included' : 'LinkedIn not connected'}
-          </span>
+          <CoverageChip active label="Web" hint="Always on" />
+          <CoverageChip
+            active={Boolean(form.targetWebsites.trim())}
+            label="Website targeting"
+            hint={form.targetWebsites.trim() ? `${parsedDomains.length} domains` : 'Optional'}
+          />
+          <CoverageChip
+            active={linkedInEnabled}
+            label="LinkedIn"
+            hint={linkedInEnabled ? 'Connected' : 'Not connected'}
+          />
         </div>
         <p className="mt-3 text-sm text-[#64748B]">
           Discovery always searches the web. If you have a LinkedIn account connected, it adds
@@ -181,7 +263,7 @@ export function DiscoverySearchBuilder({
             <select
               value={form.linkedinAccountId}
               onChange={(event) => onChange({ linkedinAccountId: event.target.value })}
-              className="w-full rounded-xl border border-[#CBD5E1] bg-white px-4 py-3 text-sm outline-none transition focus:border-[#FF6B35]"
+              className="w-full rounded-xl border border-[#CBD5E1] bg-white px-4 py-3 text-sm outline-none transition focus:border-[#FF6B35] focus:ring-2 focus:ring-[#FF6B35]/15"
             >
               {linkedInAccounts.map((account) => (
                 <option key={account.id} value={account.id}>
@@ -207,8 +289,13 @@ export function DiscoverySearchBuilder({
         )}
       </div>
 
-      <label className="space-y-2">
-        <span className="text-sm font-medium text-[#334155]">Destination list</span>
+      <label className="block space-y-2">
+        <span className="flex items-center gap-2 text-sm font-medium text-[#334155]">
+          <span className="text-base" aria-hidden="true">
+            📥
+          </span>
+          Destination list
+        </span>
         <div className="space-y-3 rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
           <div className="grid gap-3 md:grid-cols-2">
             <button
@@ -287,7 +374,10 @@ export function DiscoverySearchBuilder({
       </label>
 
       <div className="rounded-2xl border border-[#E2E8F0] p-4">
-        <div>
+        <div className="flex items-start gap-2">
+          <span className="text-base" aria-hidden="true">
+            ⏱️
+          </span>
           <div>
             <h3 className="font-medium text-[#1E293B]">Scheduling</h3>
             <p className="mt-1 text-sm text-[#64748B]">
@@ -340,8 +430,11 @@ export function DiscoverySearchBuilder({
         ) : null}
       </div>
 
-      <div className="rounded-2xl bg-[#F8FAFC] p-4">
-        <div className="text-sm font-medium text-[#334155]">Preview</div>
+      <div className="rounded-2xl border border-[#E2E8F0] bg-gradient-to-br from-[#FFFBEB] to-white p-4">
+        <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-[#94A3B8]">
+          <span aria-hidden="true">👁️</span>
+          Preview
+        </div>
         <div className="mt-2 text-sm text-[#475569]">
           {preview?.summary ||
             `Saved as ${generatedName}. Results will flow into ${destinationLabel}.`}
@@ -358,30 +451,30 @@ export function DiscoverySearchBuilder({
         ) : null}
       </div>
 
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-wrap items-center justify-end gap-3 border-t border-[#F1F5F9] pt-5">
         <button
           type="button"
           onClick={onPreview}
           disabled={isPreviewing}
           className="rounded-xl border border-[#CBD5E1] px-4 py-2.5 text-sm font-medium text-[#334155] transition hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {isPreviewing ? 'Previewing...' : 'Preview Search'}
+          {isPreviewing ? 'Previewing…' : 'Preview Search'}
         </button>
         <button
           type="button"
           onClick={() => onSave('save')}
           disabled={isSaving}
-          className="rounded-xl bg-[#1E293B] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-[#0F172A] disabled:cursor-not-allowed disabled:opacity-60"
+          className="rounded-xl bg-[#1E293B] px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-[#0F172A] disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {isSaving ? 'Saving...' : editingSearch ? 'Save Changes' : 'Save Search'}
+          {isSaving ? 'Saving…' : editingSearch ? 'Save Changes' : 'Save Search'}
         </button>
         <button
           type="button"
           onClick={() => onSave('save_run')}
           disabled={isSaving}
-          className="rounded-xl bg-[#FF6B35] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-[#EA580C] disabled:cursor-not-allowed disabled:opacity-60"
+          className="rounded-xl bg-[#FF6B35] px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-[#EA580C] disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {isSaving ? 'Working...' : editingSearch ? 'Save and Run' : 'Create and Run'}
+          {isSaving ? 'Working…' : editingSearch ? 'Save and Run' : 'Create and Run'}
         </button>
       </div>
     </div>
@@ -428,5 +521,88 @@ function ScheduleOptionCard({
       <div className="font-medium text-[#1E293B]">{label}</div>
       <div className="mt-1 text-sm text-[#64748B]">{description}</div>
     </button>
+  );
+}
+
+const INSTRUCTION_SUGGESTIONS = [
+  'Exclude agencies and consultancies',
+  'Senior decision-makers only',
+  'Recently funded companies',
+  'Avoid existing customers',
+];
+
+function cleanDomain(value: string): string {
+  return value
+    .trim()
+    .replace(/^https?:\/\//i, '')
+    .replace(/^www\./i, '')
+    .replace(/\/.*$/, '')
+    .toLowerCase();
+}
+
+function FieldCard({
+  icon,
+  title,
+  subtitle,
+  badge,
+  accent,
+  children,
+}: {
+  icon: string;
+  title: string;
+  subtitle: string;
+  badge?: string;
+  accent?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <div
+      className={`rounded-2xl border p-4 transition ${
+        accent
+          ? 'border-[#FDBA74] bg-gradient-to-br from-[#FFF7ED] to-white'
+          : 'border-[#E2E8F0] bg-[#F8FAFC]'
+      }`}
+    >
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div className="flex items-start gap-2">
+          <span className="text-base leading-5" aria-hidden="true">
+            {icon}
+          </span>
+          <div>
+            <div className="text-sm font-semibold text-[#1E293B]">{title}</div>
+            <p className="mt-0.5 text-[12px] leading-snug text-[#64748B]">{subtitle}</p>
+          </div>
+        </div>
+        {badge ? (
+          <span
+            className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+              accent ? 'bg-[#FF6B35] text-white' : 'bg-white text-[#94A3B8] ring-1 ring-[#E2E8F0]'
+            }`}
+          >
+            {badge}
+          </span>
+        ) : null}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function CoverageChip({ active, label, hint }: { active: boolean; label: string; hint: string }) {
+  return (
+    <span
+      className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ring-1 ${
+        active
+          ? 'bg-[#ECFDF5] text-[#047857] ring-[#A7F3D0]'
+          : 'bg-[#F8FAFC] text-[#94A3B8] ring-[#E2E8F0]'
+      }`}
+    >
+      <span
+        className={`h-1.5 w-1.5 rounded-full ${active ? 'bg-[#10B981]' : 'bg-[#CBD5E1]'}`}
+        aria-hidden="true"
+      />
+      {label}
+      <span className="text-[10px] font-normal opacity-70">· {hint}</span>
+    </span>
   );
 }

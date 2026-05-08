@@ -1,7 +1,7 @@
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import toast from 'react-hot-toast';
 import { createPortal } from 'react-dom';
 import {
@@ -896,7 +896,7 @@ function getLeadColumnSuggestion(
   const normalizedHeader = normalizeLeadHeader(header);
   let bestField: LeadCoreField | null = null;
   let bestScore = 0;
-  let bestReason = 'Will stay as a custom field.';
+  let bestReason = 'Will be added to the lead context field.';
   let splitNameScore = 0;
   let splitNameReason = '';
 
@@ -3454,6 +3454,15 @@ function InlineDiscoverySetupModal({
     { value: '14', label: 'Every 2 weeks' },
   ];
 
+  const parsedTargetDomains = Array.from(
+    new Set(
+      targetWebsites
+        .split(/[\n,]/)
+        .map((value) => cleanDiscoveryDomain(value))
+        .filter(Boolean)
+    )
+  );
+
   return createPortal(
     <div className="fixed inset-0 z-[88] flex items-center justify-center bg-[#0F172A]/40 p-4 backdrop-blur-sm">
       <div className="absolute inset-0" onClick={onClose} />
@@ -3559,42 +3568,80 @@ function InlineDiscoverySetupModal({
                 </div>
 
                 <div className="grid gap-4 lg:grid-cols-2">
-                  <div className="rounded-[26px] border border-[#E2E8F0] bg-[#FCFDFE] p-5">
-                    <label className="block">
-                      <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#94A3B8]">
-                        Target websites
-                      </span>
-                      <textarea
-                        value={targetWebsites}
-                        onChange={(event) => onChangeTargetWebsites(event.target.value)}
-                        rows={4}
-                        placeholder="stripe.com&#10;notion.so&#10;rippling.com"
-                        className="mt-3 min-h-[120px] w-full resize-none rounded-[22px] border border-[#E2E8F0] bg-white px-4 py-4 text-sm leading-6 text-[#0F172A] outline-none transition-colors focus:border-[#FF6B35]"
-                      />
-                      <p className="mt-2 text-xs leading-5 text-[#64748B]">
+                  <ModalFieldCard
+                    icon="🌐"
+                    label="Target websites"
+                    badge={
+                      parsedTargetDomains.length > 0
+                        ? `${parsedTargetDomains.length} domain${parsedTargetDomains.length === 1 ? '' : 's'}`
+                        : 'Optional'
+                    }
+                    accent={parsedTargetDomains.length > 0}
+                  >
+                    <textarea
+                      value={targetWebsites}
+                      onChange={(event) => onChangeTargetWebsites(event.target.value)}
+                      rows={4}
+                      placeholder={'stripe.com\nnotion.so\nrippling.com'}
+                      className="mt-3 min-h-[120px] w-full resize-none rounded-[22px] border border-[#E2E8F0] bg-white px-4 py-4 font-mono text-[13px] leading-6 text-[#0F172A] outline-none transition placeholder:font-sans placeholder:text-[#94A3B8] focus:border-[#FF6B35] focus:ring-2 focus:ring-[#FF6B35]/15"
+                    />
+                    {parsedTargetDomains.length > 0 ? (
+                      <div className="mt-3 flex flex-wrap gap-1.5">
+                        {parsedTargetDomains.map((domain) => (
+                          <span
+                            key={domain}
+                            className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-[11px] font-medium text-[#0F172A] ring-1 ring-[#E2E8F0]"
+                          >
+                            <span
+                              className="h-1.5 w-1.5 rounded-full bg-[#14B8A6]"
+                              aria-hidden="true"
+                            />
+                            {domain}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="mt-3 text-xs leading-5 text-[#64748B]">
                         One URL or domain per line. Discovery will prioritize companies and people
                         tied to these sites.
                       </p>
-                    </label>
-                  </div>
+                    )}
+                  </ModalFieldCard>
 
-                  <div className="rounded-[26px] border border-[#E2E8F0] bg-[#FCFDFE] p-5">
-                    <label className="block">
-                      <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#94A3B8]">
-                        Special instructions
-                      </span>
-                      <textarea
-                        value={specialInstructions}
-                        onChange={(event) => onChangeSpecialInstructions(event.target.value)}
-                        rows={4}
-                        placeholder="Prioritize direct decision-makers, avoid agencies, and favor companies with active hiring or expansion signals."
-                        className="mt-3 min-h-[120px] w-full resize-none rounded-[22px] border border-[#E2E8F0] bg-white px-4 py-4 text-sm leading-6 text-[#0F172A] outline-none transition-colors focus:border-[#FF6B35]"
-                      />
-                      <p className="mt-2 text-xs leading-5 text-[#64748B]">
-                        Add exclusions, seniority guidance, or niche context to improve match rate.
+                  <ModalFieldCard
+                    icon="✨"
+                    label="Special instructions"
+                    badge={specialInstructions.trim() ? 'Active' : 'Optional'}
+                    accent={specialInstructions.trim().length > 0}
+                  >
+                    <textarea
+                      value={specialInstructions}
+                      onChange={(event) => onChangeSpecialInstructions(event.target.value)}
+                      rows={4}
+                      placeholder="Prioritize direct decision-makers, avoid agencies, and favor companies with active hiring or expansion signals."
+                      className="mt-3 min-h-[120px] w-full resize-none rounded-[22px] border border-[#E2E8F0] bg-white px-4 py-4 text-sm leading-6 text-[#0F172A] outline-none transition placeholder:text-[#94A3B8] focus:border-[#FF6B35] focus:ring-2 focus:ring-[#FF6B35]/15"
+                    />
+                    <div className="mt-3">
+                      <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#94A3B8]">
+                        Quick add
                       </p>
-                    </label>
-                  </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {DISCOVERY_INSTRUCTION_SUGGESTIONS.map((text) => (
+                          <button
+                            key={text}
+                            type="button"
+                            onClick={() => {
+                              const current = specialInstructions.trim();
+                              onChangeSpecialInstructions(current ? `${current}\n${text}` : text);
+                            }}
+                            className="rounded-full bg-white px-2.5 py-1 text-[11px] font-medium text-[#475569] ring-1 ring-[#E2E8F0] transition hover:bg-[#F8FAFC] hover:text-[#0F172A]"
+                          >
+                            + {text}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </ModalFieldCard>
                 </div>
 
                 <div className="rounded-[26px] border border-[#E2E8F0] bg-[#FCFDFE] p-5">
@@ -3660,14 +3707,23 @@ function InlineDiscoverySetupModal({
                     {sourceCoverage.map((item) => (
                       <span
                         key={item}
-                        className="rounded-full border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-1.5 text-xs font-medium text-[#475569]"
+                        className="inline-flex items-center gap-1.5 rounded-full border border-[#A7F3D0] bg-[#ECFDF5] px-3 py-1.5 text-xs font-medium text-[#047857]"
                       >
+                        <span
+                          className="h-1.5 w-1.5 rounded-full bg-[#10B981]"
+                          aria-hidden="true"
+                        />
                         {item}
                       </span>
                     ))}
-                    {targetWebsites.trim() ? (
-                      <span className="rounded-full border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-1.5 text-xs font-medium text-[#475569]">
-                        Website targeting enabled
+                    {parsedTargetDomains.length > 0 ? (
+                      <span className="inline-flex items-center gap-1.5 rounded-full border border-[#A7F3D0] bg-[#ECFDF5] px-3 py-1.5 text-xs font-medium text-[#047857]">
+                        <span
+                          className="h-1.5 w-1.5 rounded-full bg-[#10B981]"
+                          aria-hidden="true"
+                        />
+                        Targeting {parsedTargetDomains.length} site
+                        {parsedTargetDomains.length === 1 ? '' : 's'}
                       </span>
                     ) : null}
                   </div>
@@ -3782,6 +3838,67 @@ function InlineDiscoverySetupModal({
       </motion.div>
     </div>,
     document.body
+  );
+}
+
+const DISCOVERY_INSTRUCTION_SUGGESTIONS = [
+  'Exclude agencies and consultancies',
+  'Senior decision-makers only',
+  'Recently funded companies',
+  'Avoid existing customers',
+];
+
+function cleanDiscoveryDomain(value: string): string {
+  return value
+    .trim()
+    .replace(/^https?:\/\//i, '')
+    .replace(/^www\./i, '')
+    .replace(/\/.*$/, '')
+    .toLowerCase();
+}
+
+function ModalFieldCard({
+  icon,
+  label,
+  badge,
+  accent,
+  children,
+}: {
+  icon: string;
+  label: string;
+  badge?: string;
+  accent?: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <div
+      className={`rounded-[26px] border p-5 transition ${
+        accent
+          ? 'border-[#FDBA74] bg-gradient-to-br from-[#FFF7ED] to-white'
+          : 'border-[#E2E8F0] bg-[#FCFDFE]'
+      }`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start gap-2">
+          <span className="text-base leading-5" aria-hidden="true">
+            {icon}
+          </span>
+          <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#94A3B8]">
+            {label}
+          </span>
+        </div>
+        {badge ? (
+          <span
+            className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+              accent ? 'bg-[#FF6B35] text-white' : 'bg-white text-[#94A3B8] ring-1 ring-[#E2E8F0]'
+            }`}
+          >
+            {badge}
+          </span>
+        ) : null}
+      </div>
+      {children}
+    </div>
   );
 }
 
@@ -4305,7 +4422,7 @@ function HomeCsvMappingModal({
                       </span>
                     </div>
                     <p className="mt-2 text-xs leading-5 text-[#64748B]">
-                      {mappingSuggestions[header]?.reason || 'Kept as a custom field.'}
+                      {mappingSuggestions[header]?.reason || 'Added to the lead context field.'}
                     </p>
                     <select
                       value={columnMapping[header] || '__keep__'}

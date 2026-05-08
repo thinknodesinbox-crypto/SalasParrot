@@ -751,6 +751,7 @@ export interface Lead {
   location: string | null;
   email: string | null;
   avatar_url: string | null;
+  context_field: string | null;
   profile_data: Record<string, unknown> | null;
   status: LeadStatus;
   tags: string[] | null;
@@ -842,6 +843,7 @@ export interface DiscoveryResult {
   tags?: string[];
   linkedin_url: string | null;
   company_website: string | null;
+  context_field?: string | null;
   candidate_payload_json: Record<string, unknown>;
 }
 

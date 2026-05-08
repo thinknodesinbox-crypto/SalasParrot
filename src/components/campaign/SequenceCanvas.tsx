@@ -4,6 +4,7 @@ import { SEQUENCE_TEMPLATES } from './sequenceTemplates';
 import { SuggestedDraftsPanel } from '@/components/ai/SuggestedDraftsPanel';
 import { LazyRichTextEditor } from '@/components/ui/LazyRichTextEditor';
 import { useSequenceStepSuggestions } from '@/lib/hooks/queries';
+import { useLeadListContextKeys } from '@/lib/hooks/queries/useLeads';
 import type {
   PersonalizationMode,
   PersonalizationProvider,
@@ -69,6 +70,10 @@ const PERSONALIZATION_VARIABLES = [
   '{{first_name}}',
   '{{last_name}}',
   '{{company}}',
+  '{{location}}',
+  '{{headline}}',
+  '{{title}}',
+  '{{lead_context:field_name}}',
   '{{aiPersonalization}}',
 ] as const;
 
@@ -1642,8 +1647,20 @@ export function NodeConfigPanel({
     'linkedin_inmail',
     'email',
   ].includes(node.type);
+  const { data: leadContextKeys = [] } = useLeadListContextKeys(
+    suggestionContext?.leadListId ?? null
+  );
+  const leadContextVariables = leadContextKeys.map(({ key }) => `{{lead_context:${key}}}`);
+  const baseVariables =
+    leadContextKeys.length > 0
+      ? PERSONALIZATION_VARIABLES.filter((v) => v !== '{{lead_context:field_name}}')
+      : [...PERSONALIZATION_VARIABLES];
   const mergedVariables = Array.from(
-    new Set([...PERSONALIZATION_VARIABLES, ...(sequenceSuggestionData?.suggested_variables || [])])
+    new Set([
+      ...baseVariables,
+      ...leadContextVariables,
+      ...(sequenceSuggestionData?.suggested_variables || []),
+    ])
   );
 
   const updateMessage = (message: string) => {
@@ -1678,6 +1695,42 @@ export function NodeConfigPanel({
     } else {
       updateMessage(currentMessage + variable);
     }
+  };
+
+  const contextVariableHint =
+    'Use {{lead_context:field_name}} with a label like school name or event name.';
+
+  const renderLeadContextPicker = () => {
+    if (!suggestionContext?.leadListId) {
+      return <p className="mt-2 text-[11px] text-[#64748B]">{contextVariableHint}</p>;
+    }
+    if (leadContextKeys.length === 0) {
+      return (
+        <p className="mt-2 text-[11px] text-[#64748B]">
+          No lead context fields detected in this list yet. {contextVariableHint}
+        </p>
+      );
+    }
+    return (
+      <div className="mt-2">
+        <p className="mb-1 text-[11px] font-medium text-[#64748B]">Lead context fields</p>
+        <div className="flex flex-wrap gap-1.5">
+          {leadContextKeys.map(({ key, sample }) => (
+            <button
+              key={key}
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => insertVariable(`{{lead_context:${key}}}`)}
+              title={sample ? `Example: ${sample}` : undefined}
+              className="rounded bg-[#ECFEFF] px-2 py-1 text-[10px] font-medium text-[#0E7490] transition-colors hover:bg-[#CFFAFE]"
+            >
+              {key}
+              {sample ? ` → ${sample}` : ''}
+            </button>
+          ))}
+        </div>
+      </div>
+    );
   };
 
   const updatePersonalizationProvider = (provider: PersonalizationProvider, checked: boolean) => {
@@ -1928,6 +1981,7 @@ export function NodeConfigPanel({
                 </button>
               ))}
             </div>
+            {renderLeadContextPicker()}
             <div className="mt-3">
               <SuggestedDraftsPanel
                 data={(sequenceSuggestionData as SequenceStepSuggestionsResponse | null) || null}
@@ -1983,6 +2037,7 @@ export function NodeConfigPanel({
                   </button>
                 ))}
               </div>
+              {renderLeadContextPicker()}
             </div>
             <SuggestedDraftsPanel
               data={(sequenceSuggestionData as SequenceStepSuggestionsResponse | null) || null}
@@ -2030,6 +2085,7 @@ export function NodeConfigPanel({
                 minHeight="120px"
                 variables={mergedVariables}
               />
+              {renderLeadContextPicker()}
             </div>
             <SuggestedDraftsPanel
               data={(sequenceSuggestionData as SequenceStepSuggestionsResponse | null) || null}

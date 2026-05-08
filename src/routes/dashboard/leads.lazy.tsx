@@ -244,7 +244,7 @@ function getLeadColumnSuggestion(
   const normalizedHeader = normalizeLeadHeader(header);
   let bestField: LeadCoreField | null = null;
   let bestScore = 0;
-  let bestReason = 'Will stay as a custom field.';
+  let bestReason = 'Will be added to the lead context field.';
   let splitNameScore = 0;
   let splitNameReason = '';
 
@@ -2004,6 +2004,7 @@ function LeadRow({
   onDelete: (leadId: string) => void;
 }) {
   const [showMenu, setShowMenu] = useState(false);
+  const [showContextField, setShowContextField] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Close menu when clicking outside
@@ -2072,108 +2073,184 @@ function LeadRow({
   })();
 
   return (
-    <tr className="transition-colors hover:bg-[#F8FAFC]">
-      <td className="px-6 py-4">
-        <input
-          type="checkbox"
-          checked={selected}
-          onChange={(e) => onSelect(e.target.checked)}
-          className="rounded border-[#E2E8F0] text-[#FF6B35] focus:ring-[#FF6B35]"
-        />
-      </td>
-      <td className="px-3 py-4 text-sm text-[#64748B]">{rowNumber}</td>
-      <td className="px-6 py-4">
-        <div className="flex items-center gap-3">
-          {lead.avatar_url ? (
-            <img src={lead.avatar_url} alt="" className="h-9 w-9 rounded-full object-cover" />
-          ) : (
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-[#FF6B35] to-[#14B8A6] text-sm font-medium text-white">
-              {[lead.first_name, lead.last_name]
-                .filter(Boolean)
-                .map((n) => n?.[0] || '')
-                .join('') || '?'}
-            </div>
-          )}
-          <div>
-            <p className="font-medium text-[#1E293B]">
-              {[lead.first_name, lead.last_name].filter(Boolean).join(' ') || 'Unknown'}
-            </p>
-            <p
-              className="max-w-[200px] truncate text-sm text-[#64748B]"
-              title={lead.headline || lead.title || undefined}
-            >
-              {lead.headline || lead.title}
-            </p>
-            {lead.tags?.includes('Discovery') ? (
-              <span className="mt-1 inline-flex rounded-full bg-[#F0FDF4] px-2 py-0.5 text-[11px] font-medium text-[#15803D]">
-                Discovery
-              </span>
-            ) : null}
-          </div>
-        </div>
-      </td>
-      <td className="px-6 py-4 text-[#1E293B]">{lead.company || '-'}</td>
-      <td className="px-6 py-4 text-[#64748B]">{lead.location || '-'}</td>
-      <td className="px-6 py-4">
-        <div className="min-w-[180px]">
-          <div className="flex items-center gap-2">
-            <span className={`h-2.5 w-2.5 rounded-full ${emailState.dot}`} />
-            <span className={`text-sm font-medium ${emailState.text}`}>{emailState.label}</span>
-          </div>
-          <p className="mt-1 text-xs text-[#94A3B8]" title={emailState.sublabel}>
-            {emailState.sublabel}
-          </p>
-        </div>
-      </td>
-      <td className="px-6 py-4">
-        {lead.linkedin_url ? (
-          <a
-            href={lead.linkedin_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 text-sm text-[#0A66C2] hover:text-[#004182] hover:underline"
-          >
-            <LinkedInSmallIcon className="h-4 w-4" />
-            <span>View</span>
-          </a>
-        ) : (
-          <span className="text-sm text-[#94A3B8]">-</span>
-        )}
-      </td>
-      <td className="px-6 py-4">
-        <span
-          className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${status.bg} ${status.text}`}
-        >
-          {status.label}
-        </span>
-      </td>
-      <td className="px-6 py-4 text-right">
-        <div className="flex items-center justify-end gap-2">
-          <div className="relative" ref={menuRef}>
-            <button
-              onClick={() => setShowMenu(!showMenu)}
-              className="rounded-lg p-2 text-[#64748B] transition-colors hover:bg-[#F8FAFC]"
-            >
-              <MoreIcon />
-            </button>
-            {showMenu && (
-              <div className="absolute right-0 top-full z-10 mt-1 w-36 rounded-lg border border-[#E2E8F0] bg-white py-1 shadow-lg">
-                <button
-                  onClick={() => {
-                    onDelete(lead.id);
-                    setShowMenu(false);
-                  }}
-                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-[#EF4444] hover:bg-[#FEF2F2]"
-                >
-                  <TrashIcon className="h-4 w-4" />
-                  Delete
-                </button>
+    <>
+      <tr className="transition-colors hover:bg-[#F8FAFC]">
+        <td className="px-6 py-4">
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={(e) => onSelect(e.target.checked)}
+            className="rounded border-[#E2E8F0] text-[#FF6B35] focus:ring-[#FF6B35]"
+          />
+        </td>
+        <td className="px-3 py-4 text-sm text-[#64748B]">{rowNumber}</td>
+        <td className="px-6 py-4">
+          <div className="flex items-center gap-3">
+            {lead.avatar_url ? (
+              <img src={lead.avatar_url} alt="" className="h-9 w-9 rounded-full object-cover" />
+            ) : (
+              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-[#FF6B35] to-[#14B8A6] text-sm font-medium text-white">
+                {[lead.first_name, lead.last_name]
+                  .filter(Boolean)
+                  .map((n) => n?.[0] || '')
+                  .join('') || '?'}
               </div>
             )}
+            <div>
+              <p className="font-medium text-[#1E293B]">
+                {[lead.first_name, lead.last_name].filter(Boolean).join(' ') || 'Unknown'}
+              </p>
+              <p
+                className="max-w-[200px] truncate text-sm text-[#64748B]"
+                title={lead.headline || lead.title || undefined}
+              >
+                {lead.headline || lead.title}
+              </p>
+              {lead.tags?.includes('Discovery') ? (
+                <span className="mt-1 inline-flex rounded-full bg-[#F0FDF4] px-2 py-0.5 text-[11px] font-medium text-[#15803D]">
+                  Discovery
+                </span>
+              ) : null}
+            </div>
           </div>
-        </div>
-      </td>
-    </tr>
+        </td>
+        <td className="px-6 py-4 text-[#1E293B]">{lead.company || '-'}</td>
+        <td className="px-6 py-4 text-[#64748B]">{lead.location || '-'}</td>
+        <td className="px-6 py-4">
+          <div className="min-w-[180px]">
+            <div className="flex items-center gap-2">
+              <span className={`h-2.5 w-2.5 rounded-full ${emailState.dot}`} />
+              <span className={`text-sm font-medium ${emailState.text}`}>{emailState.label}</span>
+            </div>
+            <p className="mt-1 text-xs text-[#94A3B8]" title={emailState.sublabel}>
+              {emailState.sublabel}
+            </p>
+          </div>
+        </td>
+        <td className="px-6 py-4">
+          <div className="flex min-w-[110px] flex-col items-start gap-2">
+            {lead.linkedin_url ? (
+              <a
+                href={lead.linkedin_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-sm text-[#0A66C2] hover:text-[#004182] hover:underline"
+              >
+                <LinkedInSmallIcon className="h-4 w-4" />
+                <span>View</span>
+              </a>
+            ) : (
+              <span className="text-sm text-[#94A3B8]">-</span>
+            )}
+            {lead.context_field ? (
+              <button
+                type="button"
+                onClick={() => setShowContextField(true)}
+                className="text-xs font-medium text-[#FF6B35] transition-colors hover:text-[#E85A2A]"
+              >
+                View context
+              </button>
+            ) : null}
+          </div>
+        </td>
+        <td className="px-6 py-4">
+          <span
+            className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${status.bg} ${status.text}`}
+          >
+            {status.label}
+          </span>
+        </td>
+        <td className="px-6 py-4 text-right">
+          <div className="flex items-center justify-end gap-2">
+            <div className="relative" ref={menuRef}>
+              <button
+                onClick={() => setShowMenu(!showMenu)}
+                className="rounded-lg p-2 text-[#64748B] transition-colors hover:bg-[#F8FAFC]"
+              >
+                <MoreIcon />
+              </button>
+              {showMenu && (
+                <div className="absolute right-0 top-full z-10 mt-1 w-36 rounded-lg border border-[#E2E8F0] bg-white py-1 shadow-lg">
+                  <button
+                    onClick={() => {
+                      onDelete(lead.id);
+                      setShowMenu(false);
+                    }}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-[#EF4444] hover:bg-[#FEF2F2]"
+                  >
+                    <TrashIcon className="h-4 w-4" />
+                    Delete
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </td>
+      </tr>
+      <ContextFieldModal
+        open={showContextField}
+        leadName={[lead.first_name, lead.last_name].filter(Boolean).join(' ') || 'Lead'}
+        contextField={lead.context_field}
+        onClose={() => setShowContextField(false)}
+      />
+    </>
+  );
+}
+
+function ContextFieldModal({
+  open,
+  leadName,
+  contextField,
+  onClose,
+}: {
+  open: boolean;
+  leadName: string;
+  contextField: string | null;
+  onClose: () => void;
+}) {
+  if (!open) return null;
+
+  return createPortal(
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-[80] flex items-center justify-center bg-[#0F172A]/45 px-4"
+        onClick={onClose}
+      >
+        <motion.div
+          initial={{ opacity: 0, scale: 0.96, y: 12 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.96, y: 12 }}
+          transition={{ duration: 0.18 }}
+          onClick={(event) => event.stopPropagation()}
+          className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl"
+        >
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h3 className="text-lg font-semibold text-[#0F172A]">Lead context</h3>
+              <p className="mt-1 text-sm text-[#64748B]">{leadName}</p>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg p-2 text-[#64748B] transition-colors hover:bg-[#F8FAFC]"
+            >
+              <span className="block h-4 w-4">
+                <CloseIcon />
+              </span>
+            </button>
+          </div>
+          <div className="mt-4 max-h-[60vh] overflow-y-auto rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
+            <pre className="whitespace-pre-wrap font-sans text-sm leading-6 text-[#1E293B]">
+              {contextField || 'No context available for this lead.'}
+            </pre>
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>,
+    document.body
   );
 }
 
@@ -3416,7 +3493,7 @@ function ImportMethodConfig({
                       {mappingSuggestions[header]?.confidence || 'low'} confidence
                     </span>
                     <span className="text-[11px] text-[#64748B]">
-                      {mappingSuggestions[header]?.reason || 'Kept as custom field'}
+                      {mappingSuggestions[header]?.reason || 'Added to the lead context field'}
                     </span>
                   </div>
                   <select

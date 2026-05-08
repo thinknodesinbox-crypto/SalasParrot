@@ -27,7 +27,7 @@ export const LEAD_MAPPING_OPTIONS: Array<{ value: LeadMappingTarget; label: stri
   { value: 'title', label: 'Title' },
   { value: 'headline', label: 'Headline' },
   { value: 'location', label: 'Location' },
-  { value: '__keep__', label: 'Keep as custom field' },
+  { value: '__keep__', label: 'Add to context field' },
   { value: '__ignore__', label: 'Ignore this column' },
 ];
 
@@ -192,7 +192,7 @@ function getLeadColumnSuggestion(
   const normalizedHeader = normalizeLeadHeader(header);
   let bestField: LeadCoreField | null = null;
   let bestScore = 0;
-  let bestReason = 'Will stay as a custom field.';
+  let bestReason = 'Will be added to the lead context field.';
   let splitNameScore = 0;
   let splitNameReason = '';
 
