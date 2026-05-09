@@ -854,9 +854,9 @@ function CreateCampaignModal({
     isEditMode && (editingCampaign?.status === 'active' || editingCampaign?.status === 'paused');
   const queryClient = useQueryClient();
 
-  // State declarations — skip to sequence step for active/paused campaigns
+  // State declarations — edit flows usually continue from sequence/senders rather than redoing setup
   const [step, setStep] = useState<'name' | 'leads' | 'sequence' | 'senders' | 'review'>(
-    isActiveCampaign ? 'sequence' : 'name'
+    isEditMode ? 'sequence' : 'name'
   );
   const [campaignName, setCampaignName] = useState('');
   const [campaignDescription, setCampaignDescription] = useState('');
@@ -1681,7 +1681,7 @@ function CreateCampaignModal({
                             </h3>
                             <p className="text-sm text-[#64748B]">
                               {isEditMode
-                                ? `This campaign currently has ${campaignDetails?.lead_count || 0} leads. Select a list to add more.`
+                                ? `This campaign currently has ${campaignDetails?.lead_count || 0} leads. You only need to select a list here if you want to add more leads.`
                                 : 'Choose a lead list to target with this campaign.'}
                             </p>
                           </div>
@@ -1715,6 +1715,14 @@ function CreateCampaignModal({
                                         {campaignDetails?.lead_count || 0} leads already assigned
                                       </p>
                                     </div>
+                                  </div>
+                                  <div className="mt-3 flex items-start gap-2 rounded-lg border border-[#3B82F6]/20 bg-[#F0F9FF] p-3">
+                                    <InfoIcon className="mt-0.5 h-4 w-4 flex-shrink-0 text-[#3B82F6]" />
+                                    <p className="text-xs text-[#1E293B]">
+                                      Leave this step unchanged if you are only fixing sequence
+                                      content or sender/email pairing. Selecting a list here is
+                                      optional and only adds more leads.
+                                    </p>
                                   </div>
                                 </div>
                               )}
