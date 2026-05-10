@@ -202,7 +202,7 @@ export const useRunDiscoverySearch = (
   return useMutation<DiscoveryRun, Error, void>({
     mutationFn: async () => {
       const response = await api.post<DiscoveryRun>(
-        `/discovery/searches/${searchId}/run?workspace_id=${workspaceId}`
+        `/discovery/searches/${searchId}/run?workspace_id=${workspaceId}&auto_save_to_list=true`
       );
       return response.data;
     },

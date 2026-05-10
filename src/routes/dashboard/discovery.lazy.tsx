@@ -340,7 +340,7 @@ function DiscoveryPage() {
       });
       if (mode === 'save_run') {
         const response = await api.post<{ id: string }>(
-          `/discovery/searches/${search.id}/run?workspace_id=${workspaceId}`
+          `/discovery/searches/${search.id}/run?workspace_id=${workspaceId}&auto_save_to_list=true`
         );
         await queryClient.invalidateQueries({
           queryKey: queryKeys.discovery.searches(workspaceId),
