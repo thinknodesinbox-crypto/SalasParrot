@@ -684,6 +684,19 @@ function getLeadDiscoveryFitBadge(lead: Lead): DiscoveryFitBadge | null {
   };
 }
 
+function getLeadDiscoveryProofBadges(lead: Lead): string[] {
+  const metadata = getLeadDiscoveryMetadata(lead);
+  const context = parseLeadContextField(lead.context_field);
+  const metadataBadges = Array.isArray(metadata.proof_badges)
+    ? metadata.proof_badges.map((badge) => String(badge).trim()).filter(Boolean)
+    : [];
+  const contextBadges = String(context['verification badges'] || '')
+    .split(/[;,]/)
+    .map((badge) => badge.trim())
+    .filter(Boolean);
+  return Array.from(new Set([...metadataBadges, ...contextBadges])).slice(0, 3);
+}
+
 function getUserFacingEnrichmentFailure(error: string | null | undefined): EnrichmentFailureInfo {
   const message = (error || '').trim();
   if (message.includes('monthly limit')) {
@@ -2170,6 +2183,7 @@ function LeadRow({
 
   const status = statusColors[lead.status] || statusColors.new;
   const discoveryFitBadge = getLeadDiscoveryFitBadge(lead);
+  const discoveryProofBadges = getLeadDiscoveryProofBadges(lead);
   const listMembershipState = (() => {
     const membershipStatus = lead.list_membership_status || '';
     if (membershipStatus === 'protected_active') {
@@ -2304,7 +2318,9 @@ function LeadRow({
               >
                 {lead.headline || lead.title}
               </p>
-              {lead.tags?.includes('Discovery') || discoveryFitBadge ? (
+              {lead.tags?.includes('Discovery') ||
+              discoveryFitBadge ||
+              discoveryProofBadges.length ? (
                 <div className="mt-1 flex max-w-[240px] flex-wrap gap-1">
                   {lead.tags?.includes('Discovery') ? (
                     <span className="inline-flex rounded-full bg-[#F0FDF4] px-2 py-0.5 text-[11px] font-medium text-[#15803D]">
@@ -2324,6 +2340,14 @@ function LeadRow({
                       {discoveryFitBadge.source}
                     </span>
                   ) : null}
+                  {discoveryProofBadges.map((badge) => (
+                    <span
+                      key={badge}
+                      className="inline-flex rounded-full bg-[#EFF6FF] px-2 py-0.5 text-[11px] font-medium text-[#1D4ED8]"
+                    >
+                      {badge}
+                    </span>
+                  ))}
                 </div>
               ) : null}
               {listMembershipState ? (
