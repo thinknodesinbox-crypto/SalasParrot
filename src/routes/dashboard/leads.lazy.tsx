@@ -2048,6 +2048,14 @@ function LeadRow({
         classes: 'bg-[#FFF7ED] text-[#C2410C]',
       };
     }
+    if (membershipStatus === 'protected_campaign') {
+      return {
+        label: 'Protected match',
+        title:
+          'This lead appears here because Discovery found a new signal and the historical protected match has been restored to this list.',
+        classes: 'bg-[#EEF2FF] text-[#4338CA]',
+      };
+    }
     return null;
   })();
   const campaignState = (() => {
