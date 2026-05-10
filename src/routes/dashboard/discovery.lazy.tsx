@@ -113,14 +113,14 @@ function buildPayload(form: DiscoveryFormState, workspaceId: string): DiscoveryS
     source_config_json: {
       web: {
         enabled: true,
-        max_results: 25,
+        max_results: 50,
         target_websites: targetWebsites,
         use_crawl4ai: targetWebsites.length > 0,
       },
       linkedin: {
         enabled: linkedInEnabled,
         linkedin_account_id: form.linkedinAccountId || null,
-        max_results: 25,
+        max_results: 50,
         search_params: linkedInSearchParams,
       },
     },
