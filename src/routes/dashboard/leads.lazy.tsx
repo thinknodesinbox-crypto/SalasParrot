@@ -21,6 +21,7 @@ import {
   useEnrichmentUsage,
 } from '../../lib/hooks/queries';
 import type {
+  DiscoveryRunStatus,
   Lead,
   LeadList,
   LeadListMergePreviewResponse,
@@ -619,6 +620,26 @@ function getUserFacingEnrichmentFailure(error: string | null | undefined): Enric
   return { label: 'Needs retry', sublabel: 'Enrichment failed — retry later' };
 }
 
+function getActiveDiscoveryRunBadge(
+  status: DiscoveryRunStatus | null | undefined
+): { label: string; className: string; description: string } | null {
+  if (status === 'running') {
+    return {
+      label: 'Still searching',
+      className: 'rounded bg-[#EFF6FF] px-2 py-0.5 text-xs font-medium text-[#1D4ED8]',
+      description: 'Discovery is still adding new matches to this list.',
+    };
+  }
+  if (status === 'pending') {
+    return {
+      label: 'Search queued',
+      className: 'rounded bg-[#FFF7ED] px-2 py-0.5 text-xs font-medium text-[#C2410C]',
+      description: 'Discovery is queued to search this list next.',
+    };
+  }
+  return null;
+}
+
 function LeadsPage() {
   const routeSearch = useSearch({ from: '/dashboard/leads' });
   const currentWorkspaceId = useWorkspaceStore((s) => s.currentWorkspaceId);
@@ -677,8 +698,11 @@ function LeadsPage() {
     isLoading: listsLoading,
     error: listsError,
     refetch: refetchLists,
-  } = useLeadLists();
+  } = useLeadLists(undefined, { refetchInterval: 15000 });
   const allLists = listsResponse?.lists || [];
+  const selectedListForPolling = selectedListId
+    ? allLists.find((list) => list.id === selectedListId) || null
+    : null;
 
   // Filter lists by search query (client-side)
   const lists = listSearchQuery
@@ -732,7 +756,9 @@ function LeadsPage() {
     : undefined;
 
   // Fetch leads filtered by selected list with pagination
-  const { data: leadsResponse, isLoading: leadsLoading } = useLeads(leadFilters);
+  const { data: leadsResponse, isLoading: leadsLoading } = useLeads(leadFilters, {
+    refetchInterval: selectedListForPolling?.active_discovery_run_status ? 15000 : false,
+  });
   const leads = leadsResponse?.leads || [];
   const totalLeads = leadsResponse?.total || 0;
   const totalPages = Math.ceil(totalLeads / LEADS_PER_PAGE);
@@ -1164,97 +1190,106 @@ function LeadListsGrid({
 
   return (
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {lists.map((list, index) => (
-        <motion.div
-          key={list.id}
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: index * 0.05 }}
-          className="group relative rounded-xl border border-[#E2E8F0] bg-white p-5 text-left transition-all hover:border-[#FF6B35]/30 hover:shadow-md"
-        >
-          <div className="mb-4 flex items-start justify-between">
-            <button
-              onClick={() => onSelectList(list.id)}
-              className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#FFF7ED]"
-            >
-              <ListIcon className="h-5 w-5 text-[#FF6B35]" />
-            </button>
-            <div className="relative" ref={openMenuId === list.id ? menuRef : undefined}>
+      {lists.map((list, index) => {
+        const activeDiscoveryBadge = getActiveDiscoveryRunBadge(list.active_discovery_run_status);
+
+        return (
+          <motion.div
+            key={list.id}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: index * 0.05 }}
+            className="group relative rounded-xl border border-[#E2E8F0] bg-white p-5 text-left transition-all hover:border-[#FF6B35]/30 hover:shadow-md"
+          >
+            <div className="mb-4 flex items-start justify-between">
               <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setOpenMenuId(openMenuId === list.id ? null : list.id);
-                }}
-                className="rounded-lg p-1.5 opacity-0 transition-colors hover:bg-[#F1F5F9] group-hover:opacity-100"
+                onClick={() => onSelectList(list.id)}
+                className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#FFF7ED]"
               >
-                <MoreIcon className="h-4 w-4 text-[#64748B]" />
+                <ListIcon className="h-5 w-5 text-[#FF6B35]" />
               </button>
-              {openMenuId === list.id && (
-                <div className="absolute right-0 top-8 z-10 w-36 rounded-lg border border-[#E2E8F0] bg-white py-1 shadow-lg">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setOpenMenuId(null);
-                      onEditList(list);
-                    }}
-                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-[#1E293B] hover:bg-[#F8FAFC]"
-                  >
-                    <EditIcon className="h-4 w-4 text-[#64748B]" />
-                    Rename
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setOpenMenuId(null);
-                      onDeleteList(list);
-                    }}
-                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-[#EF4444] hover:bg-[#FEF2F2]"
-                  >
-                    <TrashIcon className="h-4 w-4" />
-                    Delete
-                  </button>
-                  {canMerge ? (
+              <div className="relative" ref={openMenuId === list.id ? menuRef : undefined}>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setOpenMenuId(openMenuId === list.id ? null : list.id);
+                  }}
+                  className="rounded-lg p-1.5 opacity-0 transition-colors hover:bg-[#F1F5F9] group-hover:opacity-100"
+                >
+                  <MoreIcon className="h-4 w-4 text-[#64748B]" />
+                </button>
+                {openMenuId === list.id && (
+                  <div className="absolute right-0 top-8 z-10 w-36 rounded-lg border border-[#E2E8F0] bg-white py-1 shadow-lg">
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         setOpenMenuId(null);
-                        onMergeList(list);
+                        onEditList(list);
                       }}
                       className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-[#1E293B] hover:bg-[#F8FAFC]"
                     >
-                      <MergeIcon className="h-4 w-4 text-[#64748B]" />
-                      Merge
+                      <EditIcon className="h-4 w-4 text-[#64748B]" />
+                      Rename
                     </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenMenuId(null);
+                        onDeleteList(list);
+                      }}
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-[#EF4444] hover:bg-[#FEF2F2]"
+                    >
+                      <TrashIcon className="h-4 w-4" />
+                      Delete
+                    </button>
+                    {canMerge ? (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setOpenMenuId(null);
+                          onMergeList(list);
+                        }}
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-[#1E293B] hover:bg-[#F8FAFC]"
+                      >
+                        <MergeIcon className="h-4 w-4 text-[#64748B]" />
+                        Merge
+                      </button>
+                    ) : null}
+                  </div>
+                )}
+              </div>
+            </div>
+            <button onClick={() => onSelectList(list.id)} className="w-full text-left">
+              <h3 className="mb-1 font-semibold text-[#1E293B] transition-colors group-hover:text-[#FF6B35]">
+                {list.name}
+              </h3>
+              <div className="flex items-center gap-4 text-sm text-[#64748B]">
+                <span>{list.lead_count} leads</span>
+              </div>
+              <div className="mt-3 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  {list.source && (
+                    <span className="rounded bg-[#F8FAFC] px-2 py-0.5 text-xs text-[#94A3B8]">
+                      {list.source}
+                    </span>
+                  )}
+                  {list.source === 'discovery' ? (
+                    <span className="rounded bg-[#F0FDF4] px-2 py-0.5 text-xs font-medium text-[#15803D]">
+                      Discovery
+                    </span>
+                  ) : null}
+                  {activeDiscoveryBadge ? (
+                    <span className={activeDiscoveryBadge.className}>
+                      {activeDiscoveryBadge.label}
+                    </span>
                   ) : null}
                 </div>
-              )}
-            </div>
-          </div>
-          <button onClick={() => onSelectList(list.id)} className="w-full text-left">
-            <h3 className="mb-1 font-semibold text-[#1E293B] transition-colors group-hover:text-[#FF6B35]">
-              {list.name}
-            </h3>
-            <div className="flex items-center gap-4 text-sm text-[#64748B]">
-              <span>{list.lead_count} leads</span>
-            </div>
-            <div className="mt-3 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                {list.source && (
-                  <span className="rounded bg-[#F8FAFC] px-2 py-0.5 text-xs text-[#94A3B8]">
-                    {list.source}
-                  </span>
-                )}
-                {list.source === 'discovery' ? (
-                  <span className="rounded bg-[#F0FDF4] px-2 py-0.5 text-xs font-medium text-[#15803D]">
-                    Discovery
-                  </span>
-                ) : null}
+                <span className="text-xs text-[#94A3B8]">{formatDate(list.created_at)}</span>
               </div>
-              <span className="text-xs text-[#94A3B8]">{formatDate(list.created_at)}</span>
-            </div>
-          </button>
-        </motion.div>
-      ))}
+            </button>
+          </motion.div>
+        );
+      })}
     </div>
   );
 }
@@ -1300,6 +1335,7 @@ function LeadListDetail({
   const enrichLeadsMutation = useEnrichLeads();
   const { data: enrichmentUsage } = useEnrichmentUsage(workspaceId);
   const { data: enrichmentJob } = useEnrichmentJobWithPolling(activeEnrichmentJobId);
+  const activeDiscoveryBadge = getActiveDiscoveryRunBadge(list?.active_discovery_run_status);
 
   useEffect(() => {
     if (!enrichmentJob || !activeEnrichmentJobId) return;
@@ -1558,6 +1594,16 @@ function LeadListDetail({
                 <div className="mt-1 flex items-center gap-4 text-sm text-[#64748B]">
                   <span>{list ? `${list.lead_count} leads` : `${totalLeads} matching leads`}</span>
                 </div>
+                {list && activeDiscoveryBadge ? (
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <span className={activeDiscoveryBadge.className}>
+                      {activeDiscoveryBadge.label}
+                    </span>
+                    <span className="text-xs text-[#64748B]">
+                      {activeDiscoveryBadge.description}
+                    </span>
+                  </div>
+                ) : null}
                 {enrichmentUsage ? (
                   <div className="mt-2 inline-flex items-center gap-2 rounded-full bg-[#F8FAFC] px-3 py-1 text-xs text-[#64748B]">
                     <span>

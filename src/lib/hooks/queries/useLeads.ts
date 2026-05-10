@@ -22,6 +22,10 @@ interface LeadListFilters {
   workspace_id?: string;
 }
 
+interface QueryPollingOptions {
+  refetchInterval?: number | false;
+}
+
 interface LeadFilters {
   workspace_id?: string;
   campaign_id?: string;
@@ -83,7 +87,7 @@ interface ImportResult {
 }
 
 // Lead Lists hooks
-export const useLeadLists = (filters?: LeadListFilters) => {
+export const useLeadLists = (filters?: LeadListFilters, options?: QueryPollingOptions) => {
   const currentWorkspaceId = useWorkspaceStore((s) => s.currentWorkspaceId);
   const workspaceId = filters?.workspace_id ?? currentWorkspaceId ?? undefined;
 
@@ -96,6 +100,7 @@ export const useLeadLists = (filters?: LeadListFilters) => {
       const response = await api.get<LeadListsResponse>(`/leads/lists?${params}`);
       return response.data;
     },
+    refetchInterval: options?.refetchInterval ?? false,
   });
 };
 
@@ -252,7 +257,7 @@ export const useImportLeadsFromCSV = () => {
 };
 
 // List leads
-export const useLeads = (filters?: LeadFilters) => {
+export const useLeads = (filters?: LeadFilters, options?: QueryPollingOptions) => {
   const currentWorkspaceId = useWorkspaceStore((s) => s.currentWorkspaceId);
   const workspaceId = filters?.workspace_id ?? currentWorkspaceId ?? undefined;
 
@@ -282,6 +287,7 @@ export const useLeads = (filters?: LeadFilters) => {
       const response = await api.get<LeadListResponse>(`/leads?${params}`);
       return response.data;
     },
+    refetchInterval: options?.refetchInterval ?? false,
   });
 };
 

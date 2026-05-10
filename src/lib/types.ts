@@ -676,6 +676,8 @@ export interface LeadList {
   source: string | null;
   lead_count: number;
   enriched_count: number;
+  active_discovery_run_status?: DiscoveryRunStatus | null;
+  active_discovery_run_started_at?: string | null;
   created_at: string;
   updated_at: string;
 }
