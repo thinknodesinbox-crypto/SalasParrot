@@ -1365,7 +1365,7 @@ function LeadListDetail({
 
   const handleRemoveSelectedFromList = async () => {
     try {
-      await removeFromListMutation.mutateAsync(selectedLeads);
+      await removeFromListMutation.mutateAsync({ leadIds: selectedLeads, listId: list?.id });
       setSelectedLeads([]);
       onLeadsDeleted?.();
       showSuccessToast('Removed from list', 'Selected leads were removed from this list.');
@@ -1384,7 +1384,7 @@ function LeadListDetail({
         showSuccessToast('Nothing to exclude', 'There are no no-email leads in this view.');
         return;
       }
-      await removeFromListMutation.mutateAsync(noEmailLeadIds);
+      await removeFromListMutation.mutateAsync({ leadIds: noEmailLeadIds, listId: list?.id });
       onLeadsDeleted?.();
       showSuccessToast(
         'Excluded no-email leads',
@@ -2030,6 +2030,56 @@ function LeadRow({
   };
 
   const status = statusColors[lead.status] || statusColors.new;
+  const listMembershipState = (() => {
+    const membershipStatus = lead.list_membership_status || '';
+    if (membershipStatus === 'protected_active') {
+      return {
+        label: 'Protected match',
+        title:
+          'This lead appears here because Discovery found a new signal, but it is already in an active campaign.',
+        classes: 'bg-[#EEF2FF] text-[#4338CA]',
+      };
+    }
+    if (membershipStatus === 'protected_paused') {
+      return {
+        label: 'Paused campaign match',
+        title:
+          'This lead appears here because Discovery found a new signal, but it is already in a paused campaign.',
+        classes: 'bg-[#FFF7ED] text-[#C2410C]',
+      };
+    }
+    return null;
+  })();
+  const campaignState = (() => {
+    if (!lead.campaign_id) return null;
+    const statusLabel = (lead.campaign_status || '').replace(/_/g, ' ');
+    if (lead.campaign_status === 'active') {
+      return {
+        label: 'Active campaign',
+        title: lead.campaign_name || 'This lead is in an active campaign',
+        classes: 'bg-[#EFF6FF] text-[#1D4ED8]',
+      };
+    }
+    if (lead.campaign_status === 'paused') {
+      return {
+        label: 'Paused campaign',
+        title: lead.campaign_name || 'This lead is in a paused campaign',
+        classes: 'bg-[#FFF7ED] text-[#C2410C]',
+      };
+    }
+    if (lead.campaign_status === 'completed' || lead.campaign_status === 'stopped') {
+      return {
+        label: 'Past campaign',
+        title: lead.campaign_name || `This lead was in a ${statusLabel || 'past'} campaign`,
+        classes: 'bg-[#F8FAFC] text-[#64748B]',
+      };
+    }
+    return {
+      label: 'In campaign',
+      title: lead.campaign_name || 'This lead is assigned to a campaign',
+      classes: 'bg-[#F8FAFC] text-[#475569]',
+    };
+  })();
   const emailState = (() => {
     if (lead.email) {
       return {
@@ -2111,6 +2161,14 @@ function LeadRow({
                   Discovery
                 </span>
               ) : null}
+              {listMembershipState ? (
+                <span
+                  className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium ${listMembershipState.classes}`}
+                  title={listMembershipState.title}
+                >
+                  {listMembershipState.label}
+                </span>
+              ) : null}
             </div>
           </div>
         </td>
@@ -2154,11 +2212,21 @@ function LeadRow({
           </div>
         </td>
         <td className="px-6 py-4">
-          <span
-            className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${status.bg} ${status.text}`}
-          >
-            {status.label}
-          </span>
+          <div className="flex min-w-[130px] flex-col items-start gap-1.5">
+            <span
+              className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${status.bg} ${status.text}`}
+            >
+              {status.label}
+            </span>
+            {campaignState ? (
+              <span
+                className={`inline-flex max-w-[150px] items-center rounded-full px-2.5 py-1 text-xs font-medium ${campaignState.classes}`}
+                title={campaignState.title}
+              >
+                <span className="truncate">{campaignState.label}</span>
+              </span>
+            ) : null}
+          </div>
         </td>
         <td className="px-6 py-4 text-right">
           <div className="flex items-center justify-end gap-2">

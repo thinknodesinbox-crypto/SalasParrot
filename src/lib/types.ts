@@ -741,7 +741,11 @@ export interface Lead {
   user_id: string;
   workspace_id: string | null;
   campaign_id: string | null;
+  campaign_name?: string | null;
+  campaign_status?: string | null;
   list_id: string | null;
+  list_membership_source?: string | null;
+  list_membership_status?: string | null;
   linkedin_url: string | null;
   first_name: string | null;
   last_name: string | null;
@@ -904,6 +908,12 @@ export interface DiscoveryBulkActionResponse {
   created_lead_ids: string[];
   moved_lead_ids: string[];
   skipped_count: number;
+  destination_duplicate_count?: number;
+  protected_count?: number;
+  protected_active_campaign_count?: number;
+  protected_paused_campaign_count?: number;
+  reactivation_candidate_count?: number;
+  existing_workspace_skipped_count?: number;
   message: string;
 }
 

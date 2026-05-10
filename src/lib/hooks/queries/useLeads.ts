@@ -391,8 +391,10 @@ export const useRemoveLeadsFromList = () => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (leadIds: string[]) => {
-      await api.post('/leads/bulk/remove-from-list', { lead_ids: leadIds });
+    mutationFn: async (payload: string[] | { leadIds: string[]; listId?: string | null }) => {
+      const leadIds = Array.isArray(payload) ? payload : payload.leadIds;
+      const listId = Array.isArray(payload) ? null : payload.listId;
+      await api.post('/leads/bulk/remove-from-list', { lead_ids: leadIds, list_id: listId });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.leads.all });
