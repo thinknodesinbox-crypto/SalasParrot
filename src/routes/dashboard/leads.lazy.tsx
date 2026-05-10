@@ -595,6 +595,94 @@ type StatusFilter =
   | 'not_interested';
 
 type EnrichmentFailureInfo = { label: string; sublabel: string };
+type DiscoveryFitBadge = {
+  label: string;
+  score: number | null;
+  source: string | null;
+  className: string;
+  title: string;
+};
+
+function normalizeContextLabel(value: string): string {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+function parseLeadContextField(contextField: string | null | undefined): Record<string, string> {
+  const parsed: Record<string, string> = {};
+  for (const rawLine of (contextField || '').split('\n')) {
+    const line = rawLine.trim().replace(/[,;]+$/, '');
+    if (!line) continue;
+    const separator = line.includes('=') ? '=' : line.includes(':') ? ':' : null;
+    if (!separator) continue;
+    const [rawLabel, ...valueParts] = line.split(separator);
+    const label = normalizeContextLabel(rawLabel || '');
+    const value = valueParts.join(separator).trim();
+    if (label && value && !parsed[label]) {
+      parsed[label] = value;
+    }
+  }
+  return parsed;
+}
+
+function getLeadDiscoveryMetadata(lead: Lead): Record<string, unknown> {
+  const discovery = lead.profile_data?.discovery;
+  return discovery && typeof discovery === 'object' && !Array.isArray(discovery)
+    ? (discovery as Record<string, unknown>)
+    : {};
+}
+
+function getLeadDiscoveryScore(lead: Lead): number {
+  const metadata = getLeadDiscoveryMetadata(lead);
+  const context = parseLeadContextField(lead.context_field);
+  const rawScore = metadata.score ?? context['discovery score'];
+  const score = Number(rawScore);
+  return Number.isFinite(score) ? score : -1;
+}
+
+function getLeadDiscoveryFitBadge(lead: Lead): DiscoveryFitBadge | null {
+  const metadata = getLeadDiscoveryMetadata(lead);
+  const context = parseLeadContextField(lead.context_field);
+  const score = getLeadDiscoveryScore(lead);
+  const scoreLabel = score >= 0 ? `${Math.round(score)}/100` : null;
+  const source =
+    String(metadata.source || context['discovery source'] || '').trim() ||
+    (lead.tags?.includes('Discovery') ? 'Discovery' : null);
+  let rank = String(metadata.rank || context['discovery rank'] || '').trim();
+
+  if (!rank && score >= 0) {
+    if (source === 'LinkedIn only') rank = 'Review';
+    else if (score >= 80) rank = 'Top fit';
+    else if (score >= 65) rank = 'Strong fit';
+    else if (score >= 45) rank = 'Review';
+    else rank = 'Low evidence';
+  }
+
+  if (!rank && !lead.tags?.includes('Discovery')) return null;
+  const normalizedRank = rank || 'Discovery';
+  const className =
+    normalizedRank === 'Top fit'
+      ? 'bg-[#DCFCE7] text-[#166534]'
+      : normalizedRank === 'Strong fit'
+        ? 'bg-[#CCFBF1] text-[#0F766E]'
+        : normalizedRank === 'Review'
+          ? 'bg-[#FEF3C7] text-[#92400E]'
+          : normalizedRank === 'Low evidence'
+            ? 'bg-[#F1F5F9] text-[#475569]'
+            : 'bg-[#F0FDF4] text-[#15803D]';
+
+  return {
+    label: scoreLabel ? `${normalizedRank} ${scoreLabel}` : normalizedRank,
+    score: score >= 0 ? score : null,
+    source,
+    className,
+    title: [scoreLabel ? `Discovery score ${scoreLabel}` : null, source]
+      .filter(Boolean)
+      .join(' · '),
+  };
+}
 
 function getUserFacingEnrichmentFailure(error: string | null | undefined): EnrichmentFailureInfo {
   const message = (error || '').trim();
@@ -1330,6 +1418,9 @@ function LeadListDetail({
   const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [activeEnrichmentJobId, setActiveEnrichmentJobId] = useState<string | null>(null);
+  const rankedLeads = filterMeta?.discoveryOnly
+    ? [...leads].sort((left, right) => getLeadDiscoveryScore(right) - getLeadDiscoveryScore(left))
+    : leads;
   const deleteLeadsMutation = useDeleteLeads();
   const removeFromListMutation = useRemoveLeadsFromList();
   const enrichLeadsMutation = useEnrichLeads();
@@ -1824,9 +1915,11 @@ function LeadListDetail({
                   <th className="px-6 py-3 text-left">
                     <input
                       type="checkbox"
-                      checked={selectedLeads.length === leads.length && leads.length > 0}
+                      checked={
+                        selectedLeads.length === rankedLeads.length && rankedLeads.length > 0
+                      }
                       onChange={(e) =>
-                        setSelectedLeads(e.target.checked ? leads.map((l) => l.id) : [])
+                        setSelectedLeads(e.target.checked ? rankedLeads.map((l) => l.id) : [])
                       }
                       className="rounded border-[#E2E8F0] text-[#FF6B35] focus:ring-[#FF6B35]"
                     />
@@ -1867,14 +1960,14 @@ function LeadListDetail({
                       </div>
                     </td>
                   </tr>
-                ) : leads.length === 0 ? (
+                ) : rankedLeads.length === 0 ? (
                   <tr>
                     <td colSpan={9} className="px-6 py-12 text-center text-[#64748B]">
                       No leads in this list yet
                     </td>
                   </tr>
                 ) : (
-                  leads.map((lead, index) => (
+                  rankedLeads.map((lead, index) => (
                     <LeadRow
                       key={lead.id}
                       lead={lead}
@@ -2076,6 +2169,7 @@ function LeadRow({
   };
 
   const status = statusColors[lead.status] || statusColors.new;
+  const discoveryFitBadge = getLeadDiscoveryFitBadge(lead);
   const listMembershipState = (() => {
     const membershipStatus = lead.list_membership_status || '';
     if (membershipStatus === 'protected_active') {
@@ -2210,10 +2304,27 @@ function LeadRow({
               >
                 {lead.headline || lead.title}
               </p>
-              {lead.tags?.includes('Discovery') ? (
-                <span className="mt-1 inline-flex rounded-full bg-[#F0FDF4] px-2 py-0.5 text-[11px] font-medium text-[#15803D]">
-                  Discovery
-                </span>
+              {lead.tags?.includes('Discovery') || discoveryFitBadge ? (
+                <div className="mt-1 flex max-w-[240px] flex-wrap gap-1">
+                  {lead.tags?.includes('Discovery') ? (
+                    <span className="inline-flex rounded-full bg-[#F0FDF4] px-2 py-0.5 text-[11px] font-medium text-[#15803D]">
+                      Discovery
+                    </span>
+                  ) : null}
+                  {discoveryFitBadge ? (
+                    <span
+                      className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium ${discoveryFitBadge.className}`}
+                      title={discoveryFitBadge.title || undefined}
+                    >
+                      {discoveryFitBadge.label}
+                    </span>
+                  ) : null}
+                  {discoveryFitBadge?.source ? (
+                    <span className="inline-flex rounded-full bg-[#F8FAFC] px-2 py-0.5 text-[11px] font-medium text-[#64748B]">
+                      {discoveryFitBadge.source}
+                    </span>
+                  ) : null}
+                </div>
               ) : null}
               {listMembershipState ? (
                 <span
