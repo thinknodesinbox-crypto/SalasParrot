@@ -111,7 +111,7 @@ function buildPayload(form: DiscoveryFormState, workspaceId: string): DiscoveryS
       special_instructions: form.specialInstructions.trim() || null,
     },
     source_config_json: {
-      collection_mode: 'rich',
+      collection_mode: 'auto',
       web: {
         enabled: true,
         max_results: 100,
