@@ -111,16 +111,17 @@ function buildPayload(form: DiscoveryFormState, workspaceId: string): DiscoveryS
       special_instructions: form.specialInstructions.trim() || null,
     },
     source_config_json: {
+      collection_mode: 'rich',
       web: {
         enabled: true,
-        max_results: 50,
+        max_results: 100,
         target_websites: targetWebsites,
         use_crawl4ai: targetWebsites.length > 0,
       },
       linkedin: {
         enabled: linkedInEnabled,
         linkedin_account_id: form.linkedinAccountId || null,
-        max_results: 50,
+        max_results: 100,
         search_params: linkedInSearchParams,
       },
     },
