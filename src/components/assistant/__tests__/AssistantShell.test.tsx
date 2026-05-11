@@ -94,11 +94,13 @@ vi.mock('../AssistantMessageList', () => ({
   AssistantMessageList: ({
     messages,
     actionsById,
+    onUseSuggestedPrompt,
     onApproveAction,
     onExecuteAction,
   }: {
     messages: Array<{ id: string; content: string }>;
     actionsById: Record<string, { id: string; preview?: { title?: string } }>;
+    onUseSuggestedPrompt?: (prompt: string) => void;
     onApproveAction?: (actionId: string, note?: string) => void;
     onExecuteAction?: (actionId: string) => void;
   }) => (
@@ -108,6 +110,9 @@ vi.mock('../AssistantMessageList', () => ({
       <div data-testid="action-title">
         {Object.values(actionsById)[0]?.preview?.title ?? 'none'}
       </div>
+      <button onClick={() => onUseSuggestedPrompt?.('Which campaigns need attention?')}>
+        Suggested prompt
+      </button>
       <button onClick={() => onApproveAction?.('action-1', 'Looks good.')}>Approve action</button>
       <button onClick={() => onExecuteAction?.('action-1')}>Execute action</button>
     </div>
@@ -246,5 +251,27 @@ describe('AssistantShell', () => {
         content: 'pause campaign Apollo Enterprise',
       });
     });
+  });
+
+  it('keeps a suggested prompt on the newly created thread while history refreshes', async () => {
+    createThreadMutateAsync.mockResolvedValue({ id: 'thread-new' });
+    sendMessageMutateAsync.mockResolvedValue({});
+
+    render(<AssistantShell />);
+
+    fireEvent.click(screen.getByText('Suggested prompt'));
+
+    await waitFor(() => {
+      expect(sendMessageMutateAsync).toHaveBeenCalledWith({
+        threadId: 'thread-new',
+        content: 'Which campaigns need attention?',
+      });
+    });
+
+    await new Promise((resolve) => window.setTimeout(resolve, 0));
+
+    const latestMessagesCall =
+      useAssistantMessagesMock.mock.calls[useAssistantMessagesMock.mock.calls.length - 1];
+    expect(latestMessagesCall?.[1]).toBe('thread-new');
   });
 });

@@ -606,6 +606,7 @@ export function AssistantPanel({
           title: content.slice(0, 80) || starterPrompt || 'Assistant conversation',
         });
         targetThreadId = thread.id;
+        setPendingThreadId(thread.id);
         setActiveThreadId(thread.id);
       }
       await sendMessage.mutateAsync({ threadId: targetThreadId, content });
@@ -690,6 +691,7 @@ export function AssistantPanel({
         title: starterPrompt || 'Assistant conversation',
       });
       targetThreadId = thread.id;
+      setPendingThreadId(thread.id);
       setActiveThreadId(thread.id);
     }
 
