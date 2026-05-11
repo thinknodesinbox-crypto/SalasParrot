@@ -31,7 +31,10 @@ import {
   type GrowthPlaybookId,
   type PlaybookLaunchIntent,
 } from '../../lib/playbookLaunch';
-import { normalizeStartCampaignIntent } from '../../lib/startCampaignIntent';
+import {
+  normalizeStartCampaignIntent,
+  type StartCampaignIntent,
+} from '../../lib/startCampaignIntent';
 import {
   DASHBOARD_PREVIEW_ACTIVITY,
   DASHBOARD_PREVIEW_CALENDAR_ACCOUNTS,
@@ -1376,6 +1379,50 @@ const parseAudiencePrompt = (prompt: string) => {
   };
 };
 
+type StartCampaignIntentDistillationResponse = {
+  original: string;
+  discovery_brief: string;
+  linkedin_keywords: string;
+  location_input: string | null;
+  target_websites: string[];
+  special_instructions: string;
+  schedule_interval_days: string;
+  search_type: 'intent' | 'event';
+  confidence: number;
+  source: string;
+};
+
+function startCampaignIntentToApiFallback(intent: StartCampaignIntent) {
+  return {
+    original: intent.original,
+    discoveryBrief: intent.discoveryBrief,
+    linkedinKeywords: intent.linkedinKeywords,
+    locationInput: intent.locationInput,
+    targetWebsites: intent.targetWebsites,
+    specialInstructions: intent.specialInstructions,
+    scheduleIntervalDays: intent.scheduleIntervalDays,
+    searchType: intent.searchType,
+  };
+}
+
+function startCampaignIntentFromApi(
+  fallback: StartCampaignIntent,
+  response: StartCampaignIntentDistillationResponse
+): StartCampaignIntent {
+  return {
+    original: response.original || fallback.original,
+    discoveryBrief: response.discovery_brief || fallback.discoveryBrief,
+    linkedinKeywords: response.linkedin_keywords || fallback.linkedinKeywords,
+    locationInput: response.location_input || fallback.locationInput,
+    targetWebsites: response.target_websites?.length
+      ? response.target_websites
+      : fallback.targetWebsites,
+    specialInstructions: response.special_instructions || fallback.specialInstructions,
+    scheduleIntervalDays: response.schedule_interval_days || fallback.scheduleIntervalDays,
+    searchType: response.search_type || fallback.searchType,
+  };
+}
+
 const getLinkedInApiType = (account: LinkedInAccount | null) => {
   if (!account) return 'classic';
   if (account.subscription_type === 'sales_nav') return 'sales_navigator';
@@ -1496,6 +1543,7 @@ function DashboardHome() {
   const [locationLoading, setLocationLoading] = useState(false);
   const [locationLookupError, setLocationLookupError] = useState<string | null>(null);
   const [showSearchBreakdown, setShowSearchBreakdown] = useState(false);
+  const [intentDistilling, setIntentDistilling] = useState(false);
   const [dismissedPartnerBanner, setDismissedPartnerBanner] = useState(false);
   const [homeSearchPhase, setHomeSearchPhase] = useState<HomeSearchPhase>('idle');
   const [homeSearchJobId, setHomeSearchJobId] = useState('');
@@ -1972,6 +2020,31 @@ function DashboardHome() {
     setDiscoveryAdvancedOpen(false);
   }, []);
 
+  const distillStartCampaignIntent = useCallback(
+    async (prompt: string, mode: 'linkedin' | 'discovery' | 'auto') => {
+      const fallback = normalizeStartCampaignIntent(prompt);
+      if (!currentWorkspaceId || previewMode) return fallback;
+
+      setIntentDistilling(true);
+      try {
+        const response = await api.post<StartCampaignIntentDistillationResponse>(
+          `/assistant/start-campaign-intent/distill?workspace_id=${currentWorkspaceId}`,
+          {
+            prompt,
+            mode,
+            fallback: startCampaignIntentToApiFallback(fallback),
+          }
+        );
+        return startCampaignIntentFromApi(fallback, response.data);
+      } catch {
+        return fallback;
+      } finally {
+        setIntentDistilling(false);
+      }
+    },
+    [currentWorkspaceId, previewMode]
+  );
+
   const openDiscoverySetup = useCallback(
     (promptOverride?: string) => {
       const trimmedPrompt = (promptOverride ?? commandText).trim();
@@ -2002,8 +2075,36 @@ function DashboardHome() {
       setDiscoverySubmitting(false);
       setDiscoveryError(null);
       setDiscoverySetupOpen(true);
+
+      void distillStartCampaignIntent(trimmedPrompt, 'discovery').then((refinedIntent) => {
+        setDiscoveryBriefDraft((current) =>
+          current === (intent.discoveryBrief || trimmedPrompt)
+            ? refinedIntent.discoveryBrief || current
+            : current
+        );
+        setDiscoveryTargetWebsitesDraft((current) =>
+          current === intent.targetWebsites.join('\n')
+            ? refinedIntent.targetWebsites.join('\n')
+            : current
+        );
+        setDiscoverySpecialInstructionsDraft((current) =>
+          current === intent.specialInstructions ? refinedIntent.specialInstructions : current
+        );
+        setDiscoveryScheduleIntervalDays((current) =>
+          current === intent.scheduleIntervalDays ? refinedIntent.scheduleIntervalDays : current
+        );
+        setDiscoveryAdvancedOpen(
+          (current) =>
+            current ||
+            Boolean(
+              refinedIntent.targetWebsites.length > 0 ||
+              refinedIntent.specialInstructions.trim() ||
+              Number(refinedIntent.scheduleIntervalDays) > 0
+            )
+        );
+      });
     },
-    [commandText]
+    [commandText, distillStartCampaignIntent]
   );
 
   useEffect(() => {
@@ -2603,6 +2704,21 @@ function DashboardHome() {
     setSearchKeywordsDraft(parsed.keywords || trimmedPrompt);
     setSearchLocationDraft(parsed.locationInput ?? '');
     setShowSearchBreakdown(true);
+
+    const fallbackIntent = normalizeStartCampaignIntent(trimmedPrompt);
+    void distillStartCampaignIntent(trimmedPrompt, 'linkedin').then((refinedIntent) => {
+      setSearchKeywordsDraft((current) =>
+        current === (parsed.keywords || trimmedPrompt)
+          ? refinedIntent.linkedinKeywords || current
+          : current
+      );
+      setSearchLocationDraft((current) =>
+        current === (parsed.locationInput ?? '') ? (refinedIntent.locationInput ?? '') : current
+      );
+      if ((refinedIntent.locationInput ?? '') !== (fallbackIntent.locationInput ?? '')) {
+        setSelectedLocationOption(null);
+      }
+    });
     return true;
   };
 
@@ -3141,7 +3257,9 @@ function DashboardHome() {
                             Review the parsed search before you fetch leads.
                           </p>
                           <span className="text-xs font-medium text-[#94A3B8]">
-                            Press Enter again to search
+                            {intentDistilling
+                              ? 'Refining fields...'
+                              : 'Press Enter again to search'}
                           </span>
                         </div>
                         <div className="grid gap-3 md:grid-cols-2">
