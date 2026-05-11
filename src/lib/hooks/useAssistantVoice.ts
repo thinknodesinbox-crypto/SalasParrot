@@ -28,6 +28,36 @@ interface StartVoiceOptions {
   threadId?: string | null;
 }
 
+interface RealtimeCallAnswerInput {
+  ephemeralKey: string;
+  offerSdp: string;
+}
+
+export async function createRealtimeCallAnswer({
+  ephemeralKey,
+  offerSdp,
+}: RealtimeCallAnswerInput): Promise<string> {
+  const formData = new FormData();
+  formData.set('sdp', offerSdp);
+
+  const response = await fetch('https://api.openai.com/v1/realtime/calls', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${ephemeralKey}`,
+    },
+    body: formData,
+  });
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => '');
+    throw new Error(
+      `Failed to establish realtime voice session. OpenAI returned status code ${response.status}${
+        errorText ? `: ${errorText}` : ''
+      }`
+    );
+  }
+  return response.text();
+}
+
 export function useAssistantVoice({
   workspaceId,
   threadId,
@@ -396,18 +426,10 @@ export function useAssistantVoice({
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
 
-      const sdpResponse = await fetch('https://api.openai.com/v1/realtime/calls', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${ephemeralKey}`,
-          'Content-Type': 'application/sdp',
-        },
-        body: offer.sdp || '',
+      const answerSdp = await createRealtimeCallAnswer({
+        ephemeralKey,
+        offerSdp: offer.sdp || '',
       });
-      if (!sdpResponse.ok) {
-        throw new Error('Failed to establish realtime voice session.');
-      }
-      const answerSdp = await sdpResponse.text();
       await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp });
     } catch (err) {
       await stop();

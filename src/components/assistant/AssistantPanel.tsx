@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useQueryClient } from '@tanstack/react-query';
 import { Loader2, MessageCircle, Mic, PhoneOff, Sparkles } from 'lucide-react';
@@ -464,6 +464,13 @@ export function AssistantPanel({
       queryClient.invalidateQueries({ queryKey: queryKeys.assistant.threads(currentWorkspaceId) });
     },
   });
+  const clearVoiceErrorRef = useRef(
+    typeof voice.clearError === 'function' ? voice.clearError : () => undefined
+  );
+  useEffect(() => {
+    clearVoiceErrorRef.current =
+      typeof voice.clearError === 'function' ? voice.clearError : () => undefined;
+  }, [voice.clearError]);
   const voiceCapability = voice.capability ?? { supported: true, reason: null };
   const isVoiceActive = voice.status === 'connecting' || voice.status === 'connected';
   const conversationError =
@@ -524,16 +531,14 @@ export function AssistantPanel({
   useEffect(() => {
     if (!voice.error) return;
     const timeoutId = window.setTimeout(() => {
-      voice.clearError();
+      clearVoiceErrorRef.current();
     }, 5200);
     return () => window.clearTimeout(timeoutId);
-  }, [voice]);
+  }, [voice.error]);
 
   useEffect(() => {
-    if (voice.error) {
-      voice.clearError();
-    }
-  }, [activeThreadId, voice]);
+    clearVoiceErrorRef.current();
+  }, [activeThreadId]);
 
   const starterPrompt = useMemo(() => {
     if (!workspace) return '';
