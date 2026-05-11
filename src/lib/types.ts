@@ -678,6 +678,15 @@ export interface LeadList {
   enriched_count: number;
   active_discovery_run_status?: DiscoveryRunStatus | null;
   active_discovery_run_started_at?: string | null;
+  discovery_search_id?: string | null;
+  discovery_search_name?: string | null;
+  discovery_search_status?: DiscoverySearchStatus | null;
+  discovery_schedule_enabled?: boolean;
+  discovery_schedule_type?: DiscoveryScheduleType | null;
+  discovery_schedule_config_json?: Record<string, unknown> | null;
+  discovery_next_run_at?: string | null;
+  discovery_last_run_at?: string | null;
+  discovery_timezone?: string | null;
   latest_discovery_run_id?: string | null;
   latest_discovery_search_id?: string | null;
   latest_discovery_search_name?: string | null;

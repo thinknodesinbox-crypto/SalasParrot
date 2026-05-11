@@ -19,9 +19,16 @@ import {
   useEnrichLeads,
   useEnrichmentJobWithPolling,
   useEnrichmentUsage,
+  useDiscoverySearch,
+  usePauseDiscoverySearch,
+  useResumeDiscoverySearch,
+  useRunDiscoverySearch,
+  useUpdateDiscoverySearch,
 } from '../../lib/hooks/queries';
 import type {
   DiscoveryRunStatus,
+  DiscoveryScheduleType,
+  DiscoverySearchUpdateRequest,
   Lead,
   LeadList,
   LeadListMergePreviewResponse,
@@ -1507,7 +1514,13 @@ function getLatestDiscoveryRunBadge(
 }
 
 function DiscoveryListRunSummary({ list }: { list: LeadList }) {
-  if (!list.latest_discovery_run_id && !list.active_discovery_run_status) return null;
+  if (
+    !list.latest_discovery_run_id &&
+    !list.active_discovery_run_status &&
+    !list.discovery_search_id
+  ) {
+    return null;
+  }
 
   const runBadge = getLatestDiscoveryRunBadge(
     list.active_discovery_run_status || list.latest_discovery_run_status
@@ -1541,7 +1554,7 @@ function DiscoveryListRunSummary({ list }: { list: LeadList }) {
             ) : null}
           </div>
           <p className="mt-2 truncate text-sm font-medium text-[#1E293B]">
-            {list.latest_discovery_search_name || 'Discovery search'}
+            {list.discovery_search_name || list.latest_discovery_search_name || 'Discovery search'}
           </p>
           {list.latest_discovery_search_prompt ? (
             <p
@@ -1554,6 +1567,18 @@ function DiscoveryListRunSummary({ list }: { list: LeadList }) {
           {list.latest_discovery_web_error ? (
             <p className="mt-2 text-xs text-[#B91C1C]">
               Web source issue: {list.latest_discovery_web_error}
+            </p>
+          ) : null}
+          {list.discovery_schedule_enabled ? (
+            <p className="mt-2 text-xs text-[#64748B]">
+              Recurring{' '}
+              {formatDiscoverySchedule(
+                list.discovery_schedule_type,
+                list.discovery_schedule_config_json
+              )}
+              {list.discovery_next_run_at
+                ? ` - next run ${formatDiscoveryTimestamp(list.discovery_next_run_at)}`
+                : ''}
             </p>
           ) : null}
         </div>
@@ -1579,6 +1604,290 @@ function DiscoveryListRunSummary({ list }: { list: LeadList }) {
         </div>
       </div>
     </div>
+  );
+}
+
+function getDiscoverySearchIdForList(list: LeadList | null): string | null {
+  return list?.discovery_search_id || list?.latest_discovery_search_id || null;
+}
+
+function getDiscoveryScheduleIntervalDays(
+  scheduleEnabled: boolean | undefined,
+  scheduleType: DiscoveryScheduleType | null | undefined,
+  scheduleConfig: Record<string, unknown> | null | undefined
+): string {
+  if (!scheduleEnabled) return '0';
+  if (scheduleType === 'weekly') return '7';
+  if (scheduleType === 'biweekly') return '14';
+  const intervalDays = Number(scheduleConfig?.interval_days || 21);
+  return Number.isFinite(intervalDays) && intervalDays > 0 ? String(intervalDays) : '21';
+}
+
+function formatDiscoverySchedule(
+  scheduleType: DiscoveryScheduleType | null | undefined,
+  scheduleConfig: Record<string, unknown> | null | undefined
+): string {
+  if (scheduleType === 'weekly') return 'weekly';
+  if (scheduleType === 'biweekly') return 'every 2 weeks';
+  const intervalDays = Number(scheduleConfig?.interval_days || 0);
+  if (Number.isFinite(intervalDays) && intervalDays > 0) {
+    return `every ${intervalDays} days`;
+  }
+  return 'schedule';
+}
+
+function buildDiscoveryScheduleUpdate(intervalDaysValue: string): DiscoverySearchUpdateRequest {
+  const intervalDays = Math.max(0, Number(intervalDaysValue || 0));
+  const scheduleType: DiscoveryScheduleType | null =
+    intervalDays === 7
+      ? 'weekly'
+      : intervalDays === 14
+        ? 'biweekly'
+        : intervalDays > 0
+          ? 'custom'
+          : null;
+  return {
+    schedule_enabled: intervalDays > 0,
+    schedule_type: scheduleType,
+    schedule_config_json: intervalDays > 0 ? { interval_days: intervalDays } : {},
+  };
+}
+
+function DiscoverySettingsModal({
+  list,
+  workspaceId,
+  onClose,
+  onUpdated,
+}: {
+  list: LeadList;
+  workspaceId: string | undefined;
+  onClose: () => void;
+  onUpdated?: () => void;
+}) {
+  const searchId = getDiscoverySearchIdForList(list);
+  const [scheduleIntervalDays, setScheduleIntervalDays] = useState(
+    getDiscoveryScheduleIntervalDays(
+      list.discovery_schedule_enabled,
+      list.discovery_schedule_type,
+      list.discovery_schedule_config_json
+    )
+  );
+  const [confirmArchive, setConfirmArchive] = useState(false);
+  const { data: search, isLoading } = useDiscoverySearch(workspaceId, searchId);
+  const updateSearchMutation = useUpdateDiscoverySearch(workspaceId, searchId);
+  const pauseSearchMutation = usePauseDiscoverySearch(workspaceId, searchId);
+  const resumeSearchMutation = useResumeDiscoverySearch(workspaceId, searchId);
+  const runSearchMutation = useRunDiscoverySearch(workspaceId, searchId);
+  const currentStatus = search?.status || list.discovery_search_status;
+  const isPaused = currentStatus === 'paused';
+  const isArchived = currentStatus === 'archived';
+  const busy =
+    updateSearchMutation.isPending ||
+    pauseSearchMutation.isPending ||
+    resumeSearchMutation.isPending ||
+    runSearchMutation.isPending;
+
+  useEffect(() => {
+    if (!search) return;
+    setScheduleIntervalDays(
+      getDiscoveryScheduleIntervalDays(
+        search.schedule_enabled,
+        search.schedule_type,
+        search.schedule_config_json
+      )
+    );
+  }, [search]);
+
+  const handleSaveSchedule = async () => {
+    if (!workspaceId || !searchId) return;
+    try {
+      await updateSearchMutation.mutateAsync(buildDiscoveryScheduleUpdate(scheduleIntervalDays));
+      onUpdated?.();
+      showSuccessToast('Discovery schedule updated.');
+    } catch (error) {
+      showErrorToast(error instanceof Error ? error.message : 'Unable to update schedule');
+    }
+  };
+
+  const handlePauseResume = async () => {
+    if (!workspaceId || !searchId) return;
+    try {
+      if (isPaused) {
+        await resumeSearchMutation.mutateAsync();
+        showSuccessToast('Discovery search resumed.');
+      } else {
+        await pauseSearchMutation.mutateAsync();
+        showSuccessToast('Discovery search paused.');
+      }
+      onUpdated?.();
+    } catch (error) {
+      showErrorToast(error instanceof Error ? error.message : 'Unable to update search status');
+    }
+  };
+
+  const handleRunNow = async () => {
+    if (!workspaceId || !searchId) return;
+    try {
+      await runSearchMutation.mutateAsync();
+      onUpdated?.();
+      showSuccessToast('Discovery run started.');
+    } catch (error) {
+      showErrorToast(error instanceof Error ? error.message : 'Unable to start discovery run');
+    }
+  };
+
+  const handleArchive = async () => {
+    if (!workspaceId || !searchId) return;
+    if (!confirmArchive) {
+      setConfirmArchive(true);
+      return;
+    }
+    try {
+      await updateSearchMutation.mutateAsync({
+        status: 'archived',
+        schedule_enabled: false,
+        schedule_type: null,
+        schedule_config_json: {},
+      });
+      onUpdated?.();
+      showSuccessToast('Discovery search archived.', 'Existing leads stay in this list.');
+      onClose();
+    } catch (error) {
+      showErrorToast(error instanceof Error ? error.message : 'Unable to archive discovery search');
+    }
+  };
+
+  return createPortal(
+    <AnimatePresence>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+        onClick={onClose}
+      >
+        <motion.div
+          initial={{ scale: 0.95, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          exit={{ scale: 0.95, opacity: 0 }}
+          onClick={(event) => event.stopPropagation()}
+          className="w-full max-w-2xl rounded-2xl bg-white shadow-xl"
+        >
+          <div className="flex items-center justify-between border-b border-[#E2E8F0] px-6 py-4">
+            <div>
+              <h2 className="text-lg font-semibold text-[#1E293B]">Discovery settings</h2>
+              <p className="mt-1 text-sm text-[#64748B]">
+                Manage the search connected to {list.name}.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg p-2 text-[#94A3B8] transition hover:bg-[#F8FAFC] hover:text-[#1E293B]"
+            >
+              <CloseIcon />
+            </button>
+          </div>
+
+          <div className="space-y-5 p-6">
+            {isLoading ? (
+              <div className="flex items-center gap-2 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4 text-sm text-[#64748B]">
+                <LoadingSpinner className="h-4 w-4" />
+                Loading discovery search...
+              </div>
+            ) : null}
+
+            <div className="grid gap-3 md:grid-cols-3">
+              <div className="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-3">
+                <div className="text-xs text-[#64748B]">Status</div>
+                <div className="mt-1 font-semibold capitalize text-[#1E293B]">
+                  {currentStatus || 'Unknown'}
+                </div>
+              </div>
+              <div className="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-3">
+                <div className="text-xs text-[#64748B]">Next run</div>
+                <div className="mt-1 font-semibold text-[#1E293B]">
+                  {formatDiscoveryTimestamp(search?.next_run_at || list.discovery_next_run_at) ||
+                    'Not scheduled'}
+                </div>
+              </div>
+              <div className="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-3">
+                <div className="text-xs text-[#64748B]">Last run</div>
+                <div className="mt-1 font-semibold text-[#1E293B]">
+                  {formatDiscoveryTimestamp(search?.last_run_at || list.discovery_last_run_at) ||
+                    'Not run yet'}
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-[#E2E8F0] p-4">
+              <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+                <div>
+                  <div className="text-sm font-semibold text-[#1E293B]">Recurring schedule</div>
+                  <p className="mt-1 text-sm text-[#64748B]">
+                    Set how often Discovery should look for fresh matches for this list.
+                  </p>
+                </div>
+                <select
+                  value={scheduleIntervalDays}
+                  onChange={(event) => {
+                    setScheduleIntervalDays(event.target.value);
+                    setConfirmArchive(false);
+                  }}
+                  className="min-w-[180px] rounded-lg border border-[#CBD5E1] px-3 py-2 text-sm focus:border-[#FF6B35] focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+                >
+                  <option value="0">Run manually</option>
+                  <option value="7">Weekly</option>
+                  <option value="14">Every 2 weeks</option>
+                  <option value="21">Every 21 days</option>
+                  <option value="30">Every 30 days</option>
+                </select>
+              </div>
+              <button
+                type="button"
+                onClick={handleSaveSchedule}
+                disabled={busy || !workspaceId || !searchId || isArchived}
+                className="mt-4 rounded-lg bg-[#1E293B] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#0F172A] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Save schedule
+              </button>
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={handleRunNow}
+                disabled={busy || !workspaceId || !searchId || isArchived}
+                className="rounded-lg bg-[#FF6B35] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#EA580C] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Run now
+              </button>
+              <button
+                type="button"
+                onClick={handlePauseResume}
+                disabled={busy || !workspaceId || !searchId || isArchived}
+                className="rounded-lg border border-[#CBD5E1] px-4 py-2 text-sm font-medium text-[#334155] transition hover:bg-[#F8FAFC] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {isPaused ? 'Resume recurring search' : 'Pause recurring search'}
+              </button>
+              <button
+                type="button"
+                onClick={handleArchive}
+                disabled={busy || !workspaceId || !searchId || isArchived}
+                className="rounded-lg border border-[#FCA5A5] px-4 py-2 text-sm font-medium text-[#B91C1C] transition hover:bg-[#FEF2F2] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {confirmArchive ? 'Confirm archive' : 'Archive search'}
+              </button>
+            </div>
+            <p className="text-xs text-[#64748B]">
+              Archiving stops future discovery runs. It does not remove any leads already saved to
+              this list.
+            </p>
+          </div>
+        </motion.div>
+      </motion.div>
+    </AnimatePresence>,
+    document.body
   );
 }
 
@@ -1621,7 +1930,9 @@ function LeadListDetail({
   const workspaceId = list?.workspace_id || currentWorkspaceId || undefined;
   const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showDiscoverySettings, setShowDiscoverySettings] = useState(false);
   const [activeEnrichmentJobId, setActiveEnrichmentJobId] = useState<string | null>(null);
+  const discoverySearchId = getDiscoverySearchIdForList(list);
   const isDiscoveryList = Boolean(list?.latest_discovery_run_id || list?.source === 'discovery');
   const shouldRankDiscoveryLeads =
     isDiscoveryList ||
@@ -1878,6 +2189,14 @@ function LeadListDetail({
           isDeleting={deleteLeadsMutation.isPending}
         />
       )}
+      {showDiscoverySettings && list && discoverySearchId ? (
+        <DiscoverySettingsModal
+          list={list}
+          workspaceId={workspaceId}
+          onClose={() => setShowDiscoverySettings(false)}
+          onUpdated={onLeadsDeleted}
+        />
+      ) : null}
       <div className="space-y-4">
         {/* Breadcrumb */}
         <div className="flex items-center gap-2 text-sm">
@@ -1929,6 +2248,16 @@ function LeadListDetail({
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-3">
+              {list && discoverySearchId ? (
+                <button
+                  type="button"
+                  onClick={() => setShowDiscoverySettings(true)}
+                  className="flex items-center gap-2 rounded-lg border border-[#BFDBFE] bg-[#EFF6FF] px-4 py-2 text-sm font-medium text-[#1D4ED8] transition-colors hover:bg-[#DBEAFE]"
+                >
+                  <SparkleIcon className="h-4 w-4" />
+                  Discovery Settings
+                </button>
+              ) : null}
               {list ? (
                 <button
                   onClick={handleEnrichCurrentView}
