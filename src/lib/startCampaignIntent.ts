@@ -16,6 +16,16 @@ const TARGET_WEBSITE_PATTERN =
   /\b(?:https?:\/\/)?(?:www\.)?([a-z0-9-]+(?:\.[a-z0-9-]+)+)(?:\/[^\s,;)]*)?/gi;
 
 const SEARCH_FILLER_WORDS = new Set([
+  'help',
+  'please',
+  'can',
+  'could',
+  'would',
+  'want',
+  'wants',
+  'wanna',
+  'like',
+  'just',
   'find',
   'me',
   'all',
@@ -25,6 +35,16 @@ const SEARCH_FILLER_WORDS = new Set([
   'who',
   'that',
   'where',
+  'people',
+  'person',
+  'profiles',
+  'profile',
+  'leads',
+  'lead',
+  'prospects',
+  'prospect',
+  'professionals',
+  'professional',
   'with',
   'need',
   'needs',
@@ -58,6 +78,10 @@ const SEARCH_FILLER_WORDS = new Set([
   'weeks',
   'month',
   'months',
+  'linkedin',
+  'linkeidn',
+  'linked',
+  'search',
   'registration',
   'ticket',
   'tickets',
@@ -101,6 +125,44 @@ function stripDateWindows(input: string): string {
     .replace(/\b(?:next|within|past|last|previous)\s+\d{1,3}\s*(?:days?|weeks?|months?)\b/gi, ' ')
     .replace(/\b(?:from\s+)?the\s+last\s+\d{1,3}\s*(?:days?|weeks?|months?)\b/gi, ' ')
     .replace(/\b(?:today|tomorrow|this week|next week|this month|next month)\b/gi, ' ');
+}
+
+function stripSearchPreamble(input: string): string {
+  return compact(
+    input
+      .replace(
+        /^\s*(?:can|could|would)\s+you\s+(?:please\s+)?(?:help\s+me\s+)?(?:find|show|get|source|search\s+for|look\s+for)\s+(?:me\s+)?/i,
+        ''
+      )
+      .replace(
+        /^\s*(?:help\s+me\s+)?(?:find|show|get|source|search\s+for|look\s+for)\s+(?:me\s+)?/i,
+        ''
+      )
+      .replace(
+        /^\s*(?:i\s+)?(?:want|wanna|would\s+like)\s+to\s+(?:find|source|search\s+for|get)\s+(?:me\s+)?/i,
+        ''
+      )
+      .replace(
+        /\b(?:for|using|with)\s+(?:linked\s*in|linkedin|linkeidn)\s+(?:people\s+)?search\b/gi,
+        ' '
+      )
+  );
+}
+
+function normalizeAudiencePhrases(input: string): string {
+  return compact(
+    input
+      .replace(
+        /\bmarketing\s+(?:people|professionals|leaders|managers|teams)?\s*(?:into|in|at|for)\s+b2b\b/gi,
+        'B2B marketing'
+      )
+      .replace(
+        /\b(?:people|professionals|leaders|managers|teams)\s+(?:in|into)\s+marketing\b/gi,
+        'marketing'
+      )
+      .replace(/\bmarketing\s+people\b/gi, 'marketing')
+      .replace(/\b(?:into|in)\s+b2b\b/gi, 'B2B')
+  );
 }
 
 function extractTargetWebsites(input: string): string[] {
@@ -155,7 +217,7 @@ function extractSpecialInstructions(input: string, targetWebsites: string[]): st
     .map(trimSentence)
     .filter(Boolean);
   const instructionSentences = sentences.filter((sentence) =>
-    /\b(cta|call to action|exclude|excluding|avoid|do not|don't|must not|must|make sure|proof|evidence|verified|source links?|sources?|paid|ticket|registration|decision makers?|next\s+\d|within\s+\d|past\s+\d|last\s+\d|the\s+last\s+\d|today|tomorrow|next week|next month|weekly|biweekly|every\s+\d+\s+days?)\b/i.test(
+    /\b(cta|call to action|exclude|excluding|avoid|do not|don't|not\s+(?:outbound|sales|recruiting|recruiters?|agencies|consultants?|students?|freelancers?)|must not|must|make sure|proof|evidence|verified|source links?|sources?|paid|ticket|registration|decision makers?|next\s+\d|within\s+\d|past\s+\d|last\s+\d|the\s+last\s+\d|today|tomorrow|next week|next month|weekly|biweekly|every\s+\d+\s+days?)\b/i.test(
       sentence
     )
   );
@@ -173,6 +235,10 @@ function stripInstructionClauses(input: string): string {
   const withoutTargets = removeTargetWebsites(input);
   return compact(
     withoutTargets
+      .replace(
+        /\b(?:for|using|with)\s+(?:linked\s*in|linkedin|linkeidn)\s+(?:people\s+)?search\b/gi,
+        ' '
+      )
       .replace(/\bTarget\s+(?:web)?sites?\b\s*[:,-]?\s*(?:[,;\s]+)?/gi, ' ')
       .replace(/\bCTA\b\s*:\s*[^.!?]*(?:[.!?]|$)/gi, ' ')
       .replace(/\bcall to action\b\s*:\s*[^.!?]*(?:[.!?]|$)/gi, ' ')
@@ -183,6 +249,10 @@ function stripInstructionClauses(input: string): string {
       )
       .replace(/\bGoal is\b.*$/i, ' ')
       .replace(/\bStart conversations?\b.*$/i, ' ')
+      .replace(
+        /\b(?:but\s+)?not\s+(?:outbound|sales|recruiting|recruiters?|agencies|consultants?|students?|freelancers?)\b/gi,
+        ' '
+      )
       .replace(/\bNeed public proof\b.*$/i, ' ')
       .replace(/\bNeed public source links?\b.*$/i, ' ')
       .replace(/\bNeed proof\b.*$/i, ' ')
@@ -202,6 +272,7 @@ function buildDiscoveryBrief(input: string, locationInput: string | null): strin
     .replace(/^\s*(find|show|get|source|search for|look for)\s+(me\s+)?/i, '')
     .replace(/\s+[.?!]+$/g, '')
     .trim();
+  brief = stripSearchPreamble(brief);
   if (!brief) brief = removeTargetWebsites(input);
   if (
     locationInput &&
@@ -218,7 +289,9 @@ function buildDiscoveryBrief(input: string, locationInput: string | null): strin
 }
 
 function buildLinkedInKeywords(input: string, locationInput: string | null): string {
-  let text = stripDateWindows(stripInstructionClauses(input));
+  let text = normalizeAudiencePhrases(
+    stripSearchPreamble(stripDateWindows(stripInstructionClauses(input)))
+  );
   if (locationInput) {
     text = text.replace(new RegExp(`\\b${escapeRegex(locationInput)}\\b`, 'i'), ' ');
     for (const part of locationInput.split(/\s*(?:,|and|or)\s*/)) {
@@ -229,6 +302,7 @@ function buildLinkedInKeywords(input: string, locationInput: string | null): str
   }
   text = text
     .replace(/^\s*(find|show|get|source|search for|look for)\s+(me\s+)?/i, '')
+    .replace(/^\s*help\s+me\s+/i, '')
     .replace(/\bpeople responsible for\b/gi, '')
     .replace(/\bresponsible for\b/gi, '')
     .replace(/\borganising\b/gi, 'organizing')

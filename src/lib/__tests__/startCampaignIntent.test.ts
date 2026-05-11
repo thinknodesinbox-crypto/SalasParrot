@@ -46,6 +46,22 @@ describe('normalizeStartCampaignIntent', () => {
     expect(intent.specialInstructions).toContain('Exclude recruiters');
   });
 
+  it('distills conversational LinkedIn search prompts into clean audience keywords', () => {
+    const intent = normalizeStartCampaignIntent(
+      'help me find marketing people into b2b, but not outbound, for linkeidn search'
+    );
+
+    expect(intent.searchType).toBe('intent');
+    expect(intent.linkedinKeywords).toContain('B2B');
+    expect(intent.linkedinKeywords).toContain('marketing');
+    expect(intent.linkedinKeywords).not.toContain('help');
+    expect(intent.linkedinKeywords).not.toContain('find');
+    expect(intent.linkedinKeywords).not.toContain('people');
+    expect(intent.linkedinKeywords).not.toContain('outbound');
+    expect(intent.linkedinKeywords).not.toContain('linkedin');
+    expect(intent.specialInstructions).toContain('not outbound');
+  });
+
   it('keeps source-link recency requirements out of LinkedIn keywords', () => {
     const intent = normalizeStartCampaignIntent(
       'Find founders of B2B SaaS companies that recently announced SOC 2, ISO 27001, or enterprise security launches. Need public source links from the last 30 days.'
