@@ -1453,7 +1453,7 @@ function LeadListsGrid({
               </div>
               <div className="mt-3 flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  {list.source && (
+                  {list.source && list.source !== 'discovery' && (
                     <span className="rounded bg-[#F8FAFC] px-2 py-0.5 text-xs text-[#94A3B8]">
                       {list.source}
                     </span>
