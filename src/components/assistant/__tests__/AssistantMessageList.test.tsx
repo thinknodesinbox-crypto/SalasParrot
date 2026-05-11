@@ -167,4 +167,18 @@ describe('AssistantMessageList', () => {
     expect(screen.getByText('Draft assistant transcript')).toBeInTheDocument();
     expect(screen.getByText('Transcript save failed.')).toBeInTheDocument();
   });
+
+  it('keeps optimistic suggested-prompt drafts visible while a new thread loads', () => {
+    render(
+      <AssistantMessageList
+        messages={[]}
+        isLoading
+        isResponding
+        draftUserMessage="Which campaigns need attention first?"
+      />
+    );
+
+    expect(screen.getByText('Which campaigns need attention first?')).toBeInTheDocument();
+    expect(screen.getByText('SalesParrot is thinking')).toBeInTheDocument();
+  });
 });

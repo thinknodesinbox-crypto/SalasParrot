@@ -1,4 +1,5 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
+import { isDashboardPreviewEnabled } from './dashboardPreview';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL;
 
@@ -115,7 +116,9 @@ api.interceptors.response.use(
       const refreshToken = getRefreshToken();
       if (!refreshToken) {
         clearTokens();
-        window.location.href = '/login';
+        if (!isDashboardPreviewEnabled()) {
+          window.location.href = '/login';
+        }
         return Promise.reject(error);
       }
 
@@ -136,7 +139,9 @@ api.interceptors.response.use(
       } catch (refreshError) {
         processQueue(refreshError as AxiosError, null);
         clearTokens();
-        window.location.href = '/login';
+        if (!isDashboardPreviewEnabled()) {
+          window.location.href = '/login';
+        }
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;

@@ -3,6 +3,7 @@ import { createFileRoute, Outlet, useNavigate } from '@tanstack/react-router';
 import { DashboardLayout } from '@/components/dashboard';
 import { useAuthStore } from '@/lib/auth';
 import { api } from '@/lib/api';
+import { isDashboardPreviewEnabled } from '@/lib/dashboardPreview';
 
 export const Route = createFileRoute('/dashboard')({
   component: DashboardPage,
@@ -14,6 +15,7 @@ function DashboardPage() {
   const isLoading = useAuthStore((state) => state.isLoading);
   const fetchUser = useAuthStore((state) => state.fetchUser);
   const [isSyncing, setIsSyncing] = useState(false);
+  const isPreview = isDashboardPreviewEnabled();
 
   // Sync subscription status after Stripe checkout redirect
   useEffect(() => {
@@ -38,6 +40,8 @@ function DashboardPage() {
 
   // Redirect users without valid access to onboarding
   useEffect(() => {
+    if (isPreview) return;
+
     if (!isLoading && !isSyncing) {
       if (!user) {
         navigate({ to: '/login' } as never);
@@ -45,10 +49,10 @@ function DashboardPage() {
         navigate({ to: '/onboarding' } as never);
       }
     }
-  }, [user, isLoading, isSyncing, hasValidAccess, navigate]);
+  }, [user, isLoading, isPreview, isSyncing, hasValidAccess, navigate]);
 
   // Show loading while checking auth or syncing subscription
-  if (isLoading || isSyncing || !user || !hasValidAccess) {
+  if (isLoading || isSyncing || (!isPreview && (!user || !hasValidAccess))) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#0A0A0B]">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#14B8A6] border-t-transparent" />

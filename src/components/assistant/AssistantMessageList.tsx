@@ -105,7 +105,7 @@ export function AssistantMessageList({
     container.scrollTop = container.scrollHeight;
   }, [messages.length, draftUserMessage, draftAssistantMessage, error, isResponding]);
 
-  if (isLoading) {
+  if (isLoading && !draftUserMessage && !draftAssistantMessage && !isResponding) {
     return (
       <div className={`space-y-4 ${isPage ? 'p-8 md:p-10' : 'p-6'}`}>
         {Array.from({ length: 4 }).map((_, index) => (

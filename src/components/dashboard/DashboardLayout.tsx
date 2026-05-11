@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useQueryClient } from '@tanstack/react-query';
 import logoImage from '@/assets/images/logo.png';
 import { useAuth } from '@/lib/auth';
+import { DASHBOARD_PREVIEW_WORKSPACE, isDashboardPreviewEnabled } from '@/lib/dashboardPreview';
 import type { AssistantThread } from '@/lib/types';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { OnboardingModal } from '@/components/onboarding/OnboardingModal';
@@ -53,6 +54,7 @@ const bottomNavigation = [
 const adminNavigation = [{ name: 'Admin Panel', href: '/admin', icon: 'admin' }];
 
 export function DashboardLayout({ children }: DashboardLayoutProps) {
+  const isPreview = isDashboardPreviewEnabled();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false);
@@ -81,33 +83,54 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const { data: workspaces = [] } = useWorkspaces();
   const { data: assistantThreads = [], isLoading: isAssistantThreadsLoading } =
     useAssistantThreads(currentWorkspaceId);
+  const visibleWorkspaces = isPreview ? [DASHBOARD_PREVIEW_WORKSPACE] : workspaces;
+  const visibleAssistantThreads = isPreview ? ([] as AssistantThread[]) : assistantThreads;
+  const assistantThreadsLoading = isPreview ? false : isAssistantThreadsLoading;
   const hasHydrated = useWorkspaceHydrated();
   const resolvedWorkspace =
-    workspaces.find((workspace) => workspace.id === currentWorkspaceId) ??
-    (currentWorkspace && workspaces.some((workspace) => workspace.id === currentWorkspace.id)
+    (isPreview
+      ? DASHBOARD_PREVIEW_WORKSPACE
+      : visibleWorkspaces.find((workspace) => workspace.id === currentWorkspaceId)) ??
+    (currentWorkspace && visibleWorkspaces.some((workspace) => workspace.id === currentWorkspace.id)
       ? currentWorkspace
       : null);
 
   // Auto-select or fix workspace selection after hydration
   useEffect(() => {
-    if (!hasHydrated || workspaces.length === 0) return;
+    if (!hasHydrated) return;
+
+    if (isPreview) {
+      if (currentWorkspaceId !== DASHBOARD_PREVIEW_WORKSPACE.id) {
+        setCurrentWorkspace(DASHBOARD_PREVIEW_WORKSPACE);
+      }
+      return;
+    }
+
+    if (visibleWorkspaces.length === 0) return;
 
     if (!currentWorkspaceId) {
       // No workspace selected — pick first available
-      setCurrentWorkspace(workspaces[0]);
+      setCurrentWorkspace(visibleWorkspaces[0]);
     } else {
       // Validate stored workspace is one the user has access to
-      const match = workspaces.find((w) => w.id === currentWorkspaceId);
+      const match = visibleWorkspaces.find((w) => w.id === currentWorkspaceId);
       if (match) {
         if (!currentWorkspace || currentWorkspace.id !== match.id) {
           setCurrentWorkspace(match);
         }
       } else {
         // Stored workspace not in user's list — reset to first
-        setCurrentWorkspace(workspaces[0]);
+        setCurrentWorkspace(visibleWorkspaces[0]);
       }
     }
-  }, [hasHydrated, workspaces, currentWorkspaceId, currentWorkspace, setCurrentWorkspace]);
+  }, [
+    currentWorkspace,
+    currentWorkspaceId,
+    hasHydrated,
+    isPreview,
+    setCurrentWorkspace,
+    visibleWorkspaces,
+  ]);
 
   // Close mobile menu on route change
   useEffect(() => {
@@ -197,7 +220,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           </button>
         </div>
 
-        {!sidebarCollapsed && workspaces.length > 0 ? (
+        {!sidebarCollapsed && visibleWorkspaces.length > 0 ? (
           <div className="border-b border-[#E2E8F0] px-3 py-3">
             <div className="relative">
               <button
@@ -228,13 +251,15 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                       </p>
                     </div>
                     <div className="max-h-64 overflow-y-auto py-1">
-                      {workspaces.map((workspace) => (
+                      {visibleWorkspaces.map((workspace) => (
                         <button
                           key={workspace.id}
                           onClick={() => {
                             if (workspace.id !== currentWorkspaceId) {
                               setCurrentWorkspace(workspace);
-                              queryClient.removeQueries();
+                              if (!isPreview) {
+                                queryClient.removeQueries();
+                              }
                             }
                             setWorkspaceMenuOpen(false);
                           }}
@@ -322,8 +347,8 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
               isActive={isAssistantPage}
               isOpen={desktopAssistantOpen}
               collapsed={sidebarCollapsed}
-              threads={assistantThreads}
-              isLoading={isAssistantThreadsLoading}
+              threads={visibleAssistantThreads}
+              isLoading={assistantThreadsLoading}
               activeThreadId={currentAssistantThreadId}
               onToggle={() => {
                 if (sidebarCollapsed) {
@@ -447,8 +472,8 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                   isActive={isAssistantPage}
                   isOpen={mobileAssistantOpen}
                   collapsed={false}
-                  threads={assistantThreads}
-                  isLoading={isAssistantThreadsLoading}
+                  threads={visibleAssistantThreads}
+                  isLoading={assistantThreadsLoading}
                   activeThreadId={currentAssistantThreadId}
                   onToggle={() => {
                     if (!isAssistantPage) {
@@ -516,15 +541,19 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
               >
                 <HamburgerIcon />
               </button>
-              <div className="rounded-2xl border border-[#E2E8F0] bg-white/95 p-1 shadow-sm backdrop-blur">
-                <NotificationBell />
-              </div>
+              {!isPreview ? (
+                <div className="rounded-2xl border border-[#E2E8F0] bg-white/95 p-1 shadow-sm backdrop-blur">
+                  <NotificationBell />
+                </div>
+              ) : null}
             </div>
 
             <div className="relative z-[70] hidden justify-end px-6 pt-4 lg:flex">
-              <div className="bg-white/92 rounded-2xl border border-white/80 p-1 shadow-[0_12px_28px_rgba(15,23,42,0.08)] backdrop-blur">
-                <NotificationBell />
-              </div>
+              {!isPreview ? (
+                <div className="bg-white/92 rounded-2xl border border-white/80 p-1 shadow-[0_12px_28px_rgba(15,23,42,0.08)] backdrop-blur">
+                  <NotificationBell />
+                </div>
+              ) : null}
             </div>
           </>
         )}
@@ -540,7 +569,9 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         </main>
       </motion.div>
 
-      {hasHydrated && resolvedWorkspace && <OnboardingModal workspace={resolvedWorkspace} />}
+      {!isPreview && hasHydrated && resolvedWorkspace && (
+        <OnboardingModal workspace={resolvedWorkspace} />
+      )}
     </div>
   );
 }

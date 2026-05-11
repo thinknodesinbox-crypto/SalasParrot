@@ -9,6 +9,7 @@ import {
   useDashboardActivity,
   useDashboardCampaigns,
   useDashboardStats,
+  useDiscoveryRun,
   useEmailAccounts,
   useCancelImport,
   useImportLeadsFromCSV,
@@ -20,6 +21,21 @@ import {
 } from '../../lib/hooks/queries';
 import { api } from '../../lib/api';
 import { useAuthStore } from '../../lib/auth';
+import { normalizeStartCampaignIntent } from '../../lib/startCampaignIntent';
+import {
+  DASHBOARD_PREVIEW_ACTIVITY,
+  DASHBOARD_PREVIEW_CALENDAR_ACCOUNTS,
+  DASHBOARD_PREVIEW_CAMPAIGNS,
+  DASHBOARD_PREVIEW_EMAIL_ACCOUNTS,
+  DASHBOARD_PREVIEW_DISCOVERY_PREVIEW,
+  DASHBOARD_PREVIEW_DISCOVERY_PROMPT,
+  DASHBOARD_PREVIEW_LEAD_LISTS,
+  DASHBOARD_PREVIEW_LINKEDIN_ACCOUNTS,
+  DASHBOARD_PREVIEW_STATS,
+  DASHBOARD_PREVIEW_USER,
+  DASHBOARD_PREVIEW_WORKSPACE,
+  isDashboardPreviewEnabled,
+} from '../../lib/dashboardPreview';
 import {
   LEAD_FIELD_SYNONYMS,
   getLeadMappingPreviewLabel,
@@ -129,8 +145,37 @@ type LinkedInSearchParametersLookupResponse = {
   items: LinkedInSearchParameterOption[];
 };
 
+type InlineDiscoveryRunState = {
+  workspaceId: string;
+  searchId: string;
+  runId: string;
+  searchName: string;
+  listId: string | null;
+  listName: string | null;
+  brief: string;
+  targetWebsites: string;
+  specialInstructions: string;
+  scheduleIntervalDays: string;
+  destinationListId: string;
+  newListName: string;
+};
+
+type InlineDiscoveryStatusState = {
+  kind: 'running' | 'success' | 'empty' | 'attention' | 'failed';
+  badge: string;
+  title: string;
+  body: string;
+  meta: string[];
+  primaryAction: 'open-leads' | 'adjust';
+  primaryLabel: string;
+  secondaryLabel?: string;
+};
+
+type DiscoveryRepeatPolicy = 'new_signal' | 'skip_seen';
+
 const HOME_DRAFT_STORAGE_KEY = 'salesparrot-home-command-draft';
 const HOME_LAUNCH_STORAGE_KEY = 'salesparrot-home-launch-intent';
+const HOME_INLINE_DISCOVERY_STORAGE_KEY = 'salesparrot-inline-discovery-run';
 const HOME_SEARCH_PAGE_SIZE = 10;
 
 const growthPlaybooks: GrowthPlaybook[] = [
@@ -1123,26 +1168,14 @@ function escapeLeadCsvCell(value: string): string {
 }
 
 const parseAudiencePrompt = (prompt: string) => {
-  const trimmed = prompt.replace(/\s+/g, ' ').trim();
-  if (!trimmed) {
+  const intent = normalizeStartCampaignIntent(prompt);
+  if (!intent.original) {
     return { keywords: '', locationInput: null };
   }
-
-  const patterns = [
-    /^(?<keywords>.+?)\s+(?:in|based in|located in|around)\s+(?<location>[A-Za-z][A-Za-z\s,'-]{1,80})$/i,
-    /^(?<keywords>.+?)\s+(?:for|across)\s+(?<location>[A-Za-z][A-Za-z\s,'-]{1,80})$/i,
-  ];
-
-  for (const pattern of patterns) {
-    const match = trimmed.match(pattern);
-    const keywords = match?.groups?.keywords?.trim();
-    const locationInput = sanitizeLocationInput(match?.groups?.location?.trim());
-    if (keywords && locationInput) {
-      return { keywords, locationInput };
-    }
-  }
-
-  return { keywords: trimmed, locationInput: null };
+  return {
+    keywords: intent.linkedinKeywords || intent.discoveryBrief || intent.original,
+    locationInput: sanitizeLocationInput(intent.locationInput),
+  };
 };
 
 const getLinkedInApiType = (account: LinkedInAccount | null) => {
@@ -1226,6 +1259,11 @@ function DashboardHome() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user } = useAuthStore();
+  const previewMode = isDashboardPreviewEnabled();
+  const previewSearchParams =
+    typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+  const previewDiscoveryDemoRequested = previewSearchParams?.get('demo') === 'discovery';
+  const activeUser = previewMode ? DASHBOARD_PREVIEW_USER : user;
   const { currentWorkspaceId } = useCurrentWorkspace();
   const { data: workspace = null } = useWorkspace(currentWorkspaceId || '');
   const { data: linkedInAccounts = [] } = useLinkedInAccounts();
@@ -1293,17 +1331,16 @@ function DashboardHome() {
   const [discoveryDestinationListId, setDiscoveryDestinationListId] = useState('');
   const [discoveryNewListName, setDiscoveryNewListName] = useState('');
   const [discoveryScheduleIntervalDays, setDiscoveryScheduleIntervalDays] = useState('0');
+  const [discoveryRepeatPolicy, setDiscoveryRepeatPolicy] =
+    useState<DiscoveryRepeatPolicy>('new_signal');
+  const [discoveryAdvancedOpen, setDiscoveryAdvancedOpen] = useState(false);
   const [discoveryPreview, setDiscoveryPreview] = useState<DiscoverySearchPreview | null>(null);
   const [discoveryPreviewing, setDiscoveryPreviewing] = useState(false);
   const [discoverySubmitting, setDiscoverySubmitting] = useState(false);
   const [discoveryError, setDiscoveryError] = useState<string | null>(null);
-  const [discoveryStarted, setDiscoveryStarted] = useState<{
-    searchId: string;
-    runId: string;
-    searchName: string;
-    listId: string | null;
-    listName: string | null;
-  } | null>(null);
+  const [activeInlineDiscovery, setActiveInlineDiscovery] =
+    useState<InlineDiscoveryRunState | null>(null);
+  const [previewDiscoveryDemoOpened, setPreviewDiscoveryDemoOpened] = useState(false);
 
   const { data: statsData } = useDashboardStats('30d');
   const { data: activityData = [] } = useDashboardActivity(4);
@@ -1311,11 +1348,28 @@ function DashboardHome() {
   const { data: leadListsResponse } = useLeadLists(
     currentWorkspaceId ? { workspace_id: currentWorkspaceId } : undefined
   );
+  const { data: activeInlineDiscoveryRun } = useDiscoveryRun(
+    currentWorkspaceId,
+    activeInlineDiscovery?.workspaceId === currentWorkspaceId ? activeInlineDiscovery.runId : null
+  );
   const { data: homeSearchJobStatus } = useImportJobStatus(
     homeSearchJobId,
     Boolean(homeSearchJobId) && homeSearchPhase === 'searching',
     2000
   );
+  const dashboardWorkspace = previewMode ? DASHBOARD_PREVIEW_WORKSPACE : workspace;
+  const availableLinkedInAccounts = previewMode
+    ? DASHBOARD_PREVIEW_LINKEDIN_ACCOUNTS
+    : linkedInAccounts;
+  const availableEmailAccounts = previewMode ? DASHBOARD_PREVIEW_EMAIL_ACCOUNTS : emailAccounts;
+  const availableCalendarAccounts = previewMode
+    ? DASHBOARD_PREVIEW_CALENDAR_ACCOUNTS
+    : calendarAccounts;
+  const availableStatsData = previewMode ? DASHBOARD_PREVIEW_STATS : statsData;
+  const availableActivityData = previewMode ? DASHBOARD_PREVIEW_ACTIVITY : activityData;
+  const availableCampaignsData = previewMode ? DASHBOARD_PREVIEW_CAMPAIGNS : campaignsData;
+  const dashboardCampaignsLoading = previewMode ? false : campaignsLoading;
+  const leadLists = previewMode ? DASHBOARD_PREVIEW_LEAD_LISTS : (leadListsResponse?.lists ?? []);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -1354,6 +1408,27 @@ function DashboardHome() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
+    const rawRun = window.sessionStorage.getItem(HOME_INLINE_DISCOVERY_STORAGE_KEY);
+    if (!rawRun) return;
+
+    try {
+      const parsed = JSON.parse(rawRun) as InlineDiscoveryRunState;
+      if (parsed?.runId && parsed?.workspaceId) {
+        setActiveInlineDiscovery(parsed);
+      }
+    } catch {
+      window.sessionStorage.removeItem(HOME_INLINE_DISCOVERY_STORAGE_KEY);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (previewMode) {
+      setActiveInlineDiscovery(null);
+    }
+  }, [previewMode]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
     window.sessionStorage.setItem(
       HOME_DRAFT_STORAGE_KEY,
       JSON.stringify({
@@ -1364,6 +1439,18 @@ function DashboardHome() {
       })
     );
   }, [commandMode, commandText, searchSource, selectedPlaybook]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!activeInlineDiscovery) {
+      window.sessionStorage.removeItem(HOME_INLINE_DISCOVERY_STORAGE_KEY);
+      return;
+    }
+    window.sessionStorage.setItem(
+      HOME_INLINE_DISCOVERY_STORAGE_KEY,
+      JSON.stringify(activeInlineDiscovery)
+    );
+  }, [activeInlineDiscovery]);
 
   useEffect(() => {
     const parsed = parseAudiencePrompt(commandText);
@@ -1379,12 +1466,11 @@ function DashboardHome() {
 
   const connectedLinkedInAccounts = useMemo(
     () =>
-      linkedInAccounts
+      availableLinkedInAccounts
         .filter((account) => account.status === 'connected')
         .sort((a, b) => getLinkedInAccountPriority(b) - getLinkedInAccountPriority(a)),
-    [linkedInAccounts]
+    [availableLinkedInAccounts]
   );
-  const leadLists = useMemo(() => leadListsResponse?.lists ?? [], [leadListsResponse]);
 
   const selectedLinkedInAccount =
     connectedLinkedInAccounts.find((account) => account.id === selectedLinkedInAccountId) ??
@@ -1392,8 +1478,12 @@ function DashboardHome() {
     null;
 
   const hasLinkedInConnected = connectedLinkedInAccounts.length > 0;
-  const hasEmailConnected = emailAccounts.some((account) => account.status === 'connected');
-  const hasCalendarConnected = calendarAccounts.some((account) => account.status === 'connected');
+  const hasEmailConnected = availableEmailAccounts.some(
+    (account) => account.status === 'connected'
+  );
+  const hasCalendarConnected = availableCalendarAccounts.some(
+    (account) => account.status === 'connected'
+  );
 
   useEffect(() => {
     if (!connectedLinkedInAccounts.length) {
@@ -1477,6 +1567,11 @@ function DashboardHome() {
       ].filter(Boolean) as string[],
     [selectedLinkedInAccount]
   );
+  const showInlineDiscoveryStatus =
+    activeInlineDiscovery?.workspaceId === currentWorkspaceId && Boolean(activeInlineDiscovery);
+  const inlineDiscoveryStatus = showInlineDiscoveryStatus
+    ? getInlineDiscoveryStatusState(activeInlineDiscoveryRun, activeInlineDiscovery)
+    : null;
 
   const activePlaybook = useMemo(
     () =>
@@ -1503,12 +1598,15 @@ function DashboardHome() {
         activePlaybook.id,
         activePlaybookField,
         activePlaybookAnswers,
-        workspace
+        dashboardWorkspace
       ),
-    [activePlaybook.id, activePlaybookAnswers, activePlaybookField, workspace]
+    [activePlaybook.id, activePlaybookAnswers, activePlaybookField, dashboardWorkspace]
   );
 
-  const suggestedSearches = useMemo(() => buildSuggestedSearches(workspace), [workspace]);
+  const suggestedSearches = useMemo(
+    () => buildSuggestedSearches(dashboardWorkspace),
+    [dashboardWorkspace]
+  );
 
   const commandPlaceholder =
     commandMode === 'search'
@@ -1527,22 +1625,22 @@ function DashboardHome() {
   const performanceStats = [
     {
       label: 'Connections Sent',
-      value: statsData?.connections_sent ?? 0,
+      value: availableStatsData?.connections_sent ?? 0,
       accent: '#2563EB',
     },
     {
       label: 'Replies',
-      value: (statsData?.message_replies ?? 0) + (statsData?.email_replies ?? 0),
+      value: (availableStatsData?.message_replies ?? 0) + (availableStatsData?.email_replies ?? 0),
       accent: '#16A34A',
     },
     {
       label: 'Emails Sent',
-      value: statsData?.emails_sent ?? 0,
+      value: availableStatsData?.emails_sent ?? 0,
       accent: '#F97316',
     },
     {
       label: 'Active Motions',
-      value: campaignsData.length,
+      value: availableCampaignsData.length,
       accent: '#7C3AED',
     },
   ];
@@ -1552,7 +1650,9 @@ function DashboardHome() {
       label: 'LinkedIn',
       ready: hasLinkedInConnected,
       description: hasLinkedInConnected
-        ? `${linkedInAccounts.length} sender${linkedInAccounts.length === 1 ? '' : 's'} available`
+        ? `${availableLinkedInAccounts.length} sender${
+            availableLinkedInAccounts.length === 1 ? '' : 's'
+          } available`
         : 'Connect a LinkedIn account to unlock LinkedIn Search and sender rotation.',
       search: { tab: 'linkedin' as const },
     },
@@ -1560,7 +1660,9 @@ function DashboardHome() {
       label: 'Email',
       ready: hasEmailConnected,
       description: hasEmailConnected
-        ? `${emailAccounts.length} inbox${emailAccounts.length === 1 ? '' : 'es'} attached`
+        ? `${availableEmailAccounts.length} inbox${
+            availableEmailAccounts.length === 1 ? '' : 'es'
+          } attached`
         : 'Attach an email account for follow-up delivery and multi-channel sequences.',
       search: { tab: 'email' as const },
     },
@@ -1568,7 +1670,9 @@ function DashboardHome() {
       label: 'Calendar',
       ready: hasCalendarConnected,
       description: hasCalendarConnected
-        ? `${calendarAccounts.length} calendar${calendarAccounts.length === 1 ? '' : 's'} synced`
+        ? `${availableCalendarAccounts.length} calendar${
+            availableCalendarAccounts.length === 1 ? '' : 's'
+          } synced`
         : 'Connect a calendar so Parrot can support event scheduling and booked-meeting flows.',
       search: { tab: 'calendar' as const },
     },
@@ -1653,11 +1757,12 @@ function DashboardHome() {
     setDiscoveryDestinationListId('');
     setDiscoveryNewListName('');
     setDiscoveryScheduleIntervalDays('0');
+    setDiscoveryRepeatPolicy('new_signal');
     setDiscoveryPreview(null);
     setDiscoveryPreviewing(false);
     setDiscoverySubmitting(false);
     setDiscoveryError(null);
-    setDiscoveryStarted(null);
+    setDiscoveryAdvancedOpen(false);
   }, []);
 
   const openDiscoverySetup = useCallback(
@@ -1668,25 +1773,65 @@ function DashboardHome() {
         return;
       }
 
-      setDiscoveryBriefDraft(trimmedPrompt);
-      setDiscoveryTargetWebsitesDraft('');
-      setDiscoverySpecialInstructionsDraft('');
+      const intent = normalizeStartCampaignIntent(trimmedPrompt);
+
+      setDiscoveryBriefDraft(intent.discoveryBrief || trimmedPrompt);
+      setDiscoveryTargetWebsitesDraft(intent.targetWebsites.join('\n'));
+      setDiscoverySpecialInstructionsDraft(intent.specialInstructions);
       setDiscoveryListMode('new');
       setDiscoveryDestinationListId('');
       setDiscoveryNewListName(buildInlineDiscoverySearchName(trimmedPrompt));
-      setDiscoveryScheduleIntervalDays('0');
+      setDiscoveryScheduleIntervalDays(intent.scheduleIntervalDays);
+      setDiscoveryRepeatPolicy('new_signal');
+      setDiscoveryAdvancedOpen(
+        Boolean(
+          intent.targetWebsites.length > 0 ||
+          intent.specialInstructions.trim() ||
+          Number(intent.scheduleIntervalDays) > 0
+        )
+      );
       setDiscoveryPreview(null);
       setDiscoveryPreviewing(false);
       setDiscoverySubmitting(false);
       setDiscoveryError(null);
-      setDiscoveryStarted(null);
       setDiscoverySetupOpen(true);
     },
     [commandText]
   );
 
+  useEffect(() => {
+    if (!previewMode || !previewDiscoveryDemoRequested || previewDiscoveryDemoOpened) return;
+
+    setCommandMode('search');
+    setSearchSource('discovery');
+    setActiveSuggestedSearchId(null);
+    setCommandText(DASHBOARD_PREVIEW_DISCOVERY_PROMPT);
+    setPreviewDiscoveryDemoOpened(true);
+
+    window.requestAnimationFrame(() => {
+      commandComposerRef.current?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      });
+      openDiscoverySetup(DASHBOARD_PREVIEW_DISCOVERY_PROMPT);
+    });
+  }, [openDiscoverySetup, previewDiscoveryDemoOpened, previewDiscoveryDemoRequested, previewMode]);
+
   const previewInlineDiscovery = useCallback(
     async (description: string, destinationListId?: string | null) => {
+      if (previewMode) {
+        setDiscoveryPreview({
+          ...DASHBOARD_PREVIEW_DISCOVERY_PREVIEW,
+          name: buildInlineDiscoverySearchName(description),
+          normalized_criteria: {
+            ...DASHBOARD_PREVIEW_DISCOVERY_PREVIEW.normalized_criteria,
+            brief: description.trim(),
+          },
+        });
+        setDiscoveryError(null);
+        return;
+      }
+
       if (!currentWorkspaceId || !description.trim()) {
         setDiscoveryPreview(null);
         return;
@@ -1701,6 +1846,7 @@ function DashboardHome() {
           linkedinAccountId: selectedLinkedInAccount?.id ?? '',
           destinationListId: destinationListId ?? null,
           scheduleIntervalDays: discoveryScheduleIntervalDays,
+          repeatPolicy: discoveryRepeatPolicy,
           workspaceId: currentWorkspaceId,
         });
         const response = await api.post<DiscoverySearchPreview>(
@@ -1723,13 +1869,20 @@ function DashboardHome() {
     [
       currentWorkspaceId,
       discoveryScheduleIntervalDays,
+      discoveryRepeatPolicy,
       discoverySpecialInstructionsDraft,
       discoveryTargetWebsitesDraft,
+      previewMode,
       selectedLinkedInAccount,
     ]
   );
 
   const handleStartInlineDiscovery = useCallback(async () => {
+    if (previewMode) {
+      toast('Preview mode only. Sign in to run Discovery.');
+      return;
+    }
+
     if (!currentWorkspaceId) {
       toast.error('Choose a workspace before starting Discovery.');
       return;
@@ -1772,11 +1925,12 @@ function DashboardHome() {
         linkedinAccountId: selectedLinkedInAccount?.id ?? '',
         destinationListId,
         scheduleIntervalDays: discoveryScheduleIntervalDays,
+        repeatPolicy: discoveryRepeatPolicy,
         workspaceId: currentWorkspaceId,
       });
       const created = await api.post<SavedDiscoverySearch>('/discovery/searches', payload);
       const run = await api.post<DiscoveryRun>(
-        `/discovery/searches/${created.data.id}/run?workspace_id=${currentWorkspaceId}`
+        `/discovery/searches/${created.data.id}/run?workspace_id=${currentWorkspaceId}&auto_save_to_list=true`
       );
 
       await Promise.all([
@@ -1791,14 +1945,28 @@ function DashboardHome() {
         }),
       ]);
 
-      setDiscoveryStarted({
+      announcedInlineDiscoveryRef.current = null;
+      setActiveInlineDiscovery({
+        workspaceId: currentWorkspaceId,
         searchId: created.data.id,
         runId: run.data.id,
         searchName: created.data.name,
         listId: destinationListId,
         listName: destinationListName,
+        brief: description,
+        targetWebsites: discoveryTargetWebsitesDraft,
+        specialInstructions: discoverySpecialInstructionsDraft,
+        scheduleIntervalDays: discoveryScheduleIntervalDays,
+        destinationListId: destinationListId || '',
+        newListName:
+          destinationListName ||
+          discoveryNewListName.trim() ||
+          buildInlineDiscoverySearchName(discoveryBriefDraft),
       });
-      toast.success('Search started. Leads will be available on the Leads page.');
+      setDiscoverySetupOpen(false);
+      toast.success(
+        "Discovery started. We'll add matching leads to your list and keep you posted here."
+      );
     } catch (error) {
       setDiscoveryError(
         error instanceof Error ? error.message : 'Unable to start discovery right now.'
@@ -1813,9 +1981,11 @@ function DashboardHome() {
     discoveryListMode,
     discoveryNewListName,
     discoveryScheduleIntervalDays,
+    discoveryRepeatPolicy,
     discoverySpecialInstructionsDraft,
     discoveryTargetWebsitesDraft,
     leadLists,
+    previewMode,
     queryClient,
     selectedLinkedInAccount,
   ]);
@@ -1841,6 +2011,100 @@ function DashboardHome() {
     previewInlineDiscovery,
   ]);
 
+  const openInlineDiscoveryLeads = useCallback(
+    (listId?: string | null) => {
+      if (!listId) return;
+      void navigate({
+        to: '/dashboard/leads',
+        search: {
+          listId,
+          discoveryOnly: true,
+        } as never,
+      } as never);
+    },
+    [navigate]
+  );
+
+  const reopenInlineDiscoverySetup = useCallback(() => {
+    if (!activeInlineDiscovery) {
+      openDiscoverySetup();
+      return;
+    }
+
+    setCommandMode('search');
+    setSearchSource('discovery');
+    setCommandText(activeInlineDiscovery.brief);
+    setDiscoveryBriefDraft(activeInlineDiscovery.brief);
+    setDiscoveryTargetWebsitesDraft(activeInlineDiscovery.targetWebsites);
+    setDiscoverySpecialInstructionsDraft(activeInlineDiscovery.specialInstructions);
+    setDiscoveryScheduleIntervalDays(activeInlineDiscovery.scheduleIntervalDays);
+    setDiscoveryDestinationListId(activeInlineDiscovery.destinationListId);
+    setDiscoveryNewListName(activeInlineDiscovery.newListName);
+    setDiscoveryListMode(activeInlineDiscovery.destinationListId ? 'existing' : 'new');
+    setDiscoveryAdvancedOpen(
+      Boolean(
+        activeInlineDiscovery.targetWebsites.trim() ||
+        activeInlineDiscovery.specialInstructions.trim() ||
+        Number(activeInlineDiscovery.scheduleIntervalDays) > 0
+      )
+    );
+    setDiscoveryPreview(null);
+    setDiscoveryPreviewing(false);
+    setDiscoverySubmitting(false);
+    setDiscoveryError(null);
+    setDiscoverySetupOpen(true);
+  }, [activeInlineDiscovery, openDiscoverySetup]);
+
+  const dismissInlineDiscoveryStatus = useCallback(() => {
+    setActiveInlineDiscovery(null);
+  }, []);
+
+  const announcedInlineDiscoveryRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!activeInlineDiscoveryRun || !activeInlineDiscovery) return;
+    if (!['completed', 'failed', 'cancelled'].includes(activeInlineDiscoveryRun.status)) return;
+
+    const savedCount = getDiscoverySavedLeadCount(activeInlineDiscoveryRun);
+    const totalCandidates = getDiscoveryTotalCandidates(activeInlineDiscoveryRun);
+    const protectedCampaignCount = getDiscoverySummaryCount(
+      activeInlineDiscoveryRun,
+      'protected_count'
+    );
+    const announcementKey = [
+      activeInlineDiscovery.runId,
+      activeInlineDiscoveryRun.status,
+      savedCount,
+      totalCandidates,
+      protectedCampaignCount,
+      activeInlineDiscoveryRun.error_message ?? '',
+    ].join(':');
+    if (announcedInlineDiscoveryRef.current === announcementKey) return;
+    announcedInlineDiscoveryRef.current = announcementKey;
+
+    if (activeInlineDiscoveryRun.status === 'completed' && savedCount > 0) {
+      toast.success(
+        `${savedCount} ${savedCount === 1 ? 'lead' : 'leads'} added to ${
+          activeInlineDiscovery.listName || 'your list'
+        }.`
+      );
+      return;
+    }
+
+    if (activeInlineDiscoveryRun.status === 'completed') {
+      toast(
+        protectedCampaignCount > 0
+          ? `${protectedCampaignCount} campaign ${protectedCampaignCount === 1 ? 'lead was' : 'leads were'} protected from duplicate outreach.`
+          : totalCandidates > 0
+            ? 'Discovery finished, but nothing was added to Leads.'
+            : 'Discovery finished with no strong matches.'
+      );
+      return;
+    }
+
+    toast.error(activeInlineDiscoveryRun.error_message || 'Discovery needs attention.');
+  }, [activeInlineDiscovery, activeInlineDiscoveryRun]);
+
   const openPlaybookSetup = (playbookId?: PlaybookId) => {
     const targetPlaybookId = playbookId ?? selectedPlaybook;
     if (targetPlaybookId !== selectedPlaybook) {
@@ -1850,7 +2114,7 @@ function DashboardHome() {
       if (current[targetPlaybookId]) return current;
       return {
         ...current,
-        [targetPlaybookId]: buildInitialPlaybookDraft(targetPlaybookId, workspace),
+        [targetPlaybookId]: buildInitialPlaybookDraft(targetPlaybookId, dashboardWorkspace),
       };
     });
     setPlaybookSetupStep(0);
@@ -1898,6 +2162,12 @@ function DashboardHome() {
   };
 
   const completePlaybookSetup = () => {
+    if (previewMode) {
+      toast('Preview mode only. Sign in to launch a playbook.');
+      setPlaybookSetupOpen(false);
+      return;
+    }
+
     const setupValues = activePlaybookConfig.fields.reduce<Record<string, string>>((acc, field) => {
       acc[field.id] = activePlaybookAnswers[field.id] ?? '';
       return acc;
@@ -1931,6 +2201,11 @@ function DashboardHome() {
   };
 
   const handleLaunchCommand = () => {
+    if (previewMode) {
+      toast('Preview mode only. Sign in to run searches or launch playbooks.');
+      return;
+    }
+
     if (typeof window !== 'undefined') {
       window.sessionStorage.setItem(
         HOME_LAUNCH_STORAGE_KEY,
@@ -1978,7 +2253,7 @@ function DashboardHome() {
   const visibleSuggestedSearches = suggestedSearches.slice(0, 3);
   const upcomingPlaybooks = growthPlaybooks.filter((playbook) => playbook.id !== activePlaybook.id);
   const hasPerformanceData = performanceStats.some((stat) => stat.value > 0);
-  const hasActivityData = activityData.length > 0;
+  const hasActivityData = availableActivityData.length > 0;
   const heroTitle =
     commandMode === 'search'
       ? 'Who do you want to reach?'
@@ -1993,7 +2268,7 @@ function DashboardHome() {
     missingChannels.find((channel) => channel.label === 'Calendar') ?? missingChannels[0] ?? null;
   const selectedSearchSourceLabel =
     searchSource === 'linkedin' ? 'LinkedIn People Search' : 'Discovery';
-  const canLaunchSearch = commandText.trim().length > 0;
+  const canLaunchSearch = !previewMode && commandText.trim().length > 0;
   const hasSearchComposerState =
     commandText.trim().length > 0 ||
     activeSuggestedSearchId !== null ||
@@ -2236,6 +2511,12 @@ function DashboardHome() {
   };
 
   const handleUploadListSelection = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (previewMode) {
+      toast('Preview mode only. Sign in to import a list.');
+      event.target.value = '';
+      return;
+    }
+
     const file = event.target.files?.[0];
     event.target.value = '';
 
@@ -2482,9 +2763,19 @@ function DashboardHome() {
   return (
     <>
       <div className="space-y-6">
-        {user?.partner_access && !dismissedPartnerBanner && (
+        {previewMode ? (
+          <section className="rounded-[24px] border border-[#FED7AA] bg-[#FFF7ED] px-5 py-4 text-sm text-[#9A3412] shadow-[0_12px_30px_rgba(15,23,42,0.04)]">
+            <p className="font-semibold text-[#C2410C]">Local preview mode</p>
+            <p className="mt-1">
+              This is a sign-in-free preview of the dashboard shell with sample workspace data.
+              Interactive actions are disabled here.
+            </p>
+          </section>
+        ) : null}
+
+        {activeUser?.partner_access && !dismissedPartnerBanner && (
           <PartnerAccessBanner
-            partnerAccess={user.partner_access}
+            partnerAccess={activeUser.partner_access}
             onDismiss={() => setDismissedPartnerBanner(true)}
           />
         )}
@@ -2540,8 +2831,25 @@ function DashboardHome() {
                         }
                       }}
                       placeholder={commandPlaceholder}
-                      className="min-h-[120px] w-full resize-none bg-transparent text-base leading-8 text-[#0F172A] outline-none placeholder:text-[#94A3B8]"
+                      className="min-h-[120px] w-full resize-none bg-transparent pb-12 pr-14 text-base leading-8 text-[#0F172A] outline-none placeholder:text-[#94A3B8]"
                     />
+                    <button
+                      type="button"
+                      onClick={handleLaunchCommand}
+                      disabled={!canLaunchSearch}
+                      className={`absolute bottom-4 right-4 inline-flex h-11 w-11 items-center justify-center rounded-2xl transition-all ${
+                        canLaunchSearch
+                          ? 'bg-[#FF6B35] text-white shadow-[0_10px_24px_rgba(255,107,53,0.26)] hover:bg-[#EA5A24]'
+                          : 'cursor-not-allowed bg-[#E2E8F0] text-[#94A3B8]'
+                      }`}
+                      aria-label={
+                        searchSource === 'linkedin' && !showSearchBreakdown
+                          ? 'Parse search into keywords and location'
+                          : 'Launch search'
+                      }
+                    >
+                      <ArrowUpRightIcon />
+                    </button>
                     {showSearchBreakdown && searchSource === 'linkedin' ? (
                       <div className="mt-4 border-t border-[#E2E8F0] pt-4">
                         <div className="mb-3 flex items-center justify-between gap-3">
@@ -2696,7 +3004,12 @@ function DashboardHome() {
                         <button
                           type="button"
                           onClick={() => uploadListInputRef.current?.click()}
-                          className="inline-flex items-center gap-2 rounded-xl px-2 py-1.5 text-sm font-medium text-[#475569] transition-colors hover:bg-white hover:text-[#0F172A]"
+                          disabled={previewMode}
+                          className={`inline-flex items-center gap-2 rounded-xl px-2 py-1.5 text-sm font-medium transition-colors ${
+                            previewMode
+                              ? 'cursor-not-allowed text-[#94A3B8]'
+                              : 'text-[#475569] hover:bg-white hover:text-[#0F172A]'
+                          }`}
                         >
                           <UploadListIcon />
                           Upload List
@@ -2708,23 +3021,6 @@ function DashboardHome() {
                           className="hidden"
                           onChange={handleUploadListSelection}
                         />
-                        <button
-                          type="button"
-                          onClick={handleLaunchCommand}
-                          disabled={!canLaunchSearch}
-                          className={`inline-flex h-11 w-11 items-center justify-center rounded-full transition-all ${
-                            canLaunchSearch
-                              ? 'bg-[#0F172A] text-white shadow-[0_10px_24px_rgba(15,23,42,0.18)] hover:bg-[#1E293B]'
-                              : 'cursor-not-allowed bg-[#E2E8F0] text-[#94A3B8]'
-                          }`}
-                          aria-label={
-                            searchSource === 'linkedin' && !showSearchBreakdown
-                              ? 'Parse search into keywords and location'
-                              : 'Launch search'
-                          }
-                        >
-                          <ArrowUpRightIcon />
-                        </button>
                       </div>
                     </div>
 
@@ -2850,7 +3146,7 @@ function DashboardHome() {
                       playbook.id,
                       playbookConfig,
                       playbookDrafts[playbook.id] ??
-                        buildInitialPlaybookDraft(playbook.id, workspace)
+                        buildInitialPlaybookDraft(playbook.id, dashboardWorkspace)
                     ).length;
                     return (
                       <motion.button
@@ -2905,6 +3201,20 @@ function DashboardHome() {
               </div>
             )}
           </div>
+
+          {commandMode === 'search' && showInlineDiscoveryStatus && activeInlineDiscovery ? (
+            <div className="mx-auto w-full max-w-4xl">
+              <InlineDiscoveryStatusCard
+                status={inlineDiscoveryStatus}
+                run={activeInlineDiscoveryRun}
+                listId={activeInlineDiscovery.listId}
+                listName={activeInlineDiscovery.listName}
+                onOpenLeads={() => openInlineDiscoveryLeads(activeInlineDiscovery.listId)}
+                onAdjust={reopenInlineDiscoverySetup}
+                onDismiss={dismissInlineDiscoveryStatus}
+              />
+            </div>
+          ) : null}
         </section>
 
         {commandMode === 'search' ? (
@@ -3014,9 +3324,9 @@ function DashboardHome() {
         ) : null}
 
         {commandMode === 'search' &&
-          (campaignsData.length > 0 || hasPerformanceData || hasActivityData) && (
+          (availableCampaignsData.length > 0 || hasPerformanceData || hasActivityData) && (
             <section className="grid gap-6 xl:grid-cols-[1fr_1fr]">
-              {campaignsData.length > 0 ? (
+              {availableCampaignsData.length > 0 ? (
                 <div className="rounded-[28px] border border-[#E2E8F0] bg-white p-6 shadow-[0_18px_40px_rgba(15,23,42,0.04)]">
                   <div className="mb-5 flex items-center justify-between gap-3">
                     <div>
@@ -3035,7 +3345,7 @@ function DashboardHome() {
                     </Link>
                   </div>
 
-                  {campaignsLoading ? (
+                  {dashboardCampaignsLoading ? (
                     <div className="space-y-3">
                       {Array.from({ length: 2 }).map((_, index) => (
                         <div
@@ -3049,7 +3359,7 @@ function DashboardHome() {
                     </div>
                   ) : (
                     <div className="space-y-4">
-                      {campaignsData.slice(0, 2).map((campaign) => (
+                      {availableCampaignsData.slice(0, 2).map((campaign) => (
                         <div
                           key={campaign.id}
                           className="rounded-[22px] border border-[#E2E8F0] bg-[#FCFDFE] p-4"
@@ -3145,7 +3455,7 @@ function DashboardHome() {
 
                   {hasActivityData ? (
                     <div className="space-y-3">
-                      {activityData.slice(0, 3).map((activity, index) => (
+                      {availableActivityData.slice(0, 3).map((activity, index) => (
                         <motion.div
                           key={`${activity.name}-${index}`}
                           initial={{ opacity: 0, y: 16 }}
@@ -3215,24 +3525,16 @@ function DashboardHome() {
         leadLists={leadLists}
         scheduleIntervalDays={discoveryScheduleIntervalDays}
         onChangeScheduleIntervalDays={setDiscoveryScheduleIntervalDays}
+        repeatPolicy={discoveryRepeatPolicy}
+        onChangeRepeatPolicy={setDiscoveryRepeatPolicy}
+        advancedOpen={discoveryAdvancedOpen}
+        onToggleAdvanced={() => setDiscoveryAdvancedOpen((open) => !open)}
         preview={discoveryPreview}
         previewing={discoveryPreviewing}
         submitting={discoverySubmitting}
         error={discoveryError}
-        started={discoveryStarted}
         onClose={resetDiscoverySetup}
         onStart={handleStartInlineDiscovery}
-        onOpenLeads={() => {
-          if (!discoveryStarted) return;
-          resetDiscoverySetup();
-          void navigate({
-            to: '/dashboard/leads',
-            search: {
-              listId: discoveryStarted.listId || undefined,
-              discoveryOnly: true,
-            } as never,
-          } as never);
-        }}
       />
 
       <HomeCsvMappingModal
@@ -3281,6 +3583,8 @@ function DashboardHome() {
 }
 
 function inferInlineDiscoverySearchType(description: string): 'intent' | 'event' {
+  const parsedType = normalizeStartCampaignIntent(description).searchType;
+  if (parsedType === 'event') return 'event';
   return /\b(funding|funded|raised|launch|launched|hire|hiring|appointed|promoted|acquired|acquisition|expansion|expanding|partnership|merged|opening|opened|conference|webinar|summit|event)\b/i.test(
     description
   )
@@ -3295,7 +3599,11 @@ function buildInlineDiscoverySearchName(description: string) {
 }
 
 function buildInlineDiscoveryLinkedInSearchParams(description: string): Record<string, unknown> {
-  const keywordText = description.trim().replace(/\s+/g, ' ').slice(0, 180);
+  const intent = normalizeStartCampaignIntent(description);
+  const keywordText = (intent.linkedinKeywords || description)
+    .trim()
+    .replace(/\s+/g, ' ')
+    .slice(0, 180);
   if (!keywordText) return {};
 
   return {
@@ -3324,6 +3632,7 @@ function buildInlineDiscoveryPayload({
   linkedinAccountId,
   destinationListId,
   scheduleIntervalDays,
+  repeatPolicy,
   workspaceId,
 }: {
   description: string;
@@ -3332,9 +3641,11 @@ function buildInlineDiscoveryPayload({
   linkedinAccountId: string;
   destinationListId?: string | null;
   scheduleIntervalDays: string;
+  repeatPolicy: DiscoveryRepeatPolicy;
   workspaceId: string;
 }): DiscoverySearchCreateRequest {
-  const searchType = inferInlineDiscoverySearchType(description);
+  const combinedIntentText = [description, specialInstructions].filter(Boolean).join('\n');
+  const searchType = inferInlineDiscoverySearchType(combinedIntentText);
   const intervalDays = Number(scheduleIntervalDays || 0);
   const linkedInEnabled = Boolean(linkedinAccountId);
   const normalizedTargetWebsites = parseInlineDiscoveryTargetWebsites(targetWebsites);
@@ -3350,6 +3661,14 @@ function buildInlineDiscoveryPayload({
       special_instructions: specialInstructions.trim() || null,
     },
     source_config_json: {
+      discovery_policy: {
+        destination_duplicates: 'skip',
+        existing_workspace: 'copy_to_list',
+        active_campaign: 'protect',
+        paused_campaign: 'protect',
+        past_campaign: 'copy_to_list',
+        repeat_matches: intervalDays > 0 ? repeatPolicy : 'new_signal',
+      },
       web: {
         enabled: true,
         max_results: 25,
@@ -3360,7 +3679,9 @@ function buildInlineDiscoveryPayload({
         enabled: linkedInEnabled,
         linkedin_account_id: linkedInEnabled ? linkedinAccountId : null,
         max_results: 25,
-        search_params: linkedInEnabled ? buildInlineDiscoveryLinkedInSearchParams(description) : {},
+        search_params: linkedInEnabled
+          ? buildInlineDiscoveryLinkedInSearchParams(combinedIntentText)
+          : {},
       },
     },
     destination_list_id: destinationListId || null,
@@ -3385,6 +3706,383 @@ function buildInlineDiscoveryPayload({
   };
 }
 
+function getDiscoveryResultsByStatus(run: DiscoveryRun | null | undefined): Record<string, number> {
+  const rawCounts = run?.summary_json?.results_by_status;
+  if (!rawCounts || typeof rawCounts !== 'object' || Array.isArray(rawCounts)) {
+    return {};
+  }
+
+  return Object.entries(rawCounts as Record<string, unknown>).reduce<Record<string, number>>(
+    (accumulator, [key, value]) => {
+      const count = Number(value);
+      if (Number.isFinite(count) && count >= 0) {
+        accumulator[key] = count;
+      }
+      return accumulator;
+    },
+    {}
+  );
+}
+
+function getDiscoverySavedLeadCount(run: DiscoveryRun | null | undefined): number {
+  const explicitSavedCount = Number(run?.summary_json?.auto_saved_count);
+  if (Number.isFinite(explicitSavedCount) && explicitSavedCount >= 0) {
+    return explicitSavedCount;
+  }
+
+  const counts = getDiscoveryResultsByStatus(run);
+  return counts.saved_to_list ?? 0;
+}
+
+function getDiscoverySummaryCount(run: DiscoveryRun | null | undefined, key: string): number {
+  const count = Number(run?.summary_json?.[key]);
+  return Number.isFinite(count) && count >= 0 ? count : 0;
+}
+
+function getDiscoveryTotalCandidates(run: DiscoveryRun | null | undefined): number {
+  const explicitTotal = Number(run?.summary_json?.total_candidates);
+  if (Number.isFinite(explicitTotal) && explicitTotal >= 0) {
+    return explicitTotal;
+  }
+
+  const counts = getDiscoveryResultsByStatus(run);
+  return Object.values(counts).reduce((sum, count) => sum + count, 0);
+}
+
+function getDiscoverySourceErrors(run: DiscoveryRun | null | undefined): string[] {
+  const sourceSummary = run?.source_summary_json;
+  if (!sourceSummary || typeof sourceSummary !== 'object' || Array.isArray(sourceSummary)) {
+    return [];
+  }
+
+  const messages: string[] = [];
+  for (const [sourceName, rawSummary] of Object.entries(sourceSummary as Record<string, unknown>)) {
+    if (!rawSummary || typeof rawSummary !== 'object' || Array.isArray(rawSummary)) continue;
+    const errorCode = (rawSummary as Record<string, unknown>).error;
+    if (typeof errorCode !== 'string' || !errorCode.trim()) continue;
+    messages.push(describeDiscoverySourceError(sourceName, errorCode));
+  }
+
+  return Array.from(new Set(messages));
+}
+
+function describeDiscoverySourceError(sourceName: string, errorCode: string): string {
+  const label = sourceName === 'linkedin' ? 'LinkedIn' : sourceName === 'web' ? 'Web' : sourceName;
+
+  switch (errorCode) {
+    case 'missing_account_or_search_params':
+      return `${label} search was skipped because the source was not fully configured.`;
+    case 'openai_api_key_missing':
+      return `${label} search is not configured on this workspace yet.`;
+    case 'web_search_timeout':
+      return `${label} search timed out before results were returned.`;
+    case 'web_search_failed':
+      return `${label} search failed before results could be collected.`;
+    default:
+      return `${label} search reported: ${errorCode.replace(/_/g, ' ')}.`;
+  }
+}
+
+function describeDiscoverySchedule(intervalDays: string): string | null {
+  const interval = Number(intervalDays);
+  if (!Number.isFinite(interval) || interval <= 0) return null;
+  if (interval === 7) return 'Repeats weekly';
+  if (interval === 14) return 'Repeats every 2 weeks';
+  return `Repeats every ${interval} days`;
+}
+
+function getInlineDiscoveryStatusState(
+  run: DiscoveryRun | null | undefined,
+  activeRun: InlineDiscoveryRunState
+): InlineDiscoveryStatusState {
+  const listLabel = activeRun.listName || activeRun.newListName || 'your leads list';
+  const counts = getDiscoveryResultsByStatus(run);
+  const savedCount = getDiscoverySavedLeadCount(run);
+  const totalCandidates = getDiscoveryTotalCandidates(run);
+  const alreadyKnownCount = (counts.already_in_workspace ?? 0) + (counts.already_in_list ?? 0);
+  const destinationDuplicateCount = getDiscoverySummaryCount(run, 'destination_duplicate_count');
+  const protectedActiveCampaignCount = getDiscoverySummaryCount(
+    run,
+    'protected_active_campaign_count'
+  );
+  const protectedPausedCampaignCount = getDiscoverySummaryCount(
+    run,
+    'protected_paused_campaign_count'
+  );
+  const protectedCampaignCount = getDiscoverySummaryCount(run, 'protected_count');
+  const reactivationCandidateCount = getDiscoverySummaryCount(run, 'reactivation_candidate_count');
+  const sourceErrors = getDiscoverySourceErrors(run);
+  const scheduleLabel = describeDiscoverySchedule(activeRun.scheduleIntervalDays);
+
+  const commonMeta = [
+    `Destination: ${listLabel}`,
+    activeRun.targetWebsites.trim()
+      ? `${parseInlineDiscoveryTargetWebsites(activeRun.targetWebsites).length} target site${
+          parseInlineDiscoveryTargetWebsites(activeRun.targetWebsites).length === 1 ? '' : 's'
+        }`
+      : null,
+    scheduleLabel,
+    protectedActiveCampaignCount > 0
+      ? `${protectedActiveCampaignCount} active campaign match${
+          protectedActiveCampaignCount === 1 ? '' : 'es'
+        } protected`
+      : null,
+    protectedPausedCampaignCount > 0
+      ? `${protectedPausedCampaignCount} paused campaign match${
+          protectedPausedCampaignCount === 1 ? '' : 'es'
+        } held for review`
+      : null,
+    reactivationCandidateCount > 0
+      ? `${reactivationCandidateCount} past campaign match${
+          reactivationCandidateCount === 1 ? '' : 'es'
+        } treated as reactivation`
+      : null,
+    destinationDuplicateCount > 0
+      ? `${destinationDuplicateCount} already in destination list`
+      : null,
+  ].filter(Boolean) as string[];
+
+  if (!run || run.status === 'pending' || run.status === 'running') {
+    return {
+      kind: 'running',
+      badge: run?.status === 'pending' ? 'Discovery queued' : 'Discovery running',
+      title: `Building matches for ${listLabel}`,
+      body: 'Parrot is sourcing in the background and will add any net-new matches into your lead list automatically.',
+      meta: commonMeta,
+      primaryAction: 'open-leads',
+      primaryLabel: 'Open destination list',
+      secondaryLabel: 'Hide',
+    };
+  }
+
+  if (run.status === 'failed' || run.status === 'cancelled') {
+    return {
+      kind: 'failed',
+      badge: run.status === 'cancelled' ? 'Discovery cancelled' : 'Discovery failed',
+      title: `Discovery could not finish for ${listLabel}`,
+      body:
+        run.error_message ||
+        sourceErrors[0] ||
+        'The search stopped before leads could be added. Adjust the brief and try again.',
+      meta: [...commonMeta, ...sourceErrors.slice(0, 1)],
+      primaryAction: 'adjust',
+      primaryLabel: 'Adjust search',
+      secondaryLabel: 'Dismiss',
+    };
+  }
+
+  if (typeof run.summary_json?.auto_save_error === 'string' && run.summary_json.auto_save_error) {
+    return {
+      kind: 'attention',
+      badge: 'Needs attention',
+      title: `Discovery found matches but could not save them to ${listLabel}`,
+      body: 'The run completed, but the automatic save step failed. Reopen the search and retry once the destination list is available.',
+      meta: [...commonMeta, 'Auto-save needs a retry'],
+      primaryAction: 'adjust',
+      primaryLabel: 'Adjust search',
+      secondaryLabel: 'Dismiss',
+    };
+  }
+
+  if (savedCount > 0) {
+    const protectedCopy =
+      protectedCampaignCount > 0
+        ? `${protectedCampaignCount} campaign match${
+            protectedCampaignCount === 1 ? ' was' : 'es were'
+          } added to the list as protected known ${
+            protectedCampaignCount === 1 ? 'lead' : 'leads'
+          }, without creating duplicate outreach records.`
+        : '';
+    const knownCopy =
+      alreadyKnownCount > 0 && protectedCampaignCount === 0
+        ? `${alreadyKnownCount} additional match${
+            alreadyKnownCount === 1 ? ' was' : 'es were'
+          } already in your workspace, so Parrot only added safe leads.`
+        : '';
+    return {
+      kind: 'success',
+      badge: 'Leads added',
+      title: `${savedCount} ${savedCount === 1 ? 'lead' : 'leads'} added to ${listLabel}`,
+      body:
+        protectedCopy ||
+        knownCopy ||
+        'The run completed and the new matches are ready to review from Leads.',
+      meta: [
+        ...commonMeta,
+        totalCandidates > 0
+          ? `${totalCandidates} total match${totalCandidates === 1 ? '' : 'es'}`
+          : null,
+      ].filter(Boolean) as string[],
+      primaryAction: 'open-leads',
+      primaryLabel: 'Open leads',
+      secondaryLabel: 'Dismiss',
+    };
+  }
+
+  if (protectedCampaignCount > 0) {
+    return {
+      kind: 'attention',
+      badge: 'Campaign leads protected',
+      title: `Discovery found matches already in campaigns`,
+      body: `Parrot found ${protectedCampaignCount} campaign match${
+        protectedCampaignCount === 1 ? '' : 'es'
+      }. They now appear in this list as protected known ${
+        protectedCampaignCount === 1 ? 'lead' : 'leads'
+      }, and new discovery context was attached to the existing record.`,
+      meta: [...commonMeta, ...sourceErrors.slice(0, 1)],
+      primaryAction: 'open-leads',
+      primaryLabel: 'Open destination list',
+      secondaryLabel: 'Dismiss',
+    };
+  }
+
+  if (alreadyKnownCount > 0) {
+    return {
+      kind: 'attention',
+      badge: 'No new leads added',
+      title: `Discovery matched existing leads instead of adding new ones`,
+      body: `Parrot found ${alreadyKnownCount} match${
+        alreadyKnownCount === 1 ? '' : 'es'
+      }, but they were already in your workspace or this list. Parrot updated the known lead context instead of creating duplicates.`,
+      meta: [...commonMeta, ...sourceErrors.slice(0, 1)],
+      primaryAction: 'open-leads',
+      primaryLabel: 'Open destination list',
+      secondaryLabel: 'Dismiss',
+    };
+  }
+
+  return {
+    kind: 'empty',
+    badge: 'No matches found',
+    title: `Discovery finished without strong matches`,
+    body:
+      sourceErrors[0] ||
+      'Parrot completed the run, but the brief did not produce any net-new leads. Broaden the audience, relax the filters, or add different target sites.',
+    meta: commonMeta,
+    primaryAction: 'adjust',
+    primaryLabel: 'Adjust search',
+    secondaryLabel: 'Dismiss',
+  };
+}
+
+function InlineDiscoveryStatusCard({
+  status,
+  run,
+  listId,
+  listName,
+  onOpenLeads,
+  onAdjust,
+  onDismiss,
+}: {
+  status: InlineDiscoveryStatusState | null;
+  run?: DiscoveryRun | null;
+  listId?: string | null;
+  listName?: string | null;
+  onOpenLeads: () => void;
+  onAdjust: () => void;
+  onDismiss: () => void;
+}) {
+  if (!status) return null;
+
+  const palette =
+    status.kind === 'success'
+      ? {
+          shell: 'border-[#BBF7D0] bg-gradient-to-r from-[#ECFDF5] via-white to-[#F0FDF4]',
+          badge: 'bg-[#DCFCE7] text-[#166534]',
+          title: 'text-[#14532D]',
+          body: 'text-[#166534]',
+          meta: 'border-[#BBF7D0] bg-white/90 text-[#166534]',
+        }
+      : status.kind === 'failed'
+        ? {
+            shell: 'border-[#FECACA] bg-gradient-to-r from-[#FEF2F2] via-white to-[#FFF1F2]',
+            badge: 'bg-[#FEE2E2] text-[#B91C1C]',
+            title: 'text-[#7F1D1D]',
+            body: 'text-[#991B1B]',
+            meta: 'border-[#FECACA] bg-white/90 text-[#991B1B]',
+          }
+        : status.kind === 'attention' || status.kind === 'empty'
+          ? {
+              shell: 'border-[#FED7AA] bg-gradient-to-r from-[#FFF7ED] via-white to-[#FFFBEB]',
+              badge: 'bg-[#FFEDD5] text-[#C2410C]',
+              title: 'text-[#9A3412]',
+              body: 'text-[#9A3412]',
+              meta: 'border-[#FED7AA] bg-white/90 text-[#9A3412]',
+            }
+          : {
+              shell: 'border-[#BFDBFE] bg-gradient-to-r from-[#EFF6FF] via-white to-[#F8FAFC]',
+              badge: 'bg-[#DBEAFE] text-[#1D4ED8]',
+              title: 'text-[#1E3A8A]',
+              body: 'text-[#1D4ED8]',
+              meta: 'border-[#BFDBFE] bg-white/90 text-[#1D4ED8]',
+            };
+
+  const primaryAction = status.primaryAction === 'open-leads' && listId ? onOpenLeads : onAdjust;
+  const primaryLabel =
+    status.primaryAction === 'open-leads' && listId ? status.primaryLabel : 'Adjust search';
+
+  return (
+    <div
+      className={`rounded-[28px] border p-5 shadow-[0_18px_40px_rgba(15,23,42,0.05)] md:p-6 ${palette.shell}`}
+    >
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0">
+          <span
+            className={`inline-flex rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${palette.badge}`}
+          >
+            {status.badge}
+          </span>
+          <h3 className={`mt-3 text-xl font-semibold ${palette.title}`}>{status.title}</h3>
+          <p className={`mt-2 max-w-3xl text-sm leading-6 ${palette.body}`}>{status.body}</p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {(status.meta.length > 0 ? status.meta : [listName ? `Destination: ${listName}` : null])
+              .filter(Boolean)
+              .map((item) => (
+                <span
+                  key={item}
+                  className={`rounded-full border px-3 py-1.5 text-xs font-medium ${palette.meta}`}
+                >
+                  {item}
+                </span>
+              ))}
+            {run?.completed_at ? (
+              <span
+                className={`rounded-full border px-3 py-1.5 text-xs font-medium ${palette.meta}`}
+              >
+                Updated{' '}
+                {new Date(run.completed_at).toLocaleTimeString([], {
+                  hour: 'numeric',
+                  minute: '2-digit',
+                })}
+              </span>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="flex shrink-0 flex-wrap gap-3 lg:justify-end">
+          <button
+            type="button"
+            onClick={primaryAction}
+            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#0F172A] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#1E293B]"
+          >
+            {primaryLabel}
+            <ArrowUpRightIcon />
+          </button>
+          {status.secondaryLabel ? (
+            <button
+              type="button"
+              onClick={onDismiss}
+              className="inline-flex items-center justify-center rounded-2xl border border-[#E2E8F0] bg-white/90 px-4 py-2.5 text-sm font-semibold text-[#475569] transition-colors hover:bg-white"
+            >
+              {status.secondaryLabel}
+            </button>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function InlineDiscoverySetupModal({
   open,
   brief,
@@ -3404,14 +4102,16 @@ function InlineDiscoverySetupModal({
   leadLists,
   scheduleIntervalDays,
   onChangeScheduleIntervalDays,
+  repeatPolicy,
+  onChangeRepeatPolicy,
+  advancedOpen,
+  onToggleAdvanced,
   preview,
   previewing,
   submitting,
   error,
-  started,
   onClose,
   onStart,
-  onOpenLeads,
 }: {
   open: boolean;
   brief: string;
@@ -3431,20 +4131,16 @@ function InlineDiscoverySetupModal({
   leadLists: LeadList[];
   scheduleIntervalDays: string;
   onChangeScheduleIntervalDays: (value: string) => void;
+  repeatPolicy: DiscoveryRepeatPolicy;
+  onChangeRepeatPolicy: (value: DiscoveryRepeatPolicy) => void;
+  advancedOpen: boolean;
+  onToggleAdvanced: () => void;
   preview: DiscoverySearchPreview | null;
   previewing: boolean;
   submitting: boolean;
   error: string | null;
-  started: {
-    searchId: string;
-    runId: string;
-    searchName: string;
-    listId: string | null;
-    listName: string | null;
-  } | null;
   onClose: () => void;
   onStart: () => void;
-  onOpenLeads: () => void;
 }) {
   if (!open || typeof document === 'undefined') return null;
 
@@ -3462,6 +4158,8 @@ function InlineDiscoverySetupModal({
         .filter(Boolean)
     )
   );
+  const isRecurringDiscovery = scheduleIntervalDays !== '0';
+  const showLegacyAdvancedFields = false;
 
   return createPortal(
     <div className="fixed inset-0 z-[88] flex items-center justify-center bg-[#0F172A]/40 p-4 backdrop-blur-sm">
@@ -3483,12 +4181,11 @@ function InlineDiscoverySetupModal({
                 </span>
               </div>
               <h2 className="mt-3 text-2xl font-semibold text-[#0F172A]">
-                {started ? 'Search started' : 'Set up this discovery search'}
+                Set up this discovery search
               </h2>
               <p className="mt-2 text-sm leading-6 text-[#64748B]">
-                {started
-                  ? 'Parrot has started the search. Leads will be available on the Leads page when results are saved.'
-                  : 'Keep this lightweight: confirm the brief, choose where results should land, and start the run.'}
+                Keep this lightweight: confirm the brief, choose where results should land, and
+                start the run.
               </p>
             </div>
             <button
@@ -3503,70 +4200,28 @@ function InlineDiscoverySetupModal({
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 md:px-7 md:py-6">
-          {started ? (
-            <div className="grid gap-4 lg:grid-cols-[1.05fr_0.95fr]">
-              <div className="rounded-[26px] border border-[#E2E8F0] bg-gradient-to-br from-[#F8FBFF] to-white p-6">
-                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#94A3B8]">
-                  Live now
+          <div className="grid gap-4 lg:grid-cols-[1.08fr_0.92fr]">
+            <div className="space-y-4">
+              <div className="rounded-[26px] border border-[#E2E8F0] bg-[#FCFDFE] p-5">
+                <label className="block">
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#94A3B8]">
+                    Brief
+                  </span>
+                  <textarea
+                    value={brief}
+                    onChange={(event) => onChangeBrief(event.target.value)}
+                    rows={4}
+                    placeholder="Companies expanding into Saudi Arabia and hiring enterprise account executives"
+                    className="mt-3 min-h-[148px] w-full resize-none rounded-[22px] border border-[#E2E8F0] bg-white px-4 py-4 text-base leading-7 text-[#0F172A] outline-none transition-colors focus:border-[#FF6B35]"
+                  />
+                </label>
+                <p className="mt-3 text-xs leading-5 text-[#64748B]">
+                  Keep it outcome-based. Parrot works best when the brief explains the audience,
+                  signal, or market you want to uncover.
                 </p>
-                <h3 className="mt-3 text-2xl font-semibold text-[#0F172A]">{started.searchName}</h3>
-                <p className="mt-3 text-sm leading-6 text-[#475569]">
-                  Parrot is now scanning the sources below and will push matched results into your
-                  destination list as the run completes, so they can be worked from Leads.
-                </p>
-                <div className="mt-5 flex flex-wrap gap-2">
-                  {sourceCoverage.map((item) => (
-                    <span
-                      key={item}
-                      className="rounded-full border border-[#DBEAFE] bg-[#EFF6FF] px-3 py-1.5 text-xs font-medium text-[#1D4ED8]"
-                    >
-                      {item}
-                    </span>
-                  ))}
-                </div>
               </div>
 
-              <div className="space-y-4">
-                <div className="rounded-[24px] border border-[#E2E8F0] bg-[#FCFDFE] p-5">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#94A3B8]">
-                    Results destination
-                  </p>
-                  <p className="mt-3 text-base font-semibold text-[#0F172A]">
-                    {started.listName || 'Discovery results will stay attached to this run'}
-                  </p>
-                </div>
-                <div className="rounded-[24px] border border-[#E2E8F0] bg-[#FCFDFE] p-5">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#94A3B8]">
-                    What happens next
-                  </p>
-                  <div className="mt-3 space-y-3 text-sm leading-6 text-[#475569]">
-                    <p>1. Parrot collects candidates from the selected sources.</p>
-                    <p>2. Results are saved into Leads and tagged as Discovery.</p>
-                    <p>
-                      3. You can open the Leads page to review, enrich, and use them in campaigns.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="grid gap-4 lg:grid-cols-[1.08fr_0.92fr]">
-              <div className="space-y-4">
-                <div className="rounded-[26px] border border-[#E2E8F0] bg-[#FCFDFE] p-5">
-                  <label className="block">
-                    <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#94A3B8]">
-                      Brief
-                    </span>
-                    <textarea
-                      value={brief}
-                      onChange={(event) => onChangeBrief(event.target.value)}
-                      rows={4}
-                      placeholder="Companies expanding into Saudi Arabia and hiring enterprise account executives"
-                      className="mt-3 min-h-[148px] w-full resize-none rounded-[22px] border border-[#E2E8F0] bg-white px-4 py-4 text-base leading-7 text-[#0F172A] outline-none transition-colors focus:border-[#FF6B35]"
-                    />
-                  </label>
-                </div>
-
+              {showLegacyAdvancedFields ? (
                 <div className="grid gap-4 lg:grid-cols-2">
                   <ModalFieldCard
                     icon="🌐"
@@ -3643,45 +4298,53 @@ function InlineDiscoverySetupModal({
                     </div>
                   </ModalFieldCard>
                 </div>
+              ) : null}
 
-                <div className="rounded-[26px] border border-[#E2E8F0] bg-[#FCFDFE] p-5">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#94A3B8]">
-                    Save results into
-                  </p>
-                  <div className="mt-4 inline-flex rounded-2xl border border-[#E2E8F0] bg-white p-1">
-                    <button
-                      type="button"
-                      onClick={() => onChangeListMode('new')}
-                      className={`rounded-xl px-4 py-2 text-sm font-medium transition-colors ${
-                        listMode === 'new'
-                          ? 'bg-[#0F172A] text-white'
-                          : 'text-[#64748B] hover:text-[#0F172A]'
-                      }`}
-                    >
-                      New list
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onChangeListMode('existing')}
-                      disabled={!leadLists.length}
-                      className={`rounded-xl px-4 py-2 text-sm font-medium transition-colors ${
-                        listMode === 'existing'
-                          ? 'bg-[#0F172A] text-white'
-                          : 'text-[#64748B] hover:text-[#0F172A]'
-                      } disabled:cursor-not-allowed disabled:opacity-50`}
-                    >
-                      Existing list
-                    </button>
-                  </div>
+              <div className="rounded-[26px] border border-[#E2E8F0] bg-[#FCFDFE] p-5">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#94A3B8]">
+                  Save matches into
+                </p>
+                <div className="mt-4 inline-flex rounded-2xl border border-[#E2E8F0] bg-white p-1">
+                  <button
+                    type="button"
+                    onClick={() => onChangeListMode('new')}
+                    className={`rounded-xl px-4 py-2 text-sm font-medium transition-colors ${
+                      listMode === 'new'
+                        ? 'bg-[#0F172A] text-white'
+                        : 'text-[#64748B] hover:text-[#0F172A]'
+                    }`}
+                  >
+                    New list
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onChangeListMode('existing')}
+                    disabled={!leadLists.length}
+                    className={`rounded-xl px-4 py-2 text-sm font-medium transition-colors ${
+                      listMode === 'existing'
+                        ? 'bg-[#0F172A] text-white'
+                        : 'text-[#64748B] hover:text-[#0F172A]'
+                    } disabled:cursor-not-allowed disabled:opacity-50`}
+                  >
+                    Existing list
+                  </button>
+                </div>
 
-                  {listMode === 'new' ? (
+                {listMode === 'new' ? (
+                  <>
                     <input
                       value={newListName}
                       onChange={(event) => onChangeNewListName(event.target.value)}
                       className="mt-4 h-12 w-full rounded-[18px] border border-[#E2E8F0] bg-white px-4 text-sm text-[#0F172A] outline-none transition-colors focus:border-[#FF6B35]"
                       placeholder="Discovery list name"
                     />
-                  ) : (
+                    <p className="mt-3 text-xs leading-5 text-[#64748B]">
+                      Parrot will create this list and add matching leads as the run completes.
+                      Existing leads are copied into this list so other lists stay unchanged.
+                    </p>
+                  </>
+                ) : (
+                  <>
                     <select
                       value={destinationListId}
                       onChange={(event) => onChangeDestinationListId(event.target.value)}
@@ -3694,113 +4357,275 @@ function InlineDiscoverySetupModal({
                         </option>
                       ))}
                     </select>
-                  )}
+                    <p className="mt-3 text-xs leading-5 text-[#64748B]">
+                      Use an existing list if this search should keep building one working audience.
+                    </p>
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="rounded-[26px] border border-[#E2E8F0] bg-white p-5">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#94A3B8]">
+                  What Parrot will do
+                </p>
+                <div className="mt-4 space-y-3 text-sm leading-6 text-[#475569]">
+                  <p>1. Search the selected sources for matching leads.</p>
+                  <p>2. Add safe new matches to the destination list.</p>
+                  <p>3. Protect active or paused campaign leads from duplicate outreach.</p>
+                  <p>
+                    4. Attach new discovery context to known leads instead of losing the signal.
+                  </p>
                 </div>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {sourceCoverage.map((item) => (
+                    <span
+                      key={item}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-[#A7F3D0] bg-[#ECFDF5] px-3 py-1.5 text-xs font-medium text-[#047857]"
+                    >
+                      <span className="h-1.5 w-1.5 rounded-full bg-[#10B981]" aria-hidden="true" />
+                      {item}
+                    </span>
+                  ))}
+                </div>
+                {!linkedInConnected ? (
+                  <p className="mt-3 text-sm leading-6 text-[#64748B]">
+                    Discovery can still run on web search right now. Connect LinkedIn later to widen
+                    coverage.
+                  </p>
+                ) : null}
               </div>
 
-              <div className="space-y-4">
-                <div className="rounded-[26px] border border-[#E2E8F0] bg-white p-5">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#94A3B8]">
-                    Coverage
-                  </p>
+              <div className="rounded-[26px] border border-[#E2E8F0] bg-white p-5">
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#94A3B8]">
+                      Advanced
+                    </p>
+                    <p className="mt-2 text-sm leading-6 text-[#64748B]">
+                      Only expand this if you want to steer the search more tightly.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={onToggleAdvanced}
+                    className="inline-flex items-center justify-center rounded-full border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-[#475569] transition-colors hover:bg-white"
+                  >
+                    {advancedOpen ? 'Hide' : 'Show'}
+                  </button>
+                </div>
+                {advancedOpen ? (
+                  <div className="mt-4 space-y-4">
+                    <ModalFieldCard
+                      icon="W"
+                      label="Target websites"
+                      badge={
+                        parsedTargetDomains.length > 0
+                          ? `${parsedTargetDomains.length} domain${parsedTargetDomains.length === 1 ? '' : 's'}`
+                          : 'Optional'
+                      }
+                      accent={parsedTargetDomains.length > 0}
+                    >
+                      <textarea
+                        value={targetWebsites}
+                        onChange={(event) => onChangeTargetWebsites(event.target.value)}
+                        rows={4}
+                        placeholder={'stripe.com\nnotion.so\nrippling.com'}
+                        className="mt-3 min-h-[120px] w-full resize-none rounded-[22px] border border-[#E2E8F0] bg-white px-4 py-4 font-mono text-[13px] leading-6 text-[#0F172A] outline-none transition placeholder:font-sans placeholder:text-[#94A3B8] focus:border-[#FF6B35] focus:ring-2 focus:ring-[#FF6B35]/15"
+                      />
+                      {parsedTargetDomains.length > 0 ? (
+                        <div className="mt-3 flex flex-wrap gap-1.5">
+                          {parsedTargetDomains.map((domain) => (
+                            <span
+                              key={domain}
+                              className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-[11px] font-medium text-[#0F172A] ring-1 ring-[#E2E8F0]"
+                            >
+                              <span
+                                className="h-1.5 w-1.5 rounded-full bg-[#14B8A6]"
+                                aria-hidden="true"
+                              />
+                              {domain}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="mt-3 text-xs leading-5 text-[#64748B]">
+                          One domain per line. Discovery will prioritize companies and people tied
+                          to those sites.
+                        </p>
+                      )}
+                    </ModalFieldCard>
+
+                    <ModalFieldCard
+                      icon="+"
+                      label="Special instructions"
+                      badge={specialInstructions.trim() ? 'Active' : 'Optional'}
+                      accent={specialInstructions.trim().length > 0}
+                    >
+                      <textarea
+                        value={specialInstructions}
+                        onChange={(event) => onChangeSpecialInstructions(event.target.value)}
+                        rows={4}
+                        placeholder="Prioritize direct decision-makers, avoid agencies, and favor companies with active hiring or expansion signals."
+                        className="mt-3 min-h-[120px] w-full resize-none rounded-[22px] border border-[#E2E8F0] bg-white px-4 py-4 text-sm leading-6 text-[#0F172A] outline-none transition placeholder:text-[#94A3B8] focus:border-[#FF6B35] focus:ring-2 focus:ring-[#FF6B35]/15"
+                      />
+                      <div className="mt-3">
+                        <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#94A3B8]">
+                          Quick add
+                        </p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {DISCOVERY_INSTRUCTION_SUGGESTIONS.map((text) => (
+                            <button
+                              key={text}
+                              type="button"
+                              onClick={() => {
+                                const current = specialInstructions.trim();
+                                onChangeSpecialInstructions(current ? `${current}\n${text}` : text);
+                              }}
+                              className="rounded-full bg-white px-2.5 py-1 text-[11px] font-medium text-[#475569] ring-1 ring-[#E2E8F0] transition hover:bg-[#F8FAFC] hover:text-[#0F172A]"
+                            >
+                              + {text}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </ModalFieldCard>
+
+                    <div className="rounded-[26px] border border-[#E2E8F0] bg-[#FCFDFE] p-5">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#94A3B8]">
+                        Cadence
+                      </p>
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        {scheduleOptions.map((option) => (
+                          <button
+                            key={option.value}
+                            type="button"
+                            onClick={() => onChangeScheduleIntervalDays(option.value)}
+                            className={`rounded-full border px-3.5 py-2 text-sm font-medium transition-colors ${
+                              scheduleIntervalDays === option.value
+                                ? 'border-[#0F172A] bg-[#0F172A] text-white'
+                                : 'border-[#E2E8F0] bg-[#F8FAFC] text-[#475569] hover:bg-white'
+                            }`}
+                          >
+                            {option.label}
+                          </button>
+                        ))}
+                      </div>
+                      {isRecurringDiscovery ? (
+                        <div className="mt-5 border-t border-[#E2E8F0] pt-5">
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#94A3B8]">
+                            Repeat handling
+                          </p>
+                          <div className="mt-3 grid gap-2">
+                            <button
+                              type="button"
+                              onClick={() => onChangeRepeatPolicy('new_signal')}
+                              className={`rounded-2xl border px-4 py-3 text-left transition-colors ${
+                                repeatPolicy === 'new_signal'
+                                  ? 'border-[#0F172A] bg-white text-[#0F172A]'
+                                  : 'border-[#E2E8F0] bg-white text-[#475569] hover:bg-[#F8FAFC]'
+                              }`}
+                            >
+                              <span className="block text-sm font-semibold">
+                                Surface again when there is a new signal
+                              </span>
+                              <span className="mt-1 block text-xs leading-5 text-[#64748B]">
+                                Best when repeat sightings matter, such as hiring this week after
+                                being seen last week.
+                              </span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => onChangeRepeatPolicy('skip_seen')}
+                              className={`rounded-2xl border px-4 py-3 text-left transition-colors ${
+                                repeatPolicy === 'skip_seen'
+                                  ? 'border-[#0F172A] bg-white text-[#0F172A]'
+                                  : 'border-[#E2E8F0] bg-white text-[#475569] hover:bg-[#F8FAFC]'
+                              }`}
+                            >
+                              <span className="block text-sm font-semibold">
+                                Skip people this search has already seen
+                              </span>
+                              <span className="mt-1 block text-xs leading-5 text-[#64748B]">
+                                Best when you only want fresh names from future runs.
+                              </span>
+                            </button>
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                ) : (
                   <div className="mt-4 flex flex-wrap gap-2">
-                    {sourceCoverage.map((item) => (
-                      <span
-                        key={item}
-                        className="inline-flex items-center gap-1.5 rounded-full border border-[#A7F3D0] bg-[#ECFDF5] px-3 py-1.5 text-xs font-medium text-[#047857]"
-                      >
-                        <span
-                          className="h-1.5 w-1.5 rounded-full bg-[#10B981]"
-                          aria-hidden="true"
-                        />
-                        {item}
-                      </span>
-                    ))}
-                    {parsedTargetDomains.length > 0 ? (
-                      <span className="inline-flex items-center gap-1.5 rounded-full border border-[#A7F3D0] bg-[#ECFDF5] px-3 py-1.5 text-xs font-medium text-[#047857]">
-                        <span
-                          className="h-1.5 w-1.5 rounded-full bg-[#10B981]"
-                          aria-hidden="true"
-                        />
-                        Targeting {parsedTargetDomains.length} site
-                        {parsedTargetDomains.length === 1 ? '' : 's'}
+                    <span className="rounded-full border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-1.5 text-xs font-medium text-[#475569]">
+                      {parsedTargetDomains.length > 0
+                        ? `${parsedTargetDomains.length} target domain${
+                            parsedTargetDomains.length === 1 ? '' : 's'
+                          }`
+                        : 'No target websites'}
+                    </span>
+                    <span className="rounded-full border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-1.5 text-xs font-medium text-[#475569]">
+                      {specialInstructions.trim()
+                        ? 'Special instructions active'
+                        : 'No special instructions'}
+                    </span>
+                    <span className="rounded-full border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-1.5 text-xs font-medium text-[#475569]">
+                      {scheduleOptions.find((option) => option.value === scheduleIntervalDays)
+                        ?.label || 'Run once'}
+                    </span>
+                    {isRecurringDiscovery ? (
+                      <span className="rounded-full border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-1.5 text-xs font-medium text-[#475569]">
+                        {repeatPolicy === 'new_signal'
+                          ? 'Repeat on new signal'
+                          : 'Skip seen people'}
                       </span>
                     ) : null}
                   </div>
-                  {!linkedInConnected ? (
-                    <p className="mt-3 text-sm leading-6 text-[#64748B]">
-                      Discovery can still run on web search right now. Connect LinkedIn later to
-                      widen coverage.
-                    </p>
-                  ) : null}
-                </div>
-
-                <div className="rounded-[26px] border border-[#E2E8F0] bg-white p-5">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#94A3B8]">
-                    Cadence
-                  </p>
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {scheduleOptions.map((option) => (
-                      <button
-                        key={option.value}
-                        type="button"
-                        onClick={() => onChangeScheduleIntervalDays(option.value)}
-                        className={`rounded-full border px-3.5 py-2 text-sm font-medium transition-colors ${
-                          scheduleIntervalDays === option.value
-                            ? 'border-[#0F172A] bg-[#0F172A] text-white'
-                            : 'border-[#E2E8F0] bg-[#F8FAFC] text-[#475569] hover:bg-white'
-                        }`}
-                      >
-                        {option.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="rounded-[26px] border border-[#E2E8F0] bg-gradient-to-br from-[#FFF7ED] to-white p-5">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#94A3B8]">
-                    Parrot readback
-                  </p>
-                  {previewing ? (
-                    <p className="mt-3 text-sm text-[#64748B]">Preparing the discovery setup...</p>
-                  ) : preview ? (
-                    <>
-                      <p className="mt-3 text-base font-semibold text-[#0F172A]">{preview.name}</p>
-                      <p className="mt-3 text-sm leading-6 text-[#475569]">{preview.summary}</p>
-                      {preview.warnings.length > 0 ? (
-                        <div className="mt-4 space-y-2">
-                          {preview.warnings.slice(0, 2).map((warning) => (
-                            <p key={warning} className="text-sm text-[#C2410C]">
-                              {warning}
-                            </p>
-                          ))}
-                        </div>
-                      ) : null}
-                    </>
-                  ) : (
-                    <p className="mt-3 text-sm leading-6 text-[#64748B]">
-                      Keep the brief concise. Parrot will turn it into a structured discovery run
-                      automatically.
-                    </p>
-                  )}
-                </div>
-
-                {error ? (
-                  <div className="rounded-[22px] border border-[#FED7AA] bg-[#FFF7ED] px-4 py-3 text-sm text-[#9A3412]">
-                    {error}
-                  </div>
-                ) : null}
+                )}
               </div>
+
+              <div className="rounded-[26px] border border-[#E2E8F0] bg-gradient-to-br from-[#FFF7ED] to-white p-5">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#94A3B8]">
+                  Parrot readback
+                </p>
+                {previewing ? (
+                  <p className="mt-3 text-sm text-[#64748B]">Preparing the discovery setup...</p>
+                ) : preview ? (
+                  <>
+                    <p className="mt-3 text-base font-semibold text-[#0F172A]">{preview.name}</p>
+                    <p className="mt-3 text-sm leading-6 text-[#475569]">{preview.summary}</p>
+                    {preview.warnings.length > 0 ? (
+                      <div className="mt-4 space-y-2">
+                        {preview.warnings.slice(0, 2).map((warning) => (
+                          <p key={warning} className="text-sm text-[#C2410C]">
+                            {warning}
+                          </p>
+                        ))}
+                      </div>
+                    ) : null}
+                  </>
+                ) : (
+                  <p className="mt-3 text-sm leading-6 text-[#64748B]">
+                    Keep the brief concise. Parrot will turn it into a structured discovery run
+                    automatically.
+                  </p>
+                )}
+              </div>
+
+              {error ? (
+                <div className="rounded-[22px] border border-[#FED7AA] bg-[#FFF7ED] px-4 py-3 text-sm text-[#9A3412]">
+                  {error}
+                </div>
+              ) : null}
             </div>
-          )}
+          </div>
         </div>
 
         <div className="border-t border-[#E2E8F0] px-5 py-4 md:px-7">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="text-sm text-[#64748B]">
-              {started
-                ? 'You can close this now. Discovery will continue running in the background.'
-                : 'This flow stays on the dashboard so you can start sourcing without losing context.'}
+              Discovery stays on the dashboard so you can start sourcing without losing context.
             </div>
             <div className="flex flex-wrap gap-3">
               <button
@@ -3808,30 +4633,19 @@ function InlineDiscoverySetupModal({
                 onClick={onClose}
                 className="inline-flex items-center justify-center rounded-2xl border border-[#E2E8F0] px-4 py-2.5 text-sm font-semibold text-[#475569] transition-colors hover:bg-[#F8FAFC]"
               >
-                {started ? 'Close' : 'Cancel'}
+                Cancel
               </button>
-              {started ? (
-                <button
-                  type="button"
-                  onClick={onOpenLeads}
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#0F172A] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#1E293B]"
-                >
-                  Open Leads
-                  <ArrowUpRightIcon />
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={onStart}
-                  disabled={
-                    submitting || !brief.trim() || (listMode === 'existing' && !destinationListId)
-                  }
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#0F172A] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#1E293B] disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {submitting ? 'Starting discovery...' : 'Start discovery'}
-                  <ArrowUpRightIcon />
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={onStart}
+                disabled={
+                  submitting || !brief.trim() || (listMode === 'existing' && !destinationListId)
+                }
+                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-[#0F172A] px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#1E293B] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {submitting ? 'Starting discovery...' : 'Start discovery'}
+                <ArrowUpRightIcon />
+              </button>
             </div>
           </div>
         </div>
