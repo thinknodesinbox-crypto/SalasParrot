@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { api } from '@/lib/api';
+import { api, getErrorMessage } from '@/lib/api';
 import type { AssistantTranscriptResponse } from '@/lib/types';
 
 type VoiceStatus = 'idle' | 'connecting' | 'connected' | 'error';
@@ -26,6 +26,37 @@ interface PersistTranscriptInput {
 interface StartVoiceOptions {
   workspaceId?: string | null;
   threadId?: string | null;
+}
+
+export function getFriendlyVoiceError(message: string | null | undefined) {
+  const cleaned = message?.trim();
+  if (!cleaned) return 'Voice mode could not start. Please try again.';
+  const lower = cleaned.toLowerCase();
+  if (lower.includes('voice daily limit reached')) {
+    return 'Voice daily limit reached for this workspace. Increase the voice daily minutes in assistant settings or try again tomorrow.';
+  }
+  if (lower.includes('openai api key') || lower.includes('invalid_api_key')) {
+    return 'Voice mode needs a valid OpenAI API key configured on the backend.';
+  }
+  if (lower.includes('model_not_found') || lower.includes('gpt-realtime')) {
+    return 'Voice mode could not start because the configured OpenAI key cannot access the realtime voice model.';
+  }
+  if (lower.includes('status code 401') || lower.includes('unauthorized')) {
+    return 'Your session needs to be refreshed before voice mode can start.';
+  }
+  if (lower.includes('status code 403') || lower.includes('permission')) {
+    return 'Voice mode is not enabled for this workspace or account yet.';
+  }
+  if (lower.includes('status code 429') || lower.includes('rate limit')) {
+    return 'Voice mode is busy right now. Wait a moment, then try again.';
+  }
+  if (lower.includes('failed to fetch') || lower.includes('network')) {
+    return 'The connection dropped before voice mode could start.';
+  }
+  if (lower.includes('status code 400')) {
+    return 'Voice mode could not start. The backend rejected the voice setup request.';
+  }
+  return cleaned;
 }
 
 interface RealtimeCallAnswerInput {
@@ -63,28 +94,6 @@ export function useAssistantVoice({
   threadId,
   onTranscriptSaved,
 }: UseAssistantVoiceOptions) {
-  const getFriendlyVoiceError = (message: string | null | undefined) => {
-    const cleaned = message?.trim();
-    if (!cleaned) return 'Voice mode could not start. Please try again.';
-    const lower = cleaned.toLowerCase();
-    if (lower.includes('status code 400')) {
-      return 'Voice mode could not start with the current workspace setup.';
-    }
-    if (lower.includes('status code 401') || lower.includes('unauthorized')) {
-      return 'Your session needs to be refreshed before voice mode can start.';
-    }
-    if (lower.includes('status code 403') || lower.includes('permission')) {
-      return 'Voice mode is not enabled for this workspace or account yet.';
-    }
-    if (lower.includes('status code 429') || lower.includes('rate limit')) {
-      return 'Voice mode is busy right now. Wait a moment, then try again.';
-    }
-    if (lower.includes('failed to fetch') || lower.includes('network')) {
-      return 'The connection dropped before voice mode could start.';
-    }
-    return cleaned;
-  };
-
   const getVoiceCapability = (): VoiceCapability => {
     if (typeof window === 'undefined') {
       return { supported: false, reason: 'Voice chat is only available in the browser.' };
@@ -448,7 +457,7 @@ export function useAssistantVoice({
           return;
         }
       }
-      setError(getFriendlyVoiceError(err instanceof Error ? err.message : null));
+      setError(getFriendlyVoiceError(getErrorMessage(err)));
     }
   };
 

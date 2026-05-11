@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createRealtimeCallAnswer } from '../useAssistantVoice';
+import { createRealtimeCallAnswer, getFriendlyVoiceError } from '../useAssistantVoice';
 
 describe('createRealtimeCallAnswer', () => {
   afterEach(() => {
@@ -47,5 +47,19 @@ describe('createRealtimeCallAnswer', () => {
         offerSdp: 'offer-sdp',
       })
     ).rejects.toThrow('status code 400: bad sdp');
+  });
+});
+
+describe('getFriendlyVoiceError', () => {
+  it('does not collapse backend voice limit errors into workspace setup copy', () => {
+    expect(getFriendlyVoiceError('Voice daily limit reached for this workspace.')).toContain(
+      'Voice daily limit reached'
+    );
+  });
+
+  it('explains realtime model access errors directly', () => {
+    expect(getFriendlyVoiceError('model_not_found: gpt-realtime')).toContain(
+      'cannot access the realtime voice model'
+    );
   });
 });
