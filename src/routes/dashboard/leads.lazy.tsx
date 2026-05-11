@@ -593,6 +593,13 @@ type StatusFilter =
   | 'replied'
   | 'qualified'
   | 'not_interested';
+type DiscoveryQualityFilter =
+  | 'all'
+  | 'top_fit'
+  | 'strong_fit'
+  | 'review'
+  | 'low_evidence'
+  | 'missing_proof';
 
 type EnrichmentFailureInfo = { label: string; sublabel: string };
 type DiscoveryFitBadge = {
@@ -602,6 +609,18 @@ type DiscoveryFitBadge = {
   className: string;
   title: string;
 };
+
+const DISCOVERY_QUALITY_FILTERS: Array<{
+  value: DiscoveryQualityFilter;
+  label: string;
+}> = [
+  { value: 'all', label: 'All discovery' },
+  { value: 'top_fit', label: 'Top fit' },
+  { value: 'strong_fit', label: 'Strong fit' },
+  { value: 'review', label: 'Review' },
+  { value: 'low_evidence', label: 'Low evidence' },
+  { value: 'missing_proof', label: 'Missing proof' },
+];
 
 function normalizeContextLabel(value: string): string {
   return value
@@ -642,6 +661,22 @@ function getLeadDiscoveryScore(lead: Lead): number {
   return Number.isFinite(score) ? score : -1;
 }
 
+function getLeadDiscoveryRank(lead: Lead): string {
+  const metadata = getLeadDiscoveryMetadata(lead);
+  const context = parseLeadContextField(lead.context_field);
+  const score = getLeadDiscoveryScore(lead);
+  const source = String(metadata.source || context['discovery source'] || '').trim();
+  const rank = String(metadata.rank || context['discovery rank'] || '').trim();
+
+  if (rank) return rank;
+  if (source === 'LinkedIn only') return 'Review';
+  if (score >= 80) return 'Top fit';
+  if (score >= 65) return 'Strong fit';
+  if (score >= 45) return 'Review';
+  if (score >= 0) return 'Low evidence';
+  return lead.tags?.includes('Discovery') ? 'Discovery' : '';
+}
+
 function getLeadDiscoveryFitBadge(lead: Lead): DiscoveryFitBadge | null {
   const metadata = getLeadDiscoveryMetadata(lead);
   const context = parseLeadContextField(lead.context_field);
@@ -650,15 +685,7 @@ function getLeadDiscoveryFitBadge(lead: Lead): DiscoveryFitBadge | null {
   const source =
     String(metadata.source || context['discovery source'] || '').trim() ||
     (lead.tags?.includes('Discovery') ? 'Discovery' : null);
-  let rank = String(metadata.rank || context['discovery rank'] || '').trim();
-
-  if (!rank && score >= 0) {
-    if (source === 'LinkedIn only') rank = 'Review';
-    else if (score >= 80) rank = 'Top fit';
-    else if (score >= 65) rank = 'Strong fit';
-    else if (score >= 45) rank = 'Review';
-    else rank = 'Low evidence';
-  }
+  const rank = getLeadDiscoveryRank(lead);
 
   if (!rank && !lead.tags?.includes('Discovery')) return null;
   const normalizedRank = rank || 'Discovery';
@@ -695,6 +722,44 @@ function getLeadDiscoveryProofBadges(lead: Lead): string[] {
     .map((badge) => badge.trim())
     .filter(Boolean);
   return Array.from(new Set([...metadataBadges, ...contextBadges])).slice(0, 3);
+}
+
+function leadHasDiscoveryProof(lead: Lead): boolean {
+  const metadata = getLeadDiscoveryMetadata(lead);
+  const context = parseLeadContextField(lead.context_field);
+  const sourceUrls = Array.isArray(metadata.source_urls)
+    ? metadata.source_urls.map((url) => String(url).trim()).filter(Boolean)
+    : [];
+  return (
+    getLeadDiscoveryProofBadges(lead).length > 0 ||
+    sourceUrls.length > 0 ||
+    Boolean(context['source evidence'] || context['proof of match'])
+  );
+}
+
+function leadIsMissingDiscoveryProof(lead: Lead): boolean {
+  const metadata = getLeadDiscoveryMetadata(lead);
+  const context = parseLeadContextField(lead.context_field);
+  const missingRequirements = Array.isArray(metadata.missing_requirements)
+    ? metadata.missing_requirements.map((item) => String(item).trim()).filter(Boolean)
+    : [];
+  return (
+    missingRequirements.length > 0 ||
+    Boolean(context['missing proof']) ||
+    Boolean(lead.tags?.includes('Discovery') && !leadHasDiscoveryProof(lead))
+  );
+}
+
+function matchesDiscoveryQualityFilter(lead: Lead, filter: DiscoveryQualityFilter): boolean {
+  if (filter === 'all') return true;
+  if (filter === 'missing_proof') return leadIsMissingDiscoveryProof(lead);
+
+  const rank = getLeadDiscoveryRank(lead);
+  if (filter === 'top_fit') return rank === 'Top fit';
+  if (filter === 'strong_fit') return rank === 'Strong fit';
+  if (filter === 'review') return rank === 'Review';
+  if (filter === 'low_evidence') return rank === 'Low evidence';
+  return true;
 }
 
 function getUserFacingEnrichmentFailure(error: string | null | undefined): EnrichmentFailureInfo {
@@ -757,6 +822,8 @@ function LeadsPage() {
   const [campaignFilter, setCampaignFilter] = useState<CampaignFilter>('all');
   const [importedOnly, setImportedOnly] = useState(false);
   const [discoveryOnly, setDiscoveryOnly] = useState(false);
+  const [discoveryQualityFilter, setDiscoveryQualityFilter] =
+    useState<DiscoveryQualityFilter>('all');
   const [editingList, setEditingList] = useState<LeadList | null>(null);
   const [deletingList, setDeletingList] = useState<LeadList | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
@@ -772,6 +839,7 @@ function LeadsPage() {
     setCampaignFilter(routeSearch.campaign ?? 'all');
     setImportedOnly(Boolean(routeSearch.importedOnly));
     setDiscoveryOnly(Boolean(routeSearch.discoveryOnly));
+    setDiscoveryQualityFilter('all');
     setCurrentPage(1);
     setListSearchQuery('');
   }, [
@@ -818,6 +886,8 @@ function LeadsPage() {
     campaignFilter !== 'all' ||
     importedOnly ||
     discoveryOnly;
+  const isDiscoveryQualityFilterActive = discoveryQualityFilter !== 'all';
+  const leadPageLimit = isDiscoveryQualityFilterActive ? 500 : LEADS_PER_PAGE;
 
   // Build filters for useLeads
   const leadFilters = isLeadResultsView
@@ -851,8 +921,8 @@ function LeadsPage() {
         imported_only: importedOnly || undefined,
         discovery_only: discoveryOnly || undefined,
         sort_by: selectedListId ? ('email_actionability' as const) : undefined,
-        limit: LEADS_PER_PAGE,
-        offset: (currentPage - 1) * LEADS_PER_PAGE,
+        limit: leadPageLimit,
+        offset: isDiscoveryQualityFilterActive ? 0 : (currentPage - 1) * LEADS_PER_PAGE,
       }
     : undefined;
 
@@ -862,7 +932,7 @@ function LeadsPage() {
   });
   const leads = leadsResponse?.leads || [];
   const totalLeads = leadsResponse?.total || 0;
-  const totalPages = Math.ceil(totalLeads / LEADS_PER_PAGE);
+  const totalPages = isDiscoveryQualityFilterActive ? 1 : Math.ceil(totalLeads / LEADS_PER_PAGE);
 
   const clearLeadResultsView = () => {
     setSelectedListId(null);
@@ -874,6 +944,7 @@ function LeadsPage() {
     setCampaignFilter('all');
     setImportedOnly(false);
     setDiscoveryOnly(false);
+    setDiscoveryQualityFilter('all');
   };
 
   const openLeadList = (id: string) => {
@@ -886,6 +957,7 @@ function LeadsPage() {
     setCampaignFilter('all');
     setImportedOnly(false);
     setDiscoveryOnly(false);
+    setDiscoveryQualityFilter('all');
   };
 
   const isLoading = listsLoading;
@@ -1069,6 +1141,11 @@ function LeadsPage() {
           totalPages={totalPages}
           currentPage={currentPage}
           onPageChange={setCurrentPage}
+          discoveryQualityFilter={discoveryQualityFilter}
+          onDiscoveryQualityFilterChange={(filter) => {
+            setDiscoveryQualityFilter(filter);
+            setCurrentPage(1);
+          }}
           filterMeta={{
             search: debouncedSearch || undefined,
             status: statusFilter !== 'all' ? statusFilter : undefined,
@@ -1395,6 +1472,116 @@ function LeadListsGrid({
   );
 }
 
+function formatDiscoveryTimestamp(dateStr: string | null | undefined): string | null {
+  if (!dateStr) return null;
+  const normalizedDateStr = dateStr.endsWith('Z') ? dateStr : dateStr + 'Z';
+  const date = new Date(normalizedDateStr);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+function getLatestDiscoveryRunBadge(
+  status: DiscoveryRunStatus | null | undefined
+): { label: string; className: string } | null {
+  if (status === 'completed') {
+    return { label: 'Search complete', className: 'bg-[#F0FDF4] text-[#15803D]' };
+  }
+  if (status === 'running') {
+    return { label: 'Still searching', className: 'bg-[#EFF6FF] text-[#1D4ED8]' };
+  }
+  if (status === 'pending') {
+    return { label: 'Queued', className: 'bg-[#FFF7ED] text-[#C2410C]' };
+  }
+  if (status === 'failed') {
+    return { label: 'Search failed', className: 'bg-[#FEF2F2] text-[#B91C1C]' };
+  }
+  if (status === 'cancelled') {
+    return { label: 'Search cancelled', className: 'bg-[#F8FAFC] text-[#64748B]' };
+  }
+  return null;
+}
+
+function DiscoveryListRunSummary({ list }: { list: LeadList }) {
+  if (!list.latest_discovery_run_id && !list.active_discovery_run_status) return null;
+
+  const runBadge = getLatestDiscoveryRunBadge(
+    list.active_discovery_run_status || list.latest_discovery_run_status
+  );
+  const completedAt = formatDiscoveryTimestamp(list.latest_discovery_run_completed_at);
+  const savedCount = list.latest_discovery_saved_count || 0;
+  const notSavedCount = list.latest_discovery_not_saved_count || 0;
+  const alreadyProtectedCount =
+    (list.latest_discovery_already_in_list_count || 0) +
+    (list.latest_discovery_already_in_workspace_count || 0);
+  const webCount = list.latest_discovery_web_count || 0;
+  const webRequestedCount = list.latest_discovery_web_requested_count || 0;
+
+  return (
+    <div className="mt-4 border-t border-[#E2E8F0] pt-4">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            {runBadge ? (
+              <span className={`rounded px-2 py-0.5 text-xs font-medium ${runBadge.className}`}>
+                {runBadge.label}
+              </span>
+            ) : null}
+            {completedAt ? (
+              <span className="text-xs text-[#64748B]">Completed {completedAt}</span>
+            ) : null}
+            {list.latest_discovery_web_partial ? (
+              <span className="rounded bg-[#FFF7ED] px-2 py-0.5 text-xs font-medium text-[#C2410C]">
+                Partial web scan
+              </span>
+            ) : null}
+          </div>
+          <p className="mt-2 truncate text-sm font-medium text-[#1E293B]">
+            {list.latest_discovery_search_name || 'Discovery search'}
+          </p>
+          {list.latest_discovery_search_prompt ? (
+            <p
+              className="mt-1 line-clamp-2 max-w-4xl text-sm text-[#64748B]"
+              title={list.latest_discovery_search_prompt}
+            >
+              {list.latest_discovery_search_prompt}
+            </p>
+          ) : null}
+          {list.latest_discovery_web_error ? (
+            <p className="mt-2 text-xs text-[#B91C1C]">
+              Web source issue: {list.latest_discovery_web_error}
+            </p>
+          ) : null}
+        </div>
+        <div className="grid min-w-[320px] grid-cols-2 gap-x-5 gap-y-2 text-sm sm:grid-cols-4">
+          <div>
+            <div className="font-semibold text-[#1E293B]">{savedCount}</div>
+            <div className="text-xs text-[#64748B]">Saved leads</div>
+          </div>
+          <div>
+            <div className="font-semibold text-[#1E293B]">{webCount}</div>
+            <div className="text-xs text-[#64748B]">
+              {webRequestedCount > webCount ? `${webRequestedCount} web requested` : 'Web found'}
+            </div>
+          </div>
+          <div>
+            <div className="font-semibold text-[#1E293B]">{alreadyProtectedCount}</div>
+            <div className="text-xs text-[#64748B]">Already known</div>
+          </div>
+          <div>
+            <div className="font-semibold text-[#1E293B]">{notSavedCount}</div>
+            <div className="text-xs text-[#64748B]">Not added</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function LeadListDetail({
   list,
   leads,
@@ -1405,6 +1592,8 @@ function LeadListDetail({
   totalPages,
   currentPage,
   onPageChange,
+  discoveryQualityFilter,
+  onDiscoveryQualityFilterChange,
   filterMeta,
 }: {
   list: LeadList | null;
@@ -1416,6 +1605,8 @@ function LeadListDetail({
   totalPages: number;
   currentPage: number;
   onPageChange: (page: number) => void;
+  discoveryQualityFilter: DiscoveryQualityFilter;
+  onDiscoveryQualityFilterChange: (filter: DiscoveryQualityFilter) => void;
   filterMeta?: {
     search?: string;
     status?: StatusFilter;
@@ -1431,15 +1622,32 @@ function LeadListDetail({
   const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [activeEnrichmentJobId, setActiveEnrichmentJobId] = useState<string | null>(null);
-  const rankedLeads = filterMeta?.discoveryOnly
+  const isDiscoveryList = Boolean(list?.latest_discovery_run_id || list?.source === 'discovery');
+  const shouldRankDiscoveryLeads =
+    isDiscoveryList ||
+    filterMeta?.discoveryOnly ||
+    leads.some((lead) => lead.tags?.includes('Discovery'));
+  const rankedLeads = shouldRankDiscoveryLeads
     ? [...leads].sort((left, right) => getLeadDiscoveryScore(right) - getLeadDiscoveryScore(left))
     : leads;
+  const visibleLeads =
+    discoveryQualityFilter === 'all'
+      ? rankedLeads
+      : rankedLeads.filter((lead) => matchesDiscoveryQualityFilter(lead, discoveryQualityFilter));
+  const showDiscoveryControls =
+    isDiscoveryList ||
+    filterMeta?.discoveryOnly ||
+    rankedLeads.some((lead) => lead.tags?.includes('Discovery'));
   const deleteLeadsMutation = useDeleteLeads();
   const removeFromListMutation = useRemoveLeadsFromList();
   const enrichLeadsMutation = useEnrichLeads();
   const { data: enrichmentUsage } = useEnrichmentUsage(workspaceId);
   const { data: enrichmentJob } = useEnrichmentJobWithPolling(activeEnrichmentJobId);
   const activeDiscoveryBadge = getActiveDiscoveryRunBadge(list?.active_discovery_run_status);
+
+  useEffect(() => {
+    setSelectedLeads([]);
+  }, [discoveryQualityFilter]);
 
   useEffect(() => {
     if (!enrichmentJob || !activeEnrichmentJobId) return;
@@ -1774,6 +1982,7 @@ function LeadListDetail({
               ) : null}
             </div>
           </div>
+          {list ? <DiscoveryListRunSummary list={list} /> : null}
           {enrichmentJob && activeEnrichmentJobId ? (
             <div className="mt-4 rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -1867,6 +2076,33 @@ function LeadListDetail({
           ) : null}
         </div>
 
+        {showDiscoveryControls ? (
+          <div className="flex flex-col gap-3 rounded-xl border border-[#E2E8F0] bg-white px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-[#1E293B]">Discovery triage</p>
+              <p className="text-xs text-[#64748B]">
+                Rank and proof badges are pulled from the search context saved on each lead.
+              </p>
+            </div>
+            <div className="flex gap-2 overflow-x-auto">
+              {DISCOVERY_QUALITY_FILTERS.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => onDiscoveryQualityFilterChange(option.value)}
+                  className={`whitespace-nowrap rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+                    discoveryQualityFilter === option.value
+                      ? 'border-[#BFDBFE] bg-[#EFF6FF] text-[#1D4ED8]'
+                      : 'border-[#E2E8F0] bg-white text-[#64748B] hover:bg-[#F8FAFC]'
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+
         {/* Bulk Actions Bar */}
         {selectedLeads.length > 0 && (
           <div className="flex items-center justify-between rounded-xl border border-[#FF6B35]/20 bg-[#FFF7ED] px-4 py-3">
@@ -1929,10 +2165,10 @@ function LeadListDetail({
                     <input
                       type="checkbox"
                       checked={
-                        selectedLeads.length === rankedLeads.length && rankedLeads.length > 0
+                        selectedLeads.length === visibleLeads.length && visibleLeads.length > 0
                       }
                       onChange={(e) =>
-                        setSelectedLeads(e.target.checked ? rankedLeads.map((l) => l.id) : [])
+                        setSelectedLeads(e.target.checked ? visibleLeads.map((l) => l.id) : [])
                       }
                       className="rounded border-[#E2E8F0] text-[#FF6B35] focus:ring-[#FF6B35]"
                     />
@@ -1973,14 +2209,16 @@ function LeadListDetail({
                       </div>
                     </td>
                   </tr>
-                ) : rankedLeads.length === 0 ? (
+                ) : visibleLeads.length === 0 ? (
                   <tr>
                     <td colSpan={9} className="px-6 py-12 text-center text-[#64748B]">
-                      No leads in this list yet
+                      {discoveryQualityFilter === 'all'
+                        ? 'No leads in this list yet'
+                        : 'No leads match this discovery filter'}
                     </td>
                   </tr>
                 ) : (
-                  rankedLeads.map((lead, index) => (
+                  visibleLeads.map((lead, index) => (
                     <LeadRow
                       key={lead.id}
                       lead={lead}

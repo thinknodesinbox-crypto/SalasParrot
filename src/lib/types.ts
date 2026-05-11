@@ -678,6 +678,23 @@ export interface LeadList {
   enriched_count: number;
   active_discovery_run_status?: DiscoveryRunStatus | null;
   active_discovery_run_started_at?: string | null;
+  latest_discovery_run_id?: string | null;
+  latest_discovery_search_id?: string | null;
+  latest_discovery_search_name?: string | null;
+  latest_discovery_search_prompt?: string | null;
+  latest_discovery_run_status?: DiscoveryRunStatus | null;
+  latest_discovery_run_started_at?: string | null;
+  latest_discovery_run_completed_at?: string | null;
+  latest_discovery_run_error?: string | null;
+  latest_discovery_total_candidates?: number;
+  latest_discovery_saved_count?: number;
+  latest_discovery_not_saved_count?: number;
+  latest_discovery_already_in_list_count?: number;
+  latest_discovery_already_in_workspace_count?: number;
+  latest_discovery_web_count?: number;
+  latest_discovery_web_requested_count?: number;
+  latest_discovery_web_partial?: boolean;
+  latest_discovery_web_error?: string | null;
   created_at: string;
   updated_at: string;
 }
