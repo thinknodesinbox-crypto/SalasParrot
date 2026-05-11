@@ -127,10 +127,11 @@ export function SequenceCanvas({
 
   const handleAddNode = useCallback(
     (type: SequenceNode['type'], afterId?: string, branch?: 'true' | 'false') => {
+      const ctx = getInsertionContext(nodes, afterId, branch);
       const newNode: SequenceNode = {
         id: `node-${Date.now()}`,
         type,
-        data: getDefaultNodeData(type, agentDefaults),
+        data: getDefaultNodeData(type, agentDefaults, ctx),
         parentId: branch ? afterId : undefined, // Only set parentId for branch nodes
         branch,
       };
@@ -218,10 +219,11 @@ export function SequenceCanvas({
       const afterNode = nodes.find((n) => n.id === afterNodeId);
       if (!afterNode || !afterNode.parentId || !afterNode.branch) return;
 
+      const ctx = getInsertionContext(nodes, afterNodeId, afterNode.branch);
       const newNode: SequenceNode = {
         id: `node-${Date.now()}`,
         type,
-        data: getDefaultNodeData(type, agentDefaults),
+        data: getDefaultNodeData(type, agentDefaults, ctx),
         parentId: afterNode.parentId,
         branch: afterNode.branch,
       };
@@ -2420,15 +2422,106 @@ function getNodeConfig(type: SequenceNode['type']) {
   );
 }
 
+interface InsertionContext {
+  predecessor?: SequenceNode;
+  ancestor?: { condition: NonNullable<NodeData['condition']>; branch: 'true' | 'false' };
+}
+
+/**
+ * Build context for predictive defaults from where the new node will be inserted:
+ * - `predecessor`: node immediately preceding the insertion point (in the same flow/branch)
+ * - `ancestor`: nearest enclosing condition + which branch we're in
+ */
+function getInsertionContext(
+  nodes: SequenceNode[],
+  afterId?: string,
+  branch?: 'true' | 'false'
+): InsertionContext {
+  const ctx: InsertionContext = {};
+
+  if (!afterId) {
+    // Inserting at end of main flow — predecessor is the last main-flow action
+    const mainFlow = nodes.filter((n) => !n.parentId && !n.branch && n.type !== 'end');
+    ctx.predecessor = mainFlow[mainFlow.length - 1];
+    return ctx;
+  }
+
+  const afterNode = nodes.find((n) => n.id === afterId);
+  if (!afterNode) return ctx;
+
+  if (branch) {
+    // Inserting into a branch (afterId is the condition). Predecessor is the last
+    // node already in this branch, falling back to the condition itself.
+    const branchNodes = nodes.filter((n) => n.parentId === afterId && n.branch === branch);
+    ctx.predecessor = branchNodes[branchNodes.length - 1] ?? afterNode;
+    if (afterNode.type === 'condition' && afterNode.data.condition) {
+      ctx.ancestor = { condition: afterNode.data.condition, branch };
+    }
+  } else {
+    // Inserting after a node in the main flow, or after a node inside a branch via insert-button
+    ctx.predecessor = afterNode;
+    if (afterNode.parentId && afterNode.branch) {
+      const parent = nodes.find((n) => n.id === afterNode.parentId);
+      if (parent?.type === 'condition' && parent.data.condition) {
+        ctx.ancestor = { condition: parent.data.condition, branch: afterNode.branch };
+      }
+    }
+  }
+
+  return ctx;
+}
+
+/**
+ * Predict the right condition_type for a `condition` node based on what comes
+ * before it. Reduces user busywork (the most common case is "did the previous
+ * action get a reaction?").
+ */
+function predictConditionType(
+  predecessor: SequenceNode | undefined
+): NonNullable<NodeData['condition']> {
+  switch (predecessor?.type) {
+    case 'linkedin_connect':
+      return 'connected';
+    case 'linkedin_message':
+    case 'linkedin_inmail':
+      return 'message_replied';
+    case 'email':
+      return 'email_replied';
+    default:
+      return 'connected';
+  }
+}
+
+/**
+ * Predict a sensible wait between an action and what follows. Connection
+ * requests need a day or two to convert; messages/emails need time to be read.
+ */
+function predictDelay(predecessor: SequenceNode | undefined): {
+  delayDays: number;
+  delayHours: number;
+} {
+  switch (predecessor?.type) {
+    case 'linkedin_connect':
+      return { delayDays: 2, delayHours: 0 };
+    case 'linkedin_message':
+    case 'linkedin_inmail':
+    case 'email':
+      return { delayDays: 3, delayHours: 0 };
+    default:
+      return { delayDays: 1, delayHours: 0 };
+  }
+}
+
 function getDefaultNodeData(
   type: SequenceNode['type'],
-  agentDefaults?: WorkspaceAgentDefaults | null
+  agentDefaults?: WorkspaceAgentDefaults | null,
+  context?: InsertionContext
 ): NodeData {
   switch (type) {
     case 'delay':
-      return { delayDays: 0, delayHours: 0 };
+      return predictDelay(context?.predecessor);
     case 'condition':
-      return { condition: 'connected' };
+      return { condition: predictConditionType(context?.predecessor) };
     case 'linkedin_like':
       return { postsToLike: 1 };
     case 'reply_agent':

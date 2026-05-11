@@ -85,6 +85,13 @@ export function validateCampaignSequence(
       );
       warnings.push(...falseBranchWarnings);
     }
+
+    // Branch-context type mismatches (e.g. message under "not connected" — the
+    // exact bug that caused the 33-lead InMail failure in MBA to Commas V1)
+    if (conditionNode) {
+      warnings.push(...checkBranchActionTypeMismatch(conditionNode, branches));
+      warnings.push(...checkActionAfterTerminalReply(conditionNode, branches));
+    }
   }
 
   // Check for empty branches (warning, not error - they fall through)
@@ -576,6 +583,75 @@ function checkShortWaitBeforeCondition(nodes: SequenceNode[]): SequenceWarning[]
         });
       }
     }
+  }
+
+  return warnings;
+}
+
+/**
+ * Pattern: an action's channel doesn't match the connection state implied by
+ * the branch. Catches things like sending a regular `message` to leads in the
+ * `not connected` branch — LinkedIn rejects it with "recipient is not a first
+ * degree connection" and the lead errors out.
+ */
+function checkBranchActionTypeMismatch(
+  conditionNode: SequenceNode,
+  branches: { true: SequenceNode[]; false: SequenceNode[] }
+): SequenceWarning[] {
+  const warnings: SequenceWarning[] = [];
+  if (conditionNode.data.condition !== 'connected') return warnings;
+
+  const messagesInFalse = branches.false.filter((n) => n.type === 'linkedin_message');
+  if (messagesInFalse.length > 0) {
+    warnings.push({
+      type: 'warning',
+      code: 'MESSAGE_IN_NOT_CONNECTED_BRANCH',
+      message: 'LinkedIn message step in the "not connected" branch',
+      suggestion:
+        'Regular messages can only be sent to first-degree connections. Replace with an InMail step (requires Premium/Sales Nav) or leads will error out.',
+      nodeIds: messagesInFalse.map((n) => n.id),
+    });
+  }
+
+  const inmailsInTrue = branches.true.filter((n) => n.type === 'linkedin_inmail');
+  if (inmailsInTrue.length > 0) {
+    warnings.push({
+      type: 'warning',
+      code: 'INMAIL_IN_CONNECTED_BRANCH',
+      message: 'InMail step in the "connected" branch',
+      suggestion:
+        'These leads are connections — a regular message is free and InMail will burn a paid credit. Switch to a Message step unless intentional.',
+      nodeIds: inmailsInTrue.map((n) => n.id),
+    });
+  }
+
+  return warnings;
+}
+
+/**
+ * Pattern: action steps in the true branch of `*_replied` — the lead already
+ * replied, so following up is almost always a mistake. The intended pattern is
+ * to end (or hand off to a reply agent).
+ */
+function checkActionAfterTerminalReply(
+  conditionNode: SequenceNode,
+  branches: { true: SequenceNode[]; false: SequenceNode[] }
+): SequenceWarning[] {
+  const warnings: SequenceWarning[] = [];
+  const cond = conditionNode.data.condition;
+  if (cond !== 'message_replied' && cond !== 'email_replied') return warnings;
+
+  const outboundTypes = ['linkedin_connect', 'linkedin_message', 'linkedin_inmail', 'email'];
+  const outboundInTrue = branches.true.filter((n) => outboundTypes.includes(n.type));
+  if (outboundInTrue.length > 0) {
+    const channel = cond === 'message_replied' ? 'message' : 'email';
+    warnings.push({
+      type: 'warning',
+      code: 'OUTBOUND_AFTER_REPLIED',
+      message: `Outbound step in the "${channel} replied" branch`,
+      suggestion: `Leads in this branch already replied. Continuing to message them is usually a mistake — end the sequence or hand off to a reply agent instead.`,
+      nodeIds: outboundInTrue.map((n) => n.id),
+    });
   }
 
   return warnings;
