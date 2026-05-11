@@ -45,6 +45,8 @@ type AssistantNotice = {
   message: string;
 };
 
+type VoiceActivity = 'idle' | 'connecting' | 'listening' | 'user' | 'assistant';
+
 function humanizeAssistantOperationError(message: string | null | undefined) {
   const cleaned = message?.trim();
   if (!cleaned) return 'SalesParrot could not complete that. Please try again.';
@@ -105,6 +107,7 @@ function humanizeVoiceError(message: string | null | undefined) {
 function VoiceOrb({
   isActive,
   isConnecting,
+  activity = 'idle',
   disabled,
   unavailableReason,
   showLabel = true,
@@ -113,13 +116,24 @@ function VoiceOrb({
 }: {
   isActive: boolean;
   isConnecting: boolean;
+  activity?: VoiceActivity;
   disabled: boolean;
   unavailableReason?: string | null;
   showLabel?: boolean;
   size?: 'default' | 'compact';
   onToggle: () => void;
 }) {
-  const label = isConnecting ? 'Connecting' : isActive ? 'Listening' : 'Voice';
+  const activeActivity = isConnecting ? 'connecting' : isActive ? activity : 'idle';
+  const isUserSpeaking = activeActivity === 'user';
+  const isAssistantSpeaking = activeActivity === 'assistant';
+  const isSpeaking = isUserSpeaking || isAssistantSpeaking;
+  const label = isConnecting
+    ? 'Connecting'
+    : isAssistantSpeaking
+      ? 'Speaking'
+      : isActive
+        ? 'Listening'
+        : 'Voice';
   const isUnavailable = disabled || Boolean(unavailableReason);
   const title = disabled
     ? 'Select a workspace to use voice'
@@ -127,6 +141,7 @@ function VoiceOrb({
   const isCompact = size === 'compact';
   const isLiveVisual = isActive || isConnecting;
   const shouldShowHoverPreview = !isLiveVisual && !isUnavailable;
+  const waveBars = isCompact ? [12, 20, 28, 18, 13] : [16, 26, 36, 24, 17];
 
   return (
     <div className="group/voice pointer-events-auto relative flex flex-col items-center">
@@ -168,13 +183,23 @@ function VoiceOrb({
           <>
             <motion.span
               className="absolute inset-[-18px] rounded-full bg-[#7DD3FC]/20 blur-2xl"
-              animate={{ scale: [0.92, 1.18, 0.96], opacity: [0.35, 0.72, 0.4] }}
-              transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
+              animate={{
+                scale: isSpeaking ? [0.9, 1.28, 0.94] : [0.92, 1.18, 0.96],
+                opacity: isSpeaking ? [0.4, 0.86, 0.46] : [0.35, 0.72, 0.4],
+              }}
+              transition={{
+                duration: isSpeaking ? 1.15 : 2.4,
+                repeat: Infinity,
+                ease: 'easeInOut',
+              }}
             />
             <motion.span
               className="absolute inset-[-9px] rounded-full border border-[#BAE6FD]/55"
-              animate={{ scale: [1, 1.2, 1], opacity: [0.48, 0.08, 0.42] }}
-              transition={{ duration: 1.7, repeat: Infinity, ease: 'easeOut' }}
+              animate={{
+                scale: isSpeaking ? [1, 1.3, 1.05] : [1, 1.2, 1],
+                opacity: isSpeaking ? [0.56, 0.06, 0.44] : [0.48, 0.08, 0.42],
+              }}
+              transition={{ duration: isSpeaking ? 0.92 : 1.7, repeat: Infinity, ease: 'easeOut' }}
             />
             <motion.span
               className="absolute inset-0 overflow-hidden rounded-full bg-[radial-gradient(circle_at_62%_20%,rgba(240,253,255,0.98)_0%,rgba(224,249,255,0.88)_24%,rgba(125,211,252,0.9)_50%,rgba(14,165,233,0.9)_74%,rgba(2,132,199,0.95)_100%)]"
@@ -185,10 +210,14 @@ function VoiceOrb({
                   '53% 47% 46% 54%',
                   '50% 50% 48% 52%',
                 ],
-                scale: isConnecting ? [1, 1.03, 1] : [1, 1.06, 0.98, 1.04, 1],
+                scale: isConnecting
+                  ? [1, 1.03, 1]
+                  : isSpeaking
+                    ? [1, 1.08, 0.97, 1.07, 1]
+                    : [1, 1.06, 0.98, 1.04, 1],
               }}
               transition={{
-                duration: isConnecting ? 1.6 : 2.8,
+                duration: isConnecting ? 1.6 : isSpeaking ? 1.35 : 2.8,
                 repeat: Infinity,
                 ease: 'easeInOut',
               }}
@@ -213,6 +242,33 @@ function VoiceOrb({
             <span
               className={`border-white/28 absolute rounded-full border ${isCompact ? 'inset-[6px]' : 'inset-[7px]'}`}
             />
+            {!isConnecting ? (
+              <div
+                className={`absolute inset-0 flex items-center justify-center gap-1.5 ${
+                  isAssistantSpeaking ? 'text-white' : 'text-white/88'
+                }`}
+                aria-hidden="true"
+              >
+                {waveBars.map((height, index) => (
+                  <motion.span
+                    key={`${height}-${index}`}
+                    className="w-1.5 rounded-full bg-current shadow-[0_0_12px_rgba(255,255,255,0.45)]"
+                    animate={{
+                      height: isSpeaking
+                        ? [Math.max(8, height * 0.48), height, Math.max(10, height * 0.62)]
+                        : [Math.max(7, height * 0.36), Math.max(10, height * 0.62)],
+                      opacity: isSpeaking ? [0.62, 1, 0.72] : [0.45, 0.74, 0.48],
+                    }}
+                    transition={{
+                      duration: isSpeaking ? 0.58 : 1.4,
+                      repeat: Infinity,
+                      ease: 'easeInOut',
+                      delay: index * 0.08,
+                    }}
+                  />
+                ))}
+              </div>
+            ) : null}
             <span
               className={`relative flex items-center justify-center rounded-full bg-white/10 text-white/90 opacity-0 backdrop-blur-sm transition-opacity group-hover:opacity-100 ${isCompact ? 'h-8 w-8' : 'h-9 w-9'}`}
             >
@@ -428,6 +484,7 @@ export function AssistantPanel({
   const [isThreadSidebarOpen, setIsThreadSidebarOpen] = useState(false);
   const [pendingUserMessage, setPendingUserMessage] = useState('');
   const [assistantNotice, setAssistantNotice] = useState<AssistantNotice | null>(null);
+  const lastAssistantNoticeRef = useRef<AssistantNotice | null>(null);
   const {
     data: messages = [],
     isLoading: isMessagesLoading,
@@ -473,6 +530,16 @@ export function AssistantPanel({
   }, [voice.clearError]);
   const voiceCapability = voice.capability ?? { supported: true, reason: null };
   const isVoiceActive = voice.status === 'connecting' || voice.status === 'connected';
+  const voiceActivity: VoiceActivity =
+    voice.status === 'connecting'
+      ? 'connecting'
+      : voice.liveAssistantTranscript.trim()
+        ? 'assistant'
+        : voice.liveUserTranscript.trim()
+          ? 'user'
+          : isVoiceActive
+            ? 'listening'
+            : 'idle';
   const conversationError =
     (isMessagesError ? messagesError?.message : null) ||
     (isActionsError ? actionsError?.message : null);
@@ -514,7 +581,9 @@ export function AssistantPanel({
   }, [mode, activeThreadId, threads.length]);
 
   const showAssistantNotice = (tone: AssistantNotice['tone'], title: string, message: string) => {
-    setAssistantNotice({ id: Date.now(), tone, title, message });
+    const notice = { id: Date.now(), tone, title, message };
+    lastAssistantNoticeRef.current = notice;
+    setAssistantNotice(notice);
   };
 
   useEffect(() => {
@@ -614,7 +683,31 @@ export function AssistantPanel({
         setPendingThreadId(thread.id);
         setActiveThreadId(thread.id);
       }
-      await sendMessage.mutateAsync({ threadId: targetThreadId, content });
+      const locationPath =
+        typeof window === 'undefined' ? '' : `${window.location.pathname}${window.location.search}`;
+      const lastNotice = lastAssistantNoticeRef.current;
+      await sendMessage.mutateAsync({
+        threadId: targetThreadId,
+        content,
+        metadata: {
+          client_context: {
+            route: locationPath,
+            path: locationPath,
+            panel_mode: mode,
+            active_thread_id: targetThreadId,
+            voice_status: voice.status,
+            voice_active: isVoiceActive,
+            last_error: conversationError || voice.error || undefined,
+            last_notice: lastNotice
+              ? {
+                  tone: lastNotice.tone,
+                  title: lastNotice.title,
+                  message: lastNotice.message,
+                }
+              : undefined,
+          },
+        },
+      });
     } catch (error) {
       showAssistantNotice(
         'error',
@@ -726,6 +819,7 @@ export function AssistantPanel({
       <VoiceOrb
         isActive={isVoiceActive}
         isConnecting={voice.status === 'connecting'}
+        activity={voiceActivity}
         disabled={!currentWorkspaceId}
         unavailableReason={!voiceCapability.supported ? voiceCapability.reason : null}
         showLabel={false}
@@ -773,6 +867,7 @@ export function AssistantPanel({
                     <VoiceOrb
                       isActive={isVoiceActive}
                       isConnecting={voice.status === 'connecting'}
+                      activity={voiceActivity}
                       disabled={!currentWorkspaceId}
                       unavailableReason={!voiceCapability.supported ? voiceCapability.reason : null}
                       showLabel={false}

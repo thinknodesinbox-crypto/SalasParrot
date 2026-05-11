@@ -26,6 +26,7 @@ interface CreateAssistantThreadData {
 interface SendAssistantMessageData {
   threadId: string;
   content: string;
+  metadata?: Record<string, unknown>;
 }
 
 interface UpdateAssistantDeliverySettingsData {
@@ -141,7 +142,7 @@ export const useSendAssistantMessage = (workspaceId: string | null | undefined) 
     mutationFn: async (data: SendAssistantMessageData) => {
       const response = await api.post<AssistantSendMessageResponse>(
         `/assistant/threads/${data.threadId}/messages?workspace_id=${workspaceId}`,
-        { content: data.content }
+        { content: data.content, metadata: data.metadata ?? {} }
       );
       return response.data;
     },

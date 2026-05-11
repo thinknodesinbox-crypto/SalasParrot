@@ -246,10 +246,12 @@ describe('AssistantShell', () => {
       });
     });
     await waitFor(() => {
-      expect(sendMessageMutateAsync).toHaveBeenCalledWith({
-        threadId: 'thread-new',
-        content: 'pause campaign Apollo Enterprise',
-      });
+      expect(sendMessageMutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          threadId: 'thread-new',
+          content: 'pause campaign Apollo Enterprise',
+        })
+      );
     });
   });
 
@@ -262,10 +264,12 @@ describe('AssistantShell', () => {
     fireEvent.click(screen.getByText('Suggested prompt'));
 
     await waitFor(() => {
-      expect(sendMessageMutateAsync).toHaveBeenCalledWith({
-        threadId: 'thread-new',
-        content: 'Which campaigns need attention?',
-      });
+      expect(sendMessageMutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({
+          threadId: 'thread-new',
+          content: 'Which campaigns need attention?',
+        })
+      );
     });
 
     await new Promise((resolve) => window.setTimeout(resolve, 0));
