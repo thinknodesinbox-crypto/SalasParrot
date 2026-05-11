@@ -44,6 +44,24 @@ const SEARCH_FILLER_WORDS = new Set([
   'currently',
   'public',
   'proof',
+  'source',
+  'sources',
+  'links',
+  'link',
+  'recently',
+  'from',
+  'last',
+  'next',
+  'day',
+  'days',
+  'week',
+  'weeks',
+  'month',
+  'months',
+  'registration',
+  'ticket',
+  'tickets',
+  'in',
 ]);
 
 function compact(value: string): string {
@@ -73,6 +91,18 @@ function normalizeHost(value: string): string {
   }
 }
 
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function stripDateWindows(input: string): string {
+  return input
+    .replace(/\bin\s+the\s+next\s+\d{1,3}(?:\s*(?:-|to|through|and)\s*\d{1,3})?\s*days?\b/gi, ' ')
+    .replace(/\b(?:next|within|past|last|previous)\s+\d{1,3}\s*(?:days?|weeks?|months?)\b/gi, ' ')
+    .replace(/\b(?:from\s+)?the\s+last\s+\d{1,3}\s*(?:days?|weeks?|months?)\b/gi, ' ')
+    .replace(/\b(?:today|tomorrow|this week|next week|this month|next month)\b/gi, ' ');
+}
+
 function extractTargetWebsites(input: string): string[] {
   const targets: string[] = [];
   for (const match of input.matchAll(TARGET_WEBSITE_PATTERN)) {
@@ -88,14 +118,10 @@ function removeTargetWebsites(input: string): string {
 }
 
 function extractLocation(input: string): string | null {
-  const withoutDateWindows = input
-    .replace(/\bin\s+the\s+next\s+\d{1,3}(?:\s*(?:-|to|through|and)\s*\d{1,3})?\s*days?\b/gi, ' ')
-    .replace(/\b(?:next|within|past|last|previous)\s+\d{1,3}\s*days?\b/gi, ' ')
-    .replace(/\b(?:today|tomorrow|this week|next week|this month|next month)\b/gi, ' ');
+  const withoutDateWindows = stripDateWindows(input);
 
   const patterns = [
-    /\b(?:in|near|around|based in|located in)\s+([A-Z][A-Za-z.'-]+(?:[\s,]+[A-Z][A-Za-z.'-]+){0,4}|NYC|SF|LA|UK|USA|US)\b/,
-    /\b(?:across)\s+([A-Z][A-Za-z.'-]+(?:[\s,]+[A-Z][A-Za-z.'-]+){0,4}|NYC|SF|LA|UK|USA|US)\b/,
+    /\b(?:in|near|around|based in|located in|across)\s+((?:NYC|SF|LA|UK|USA|US|[A-Z][A-Za-z.'-]+(?:\s+[A-Z][A-Za-z.'-]+){0,3})(?:\s*(?:,|and|or)\s*(?:NYC|SF|LA|UK|USA|US|[A-Z][A-Za-z.'-]+(?:\s+[A-Z][A-Za-z.'-]+){0,3})){0,4})\b/,
   ];
 
   for (const pattern of patterns) {
@@ -129,7 +155,7 @@ function extractSpecialInstructions(input: string, targetWebsites: string[]): st
     .map(trimSentence)
     .filter(Boolean);
   const instructionSentences = sentences.filter((sentence) =>
-    /\b(exclude|excluding|avoid|do not|don't|must not|must|make sure|proof|evidence|verified|paid|ticket|registration|next\s+\d|within\s+\d|past\s+\d|last\s+\d|today|tomorrow|next week|next month|weekly|biweekly|every\s+\d+\s+days?)\b/i.test(
+    /\b(cta|call to action|exclude|excluding|avoid|do not|don't|must not|must|make sure|proof|evidence|verified|source links?|sources?|paid|ticket|registration|decision makers?|next\s+\d|within\s+\d|past\s+\d|last\s+\d|the\s+last\s+\d|today|tomorrow|next week|next month|weekly|biweekly|every\s+\d+\s+days?)\b/i.test(
       sentence
     )
   );
@@ -147,6 +173,10 @@ function stripInstructionClauses(input: string): string {
   const withoutTargets = removeTargetWebsites(input);
   return compact(
     withoutTargets
+      .replace(/\bTarget\s+(?:web)?sites?\b\s*[:,-]?\s*(?:[,;\s]+)?/gi, ' ')
+      .replace(/\bCTA\b\s*:\s*[^.!?]*(?:[.!?]|$)/gi, ' ')
+      .replace(/\bcall to action\b\s*:\s*[^.!?]*(?:[.!?]|$)/gi, ' ')
+      .replace(/\bMust\s+exclude\b.*$/i, ' ')
       .replace(
         /\b(?:EXCLUDE|Exclude|excluding|avoid|do not include|do not contact|must not)\b[:\s].*$/i,
         ' '
@@ -154,7 +184,10 @@ function stripInstructionClauses(input: string): string {
       .replace(/\bGoal is\b.*$/i, ' ')
       .replace(/\bStart conversations?\b.*$/i, ' ')
       .replace(/\bNeed public proof\b.*$/i, ' ')
+      .replace(/\bNeed public source links?\b.*$/i, ' ')
       .replace(/\bNeed proof\b.*$/i, ' ')
+      .replace(/\bNeed source links?\b.*$/i, ' ')
+      .replace(/\bNeed decision makers?\b.*$/i, ' ')
       .replace(/\bMake sure\b.*$/i, ' ')
       .replace(
         /\b(?:repeat|run|rerun|refresh)\s+(?:this\s+)?(?:every|each)\s+\d{1,3}\s+days?\b/gi,
@@ -177,16 +210,22 @@ function buildDiscoveryBrief(input: string, locationInput: string | null): strin
   ) {
     brief = `${brief} in ${locationInput}`;
   }
-  return compact(brief).slice(0, 700) || compact(input).slice(0, 700);
+  return (
+    compact(brief)
+      .replace(/\s+[,;:]+$/g, '')
+      .slice(0, 700) || compact(input).slice(0, 700)
+  );
 }
 
 function buildLinkedInKeywords(input: string, locationInput: string | null): string {
-  let text = stripInstructionClauses(input);
+  let text = stripDateWindows(stripInstructionClauses(input));
   if (locationInput) {
-    text = text.replace(
-      new RegExp(`\\b${locationInput.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i'),
-      ' '
-    );
+    text = text.replace(new RegExp(`\\b${escapeRegex(locationInput)}\\b`, 'i'), ' ');
+    for (const part of locationInput.split(/\s*(?:,|and|or)\s*/)) {
+      if (part.trim()) {
+        text = text.replace(new RegExp(`\\b${escapeRegex(part.trim())}\\b`, 'gi'), ' ');
+      }
+    }
   }
   text = text
     .replace(/^\s*(find|show|get|source|search for|look for)\s+(me\s+)?/i, '')
@@ -203,7 +242,7 @@ function buildLinkedInKeywords(input: string, locationInput: string | null): str
     .filter((token) => token.length > 1 && !SEARCH_FILLER_WORDS.has(token.toLowerCase()));
 
   const keywordSet = new Set(tokens);
-  if (EVENT_TERMS.test(input)) {
+  if (isEventSearch(input)) {
     keywordSet.add('event');
     keywordSet.add('organizer');
     keywordSet.add('manager');
@@ -211,12 +250,27 @@ function buildLinkedInKeywords(input: string, locationInput: string | null): str
   return Array.from(keywordSet).join(' ').slice(0, 180).trim() || compact(input).slice(0, 180);
 }
 
+function isEventSearch(input: string): boolean {
+  if (!EVENT_TERMS.test(input)) return false;
+  const ctaOnlyEventLanguage =
+    /\b(?:cta|call to action)\s*:\s*[^.!?]*(?:webinar|event)\b/i.test(input) ||
+    /\binvite\s+(?:them\s+|prospects\s+|leads\s+)?to\s+(?:a\s+)?(?:private\s+)?(?:webinar|event)\b/i.test(
+      input
+    );
+  const explicitEventSourcing =
+    /\b(?:find|show|get|source|search for|look for)\b.{0,160}\b(?:events?|conference|conferences|summit|summits|webinar|webinars|workshop|workshops|meetup|meetups|expo|expos|trade\s+shows?|organizers?|organisers?|hosting|tickets?|registration)\b/i.test(
+      input
+    ) || /\b(?:organizers?|organisers?)\s+(?:hosting|organizing|organising|running)\b/i.test(input);
+
+  return explicitEventSourcing || !ctaOnlyEventLanguage;
+}
+
 export function normalizeStartCampaignIntent(input: string): StartCampaignIntent {
   const original = compact(input);
   const targetWebsites = extractTargetWebsites(original);
   const withoutTargets = removeTargetWebsites(original);
   const locationInput = extractLocation(withoutTargets);
-  const searchType = EVENT_TERMS.test(original) ? 'event' : 'intent';
+  const searchType = isEventSearch(original) ? 'event' : 'intent';
 
   return {
     original,
