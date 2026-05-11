@@ -2751,6 +2751,13 @@ function LeadRow({
   const status = statusColors[lead.status] || statusColors.new;
   const discoveryFitBadge = getLeadDiscoveryFitBadge(lead);
   const discoveryProofBadges = getLeadDiscoveryProofBadges(lead);
+  const hasDiscoveryTag = lead.tags?.includes('Discovery') ?? false;
+  const shouldShowGenericDiscoveryBadge = hasDiscoveryTag && !discoveryFitBadge;
+  const discoverySource = discoveryFitBadge?.source ?? null;
+  const shouldShowDiscoverySourceBadge =
+    Boolean(discoverySource) &&
+    discoverySource !== 'Discovery' &&
+    discoverySource !== discoveryFitBadge?.label;
   const listMembershipState = (() => {
     const membershipStatus = lead.list_membership_status || '';
     if (membershipStatus === 'protected_active') {
@@ -2885,11 +2892,11 @@ function LeadRow({
               >
                 {lead.headline || lead.title}
               </p>
-              {lead.tags?.includes('Discovery') ||
+              {shouldShowGenericDiscoveryBadge ||
               discoveryFitBadge ||
               discoveryProofBadges.length ? (
                 <div className="mt-1 flex max-w-[240px] flex-wrap gap-1">
-                  {lead.tags?.includes('Discovery') ? (
+                  {shouldShowGenericDiscoveryBadge ? (
                     <span className="inline-flex rounded-full bg-[#F0FDF4] px-2 py-0.5 text-[11px] font-medium text-[#15803D]">
                       Discovery
                     </span>
@@ -2902,9 +2909,9 @@ function LeadRow({
                       {discoveryFitBadge.label}
                     </span>
                   ) : null}
-                  {discoveryFitBadge?.source ? (
+                  {shouldShowDiscoverySourceBadge ? (
                     <span className="inline-flex rounded-full bg-[#F8FAFC] px-2 py-0.5 text-[11px] font-medium text-[#64748B]">
-                      {discoveryFitBadge.source}
+                      {discoverySource}
                     </span>
                   ) : null}
                   {discoveryProofBadges.map((badge) => (
