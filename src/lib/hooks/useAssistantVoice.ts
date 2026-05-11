@@ -19,7 +19,7 @@ interface VoiceCapability {
 interface UseAssistantVoiceOptions {
   workspaceId: string | null;
   threadId: string | null;
-  onTranscriptSaved?: () => void;
+  onTranscriptSaved?: (response: AssistantTranscriptResponse) => void;
 }
 
 interface PersistTranscriptInput {
@@ -250,7 +250,7 @@ export function useAssistantVoice({
         }
       );
       persistedItemIdsRef.current.add(dedupeKey);
-      onTranscriptSaved?.();
+      onTranscriptSaved?.(response.data);
       return response.data;
     } catch {
       return null;

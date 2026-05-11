@@ -483,6 +483,7 @@ export function AssistantPanel({
   const { currentWorkspaceId } = useCurrentWorkspace();
   const setSelectedThreadId = useAssistantUiStore((state) => state.setSelectedThreadId);
   const { data: workspace = null } = useWorkspace(currentWorkspaceId || '');
+  const previousInitialThreadIdRef = useRef<string | null>(initialThreadId);
   const {
     data: threads = [],
     isLoading: isThreadsLoading,
@@ -520,13 +521,15 @@ export function AssistantPanel({
   const voice = useAssistantVoice({
     workspaceId: currentWorkspaceId,
     threadId: activeThreadId,
-    onTranscriptSaved: () => {
-      if (currentWorkspaceId && activeThreadId) {
+    onTranscriptSaved: (response) => {
+      const savedThreadId =
+        response.assistant_message?.thread_id || response.message.thread_id || activeThreadId;
+      if (currentWorkspaceId && savedThreadId) {
         queryClient.invalidateQueries({
-          queryKey: queryKeys.assistant.messages(currentWorkspaceId, activeThreadId),
+          queryKey: queryKeys.assistant.messages(currentWorkspaceId, savedThreadId),
         });
         queryClient.invalidateQueries({
-          queryKey: queryKeys.assistant.actions(currentWorkspaceId, activeThreadId),
+          queryKey: queryKeys.assistant.actions(currentWorkspaceId, savedThreadId),
         });
       }
       queryClient.invalidateQueries({ queryKey: queryKeys.assistant.threads(currentWorkspaceId) });
@@ -548,12 +551,14 @@ export function AssistantPanel({
     (isActionsError ? actionsError?.message : null);
 
   useEffect(() => {
-    if (mode === 'page' && !initialThreadId) {
-      setActiveThreadId(null);
-      return;
-    }
+    const previousInitialThreadId = previousInitialThreadIdRef.current;
+    previousInitialThreadIdRef.current = initialThreadId;
     if (initialThreadId) {
       setActiveThreadId(initialThreadId);
+      return;
+    }
+    if (mode === 'page' && previousInitialThreadId) {
+      setActiveThreadId(null);
     }
   }, [initialThreadId, mode]);
 
@@ -810,6 +815,8 @@ export function AssistantPanel({
     voice.status === 'connecting' ? 'Connecting' : isVoiceActive ? 'Live' : null;
   const isPageEmptyState =
     mode === 'page' &&
+    !activeThreadId &&
+    !isVoiceActive &&
     messages.length === 0 &&
     !voice.liveUserTranscript &&
     !voice.liveAssistantTranscript &&

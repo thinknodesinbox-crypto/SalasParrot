@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const invalidateQueries = vi.fn();
@@ -94,18 +95,24 @@ vi.mock('../AssistantMessageList', () => ({
   AssistantMessageList: ({
     messages,
     actionsById,
+    pageHero,
+    draftUserMessage,
     onUseSuggestedPrompt,
     onApproveAction,
     onExecuteAction,
   }: {
     messages: Array<{ id: string; content: string }>;
     actionsById: Record<string, { id: string; preview?: { title?: string } }>;
+    pageHero?: ReactNode;
+    draftUserMessage?: string;
     onUseSuggestedPrompt?: (prompt: string) => void;
     onApproveAction?: (actionId: string, note?: string) => void;
     onExecuteAction?: (actionId: string) => void;
   }) => (
     <div>
+      {pageHero}
       <div data-testid="message-count">{messages.length}</div>
+      <div data-testid="draft-user-message">{draftUserMessage ?? ''}</div>
       <div data-testid="action-count">{Object.keys(actionsById).length}</div>
       <div data-testid="action-title">
         {Object.values(actionsById)[0]?.preview?.title ?? 'none'}
@@ -277,5 +284,94 @@ describe('AssistantShell', () => {
     const latestMessagesCall =
       useAssistantMessagesMock.mock.calls[useAssistantMessagesMock.mock.calls.length - 1];
     expect(latestMessagesCall?.[1]).toBe('thread-new');
+  });
+
+  it('keeps a new voice conversation attached to the thread created from the empty page', async () => {
+    const voiceStart = vi.fn();
+    useAssistantThreadsMock.mockReturnValue({
+      data: [],
+      isLoading: false,
+    });
+    useAssistantMessagesMock.mockReturnValue({
+      data: [],
+      isLoading: false,
+    });
+    useAssistantActionsMock.mockReturnValue({
+      data: [],
+    });
+    useAssistantVoiceMock.mockReturnValue({
+      status: 'idle',
+      error: null,
+      activity: 'idle',
+      capability: { supported: true, reason: null },
+      liveUserTranscript: '',
+      liveAssistantTranscript: '',
+      isProcessingResponse: false,
+      start: voiceStart,
+      stop: vi.fn(),
+      clearError: vi.fn(),
+    });
+    createThreadMutateAsync.mockResolvedValue({ id: 'thread-new' });
+
+    render(<AssistantShell />);
+
+    fireEvent.click(screen.getByRole('button', { name: /start voice mode/i }));
+
+    await waitFor(() => {
+      expect(createThreadMutateAsync).toHaveBeenCalledWith({
+        title: 'What needs attention in Acme today?',
+      });
+    });
+    await waitFor(() => {
+      expect(voiceStart).toHaveBeenCalledWith({
+        workspaceId: 'workspace-1',
+        threadId: 'thread-new',
+      });
+    });
+
+    const latestMessagesCall =
+      useAssistantMessagesMock.mock.calls[useAssistantMessagesMock.mock.calls.length - 1];
+    expect(latestMessagesCall?.[1]).toBe('thread-new');
+  });
+
+  it('refreshes the saved voice transcript thread even before local active thread state catches up', () => {
+    useAssistantThreadsMock.mockReturnValue({
+      data: [],
+      isLoading: false,
+    });
+    useAssistantMessagesMock.mockReturnValue({
+      data: [],
+      isLoading: false,
+    });
+    useAssistantActionsMock.mockReturnValue({
+      data: [],
+    });
+
+    render(<AssistantShell />);
+
+    const voiceOptions = useAssistantVoiceMock.mock.calls[0]?.[0];
+    voiceOptions.onTranscriptSaved({
+      message: {
+        id: 'message-voice',
+        thread_id: 'thread-new',
+        workspace_id: 'workspace-1',
+        user_id: null,
+        role: 'user',
+        content: 'hello',
+        message_type: 'voice_transcript',
+        interface: 'dashboard_voice',
+        metadata: {},
+        created_at: '2026-05-11T00:00:00Z',
+      },
+      assistant_message: null,
+      run: null,
+    });
+
+    expect(invalidateQueries).toHaveBeenCalledWith({
+      queryKey: ['assistant', 'messages', 'workspace-1', 'thread-new'],
+    });
+    expect(invalidateQueries).toHaveBeenCalledWith({
+      queryKey: ['assistant', 'actions', 'workspace-1', 'thread-new'],
+    });
   });
 });
