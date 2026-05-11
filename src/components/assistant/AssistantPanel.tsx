@@ -45,7 +45,7 @@ type AssistantNotice = {
   message: string;
 };
 
-type VoiceActivity = 'idle' | 'connecting' | 'listening' | 'user' | 'assistant';
+type VoiceActivity = 'idle' | 'connecting' | 'listening' | 'user' | 'thinking' | 'assistant';
 
 function humanizeAssistantOperationError(message: string | null | undefined) {
   const cleaned = message?.trim();
@@ -125,15 +125,18 @@ function VoiceOrb({
 }) {
   const activeActivity = isConnecting ? 'connecting' : isActive ? activity : 'idle';
   const isUserSpeaking = activeActivity === 'user';
+  const isThinking = activeActivity === 'thinking';
   const isAssistantSpeaking = activeActivity === 'assistant';
   const isSpeaking = isUserSpeaking || isAssistantSpeaking;
   const label = isConnecting
     ? 'Connecting'
     : isAssistantSpeaking
       ? 'Speaking'
-      : isActive
-        ? 'Listening'
-        : 'Voice';
+      : isThinking
+        ? 'Thinking'
+        : isActive
+          ? 'Listening'
+          : 'Voice';
   const isUnavailable = disabled || Boolean(unavailableReason);
   const title = disabled
     ? 'Select a workspace to use voice'
@@ -185,10 +188,10 @@ function VoiceOrb({
               className="absolute inset-[-18px] rounded-full bg-[#7DD3FC]/20 blur-2xl"
               animate={{
                 scale: isSpeaking ? [0.9, 1.28, 0.94] : [0.92, 1.18, 0.96],
-                opacity: isSpeaking ? [0.4, 0.86, 0.46] : [0.35, 0.72, 0.4],
+                opacity: isSpeaking || isThinking ? [0.4, 0.86, 0.46] : [0.35, 0.72, 0.4],
               }}
               transition={{
-                duration: isSpeaking ? 1.15 : 2.4,
+                duration: isSpeaking ? 1.15 : isThinking ? 1.35 : 2.4,
                 repeat: Infinity,
                 ease: 'easeInOut',
               }}
@@ -197,9 +200,13 @@ function VoiceOrb({
               className="absolute inset-[-9px] rounded-full border border-[#BAE6FD]/55"
               animate={{
                 scale: isSpeaking ? [1, 1.3, 1.05] : [1, 1.2, 1],
-                opacity: isSpeaking ? [0.56, 0.06, 0.44] : [0.48, 0.08, 0.42],
+                opacity: isSpeaking || isThinking ? [0.56, 0.06, 0.44] : [0.48, 0.08, 0.42],
               }}
-              transition={{ duration: isSpeaking ? 0.92 : 1.7, repeat: Infinity, ease: 'easeOut' }}
+              transition={{
+                duration: isSpeaking ? 0.92 : isThinking ? 1.08 : 1.7,
+                repeat: Infinity,
+                ease: 'easeOut',
+              }}
             />
             <motion.span
               className="absolute inset-0 overflow-hidden rounded-full bg-[radial-gradient(circle_at_62%_20%,rgba(240,253,255,0.98)_0%,rgba(224,249,255,0.88)_24%,rgba(125,211,252,0.9)_50%,rgba(14,165,233,0.9)_74%,rgba(2,132,199,0.95)_100%)]"
@@ -212,12 +219,14 @@ function VoiceOrb({
                 ],
                 scale: isConnecting
                   ? [1, 1.03, 1]
-                  : isSpeaking
-                    ? [1, 1.08, 0.97, 1.07, 1]
-                    : [1, 1.06, 0.98, 1.04, 1],
+                  : isThinking
+                    ? [1, 1.05, 1.01, 1.06, 1]
+                    : isSpeaking
+                      ? [1, 1.08, 0.97, 1.07, 1]
+                      : [1, 1.06, 0.98, 1.04, 1],
               }}
               transition={{
-                duration: isConnecting ? 1.6 : isSpeaking ? 1.35 : 2.8,
+                duration: isConnecting ? 1.6 : isThinking ? 1.1 : isSpeaking ? 1.35 : 2.8,
                 repeat: Infinity,
                 ease: 'easeInOut',
               }}
@@ -256,11 +265,13 @@ function VoiceOrb({
                     animate={{
                       height: isSpeaking
                         ? [Math.max(8, height * 0.48), height, Math.max(10, height * 0.62)]
-                        : [Math.max(7, height * 0.36), Math.max(10, height * 0.62)],
-                      opacity: isSpeaking ? [0.62, 1, 0.72] : [0.45, 0.74, 0.48],
+                        : isThinking
+                          ? [Math.max(9, height * 0.52), Math.max(13, height * 0.78)]
+                          : [Math.max(7, height * 0.36), Math.max(10, height * 0.62)],
+                      opacity: isSpeaking || isThinking ? [0.62, 1, 0.72] : [0.45, 0.74, 0.48],
                     }}
                     transition={{
-                      duration: isSpeaking ? 0.58 : 1.4,
+                      duration: isSpeaking ? 0.58 : isThinking ? 0.78 : 1.4,
                       repeat: Infinity,
                       ease: 'easeInOut',
                       delay: index * 0.08,
@@ -531,15 +542,7 @@ export function AssistantPanel({
   const voiceCapability = voice.capability ?? { supported: true, reason: null };
   const isVoiceActive = voice.status === 'connecting' || voice.status === 'connected';
   const voiceActivity: VoiceActivity =
-    voice.status === 'connecting'
-      ? 'connecting'
-      : voice.liveAssistantTranscript.trim()
-        ? 'assistant'
-        : voice.liveUserTranscript.trim()
-          ? 'user'
-          : isVoiceActive
-            ? 'listening'
-            : 'idle';
+    voice.status === 'connecting' ? 'connecting' : (voice.activity ?? 'idle');
   const conversationError =
     (isMessagesError ? messagesError?.message : null) ||
     (isActionsError ? actionsError?.message : null);
@@ -976,7 +979,9 @@ export function AssistantPanel({
                     draftUserMessage={isVoiceActive ? voice.liveUserTranscript : pendingUserMessage}
                     draftAssistantMessage={isVoiceActive ? voice.liveAssistantTranscript : ''}
                     error={null}
-                    isResponding={sendMessage.isPending || createThread.isPending}
+                    isResponding={
+                      sendMessage.isPending || createThread.isPending || voice.isProcessingResponse
+                    }
                     onRetryQuery={() => {
                       void refetchMessages();
                       void refetchActions();

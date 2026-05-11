@@ -3,6 +3,13 @@ import { api, getErrorMessage } from '@/lib/api';
 import type { AssistantTranscriptResponse } from '@/lib/types';
 
 type VoiceStatus = 'idle' | 'connecting' | 'connected' | 'error';
+export type AssistantVoiceActivity =
+  | 'idle'
+  | 'connecting'
+  | 'listening'
+  | 'user'
+  | 'thinking'
+  | 'assistant';
 
 interface VoiceCapability {
   supported: boolean;
@@ -117,6 +124,7 @@ export function useAssistantVoice({
   const [capability, setCapability] = useState<VoiceCapability>(() => getVoiceCapability());
   const [status, setStatus] = useState<VoiceStatus>('idle');
   const [error, setError] = useState<string | null>(null);
+  const [activity, setActivity] = useState<AssistantVoiceActivity>('idle');
   const [liveUserTranscript, setLiveUserTranscript] = useState('');
   const [liveAssistantTranscript, setLiveAssistantTranscript] = useState('');
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
@@ -174,6 +182,7 @@ export function useAssistantVoice({
     const channel = dataChannelRef.current;
     if (!channel || channel.readyState !== 'open' || !text.trim()) return;
     setLiveAssistantTranscript(text);
+    setActivity('assistant');
     channel.send(
       JSON.stringify({
         type: 'response.create',
@@ -254,6 +263,7 @@ export function useAssistantVoice({
     }
     setLiveUserTranscript('');
     setLiveAssistantTranscript('');
+    setActivity('idle');
     userTranscriptBuffersRef.current.clear();
     assistantTranscriptBuffersRef.current.clear();
     clearPendingUserTranscript();
@@ -269,6 +279,7 @@ export function useAssistantVoice({
     setError(null);
     if (status === 'error') {
       setStatus('idle');
+      setActivity('idle');
     }
   };
 
@@ -294,6 +305,7 @@ export function useAssistantVoice({
     }
 
     setStatus('connecting');
+    setActivity('connecting');
     setError(null);
     setLiveUserTranscript('');
     setLiveAssistantTranscript('');
@@ -324,6 +336,9 @@ export function useAssistantVoice({
       pc.onconnectionstatechange = () => {
         if (pc.connectionState === 'connected') {
           setStatus('connected');
+          setActivity((current) =>
+            current === 'idle' || current === 'connecting' ? 'listening' : current
+          );
           return;
         }
         if (
@@ -365,6 +380,9 @@ export function useAssistantVoice({
       dataChannelRef.current = dc;
       dc.onopen = () => {
         setStatus('connected');
+        setActivity((current) =>
+          current === 'idle' || current === 'connecting' ? 'listening' : current
+        );
       };
       dc.onerror = () => {
         setError('Voice event channel failed.');
@@ -381,6 +399,7 @@ export function useAssistantVoice({
           const payload = JSON.parse(event.data);
           if (payload.type === 'input_audio_buffer.speech_started') {
             clearPendingUserTranscript();
+            setActivity('user');
           }
           if (
             payload.type === 'conversation.item.input_audio_transcription.delta' &&
@@ -390,12 +409,21 @@ export function useAssistantVoice({
             const nextTranscript = `${userTranscriptBuffersRef.current.get(payload.item_id) || ''}${payload.delta}`;
             userTranscriptBuffersRef.current.set(payload.item_id, nextTranscript);
             setLiveUserTranscript(nextTranscript);
+            setActivity('user');
           }
           if (payload.type === 'conversation.item.input_audio_transcription.completed') {
             const transcript =
               payload.transcript ||
               (payload.item_id ? userTranscriptBuffersRef.current.get(payload.item_id) : '') ||
               '';
+            setLiveUserTranscript(transcript);
+            setActivity(transcript.trim() ? 'thinking' : 'listening');
+            if (!transcript.trim()) {
+              if (payload.item_id) {
+                userTranscriptBuffersRef.current.delete(payload.item_id);
+              }
+              return;
+            }
             const eventIndex = ++eventIndexRef.current;
             const eventCreatedAt = new Date().toISOString();
             clearPendingUserTranscript();
@@ -417,13 +445,16 @@ export function useAssistantVoice({
                   const voiceReviewText = getVoiceReviewText(persisted);
                   if (voiceReviewText) {
                     speakAssistantText(voiceReviewText);
+                  } else {
+                    setActivity('listening');
                   }
                 } else {
                   setError('Failed to save transcript.');
                   setLiveUserTranscript(transcript);
+                  setActivity('listening');
                 }
               })();
-            }, 700);
+            }, 250);
           }
           if (
             (payload.type === 'response.audio_transcript.delta' ||
@@ -434,6 +465,7 @@ export function useAssistantVoice({
             const nextTranscript = `${assistantTranscriptBuffersRef.current.get(payload.item_id) || ''}${payload.delta}`;
             assistantTranscriptBuffersRef.current.set(payload.item_id, nextTranscript);
             setLiveAssistantTranscript(nextTranscript);
+            setActivity('assistant');
           }
           if (
             payload.type === 'response.audio_transcript.done' ||
@@ -443,6 +475,7 @@ export function useAssistantVoice({
               assistantTranscriptBuffersRef.current.delete(payload.item_id);
             }
             setLiveAssistantTranscript('');
+            setActivity('listening');
           }
         } catch {
           // ignore malformed events
@@ -550,8 +583,10 @@ export function useAssistantVoice({
     capability,
     status,
     error,
+    activity,
     liveUserTranscript,
     liveAssistantTranscript,
+    isProcessingResponse: activity === 'thinking',
     isConnected: status === 'connected',
     start,
     stop,
