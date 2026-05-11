@@ -130,8 +130,16 @@ export function useAssistantVoice({
   const eventIndexRef = useRef(0);
   const userTranscriptBuffersRef = useRef<Map<string, string>>(new Map());
   const assistantTranscriptBuffersRef = useRef<Map<string, string>>(new Map());
+  const pendingUserTranscriptTimeoutRef = useRef<number | null>(null);
   const isStoppingRef = useRef(false);
   const pendingSessionBindingRef = useRef<{ workspaceId: string; threadId: string } | null>(null);
+
+  const clearPendingUserTranscript = () => {
+    if (pendingUserTranscriptTimeoutRef.current !== null) {
+      window.clearTimeout(pendingUserTranscriptTimeoutRef.current);
+      pendingUserTranscriptTimeoutRef.current = null;
+    }
+  };
 
   const getVoiceReviewText = (response: AssistantTranscriptResponse | null): string | null => {
     const metadata =
@@ -248,6 +256,7 @@ export function useAssistantVoice({
     setLiveAssistantTranscript('');
     userTranscriptBuffersRef.current.clear();
     assistantTranscriptBuffersRef.current.clear();
+    clearPendingUserTranscript();
     persistedItemIdsRef.current.clear();
     eventIndexRef.current = 0;
     pendingSessionBindingRef.current = null;
@@ -290,6 +299,7 @@ export function useAssistantVoice({
     setLiveAssistantTranscript('');
     userTranscriptBuffersRef.current.clear();
     assistantTranscriptBuffersRef.current.clear();
+    clearPendingUserTranscript();
     eventIndexRef.current = 0;
 
     try {
@@ -369,6 +379,9 @@ export function useAssistantVoice({
       dc.onmessage = (event) => {
         try {
           const payload = JSON.parse(event.data);
+          if (payload.type === 'input_audio_buffer.speech_started') {
+            clearPendingUserTranscript();
+          }
           if (
             payload.type === 'conversation.item.input_audio_transcription.delta' &&
             payload.delta &&
@@ -385,28 +398,32 @@ export function useAssistantVoice({
               '';
             const eventIndex = ++eventIndexRef.current;
             const eventCreatedAt = new Date().toISOString();
-            void (async () => {
-              const persisted = await persistTranscript({
-                role: 'user',
-                content: transcript,
-                externalItemId: payload.item_id || null,
-                eventIndex,
-                eventCreatedAt,
-              });
-              if (persisted) {
-                if (payload.item_id) {
-                  userTranscriptBuffersRef.current.delete(payload.item_id);
+            clearPendingUserTranscript();
+            pendingUserTranscriptTimeoutRef.current = window.setTimeout(() => {
+              pendingUserTranscriptTimeoutRef.current = null;
+              void (async () => {
+                const persisted = await persistTranscript({
+                  role: 'user',
+                  content: transcript,
+                  externalItemId: payload.item_id || null,
+                  eventIndex,
+                  eventCreatedAt,
+                });
+                if (persisted) {
+                  if (payload.item_id) {
+                    userTranscriptBuffersRef.current.delete(payload.item_id);
+                  }
+                  setLiveUserTranscript('');
+                  const voiceReviewText = getVoiceReviewText(persisted);
+                  if (voiceReviewText) {
+                    speakAssistantText(voiceReviewText);
+                  }
+                } else {
+                  setError('Failed to save transcript.');
+                  setLiveUserTranscript(transcript);
                 }
-                setLiveUserTranscript('');
-                const voiceReviewText = getVoiceReviewText(persisted);
-                if (voiceReviewText) {
-                  speakAssistantText(voiceReviewText);
-                }
-              } else {
-                setError('Failed to save transcript.');
-                setLiveUserTranscript(transcript);
-              }
-            })();
+              })();
+            }, 700);
           }
           if (
             (payload.type === 'response.audio_transcript.delta' ||
