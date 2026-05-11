@@ -21,6 +21,16 @@ import {
 } from '../../lib/hooks/queries';
 import { api } from '../../lib/api';
 import { useAuthStore } from '../../lib/auth';
+import {
+  HOME_LAUNCH_STORAGE_KEY,
+  buildPlaybookCampaignDraft,
+  buildPlaybookDiscoveryBrief,
+  buildPlaybookSpecialInstructions,
+  buildPlaybookTargetWebsites,
+  inferGrowthPlaybookIdFromText,
+  type GrowthPlaybookId,
+  type PlaybookLaunchIntent,
+} from '../../lib/playbookLaunch';
 import { normalizeStartCampaignIntent } from '../../lib/startCampaignIntent';
 import {
   DASHBOARD_PREVIEW_ACTIVITY,
@@ -66,12 +76,7 @@ export const Route = createFileRoute('/dashboard/')({
 
 type CommandMode = 'search' | 'playbook';
 type SearchSource = 'discovery' | 'linkedin';
-type PlaybookId =
-  | 'event-led-relationship-selling'
-  | 'lead-reactivation'
-  | 'referral-partner-engine'
-  | 'founder-led-sales'
-  | 'local-market-domination';
+type PlaybookId = GrowthPlaybookId;
 
 type SuggestedSearch = {
   id: string;
@@ -93,7 +98,7 @@ type GrowthPlaybook = {
   meaning: string;
   setup: string[];
   stages: string[];
-  visual: 'event' | 'reactivation' | 'referral' | 'founder' | 'local';
+  visual: 'signal' | 'event' | 'reactivation' | 'referral' | 'founder' | 'local';
   accent: string;
   surface: string;
 };
@@ -174,20 +179,41 @@ type InlineDiscoveryStatusState = {
 type DiscoveryRepeatPolicy = 'new_signal' | 'skip_seen';
 
 const HOME_DRAFT_STORAGE_KEY = 'salesparrot-home-command-draft';
-const HOME_LAUNCH_STORAGE_KEY = 'salesparrot-home-launch-intent';
 const HOME_INLINE_DISCOVERY_STORAGE_KEY = 'salesparrot-inline-discovery-run';
 const HOME_SEARCH_PAGE_SIZE = 10;
 
 const growthPlaybooks: GrowthPlaybook[] = [
   {
+    id: 'signal-led-prospecting',
+    name: 'Signal-Led Prospecting',
+    status: 'featured',
+    description:
+      'Find accounts and people showing a timely buying signal, collect proof, rank fit, and turn the signal into a focused outreach draft.',
+    outcome: 'Source proof-backed leads from live market signals and move quickly into outreach.',
+    meaning: 'Start outreach from a real signal instead of a broad title list.',
+    setup: ['Source strategy', 'Audience', 'Signal', 'CTA', 'Sender path'],
+    stages: ['Signals found', 'People verified', 'Proof attached', 'Ranked', 'Drafted', 'Ready'],
+    visual: 'signal',
+    accent: '#0F766E',
+    surface: 'from-[#ECFDF5] via-white to-[#F0FDFA]',
+  },
+  {
     id: 'event-led-relationship-selling',
     name: 'Event-Led Relationship Selling',
     status: 'featured',
     description:
-      'Turn an event into the relationship wedge. Parrot helps define the audience, build the invite motion, track attendance, and convert warm interest into pipeline.',
-    outcome: 'Launch a trust-building event campaign end to end.',
-    meaning: 'Use an event as the warm reason to start and deepen sales conversations.',
-    setup: ['Event type', 'Topic', 'Audience', 'Format', 'Date and time', 'Campaign goal'],
+      'Use an event you are organizing as the relationship wedge. Parrot helps find the right ICP to invite, drive registrations, and continue nurture after the event.',
+    outcome: 'Launch an ICP invite and post-event nurture motion around your event.',
+    meaning:
+      'Use your event as a useful, trust-first reason to start and deepen client conversations.',
+    setup: [
+      'Event type',
+      'Registration URL',
+      'Topic',
+      'Audience',
+      'Date and time',
+      'Campaign goal',
+    ],
     stages: [
       'Prospects identified',
       'Invited',
@@ -204,7 +230,7 @@ const growthPlaybooks: GrowthPlaybook[] = [
   {
     id: 'lead-reactivation',
     name: 'Lead Reactivation',
-    status: 'next',
+    status: 'featured',
     description:
       'Import dormant leads, segment them intelligently, and relaunch conversations with reactivation messaging that feels timely.',
     outcome: 'Wake up old pipeline and surface new meetings.',
@@ -260,19 +286,112 @@ const growthPlaybooks: GrowthPlaybook[] = [
 ];
 
 const playbookSetupConfig: Record<PlaybookId, PlaybookSetupConfig> = {
-  'event-led-relationship-selling': {
+  'signal-led-prospecting': {
     intro:
-      'Parrot will turn your event into a relationship-led campaign with sourcing, invite messaging, follow-up, and tracked outcomes.',
+      'Parrot will turn a market signal into a sourced lead list, proof-backed lead context, and a campaign draft that starts from why now.',
     bestFor:
-      'Best when you need a warm, trust-first reason to open conversations instead of pitching cold.',
+      'Best when the user knows the kind of buyer or trigger they care about, but wants Parrot to figure out the best sources, proof, people, and first outreach angle.',
     summary:
-      'You are defining the event, the audience, and the campaign goal. Parrot will handle the audience build, invite flow, reminders, and post-event follow-up path.',
+      'Review the source strategy, audience, CTA, and sender path. Parrot will launch discovery, save the results to Leads with proof, and prepare a campaign draft for review.',
     builds: [
-      'Audience list and invite criteria',
-      'Invite, reminder, and post-event sequence',
-      'Attendance tracking and next-step actions',
+      'Source strategy for web, target sites, and LinkedIn verification',
+      'Ranked audience list with signal proof and fit badges',
+      'CTA and first-message angle tied to the detected signal',
+      'Campaign draft with sender path and safety checks',
     ],
     fields: [
+      {
+        id: 'sourceStrategy',
+        label: 'Source strategy',
+        prompt: 'Where should Parrot look first?',
+        helper:
+          'Choose how aggressive the sourcing should be. Parrot can still fall back when a source is thin.',
+        type: 'select',
+        options: [
+          'Open web first, then LinkedIn verification',
+          'Target websites first, then open web',
+          'LinkedIn verification first',
+          'Open web only unless a person needs verification',
+        ],
+      },
+      {
+        id: 'audience',
+        label: 'Audience',
+        prompt: 'Who should Parrot find?',
+        helper:
+          'Describe the buyer, team, company type, geography, or market. Broad prompts are fine.',
+        type: 'textarea',
+        placeholder: 'AI infrastructure teams at post-Series A companies using LLMs in production',
+      },
+      {
+        id: 'signal',
+        label: 'Signal',
+        prompt: 'What signal should make a lead worth contacting now?',
+        helper:
+          'Use hiring, funding, product launches, tech adoption, compliance pressure, event activity, or any trigger that creates timing.',
+        type: 'textarea',
+        placeholder:
+          'Teams struggling with LLM output validation, schema enforcement, retries, or production observability',
+      },
+      {
+        id: 'cta',
+        label: 'CTA',
+        prompt: 'What should the first conversation ask for?',
+        helper: 'Parrot will shape the sequence around this next action.',
+        type: 'select',
+        options: [
+          'Book a meeting',
+          'Start a pilot conversation',
+          'Reply with current workflow',
+          'Review a short teardown',
+          'Request a demo',
+        ],
+      },
+      {
+        id: 'sender',
+        label: 'Sender',
+        prompt: 'Which sender path should Parrot prepare for?',
+        helper:
+          'The campaign review will still enforce connected accounts and safety checks before launch.',
+        type: 'select',
+        options: [
+          'Best connected sender',
+          'LinkedIn first',
+          'Email first',
+          'Founder-led sender',
+          'Review sender later',
+        ],
+      },
+    ],
+  },
+  'event-led-relationship-selling': {
+    intro:
+      'Parrot will turn your event into a relationship-led client acquisition motion: find the right ICP to invite, use your registration page as proof, draft outreach, and prepare nurture after the event.',
+    bestFor:
+      'Best when you are organizing, hosting, sponsoring, or planning an event and want the event to become a warm reason to start sales conversations.',
+    summary:
+      'You are defining your event, the ICP to invite, and the business CTA. Parrot will build the audience, invite flow, registration follow-up, and post-event nurture path.',
+    builds: [
+      'Source strategy using your event page plus web and LinkedIn ICP sourcing',
+      'Ranked invite audience with fit proof and event-relevance context',
+      'Registration CTA, reminder, and post-event nurture path',
+      'Campaign draft with sender path and safety checks',
+    ],
+    fields: [
+      {
+        id: 'sourceStrategy',
+        label: 'Source strategy',
+        prompt: 'How should Parrot source invitees?',
+        helper:
+          'This decides where Parrot starts before verifying people and saving them to Leads.',
+        type: 'select',
+        options: [
+          'Use event page plus ICP web and LinkedIn sourcing',
+          'Use LinkedIn first for ICP invitees',
+          'Use open web first for ICP accounts',
+          'Review source strategy later',
+        ],
+      },
       {
         id: 'eventType',
         label: 'Event type',
@@ -280,6 +399,7 @@ const playbookSetupConfig: Record<PlaybookId, PlaybookSetupConfig> = {
         helper: 'This tells Parrot how warm, direct, and personal the invite should feel.',
         type: 'select',
         options: [
+          'Help me decide',
           'Private dinner',
           'Roundtable',
           'Workshop',
@@ -287,6 +407,16 @@ const playbookSetupConfig: Record<PlaybookId, PlaybookSetupConfig> = {
           'Demo session',
           'Masterclass',
         ],
+      },
+      {
+        id: 'registrationUrl',
+        label: 'Registration URL',
+        prompt: 'Do you have a registration or event page URL?',
+        helper:
+          'Add the registration page, landing page, calendar page, or ticket link. Leave blank if it is not live yet.',
+        type: 'text',
+        optional: true,
+        placeholder: 'https://yourcompany.com/events/revops-roundtable',
       },
       {
         id: 'topic',
@@ -330,12 +460,43 @@ const playbookSetupConfig: Record<PlaybookId, PlaybookSetupConfig> = {
           'This decides the follow-up path Parrot recommends after replies, RSVPs, or attendance.',
         type: 'select',
         options: [
+          'Help me decide',
           'Drive RSVPs',
           'Book meetings',
           'Generate demos',
           'Build partnerships',
           'Win referrals',
           'Move prospects to nurture',
+        ],
+      },
+      {
+        id: 'postEventNurture',
+        label: 'Post-event nurture',
+        prompt: 'How should Parrot continue after the event?',
+        helper:
+          'This shapes follow-up for attendees, no-shows, and interested prospects who do not register yet.',
+        type: 'select',
+        options: [
+          'Help me decide',
+          'Book meetings with attendees',
+          'Share event recap and book follow-ups',
+          'Send replay or resources',
+          'Move non-attendees into nurture',
+          'Review nurture later',
+        ],
+      },
+      {
+        id: 'sender',
+        label: 'Sender',
+        prompt: 'Which sender path should Parrot prepare for?',
+        helper: 'Use the path that would feel most credible for the event invite or follow-up.',
+        type: 'select',
+        options: [
+          'Best connected sender',
+          'LinkedIn first',
+          'Email first',
+          'Founder-led sender',
+          'Review sender later',
         ],
       },
     ],
@@ -348,9 +509,10 @@ const playbookSetupConfig: Record<PlaybookId, PlaybookSetupConfig> = {
     summary:
       'You are defining which old leads matter, why they should re-engage now, and what action you want them to take next.',
     builds: [
-      'Lead segmentation and reactivation logic',
-      'Re-engagement messaging by lead state',
-      'Reply handling and meeting conversion path',
+      'Source strategy for existing lists, imports, and past campaign context',
+      'Audience segmentation by dormancy, fit, and reactivation reason',
+      'CTA and re-engagement angle for each lead state',
+      'Campaign draft with sender path and safety checks',
     ],
     fields: [
       {
@@ -391,6 +553,21 @@ const playbookSetupConfig: Record<PlaybookId, PlaybookSetupConfig> = {
           'Start a trial',
           'Request a demo',
           'Rejoin nurture',
+        ],
+      },
+      {
+        id: 'sender',
+        label: 'Sender',
+        prompt: 'Which sender path should Parrot prepare for?',
+        helper:
+          'Pick the channel most likely to feel like a natural continuation of the older relationship.',
+        type: 'select',
+        options: [
+          'Best connected sender',
+          'LinkedIn first',
+          'Email first',
+          'Original sender if available',
+          'Review sender later',
         ],
       },
     ],
@@ -564,8 +741,10 @@ const playbookSetupConfig: Record<PlaybookId, PlaybookSetupConfig> = {
 const getPlaybookStatusLabel = (status: GrowthPlaybook['status']) => {
   if (status === 'featured') return 'Ready now';
   if (status === 'next') return 'Next up';
-  return 'Later';
+  return 'Coming soon';
 };
+
+const isPlaybookProductionReady = (playbook: GrowthPlaybook) => playbook.status === 'featured';
 
 const getWorkspaceDisplayName = (workspace: Workspace | null) =>
   workspace?.client_name?.trim() || workspace?.name?.trim() || 'your business';
@@ -630,11 +809,29 @@ const buildInitialPlaybookDraft = (
   const inferredGoal = inferGoalFromWorkspace(workspace);
 
   switch (playbookId) {
+    case 'signal-led-prospecting':
+      return {
+        sourceStrategy: 'Open web first, then LinkedIn verification',
+        audience: icp,
+        signal: outreachIntent || valueProp,
+        cta:
+          inferredGoal === 'Generate demos'
+            ? 'Request a demo'
+            : inferredGoal === 'Book meetings'
+              ? 'Book a meeting'
+              : 'Start a pilot conversation',
+        sender: 'Best connected sender',
+      };
     case 'event-led-relationship-selling':
       return {
+        sourceStrategy: 'Use event page plus ICP web and LinkedIn sourcing',
+        eventType: 'Help me decide',
         audience: icp,
         topic: valueProp || outreachIntent,
-        goal: inferredGoal,
+        goal: inferredGoal || 'Help me decide',
+        postEventNurture:
+          inferredGoal === 'Book meetings' ? 'Book meetings with attendees' : 'Help me decide',
+        sender: 'Best connected sender',
       };
     case 'lead-reactivation':
       return {
@@ -646,6 +843,7 @@ const buildInitialPlaybookDraft = (
             : inferredGoal === 'Book meetings'
               ? 'Book a meeting'
               : '',
+        sender: 'Best connected sender',
       };
     case 'referral-partner-engine':
       return {
@@ -1280,9 +1478,8 @@ function DashboardHome() {
   const [searchSource, setSearchSource] = useState<SearchSource>('linkedin');
   const [searchSourceMenuOpen, setSearchSourceMenuOpen] = useState(false);
   const [selectedLinkedInAccountId, setSelectedLinkedInAccountId] = useState('');
-  const [selectedPlaybook, setSelectedPlaybook] = useState<PlaybookId>(
-    'event-led-relationship-selling'
-  );
+  const [selectedPlaybook, setSelectedPlaybook] = useState<PlaybookId>('signal-led-prospecting');
+  const [playbookSelectionTouched, setPlaybookSelectionTouched] = useState(false);
   const [playbookSetupOpen, setPlaybookSetupOpen] = useState(false);
   const [playbookSetupStep, setPlaybookSetupStep] = useState(0);
   const [playbookDrafts, setPlaybookDrafts] = useState<
@@ -1441,6 +1638,14 @@ function DashboardHome() {
   }, [commandMode, commandText, searchSource, selectedPlaybook]);
 
   useEffect(() => {
+    if (commandMode !== 'playbook' || playbookSelectionTouched) return;
+    const inferred = inferGrowthPlaybookIdFromText(commandText, dashboardWorkspace);
+    if (inferred !== selectedPlaybook) {
+      setSelectedPlaybook(inferred);
+    }
+  }, [commandMode, commandText, dashboardWorkspace, playbookSelectionTouched, selectedPlaybook]);
+
+  useEffect(() => {
     if (typeof window === 'undefined') return;
     if (!activeInlineDiscovery) {
       window.sessionStorage.removeItem(HOME_INLINE_DISCOVERY_STORAGE_KEY);
@@ -1578,6 +1783,7 @@ function DashboardHome() {
       growthPlaybooks.find((playbook) => playbook.id === selectedPlaybook) ?? growthPlaybooks[0],
     [selectedPlaybook]
   );
+  const activePlaybookReady = isPlaybookProductionReady(activePlaybook);
   const activePlaybookConfig = playbookSetupConfig[activePlaybook.id];
   const activePlaybookAnswers = useMemo(
     () => playbookDrafts[activePlaybook.id] ?? {},
@@ -1687,6 +1893,7 @@ function DashboardHome() {
       setCommandMode('playbook');
       if (suggestion.playbookId) {
         setSelectedPlaybook(suggestion.playbookId);
+        setPlaybookSelectionTouched(true);
       }
       window.requestAnimationFrame(() => {
         commandComposerRef.current?.scrollIntoView({
@@ -1963,6 +2170,27 @@ function DashboardHome() {
           discoveryNewListName.trim() ||
           buildInlineDiscoverySearchName(discoveryBriefDraft),
       });
+      if (typeof window !== 'undefined') {
+        try {
+          const rawIntent = window.sessionStorage.getItem(HOME_LAUNCH_STORAGE_KEY);
+          const parsedIntent = rawIntent ? (JSON.parse(rawIntent) as PlaybookLaunchIntent) : null;
+          if (parsedIntent?.type === 'playbook' && parsedIntent.campaignDraft) {
+            window.sessionStorage.setItem(
+              HOME_LAUNCH_STORAGE_KEY,
+              JSON.stringify({
+                ...parsedIntent,
+                campaignDraft: {
+                  ...parsedIntent.campaignDraft,
+                  leadListId: destinationListId,
+                  leadListName: destinationListName,
+                },
+              } satisfies PlaybookLaunchIntent)
+            );
+          }
+        } catch {
+          window.sessionStorage.removeItem(HOME_LAUNCH_STORAGE_KEY);
+        }
+      }
       setDiscoverySetupOpen(false);
       toast.success(
         "Discovery started. We'll add matching leads to your list and keep you posted here."
@@ -2107,9 +2335,18 @@ function DashboardHome() {
 
   const openPlaybookSetup = (playbookId?: PlaybookId) => {
     const targetPlaybookId = playbookId ?? selectedPlaybook;
+    const targetPlaybook =
+      growthPlaybooks.find((playbook) => playbook.id === targetPlaybookId) ?? growthPlaybooks[0];
+    if (!isPlaybookProductionReady(targetPlaybook)) {
+      toast(
+        `${targetPlaybook.name} is coming soon. The first production-ready playbooks are Signal-Led Prospecting, Lead Reactivation, and Event-Led Relationship Selling.`
+      );
+      return;
+    }
     if (targetPlaybookId !== selectedPlaybook) {
       setSelectedPlaybook(targetPlaybookId);
     }
+    setPlaybookSelectionTouched(true);
     setPlaybookDrafts((current) => {
       if (current[targetPlaybookId]) return current;
       return {
@@ -2182,21 +2419,68 @@ function DashboardHome() {
       }
     }
 
+    const discoveryBrief = buildPlaybookDiscoveryBrief({
+      playbookId: activePlaybook.id,
+      answers: setupValues,
+      workspace: dashboardWorkspace,
+    });
+    const discoverySpecialInstructions = buildPlaybookSpecialInstructions({
+      playbookId: activePlaybook.id,
+      answers: setupValues,
+    });
+    const discoveryTargetWebsites = buildPlaybookTargetWebsites(setupValues);
+    const campaignDraft = buildPlaybookCampaignDraft({
+      playbookId: activePlaybook.id,
+      answers: setupValues,
+      workspace: dashboardWorkspace,
+    });
+    const launchIntent: PlaybookLaunchIntent = {
+      type: 'playbook',
+      commandText: discoveryBrief || activePlaybook.name,
+      searchSource: 'discovery',
+      playbookId: activePlaybook.id,
+      playbookSetup: setupValues,
+      discoveryBrief,
+      discoveryTargetWebsites,
+      discoverySpecialInstructions,
+      campaignDraft,
+      createdAt: new Date().toISOString(),
+    };
+
     if (typeof window !== 'undefined') {
-      window.sessionStorage.setItem(
-        HOME_LAUNCH_STORAGE_KEY,
-        JSON.stringify({
-          type: 'playbook',
-          commandText: activePlaybook.name,
-          searchSource,
-          playbookId: activePlaybook.id,
-          playbookSetup: setupValues,
-          createdAt: new Date().toISOString(),
-        })
-      );
+      window.sessionStorage.setItem(HOME_LAUNCH_STORAGE_KEY, JSON.stringify(launchIntent));
     }
 
     setPlaybookSetupOpen(false);
+
+    if (
+      activePlaybook.id === 'signal-led-prospecting' ||
+      activePlaybook.id === 'event-led-relationship-selling'
+    ) {
+      setCommandMode('search');
+      setSearchSource('discovery');
+      setCommandText(discoveryBrief);
+      setDiscoveryBriefDraft(discoveryBrief);
+      setDiscoveryTargetWebsitesDraft(discoveryTargetWebsites);
+      setDiscoverySpecialInstructionsDraft(discoverySpecialInstructions);
+      setDiscoveryListMode('new');
+      setDiscoveryDestinationListId('');
+      setDiscoveryNewListName(buildInlineDiscoverySearchName(discoveryBrief));
+      setDiscoveryScheduleIntervalDays('0');
+      setDiscoveryRepeatPolicy('new_signal');
+      setDiscoveryAdvancedOpen(
+        Boolean(discoveryTargetWebsites.trim() || discoverySpecialInstructions.trim())
+      );
+      setDiscoveryPreview(null);
+      setDiscoveryPreviewing(false);
+      setDiscoverySubmitting(false);
+      setDiscoveryError(null);
+      window.requestAnimationFrame(() => {
+        setDiscoverySetupOpen(true);
+      });
+      return;
+    }
+
     navigate({ to: '/dashboard/campaigns' } as never);
   };
 
@@ -3097,7 +3381,7 @@ function DashboardHome() {
                       </p>
 
                       <div className="mt-5 flex flex-wrap items-center gap-2">
-                        {activePlaybookConfig.builds.slice(0, 3).map((item) => (
+                        {activePlaybookConfig.builds.map((item) => (
                           <span
                             key={item}
                             className="bg-white/82 rounded-full border border-white/80 px-3 py-1.5 text-xs font-medium text-[#475569]"
@@ -3111,13 +3395,20 @@ function DashboardHome() {
                         <button
                           type="button"
                           onClick={() => openPlaybookSetup(activePlaybook.id)}
-                          className="inline-flex items-center justify-center gap-2 rounded-full bg-[#0F172A] px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#1E293B]"
+                          disabled={!activePlaybookReady}
+                          className={`inline-flex items-center justify-center gap-2 rounded-full px-5 py-3 text-sm font-semibold transition-colors ${
+                            activePlaybookReady
+                              ? 'bg-[#0F172A] text-white hover:bg-[#1E293B]'
+                              : 'cursor-not-allowed border border-[#E2E8F0] bg-white text-[#94A3B8]'
+                          }`}
                         >
-                          Start this playbook
-                          <ArrowUpRightIcon />
+                          {activePlaybookReady ? 'Start this playbook' : 'Coming soon'}
+                          {activePlaybookReady ? <ArrowUpRightIcon /> : null}
                         </button>
                         <span className="text-sm text-[#64748B]">
-                          {activePlaybookFields.length} guided answers
+                          {activePlaybookReady
+                            ? `${activePlaybookFields.length} guided answers`
+                            : 'Preview only until this motion is upgraded'}
                         </span>
                       </div>
                     </div>
@@ -3155,7 +3446,10 @@ function DashboardHome() {
                         initial={{ opacity: 0, y: 16 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.22, delay: index * 0.04 }}
-                        onClick={() => setSelectedPlaybook(playbook.id)}
+                        onClick={() => {
+                          setSelectedPlaybook(playbook.id);
+                          setPlaybookSelectionTouched(true);
+                        }}
                         className={`h-full overflow-hidden rounded-2xl border bg-white text-left transition-all hover:-translate-y-0.5 hover:border-[#CBD5E1] hover:shadow-[0_14px_28px_rgba(15,23,42,0.07)] ${
                           selectedPlaybook === playbook.id ? 'border-[#0F172A]' : 'border-[#E2E8F0]'
                         }`}
@@ -3189,7 +3483,9 @@ function DashboardHome() {
                                 Preview this motion
                               </span>
                               <span className="text-sm font-medium text-[#FF6B35]">
-                                Use it next
+                                {isPlaybookProductionReady(playbook)
+                                  ? 'Use it next'
+                                  : 'Coming soon'}
                               </span>
                             </div>
                           </div>
@@ -4844,7 +5140,7 @@ function PlaybookSetupModal({
 
               <div className="bg-white/82 mt-5 rounded-[24px] border border-white/80 p-4">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#94A3B8]">
-                  Parrot will build
+                  I'll create these 4 things
                 </p>
                 <div className="mt-3 space-y-3">
                   {config.builds.map((item, index) => (
@@ -4925,7 +5221,7 @@ function PlaybookSetupModal({
                   <div className="grid gap-4 lg:grid-cols-[1fr_0.9fr]">
                     <div className="rounded-[24px] border border-[#E2E8F0] bg-[#FCFDFE] p-5">
                       <p className="text-sm font-semibold text-[#0F172A]">
-                        What Parrot builds next
+                        I'll create these 4 things
                       </p>
                       <div className="mt-4 space-y-3">
                         {config.builds.map((item) => (
@@ -6145,6 +6441,13 @@ function inferSuggestedPlaybook(workspace: Workspace | null): PlaybookId {
   if (/\b(dinner|roundtable|webinar|workshop|masterclass|event|summit|open house)\b/.test(source)) {
     return 'event-led-relationship-selling';
   }
+  if (
+    /\b(signal|signals|hiring|funding|launch|intent|news|production|using|adopting|pain)\b/.test(
+      source
+    )
+  ) {
+    return 'signal-led-prospecting';
+  }
   if (/\b(referral|partner|broker|accountant|consultant|agency|collaboration)\b/.test(source)) {
     return 'referral-partner-engine';
   }
@@ -6154,11 +6457,17 @@ function inferSuggestedPlaybook(workspace: Workspace | null): PlaybookId {
   if (/\b(local|territory|city|market|region|area)\b/.test(source)) {
     return 'local-market-domination';
   }
-  return 'founder-led-sales';
+  return 'signal-led-prospecting';
 }
 
 function getSuggestedPlaybookCardCopy(playbookId: PlaybookId) {
   switch (playbookId) {
+    case 'signal-led-prospecting':
+      return {
+        title: 'Prospect from live signals',
+        description:
+          'Open the signal-led playbook and let Parrot find proof-backed leads from market activity.',
+      };
     case 'event-led-relationship-selling':
       return {
         title: 'Start an event-led motion',
@@ -6316,6 +6625,7 @@ function SearchSourceIcon({ source }: { source: SearchSource }) {
 }
 
 const playbookVisualAssets: Record<GrowthPlaybook['visual'], string> = {
+  signal: '/playbooks/signal-led-prospecting.png',
   event: '/playbooks/event-led-relationship-selling.png',
   reactivation: '/playbooks/lead-reactivation.png',
   referral: '/playbooks/referral-partner-engine.png',

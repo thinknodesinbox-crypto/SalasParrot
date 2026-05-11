@@ -42,6 +42,11 @@ import type {
 } from '../../lib/types';
 import { api } from '@/lib/api';
 import {
+  HOME_LAUNCH_STORAGE_KEY,
+  type PlaybookCampaignSequenceNode,
+  type PlaybookLaunchIntent,
+} from '@/lib/playbookLaunch';
+import {
   prepareNodesForSave,
   buildBranchRelationships,
   buildNextStepRelationships,
@@ -69,11 +74,33 @@ export const Route = createLazyFileRoute('/dashboard/campaigns')({
   component: CampaignsPage,
 });
 
+function normalizePlaybookSequenceNode(node: PlaybookCampaignSequenceNode): SequenceNode {
+  return {
+    id: node.id,
+    type: node.type,
+    data: {
+      ...node.data,
+      condition:
+        node.data.condition === 'connected' ||
+        node.data.condition === 'message_replied' ||
+        node.data.condition === 'message_seen' ||
+        node.data.condition === 'email_opened' ||
+        node.data.condition === 'email_link_clicked' ||
+        node.data.condition === 'email_replied'
+          ? node.data.condition
+          : undefined,
+    },
+    parentId: node.parentId,
+    branch: node.branch,
+  };
+}
+
 function CampaignsPage() {
   const { createWithList, campaignId } = useSearch({ from: '/dashboard/campaigns' });
   const navigate = useNavigate();
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [preSelectedLeadListId, setPreSelectedLeadListId] = useState<string | null>(null);
+  const [launchIntent, setLaunchIntent] = useState<PlaybookLaunchIntent | null>(null);
   const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
   const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null);
   const [filterStatus, setFilterStatus] = useState<'all' | CampaignStatus>('all');
@@ -83,11 +110,29 @@ function CampaignsPage() {
   useEffect(() => {
     if (createWithList) {
       setPreSelectedLeadListId(createWithList);
+      setLaunchIntent(null);
       setShowCreateModal(true);
       // Clear the search param from URL
       navigate({ to: '/dashboard/campaigns', replace: true } as never);
     }
   }, [createWithList, navigate]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || createWithList) return;
+    const rawIntent = window.sessionStorage.getItem(HOME_LAUNCH_STORAGE_KEY);
+    if (!rawIntent) return;
+
+    try {
+      const parsed = JSON.parse(rawIntent) as PlaybookLaunchIntent;
+      if (parsed?.type !== 'playbook' || !parsed.campaignDraft) return;
+      setLaunchIntent(parsed);
+      setPreSelectedLeadListId(parsed.campaignDraft.leadListId || null);
+      setShowCreateModal(true);
+      window.sessionStorage.removeItem(HOME_LAUNCH_STORAGE_KEY);
+    } catch {
+      window.sessionStorage.removeItem(HOME_LAUNCH_STORAGE_KEY);
+    }
+  }, [createWithList]);
 
   // Use API hooks
   const {
@@ -231,9 +276,11 @@ function CampaignsPage() {
             onClose={() => {
               setShowCreateModal(false);
               setPreSelectedLeadListId(null);
+              setLaunchIntent(null);
               setEditingCampaign(null);
             }}
             preSelectedLeadListId={preSelectedLeadListId}
+            launchIntent={launchIntent}
             editingCampaign={editingCampaign}
           />
         )}
@@ -843,10 +890,12 @@ function CampaignRow({
 function CreateCampaignModal({
   onClose,
   preSelectedLeadListId,
+  launchIntent,
   editingCampaign,
 }: {
   onClose: () => void;
   preSelectedLeadListId?: string | null;
+  launchIntent?: PlaybookLaunchIntent | null;
   editingCampaign?: Campaign | null;
 }) {
   const isEditMode = !!editingCampaign;
@@ -877,6 +926,7 @@ function CreateCampaignModal({
   const [showWarningDialog, setShowWarningDialog] = useState(false);
   const [pendingStartImmediately, setPendingStartImmediately] = useState(false);
   const [showImportLeadsModal, setShowImportLeadsModal] = useState(false);
+  const [launchIntentApplied, setLaunchIntentApplied] = useState(false);
 
   // API hooks
   const createCampaign = useCreateCampaign();
@@ -953,6 +1003,22 @@ function CreateCampaignModal({
   const { data: currentWorkspaceData } = useWorkspace(currentWorkspaceId || '');
 
   const selectedNode = sequenceNodes.find((n) => n.id === selectedNodeId) || null;
+
+  useEffect(() => {
+    if (isEditMode || launchIntentApplied || !launchIntent?.campaignDraft) return;
+
+    const draft = launchIntent.campaignDraft;
+    setCampaignName(draft.name || '');
+    setCampaignDescription(draft.description || '');
+    if (draft.leadListId) {
+      setSelectedLeadListId(draft.leadListId);
+    }
+    if (draft.sequenceNodes?.length) {
+      setSequenceNodes(draft.sequenceNodes.map(normalizePlaybookSequenceNode));
+    }
+    setStep(draft.leadListId ? 'sequence' : 'leads');
+    setLaunchIntentApplied(true);
+  }, [isEditMode, launchIntent, launchIntentApplied]);
 
   // Pre-fill form when editing a campaign
   useEffect(() => {
@@ -1585,6 +1651,26 @@ function CreateCampaignModal({
                   ))}
                 </div>
               </div>
+
+              {launchIntent?.campaignDraft && !isEditMode ? (
+                <div className="border-b border-[#E2E8F0] bg-[#F0FDFA] px-6 py-3">
+                  <div className="flex flex-col gap-1 text-sm md:flex-row md:items-center md:justify-between">
+                    <div>
+                      <p className="font-semibold text-[#0F766E]">
+                        Playbook draft prepared by Parrot
+                      </p>
+                      <p className="text-[#475569]">
+                        Review the audience, sequence, sender, and safety checks before launch.
+                      </p>
+                    </div>
+                    {launchIntent.campaignDraft.leadListName ? (
+                      <span className="rounded-full border border-[#99F6E4] bg-white px-3 py-1 text-xs font-semibold text-[#0F766E]">
+                        {launchIntent.campaignDraft.leadListName}
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
 
               {/* Content */}
               <div
