@@ -236,6 +236,17 @@ export function useAssistantVoice({
           event_index: eventIndex ?? null,
           event_created_at: eventCreatedAt ?? null,
           transcript_kind: 'voice_transcript',
+          metadata: {
+            client_context: {
+              mode: 'voice',
+              voice_status: status,
+              voice_active: status === 'connected',
+              route:
+                typeof window === 'undefined'
+                  ? ''
+                  : `${window.location.pathname}${window.location.search}`,
+            },
+          },
         }
       );
       persistedItemIdsRef.current.add(dedupeKey);
