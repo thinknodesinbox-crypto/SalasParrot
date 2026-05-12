@@ -42,9 +42,11 @@ type VoiceLatencyFillerCategory =
   | 'troubleshooting'
   | 'thinking';
 
-const VOICE_LATENCY_FILLER_DELAY_MIN_MS = 850;
-const VOICE_LATENCY_FILLER_DELAY_SPREAD_MS = 450;
-const VOICE_LATENCY_FILLER_ACTIVE_MS = 2600;
+type AssistantSpeechKind = 'filler' | 'final';
+
+const VOICE_LATENCY_FILLER_DELAY_MIN_MS = 1800;
+const VOICE_LATENCY_FILLER_DELAY_SPREAD_MS = 800;
+const VOICE_LATENCY_FILLER_ACTIVE_MS = 2200;
 const TRANSCRIPT_SAVE_RETRY_DELAYS_MS = [350, 900];
 
 const VOICE_LATENCY_FILLERS: Record<VoiceLatencyFillerCategory, string[]> = {
@@ -269,6 +271,10 @@ export function useAssistantVoice({
   const latencyFillerActiveTimeoutRef = useRef<number | null>(null);
   const latencyFillerActiveRef = useRef(false);
   const lastLatencyFillerRef = useRef<string | null>(null);
+  const pendingSpeechKindRef = useRef<AssistantSpeechKind | null>(null);
+  const assistantSpeechItemKindsRef = useRef<Map<string, AssistantSpeechKind>>(new Map());
+  const latestFinalSpeechTextRef = useRef('');
+  const ignoreNextFillerDoneRef = useRef(false);
   const isStoppingRef = useRef(false);
   const pendingSessionBindingRef = useRef<{ workspaceId: string; threadId: string } | null>(null);
 
@@ -315,7 +321,10 @@ export function useAssistantVoice({
     if (channel && channel.readyState === 'open') {
       channel.send(JSON.stringify({ type: 'response.cancel' }));
     }
-    setLiveAssistantTranscript('');
+    ignoreNextFillerDoneRef.current = true;
+    if (!latestFinalSpeechTextRef.current) {
+      setLiveAssistantTranscript('');
+    }
     latencyFillerActiveRef.current = false;
     if (latencyFillerActiveTimeoutRef.current !== null) {
       window.clearTimeout(latencyFillerActiveTimeoutRef.current);
@@ -357,6 +366,8 @@ export function useAssistantVoice({
     if (!channel || channel.readyState !== 'open' || !text.trim()) return;
     clearLatencyFillerTimer();
     cancelLatencyFillerAudio();
+    pendingSpeechKindRef.current = 'final';
+    latestFinalSpeechTextRef.current = text;
     setLiveAssistantTranscript(text);
     setActivity('assistant');
     channel.send(
@@ -378,7 +389,7 @@ export function useAssistantVoice({
     if (!filler) return;
     lastLatencyFillerRef.current = filler;
     latencyFillerActiveRef.current = true;
-    setLiveAssistantTranscript(filler);
+    pendingSpeechKindRef.current = 'filler';
     setActivity('assistant');
     markLatencyFillerInactiveSoon();
     channel.send(
@@ -400,6 +411,7 @@ export function useAssistantVoice({
       Math.floor(Math.random() * VOICE_LATENCY_FILLER_DELAY_SPREAD_MS);
     latencyFillerTimeoutRef.current = window.setTimeout(() => {
       latencyFillerTimeoutRef.current = null;
+      if (activityRef.current !== 'thinking') return;
       speakLatencyFiller(transcript);
     }, delay);
   };
@@ -495,9 +507,13 @@ export function useAssistantVoice({
     setActivity('idle');
     userTranscriptBuffersRef.current.clear();
     assistantTranscriptBuffersRef.current.clear();
+    assistantSpeechItemKindsRef.current.clear();
     clearPendingUserTranscript();
     clearLatencyFillerState();
     persistedItemIdsRef.current.clear();
+    pendingSpeechKindRef.current = null;
+    latestFinalSpeechTextRef.current = '';
+    ignoreNextFillerDoneRef.current = false;
     eventIndexRef.current = 0;
     pendingSessionBindingRef.current = null;
     await completeVoiceSession();
@@ -541,8 +557,12 @@ export function useAssistantVoice({
     setLiveAssistantTranscript('');
     userTranscriptBuffersRef.current.clear();
     assistantTranscriptBuffersRef.current.clear();
+    assistantSpeechItemKindsRef.current.clear();
     clearPendingUserTranscript();
     clearLatencyFillerState();
+    pendingSpeechKindRef.current = null;
+    latestFinalSpeechTextRef.current = '';
+    ignoreNextFillerDoneRef.current = false;
     eventIndexRef.current = 0;
 
     try {
@@ -701,23 +721,48 @@ export function useAssistantVoice({
             payload.delta &&
             payload.item_id
           ) {
+            const speechKind =
+              assistantSpeechItemKindsRef.current.get(payload.item_id) ||
+              pendingSpeechKindRef.current ||
+              (latencyFillerActiveRef.current ? 'filler' : 'final');
+            assistantSpeechItemKindsRef.current.set(payload.item_id, speechKind);
+            if (pendingSpeechKindRef.current === speechKind) {
+              pendingSpeechKindRef.current = null;
+            }
             const nextTranscript = `${assistantTranscriptBuffersRef.current.get(payload.item_id) || ''}${payload.delta}`;
             assistantTranscriptBuffersRef.current.set(payload.item_id, nextTranscript);
-            setLiveAssistantTranscript(nextTranscript);
-            setActivity('assistant');
+            if (speechKind === 'final') {
+              latestFinalSpeechTextRef.current = nextTranscript;
+              setLiveAssistantTranscript(nextTranscript);
+              setActivity('assistant');
+            }
           }
           if (
             payload.type === 'response.audio_transcript.done' ||
             payload.type === 'response.output_audio_transcript.done'
           ) {
+            const speechKind = payload.item_id
+              ? assistantSpeechItemKindsRef.current.get(payload.item_id)
+              : ignoreNextFillerDoneRef.current
+                ? 'filler'
+                : pendingSpeechKindRef.current;
+            if (!payload.item_id && ignoreNextFillerDoneRef.current) {
+              ignoreNextFillerDoneRef.current = false;
+            }
             if (payload.item_id) {
               assistantTranscriptBuffersRef.current.delete(payload.item_id);
+              assistantSpeechItemKindsRef.current.delete(payload.item_id);
             }
-            latencyFillerActiveRef.current = false;
-            if (latencyFillerActiveTimeoutRef.current !== null) {
-              window.clearTimeout(latencyFillerActiveTimeoutRef.current);
-              latencyFillerActiveTimeoutRef.current = null;
+            if (speechKind === 'filler') {
+              latencyFillerActiveRef.current = false;
+              if (latencyFillerActiveTimeoutRef.current !== null) {
+                window.clearTimeout(latencyFillerActiveTimeoutRef.current);
+                latencyFillerActiveTimeoutRef.current = null;
+              }
+              setActivity(latestFinalSpeechTextRef.current ? 'assistant' : 'thinking');
+              return;
             }
+            latestFinalSpeechTextRef.current = '';
             setLiveAssistantTranscript('');
             setActivity('listening');
           }
