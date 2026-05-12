@@ -59,7 +59,29 @@ describe('normalizeStartCampaignIntent', () => {
     expect(intent.linkedinKeywords).not.toContain('people');
     expect(intent.linkedinKeywords).not.toContain('outbound');
     expect(intent.linkedinKeywords).not.toContain('linkedin');
-    expect(intent.specialInstructions).toContain('not outbound');
+    expect(intent.specialInstructions).toContain('outbound-focused');
+  });
+
+  it('turns qualitative B2B marketing prompts into person-searchable keywords', () => {
+    const intent = normalizeStartCampaignIntent(
+      'help me find people that are great at marketing B2B companies at scale not outbound, though.'
+    );
+
+    expect(intent.searchType).toBe('intent');
+    expect(intent.discoveryBrief).toBe('B2B marketing leaders scaling companies');
+    expect(intent.linkedinKeywords).toBe('B2B marketing leaders scaling');
+    expect(intent.linkedinKeywords).not.toContain('great');
+    expect(intent.linkedinKeywords).not.toContain('people');
+    expect(intent.linkedinKeywords).not.toContain('outbound');
+    expect(intent.specialInstructions).toBe('Exclude outbound-focused marketers.');
+  });
+
+  it('keeps ordinary B2B marketing searches scoped and extracts country location', () => {
+    const intent = normalizeStartCampaignIntent('find B2B marketing managers in the United States');
+
+    expect(intent.discoveryBrief).toBe('B2B marketing managers in the United States');
+    expect(intent.linkedinKeywords).toBe('B2B marketing managers');
+    expect(intent.locationInput).toBe('United States');
   });
 
   it('keeps source-link recency requirements out of LinkedIn keywords', () => {

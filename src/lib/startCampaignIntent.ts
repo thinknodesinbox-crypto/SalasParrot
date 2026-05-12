@@ -49,6 +49,8 @@ const SEARCH_FILLER_WORDS = new Set([
   'need',
   'needs',
   'looking',
+  'are',
+  'is',
   'for',
   'using',
   'use',
@@ -86,6 +88,7 @@ const SEARCH_FILLER_WORDS = new Set([
   'ticket',
   'tickets',
   'in',
+  'though',
 ]);
 
 function compact(value: string): string {
@@ -153,6 +156,19 @@ function normalizeAudiencePhrases(input: string): string {
   return compact(
     input
       .replace(
+        /\b(?:people|professionals|leaders|operators|marketers)?\s*(?:that\s+are\s+)?(?:great|good|strong|excellent)\s+at\s+marketing\s+B2B\s+companies\s+at\s+scale\b/gi,
+        'B2B marketing leaders scaling companies'
+      )
+      .replace(
+        /\bmarketing\s+B2B\s+companies\s+at\s+scale\b/gi,
+        'B2B marketing leaders scaling companies'
+      )
+      .replace(/\bB2B\s+companies\s+at\s+scale\b/gi, 'B2B companies at scale')
+      .replace(
+        /\b(?:great|good|strong|excellent)\s+at\s+scaling\s+marketing\b/gi,
+        'marketing leaders with scaling experience'
+      )
+      .replace(
         /\bmarketing\s+(?:people|professionals|leaders|managers|teams)?\s*(?:into|in|at|for)\s+b2b\b/gi,
         'B2B marketing'
       )
@@ -183,7 +199,7 @@ function extractLocation(input: string): string | null {
   const withoutDateWindows = stripDateWindows(input);
 
   const patterns = [
-    /\b(?:in|near|around|based in|located in|across)\s+((?:NYC|SF|LA|UK|USA|US|[A-Z][A-Za-z.'-]+(?:\s+[A-Z][A-Za-z.'-]+){0,3})(?:\s*(?:,|and|or)\s*(?:NYC|SF|LA|UK|USA|US|[A-Z][A-Za-z.'-]+(?:\s+[A-Z][A-Za-z.'-]+){0,3})){0,4})\b/,
+    /\b(?:in|near|around|based in|located in|across)\s+(?:the\s+)?((?:NYC|SF|LA|UK|USA|US|United States|United Kingdom|[A-Z][A-Za-z.'-]+(?:\s+[A-Z][A-Za-z.'-]+){0,3})(?:\s*(?:,|and|or)\s*(?:NYC|SF|LA|UK|USA|US|United States|United Kingdom|[A-Z][A-Za-z.'-]+(?:\s+[A-Z][A-Za-z.'-]+){0,3})){0,4})\b/,
   ];
 
   for (const pattern of patterns) {
@@ -216,11 +232,18 @@ function extractSpecialInstructions(input: string, targetWebsites: string[]): st
     .split(/\n+|(?<=[.!?])\s+/)
     .map(trimSentence)
     .filter(Boolean);
-  const instructionSentences = sentences.filter((sentence) =>
-    /\b(cta|call to action|exclude|excluding|avoid|do not|don't|not\s+(?:outbound|sales|recruiting|recruiters?|agencies|consultants?|students?|freelancers?)|must not|must|make sure|proof|evidence|verified|source links?|sources?|paid|ticket|registration|decision makers?|next\s+\d|within\s+\d|past\s+\d|last\s+\d|the\s+last\s+\d|today|tomorrow|next week|next month|weekly|biweekly|every\s+\d+\s+days?)\b/i.test(
-      sentence
+  const instructionSentences = sentences
+    .filter((sentence) =>
+      /\b(cta|call to action|exclude|excluding|avoid|do not|don't|not\s+(?:outbound|sales|recruiting|recruiters?|agencies|consultants?|students?|freelancers?)|must not|must|make sure|proof|evidence|verified|source links?|sources?|paid|ticket|registration|decision makers?|next\s+\d|within\s+\d|past\s+\d|last\s+\d|the\s+last\s+\d|today|tomorrow|next week|next month|weekly|biweekly|every\s+\d+\s+days?)\b/i.test(
+        sentence
+      )
     )
-  );
+    .map((sentence) => {
+      if (/\bnot\s+outbound\b/i.test(sentence)) {
+        return 'Exclude outbound-focused marketers.';
+      }
+      return sentence;
+    });
 
   if (targetWebsites.length > 0) {
     instructionSentences.push(
@@ -268,8 +291,9 @@ function stripInstructionClauses(input: string): string {
 }
 
 function buildDiscoveryBrief(input: string, locationInput: string | null): string {
-  let brief = stripInstructionClauses(input)
+  let brief = normalizeAudiencePhrases(stripInstructionClauses(input))
     .replace(/^\s*(find|show|get|source|search for|look for)\s+(me\s+)?/i, '')
+    .replace(/\b(?:though|please)\b/gi, ' ')
     .replace(/\s+[.?!]+$/g, '')
     .trim();
   brief = stripSearchPreamble(brief);
@@ -283,7 +307,7 @@ function buildDiscoveryBrief(input: string, locationInput: string | null): strin
   }
   return (
     compact(brief)
-      .replace(/\s+[,;:]+$/g, '')
+      .replace(/[\s,;:]+$/g, '')
       .slice(0, 700) || compact(input).slice(0, 700)
   );
 }
@@ -309,6 +333,7 @@ function buildLinkedInKeywords(input: string, locationInput: string | null): str
     .replace(/\borganizing\b/gi, 'organizer')
     .replace(/\bhosting\b/gi, 'host organizer')
     .replace(/\bpaid\b/gi, '')
+    .replace(/\bB2B marketing leaders scaling companies\b/gi, 'B2B marketing leaders scaling')
     .replace(/[^\w\s"()/-]/g, ' ');
 
   const tokens = compact(text)
