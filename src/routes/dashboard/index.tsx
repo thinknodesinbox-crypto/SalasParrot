@@ -1379,6 +1379,27 @@ const parseAudiencePrompt = (prompt: string) => {
   };
 };
 
+type ParsedAudiencePrompt = ReturnType<typeof parseAudiencePrompt>;
+
+const LINKEDIN_DISTILL_DEBOUNCE_MS = 750;
+
+function normalizeAutoSearchValue(value: string | null | undefined) {
+  return (value ?? '').trim();
+}
+
+function shouldAutoReplaceSearchField(
+  currentValue: string,
+  previousAutoValue: string,
+  nextAutoValue: string,
+  force = false
+) {
+  if (force) return true;
+  const current = normalizeAutoSearchValue(currentValue);
+  if (!current) return true;
+  if (current === normalizeAutoSearchValue(nextAutoValue)) return false;
+  return current === normalizeAutoSearchValue(previousAutoValue);
+}
+
 type StartCampaignIntentDistillationResponse = {
   original: string;
   discovery_brief: string;
@@ -1544,6 +1565,11 @@ function DashboardHome() {
   const [locationLookupError, setLocationLookupError] = useState<string | null>(null);
   const [showSearchBreakdown, setShowSearchBreakdown] = useState(false);
   const [intentDistilling, setIntentDistilling] = useState(false);
+  const lastAutoLinkedInParseRef = useRef<ParsedAudiencePrompt>({
+    keywords: '',
+    locationInput: null,
+  });
+  const latestLinkedInDistillRequestRef = useRef(0);
   const [dismissedPartnerBanner, setDismissedPartnerBanner] = useState(false);
   const [homeSearchPhase, setHomeSearchPhase] = useState<HomeSearchPhase>('idle');
   const [homeSearchJobId, setHomeSearchJobId] = useState('');
@@ -1615,6 +1641,40 @@ function DashboardHome() {
   const availableCampaignsData = previewMode ? DASHBOARD_PREVIEW_CAMPAIGNS : campaignsData;
   const dashboardCampaignsLoading = previewMode ? false : campaignsLoading;
   const leadLists = previewMode ? DASHBOARD_PREVIEW_LEAD_LISTS : (leadListsResponse?.lists ?? []);
+
+  const applyLinkedInAutoParse = useCallback(
+    (parsed: ParsedAudiencePrompt, options?: { force?: boolean }) => {
+      const previousAuto = lastAutoLinkedInParseRef.current;
+      const nextKeywords = normalizeAutoSearchValue(parsed.keywords);
+      const nextLocation = normalizeAutoSearchValue(parsed.locationInput);
+      const force = Boolean(options?.force);
+
+      setSearchKeywordsDraft((current) =>
+        shouldAutoReplaceSearchField(current, previousAuto.keywords, nextKeywords, force)
+          ? nextKeywords
+          : current
+      );
+      setSearchLocationDraft((current) => {
+        const shouldReplace = shouldAutoReplaceSearchField(
+          current,
+          previousAuto.locationInput ?? '',
+          nextLocation,
+          force
+        );
+        if (!shouldReplace) return current;
+        if (normalizeAutoSearchValue(current) !== nextLocation) {
+          setSelectedLocationOption(null);
+        }
+        return nextLocation;
+      });
+
+      lastAutoLinkedInParseRef.current = {
+        keywords: nextKeywords,
+        locationInput: nextLocation || null,
+      };
+    },
+    []
+  );
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -1706,10 +1766,21 @@ function DashboardHome() {
   }, [activeInlineDiscovery]);
 
   useEffect(() => {
-    const parsed = parseAudiencePrompt(commandText);
-    setSearchKeywordsDraft(parsed.keywords);
-    setSearchLocationDraft(parsed.locationInput ?? '');
-  }, [commandText]);
+    if (searchSource !== 'linkedin') return;
+
+    const trimmedPrompt = commandText.trim();
+    if (!trimmedPrompt) {
+      applyLinkedInAutoParse(
+        { keywords: '', locationInput: null },
+        { force: !showSearchBreakdown }
+      );
+      return;
+    }
+
+    applyLinkedInAutoParse(parseAudiencePrompt(trimmedPrompt), {
+      force: !showSearchBreakdown,
+    });
+  }, [applyLinkedInAutoParse, commandText, searchSource, showSearchBreakdown]);
 
   useEffect(() => {
     if (searchSource !== 'linkedin' && showSearchBreakdown) {
@@ -2044,6 +2115,44 @@ function DashboardHome() {
     },
     [currentWorkspaceId, previewMode]
   );
+
+  useEffect(() => {
+    if (searchSource !== 'linkedin' || !showSearchBreakdown) return;
+
+    const trimmedPrompt = commandText.trim();
+    if (!trimmedPrompt || previewMode || !currentWorkspaceId) return;
+
+    const requestId = latestLinkedInDistillRequestRef.current + 1;
+    latestLinkedInDistillRequestRef.current = requestId;
+
+    const timeoutId = window.setTimeout(() => {
+      void distillStartCampaignIntent(trimmedPrompt, 'linkedin').then((refinedIntent) => {
+        if (latestLinkedInDistillRequestRef.current !== requestId) return;
+        applyLinkedInAutoParse(
+          {
+            keywords: refinedIntent.linkedinKeywords,
+            locationInput: sanitizeLocationInput(refinedIntent.locationInput),
+          },
+          { force: false }
+        );
+      });
+    }, LINKEDIN_DISTILL_DEBOUNCE_MS);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+      if (latestLinkedInDistillRequestRef.current === requestId) {
+        latestLinkedInDistillRequestRef.current += 1;
+      }
+    };
+  }, [
+    applyLinkedInAutoParse,
+    commandText,
+    currentWorkspaceId,
+    distillStartCampaignIntent,
+    previewMode,
+    searchSource,
+    showSearchBreakdown,
+  ]);
 
   const openDiscoverySetup = useCallback(
     (promptOverride?: string) => {
@@ -2701,24 +2810,11 @@ function DashboardHome() {
     }
 
     const parsed = parseAudiencePrompt(trimmedPrompt);
-    setSearchKeywordsDraft(parsed.keywords || trimmedPrompt);
-    setSearchLocationDraft(parsed.locationInput ?? '');
+    applyLinkedInAutoParse(
+      { keywords: parsed.keywords || trimmedPrompt, locationInput: parsed.locationInput },
+      { force: true }
+    );
     setShowSearchBreakdown(true);
-
-    const fallbackIntent = normalizeStartCampaignIntent(trimmedPrompt);
-    void distillStartCampaignIntent(trimmedPrompt, 'linkedin').then((refinedIntent) => {
-      setSearchKeywordsDraft((current) =>
-        current === (parsed.keywords || trimmedPrompt)
-          ? refinedIntent.linkedinKeywords || current
-          : current
-      );
-      setSearchLocationDraft((current) =>
-        current === (parsed.locationInput ?? '') ? (refinedIntent.locationInput ?? '') : current
-      );
-      if ((refinedIntent.locationInput ?? '') !== (fallbackIntent.locationInput ?? '')) {
-        setSelectedLocationOption(null);
-      }
-    });
     return true;
   };
 
@@ -3220,9 +3316,6 @@ function DashboardHome() {
                       onChange={(event) => {
                         setActiveSuggestedSearchId(null);
                         setCommandText(event.target.value);
-                        if (showSearchBreakdown) {
-                          setShowSearchBreakdown(false);
-                        }
                       }}
                       onKeyDown={(event) => {
                         if (event.key === 'Enter') {
