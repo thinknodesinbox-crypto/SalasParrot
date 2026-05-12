@@ -67,6 +67,9 @@ describe('getFriendlyVoiceError', () => {
     expect(getFriendlyVoiceError('model_not_found: gpt-realtime')).toContain(
       'cannot access the realtime voice model'
     );
+    expect(getFriendlyVoiceError('model_not_found: gpt-realtime-2')).toContain(
+      'cannot access the realtime voice model'
+    );
   });
 });
 
