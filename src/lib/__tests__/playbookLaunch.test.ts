@@ -52,8 +52,40 @@ describe('playbookLaunch', () => {
 
     expect(brief).toContain('Event registration page');
     expect(brief).toContain('Developer relations leaders');
-    expect(instructions).toContain('user’s own event');
+    expect(instructions).toContain("user's own event");
     expect(instructions).toContain('Preferred sender path: LinkedIn first');
+  });
+
+  it('keeps event-led motions usable when the registration URL is not ready yet', () => {
+    const answers = {
+      eventType: 'Private dinner',
+      topic: 'How CFOs should evaluate AI finance workflows',
+      audience: 'CFOs at growth-stage B2B companies in New York City',
+      registrationUrl: '',
+      goal: 'Book meetings',
+      postEventNurture: 'Book meetings with attendees',
+    };
+
+    const brief = buildPlaybookDiscoveryBrief({
+      playbookId: 'event-led-relationship-selling',
+      answers,
+      workspace: { name: 'SalesParrot' },
+    });
+    const instructions = buildPlaybookSpecialInstructions({
+      playbookId: 'event-led-relationship-selling',
+      answers,
+    });
+    const campaign = buildPlaybookCampaignDraft({
+      playbookId: 'event-led-relationship-selling',
+      answers,
+      workspace: { name: 'SalesParrot' },
+    });
+
+    expect(brief).toContain('leave the registration CTA editable');
+    expect(instructions).toContain('do not invent a registration link');
+    expect(campaign.sequenceNodes.some((node) => node.data.message?.includes(answers.topic))).toBe(
+      true
+    );
   });
 
   it('creates campaign drafts with usable sequence nodes', () => {

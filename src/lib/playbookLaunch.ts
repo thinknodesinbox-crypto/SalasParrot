@@ -192,7 +192,7 @@ export function buildPlaybookSpecialInstructions({
       registrationUrl
         ? `Use the user's registration page as the CTA and proof source: ${registrationUrl}.`
         : 'No registration URL is available yet, so keep the CTA editable and do not invent a registration link.',
-      'This playbook is for the user’s own event, not for finding external event organizers unless the ICP explicitly includes organizers.',
+      "This playbook is for the user's own event, not for finding external event organizers unless the ICP explicitly includes organizers.",
       'Find invite-worthy ICP contacts first, then preserve context for attendee follow-up, no-show nurture, and post-event meeting conversion.'
     );
   } else if (playbookId === 'lead-reactivation') {

@@ -785,18 +785,11 @@ const inferEventFormatFromType = (eventType: string) => {
   }
 };
 
-const getVisiblePlaybookFields = (
-  playbookId: PlaybookId,
-  config: PlaybookSetupConfig,
-  answers: Record<string, string>
-) => {
+const getVisiblePlaybookFields = (playbookId: PlaybookId, config: PlaybookSetupConfig) => {
   if (playbookId !== 'event-led-relationship-selling') return config.fields;
-
-  const eventType = answers.eventType?.trim();
 
   return config.fields.filter((field) => {
     if (field.id === 'format') return false;
-    if (field.id === 'topic' && eventType === 'Private dinner') return false;
     return true;
   });
 };
@@ -1909,8 +1902,8 @@ function DashboardHome() {
     [activePlaybook.id, playbookDrafts]
   );
   const activePlaybookFields = useMemo(
-    () => getVisiblePlaybookFields(activePlaybook.id, activePlaybookConfig, activePlaybookAnswers),
-    [activePlaybook.id, activePlaybookAnswers, activePlaybookConfig]
+    () => getVisiblePlaybookFields(activePlaybook.id, activePlaybookConfig),
+    [activePlaybook.id, activePlaybookConfig]
   );
   const playbookSetupTotalSteps = activePlaybookFields.length + 1;
   const activePlaybookField = activePlaybookFields[playbookSetupStep] ?? null;
@@ -2579,9 +2572,6 @@ function DashboardHome() {
 
         if (activePlaybook.id === 'event-led-relationship-selling' && fieldId === 'eventType') {
           next.format = inferEventFormatFromType(value);
-          if (value === 'Private dinner') {
-            next.topic = '';
-          }
         }
 
         return next;
@@ -2596,7 +2586,7 @@ function DashboardHome() {
     }
 
     const value = (activePlaybookAnswers[activePlaybookField.id] ?? '').trim();
-    if (!value) {
+    if (!value && !activePlaybookField.optional) {
       toast.error(`Add ${activePlaybookField.label.toLowerCase()} first.`);
       return;
     }
@@ -2624,9 +2614,6 @@ function DashboardHome() {
       setupValues.format =
         activePlaybookAnswers.format ||
         inferEventFormatFromType(activePlaybookAnswers.eventType ?? '');
-      if ((activePlaybookAnswers.eventType ?? '').trim() === 'Private dinner') {
-        setupValues.topic = '';
-      }
     }
 
     const discoveryBrief = buildPlaybookDiscoveryBrief({
@@ -3646,9 +3633,7 @@ function DashboardHome() {
                     const playbookConfig = playbookSetupConfig[playbook.id];
                     const playbookFieldCount = getVisiblePlaybookFields(
                       playbook.id,
-                      playbookConfig,
-                      playbookDrafts[playbook.id] ??
-                        buildInitialPlaybookDraft(playbook.id, dashboardWorkspace)
+                      playbookConfig
                     ).length;
                     return (
                       <motion.button
