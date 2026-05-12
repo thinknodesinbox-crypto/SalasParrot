@@ -52,8 +52,12 @@ export function AssistantComposer({
   const handleSubmit = async () => {
     const cleaned = value.trim();
     if (!cleaned || disabled || isSending) return;
-    await onSend(cleaned);
-    setValue('');
+    try {
+      await onSend(cleaned);
+      setValue('');
+    } catch {
+      setValue(cleaned);
+    }
   };
 
   return (

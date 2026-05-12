@@ -722,6 +722,7 @@ export function AssistantPanel({
         'Message was not sent',
         humanizeAssistantOperationError(error instanceof Error ? error.message : null)
       );
+      throw error;
     } finally {
       setPendingUserMessage('');
     }
@@ -1177,7 +1178,7 @@ export function AssistantPanel({
                   actionsById={actionsById}
                   isLoading={isMessagesLoading}
                   queryError={conversationError}
-                  draftUserMessage={isVoiceActive ? voice.liveUserTranscript : ''}
+                  draftUserMessage={isVoiceActive ? voice.liveUserTranscript : pendingUserMessage}
                   draftAssistantMessage={isVoiceActive ? voice.liveAssistantTranscript : ''}
                   error={voice.error}
                   onRetryQuery={() => {
