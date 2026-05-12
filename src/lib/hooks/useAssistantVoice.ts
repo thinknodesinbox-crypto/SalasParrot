@@ -686,8 +686,10 @@ export function useAssistantVoice({
                   }
                 } else {
                   cancelLatencyFillerAudio();
-                  setError('Failed to save transcript.');
                   setLiveUserTranscript(transcript);
+                  speakAssistantText(
+                    'I heard that, but saving the voice turn had a temporary issue. I am still listening, so say the last SalesParrot task again and I will continue.'
+                  );
                   setActivity('listening');
                 }
               })();
