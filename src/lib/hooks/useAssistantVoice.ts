@@ -45,6 +45,7 @@ type VoiceLatencyFillerCategory =
 const VOICE_LATENCY_FILLER_DELAY_MIN_MS = 850;
 const VOICE_LATENCY_FILLER_DELAY_SPREAD_MS = 450;
 const VOICE_LATENCY_FILLER_ACTIVE_MS = 2600;
+const TRANSCRIPT_SAVE_RETRY_DELAYS_MS = [350, 900];
 
 const VOICE_LATENCY_FILLERS: Record<VoiceLatencyFillerCategory, string[]> = {
   lead_search: [
@@ -176,6 +177,18 @@ export function getFriendlyVoiceError(message: string | null | undefined) {
     return 'Voice mode could not start. The backend rejected the voice setup request.';
   }
   return cleaned;
+}
+
+function isRetryableTranscriptError(error: unknown) {
+  const status =
+    typeof error === 'object' && error !== null && 'response' in error
+      ? (error as { response?: { status?: number } }).response?.status
+      : undefined;
+  return !status || status === 408 || status === 429 || status >= 500;
+}
+
+function delay(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
 interface RealtimeCallAnswerInput {
@@ -422,36 +435,44 @@ export function useAssistantVoice({
     }
     const dedupeKey = `${role}:${externalItemId || content}`;
     if (persistedItemIdsRef.current.has(dedupeKey)) return null;
-    try {
-      const response = await api.post<AssistantTranscriptResponse>(
-        `/assistant/threads/${sessionThreadIdRef.current}/messages/transcript?workspace_id=${sessionWorkspaceIdRef.current}`,
-        {
-          role,
-          content,
-          external_item_id: externalItemId,
-          session_id: sessionIdRef.current,
-          event_index: eventIndex ?? null,
-          event_created_at: eventCreatedAt ?? null,
-          transcript_kind: 'voice_transcript',
-          metadata: {
-            client_context: {
-              mode: 'voice',
-              voice_status: status,
-              voice_active: status === 'connected',
-              route:
-                typeof window === 'undefined'
-                  ? ''
-                  : `${window.location.pathname}${window.location.search}`,
-            },
-          },
+    const requestBody = {
+      role,
+      content,
+      external_item_id: externalItemId,
+      session_id: sessionIdRef.current,
+      event_index: eventIndex ?? null,
+      event_created_at: eventCreatedAt ?? null,
+      transcript_kind: 'voice_transcript',
+      metadata: {
+        client_context: {
+          mode: 'voice',
+          voice_status: status,
+          voice_active: status === 'connected',
+          route:
+            typeof window === 'undefined'
+              ? ''
+              : `${window.location.pathname}${window.location.search}`,
+        },
+      },
+    };
+    for (let attempt = 0; attempt <= TRANSCRIPT_SAVE_RETRY_DELAYS_MS.length; attempt += 1) {
+      try {
+        const response = await api.post<AssistantTranscriptResponse>(
+          `/assistant/threads/${sessionThreadIdRef.current}/messages/transcript?workspace_id=${sessionWorkspaceIdRef.current}`,
+          requestBody
+        );
+        persistedItemIdsRef.current.add(dedupeKey);
+        onTranscriptSaved?.(response.data);
+        return response.data;
+      } catch (error) {
+        const delayMs = TRANSCRIPT_SAVE_RETRY_DELAYS_MS[attempt];
+        if (delayMs === undefined || !isRetryableTranscriptError(error)) {
+          return null;
         }
-      );
-      persistedItemIdsRef.current.add(dedupeKey);
-      onTranscriptSaved?.(response.data);
-      return response.data;
-    } catch {
-      return null;
+        await delay(delayMs);
+      }
     }
+    return null;
   };
 
   const stop = async () => {
