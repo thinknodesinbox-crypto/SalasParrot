@@ -112,6 +112,37 @@ describe('AssistantMessageList', () => {
     expect(screen.getByRole('button', { name: 'Approve' })).toBeInTheDocument();
   });
 
+  it('renders only the latest action card for repeated action lifecycle messages', () => {
+    const action = buildAction();
+    const firstMessage = buildMessage({
+      id: 'message-1',
+      content: 'I prepared an action for review.',
+      metadata: {
+        action_id: action.id,
+      },
+    });
+    const secondMessage = buildMessage({
+      id: 'message-2',
+      content: 'Action approved. Execute when ready.',
+      metadata: {
+        action_id: action.id,
+      },
+      created_at: '2026-04-22T10:01:00Z',
+    });
+
+    render(
+      <AssistantMessageList
+        messages={[firstMessage, secondMessage]}
+        actionsById={{ [action.id]: action }}
+        isLoading={false}
+      />
+    );
+
+    expect(screen.getByText('I prepared an action for review.')).toBeInTheDocument();
+    expect(screen.getByText('Action approved. Execute when ready.')).toBeInTheDocument();
+    expect(screen.getAllByText('Pause campaign')).toHaveLength(1);
+  });
+
   it('renders response cards for structured assistant insights', () => {
     const message = buildMessage({
       content: 'Here is the current campaign status.',

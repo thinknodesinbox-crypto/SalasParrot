@@ -215,6 +215,15 @@ export function AssistantMessageList({
     );
   }
 
+  const latestActionMessageIdByActionId = new Map<string, string>();
+  messages.forEach((message) => {
+    const actionId =
+      typeof message.metadata?.action_id === 'string' ? message.metadata.action_id : null;
+    if (actionId) {
+      latestActionMessageIdByActionId.set(actionId, message.id);
+    }
+  });
+
   return (
     <div ref={scrollRef} className="h-full overflow-y-auto bg-transparent">
       <div className={`space-y-4 ${isPage ? 'px-6 pb-6 pt-4 md:px-8 md:pb-8 md:pt-5' : 'p-6'}`}>
@@ -240,7 +249,9 @@ export function AssistantMessageList({
           const isUser = message.role === 'user';
           const actionId =
             typeof message.metadata?.action_id === 'string' ? message.metadata.action_id : null;
-          const action = actionId ? actionsById[actionId] : undefined;
+          const shouldRenderAction =
+            actionId !== null && latestActionMessageIdByActionId.get(actionId) === message.id;
+          const action = shouldRenderAction ? actionsById[actionId] : undefined;
           const responseCard = !action ? message.metadata?.response_card : null;
           const hasStructuredInsight = !isUser && !action && Boolean(responseCard);
           return (
