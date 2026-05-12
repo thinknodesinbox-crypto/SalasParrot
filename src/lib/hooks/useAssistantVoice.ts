@@ -47,6 +47,7 @@ type AssistantSpeechKind = 'filler' | 'final';
 const VOICE_LATENCY_FILLER_DELAY_MIN_MS = 1800;
 const VOICE_LATENCY_FILLER_DELAY_SPREAD_MS = 800;
 const VOICE_LATENCY_FILLER_ACTIVE_MS = 2200;
+const VOICE_LATENCY_FILLERS_ENABLED = false;
 const TRANSCRIPT_SAVE_RETRY_DELAYS_MS = [350, 900];
 
 const VOICE_LATENCY_FILLERS: Record<VoiceLatencyFillerCategory, string[]> = {
@@ -405,6 +406,7 @@ export function useAssistantVoice({
 
   const scheduleLatencyFiller = (transcript: string) => {
     clearLatencyFillerTimer();
+    if (!VOICE_LATENCY_FILLERS_ENABLED) return;
     if (!shouldPlayVoiceLatencyFiller(transcript)) return;
     const delay =
       VOICE_LATENCY_FILLER_DELAY_MIN_MS +
