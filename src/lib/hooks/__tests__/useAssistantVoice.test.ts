@@ -1,5 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createRealtimeCallAnswer, getFriendlyVoiceError } from '../useAssistantVoice';
+import {
+  chooseVoiceLatencyFiller,
+  createRealtimeCallAnswer,
+  getFriendlyVoiceError,
+  getVoiceLatencyFillerCategory,
+  shouldPlayVoiceLatencyFiller,
+} from '../useAssistantVoice';
 
 describe('createRealtimeCallAnswer', () => {
   afterEach(() => {
@@ -61,5 +67,30 @@ describe('getFriendlyVoiceError', () => {
     expect(getFriendlyVoiceError('model_not_found: gpt-realtime')).toContain(
       'cannot access the realtime voice model'
     );
+  });
+});
+
+describe('voice latency fillers', () => {
+  it('chooses lead-search fillers for lead discovery turns', () => {
+    expect(
+      getVoiceLatencyFillerCategory('Help me find founders in New York that need more clients')
+    ).toBe('lead_search');
+  });
+
+  it('skips action approval and execution phrases', () => {
+    expect(shouldPlayVoiceLatencyFiller('Approve and execute it now')).toBe(false);
+    expect(chooseVoiceLatencyFiller('Go ahead', null, () => 0)).toBeNull();
+  });
+
+  it('avoids repeating the previous filler when alternatives exist', () => {
+    const previous = 'Got you, shaping that search.';
+    const next = chooseVoiceLatencyFiller(
+      'Find new leads for my product in New York',
+      previous,
+      () => 0
+    );
+
+    expect(next).not.toBe(previous);
+    expect(next).toBe('Okay, narrowing that down.');
   });
 });

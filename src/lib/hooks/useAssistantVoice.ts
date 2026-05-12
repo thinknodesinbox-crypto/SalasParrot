@@ -35,6 +35,118 @@ interface StartVoiceOptions {
   threadId?: string | null;
 }
 
+type VoiceLatencyFillerCategory =
+  | 'lead_search'
+  | 'campaign'
+  | 'workspace_lookup'
+  | 'troubleshooting'
+  | 'thinking';
+
+const VOICE_LATENCY_FILLER_DELAY_MIN_MS = 850;
+const VOICE_LATENCY_FILLER_DELAY_SPREAD_MS = 450;
+const VOICE_LATENCY_FILLER_ACTIVE_MS = 2600;
+
+const VOICE_LATENCY_FILLERS: Record<VoiceLatencyFillerCategory, string[]> = {
+  lead_search: [
+    'Got you, shaping that search.',
+    'Okay, narrowing that down.',
+    'One sec, mapping the best search path.',
+    'I am turning that into a cleaner lead brief.',
+  ],
+  campaign: [
+    'Okay, mapping that to the campaign.',
+    'Got it, checking the campaign setup.',
+    'One sec, looking at the sequence angle.',
+    'I am lining that up with the outreach flow.',
+  ],
+  workspace_lookup: [
+    'Okay, checking your workspace.',
+    'One moment, pulling that up.',
+    'Got you, looking at the current data.',
+    'I am checking that now.',
+  ],
+  troubleshooting: [
+    'Okay, checking what might be happening.',
+    'Got you, looking into that.',
+    'One sec, tracing the issue.',
+    'I am checking the setup around that.',
+  ],
+  thinking: [
+    'Hmm, let me think through that.',
+    'Okay, one sec.',
+    'I am with you, thinking it through.',
+    'Got you, let me work that out.',
+  ],
+};
+
+const VOICE_LATENCY_FILLER_SKIP_TERMS = [
+  'approve',
+  'approved',
+  'execute',
+  'run it',
+  'start it',
+  'launch it',
+  'send it',
+  'go ahead',
+  'yes do it',
+  'yeah do it',
+  'cancel',
+  'reject',
+  'stop',
+];
+
+function normalizeVoiceFillerText(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[^\w\s']/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+export function shouldPlayVoiceLatencyFiller(transcript: string) {
+  const normalized = normalizeVoiceFillerText(transcript);
+  if (!normalized || normalized.length < 12) return false;
+  return !VOICE_LATENCY_FILLER_SKIP_TERMS.some((term) => normalized.includes(term));
+}
+
+export function getVoiceLatencyFillerCategory(transcript: string): VoiceLatencyFillerCategory {
+  const normalized = normalizeVoiceFillerText(transcript);
+  if (
+    /\b(lead|leads|prospect|prospects|find|search|source|linkedin|discovery|audience|target)\b/.test(
+      normalized
+    )
+  ) {
+    return 'lead_search';
+  }
+  if (/\b(campaign|sequence|outreach|message|reply|follow up|follow-up)\b/.test(normalized)) {
+    return 'campaign';
+  }
+  if (
+    /\b(account|sender|inbox|workspace|connected|status|list|lists|how many|show me)\b/.test(
+      normalized
+    )
+  ) {
+    return 'workspace_lookup';
+  }
+  if (/\b(error|bug|stuck|not working|failed|glitch|issue|problem|why)\b/.test(normalized)) {
+    return 'troubleshooting';
+  }
+  return 'thinking';
+}
+
+export function chooseVoiceLatencyFiller(
+  transcript: string,
+  lastPhrase: string | null = null,
+  random: () => number = Math.random
+) {
+  if (!shouldPlayVoiceLatencyFiller(transcript)) return null;
+  const category = getVoiceLatencyFillerCategory(transcript);
+  const options = VOICE_LATENCY_FILLERS[category];
+  const freshOptions = options.filter((option) => option !== lastPhrase);
+  const pool = freshOptions.length > 0 ? freshOptions : options;
+  return pool[Math.floor(random() * pool.length) % pool.length] ?? null;
+}
+
 export function getFriendlyVoiceError(message: string | null | undefined) {
   const cleaned = message?.trim();
   if (!cleaned) return 'Voice mode could not start. Please try again.';
@@ -127,6 +239,7 @@ export function useAssistantVoice({
   const [activity, setActivity] = useState<AssistantVoiceActivity>('idle');
   const [liveUserTranscript, setLiveUserTranscript] = useState('');
   const [liveAssistantTranscript, setLiveAssistantTranscript] = useState('');
+  const activityRef = useRef<AssistantVoiceActivity>('idle');
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const dataChannelRef = useRef<RTCDataChannel | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
@@ -139,13 +252,61 @@ export function useAssistantVoice({
   const userTranscriptBuffersRef = useRef<Map<string, string>>(new Map());
   const assistantTranscriptBuffersRef = useRef<Map<string, string>>(new Map());
   const pendingUserTranscriptTimeoutRef = useRef<number | null>(null);
+  const latencyFillerTimeoutRef = useRef<number | null>(null);
+  const latencyFillerActiveTimeoutRef = useRef<number | null>(null);
+  const latencyFillerActiveRef = useRef(false);
+  const lastLatencyFillerRef = useRef<string | null>(null);
   const isStoppingRef = useRef(false);
   const pendingSessionBindingRef = useRef<{ workspaceId: string; threadId: string } | null>(null);
+
+  useEffect(() => {
+    activityRef.current = activity;
+  }, [activity]);
 
   const clearPendingUserTranscript = () => {
     if (pendingUserTranscriptTimeoutRef.current !== null) {
       window.clearTimeout(pendingUserTranscriptTimeoutRef.current);
       pendingUserTranscriptTimeoutRef.current = null;
+    }
+  };
+
+  const clearLatencyFillerTimer = () => {
+    if (latencyFillerTimeoutRef.current !== null) {
+      window.clearTimeout(latencyFillerTimeoutRef.current);
+      latencyFillerTimeoutRef.current = null;
+    }
+  };
+
+  const markLatencyFillerInactiveSoon = () => {
+    if (latencyFillerActiveTimeoutRef.current !== null) {
+      window.clearTimeout(latencyFillerActiveTimeoutRef.current);
+    }
+    latencyFillerActiveTimeoutRef.current = window.setTimeout(() => {
+      latencyFillerActiveRef.current = false;
+      latencyFillerActiveTimeoutRef.current = null;
+    }, VOICE_LATENCY_FILLER_ACTIVE_MS);
+  };
+
+  const clearLatencyFillerState = () => {
+    clearLatencyFillerTimer();
+    if (latencyFillerActiveTimeoutRef.current !== null) {
+      window.clearTimeout(latencyFillerActiveTimeoutRef.current);
+      latencyFillerActiveTimeoutRef.current = null;
+    }
+    latencyFillerActiveRef.current = false;
+  };
+
+  const cancelLatencyFillerAudio = () => {
+    if (!latencyFillerActiveRef.current) return;
+    const channel = dataChannelRef.current;
+    if (channel && channel.readyState === 'open') {
+      channel.send(JSON.stringify({ type: 'response.cancel' }));
+    }
+    setLiveAssistantTranscript('');
+    latencyFillerActiveRef.current = false;
+    if (latencyFillerActiveTimeoutRef.current !== null) {
+      window.clearTimeout(latencyFillerActiveTimeoutRef.current);
+      latencyFillerActiveTimeoutRef.current = null;
     }
   };
 
@@ -181,6 +342,8 @@ export function useAssistantVoice({
   const speakAssistantText = (text: string) => {
     const channel = dataChannelRef.current;
     if (!channel || channel.readyState !== 'open' || !text.trim()) return;
+    clearLatencyFillerTimer();
+    cancelLatencyFillerAudio();
     setLiveAssistantTranscript(text);
     setActivity('assistant');
     channel.send(
@@ -192,6 +355,40 @@ export function useAssistantVoice({
         },
       })
     );
+  };
+
+  const speakLatencyFiller = (transcript: string) => {
+    const channel = dataChannelRef.current;
+    if (!channel || channel.readyState !== 'open') return;
+    if (activityRef.current === 'assistant' || latencyFillerActiveRef.current) return;
+    const filler = chooseVoiceLatencyFiller(transcript, lastLatencyFillerRef.current);
+    if (!filler) return;
+    lastLatencyFillerRef.current = filler;
+    latencyFillerActiveRef.current = true;
+    setLiveAssistantTranscript(filler);
+    setActivity('assistant');
+    markLatencyFillerInactiveSoon();
+    channel.send(
+      JSON.stringify({
+        type: 'response.create',
+        response: {
+          input: [],
+          instructions: `Say exactly the following short acknowledgement to the user. Do not add or remove words.\n\n${filler}`,
+        },
+      })
+    );
+  };
+
+  const scheduleLatencyFiller = (transcript: string) => {
+    clearLatencyFillerTimer();
+    if (!shouldPlayVoiceLatencyFiller(transcript)) return;
+    const delay =
+      VOICE_LATENCY_FILLER_DELAY_MIN_MS +
+      Math.floor(Math.random() * VOICE_LATENCY_FILLER_DELAY_SPREAD_MS);
+    latencyFillerTimeoutRef.current = window.setTimeout(() => {
+      latencyFillerTimeoutRef.current = null;
+      speakLatencyFiller(transcript);
+    }, delay);
   };
 
   const completeVoiceSession = async () => {
@@ -278,6 +475,7 @@ export function useAssistantVoice({
     userTranscriptBuffersRef.current.clear();
     assistantTranscriptBuffersRef.current.clear();
     clearPendingUserTranscript();
+    clearLatencyFillerState();
     persistedItemIdsRef.current.clear();
     eventIndexRef.current = 0;
     pendingSessionBindingRef.current = null;
@@ -323,6 +521,7 @@ export function useAssistantVoice({
     userTranscriptBuffersRef.current.clear();
     assistantTranscriptBuffersRef.current.clear();
     clearPendingUserTranscript();
+    clearLatencyFillerState();
     eventIndexRef.current = 0;
 
     try {
@@ -410,6 +609,8 @@ export function useAssistantVoice({
           const payload = JSON.parse(event.data);
           if (payload.type === 'input_audio_buffer.speech_started') {
             clearPendingUserTranscript();
+            clearLatencyFillerTimer();
+            cancelLatencyFillerAudio();
             setActivity('user');
           }
           if (
@@ -438,6 +639,7 @@ export function useAssistantVoice({
             const eventIndex = ++eventIndexRef.current;
             const eventCreatedAt = new Date().toISOString();
             clearPendingUserTranscript();
+            scheduleLatencyFiller(transcript);
             pendingUserTranscriptTimeoutRef.current = window.setTimeout(() => {
               pendingUserTranscriptTimeoutRef.current = null;
               void (async () => {
@@ -448,6 +650,7 @@ export function useAssistantVoice({
                   eventIndex,
                   eventCreatedAt,
                 });
+                clearLatencyFillerTimer();
                 if (persisted) {
                   if (payload.item_id) {
                     userTranscriptBuffersRef.current.delete(payload.item_id);
@@ -457,9 +660,11 @@ export function useAssistantVoice({
                   if (voiceReviewText) {
                     speakAssistantText(voiceReviewText);
                   } else {
+                    cancelLatencyFillerAudio();
                     setActivity('listening');
                   }
                 } else {
+                  cancelLatencyFillerAudio();
                   setError('Failed to save transcript.');
                   setLiveUserTranscript(transcript);
                   setActivity('listening');
@@ -484,6 +689,11 @@ export function useAssistantVoice({
           ) {
             if (payload.item_id) {
               assistantTranscriptBuffersRef.current.delete(payload.item_id);
+            }
+            latencyFillerActiveRef.current = false;
+            if (latencyFillerActiveTimeoutRef.current !== null) {
+              window.clearTimeout(latencyFillerActiveTimeoutRef.current);
+              latencyFillerActiveTimeoutRef.current = null;
             }
             setLiveAssistantTranscript('');
             setActivity('listening');
