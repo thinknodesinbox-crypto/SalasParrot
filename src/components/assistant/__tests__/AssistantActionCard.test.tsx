@@ -124,6 +124,42 @@ describe('AssistantActionCard', () => {
     expect(onExecute).toHaveBeenCalledWith('action-1');
   });
 
+  it('renders launch readiness for start campaign actions', () => {
+    render(
+      <AssistantActionCard
+        action={buildAction({
+          action_type: 'start_campaign',
+          risk_level: 'high',
+          preview: {
+            title: 'Launch campaign',
+            summary: "Launch campaign 'Apollo Enterprise'",
+            before: {
+              campaign_status: 'draft',
+              daily_connection_limit: 25,
+            },
+            after: {
+              launch_validation: {
+                errors: [],
+                warnings: [],
+                step_count: 3,
+                active_sender_count: 2,
+              },
+            },
+            exact_payload: {},
+            warnings: [],
+          },
+        })}
+      />
+    );
+
+    expect(screen.getByText('Launch Readiness')).toBeInTheDocument();
+    expect(screen.getByText('Launch this campaign')).toBeInTheDocument();
+    expect(screen.getByText('Next status: active')).toBeInTheDocument();
+    expect(screen.getByText('Sequence: 3 steps')).toBeInTheDocument();
+    expect(screen.getByText('Senders: 2 active senders')).toBeInTheDocument();
+    expect(screen.getByText('Ready checks passed.')).toBeInTheDocument();
+  });
+
   it('shows waiting state and options for pending target selection', () => {
     render(
       <AssistantActionCard

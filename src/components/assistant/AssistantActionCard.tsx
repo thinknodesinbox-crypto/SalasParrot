@@ -355,6 +355,7 @@ export function AssistantActionCard({
     'create_campaign',
     'pause_campaign',
     'resume_campaign',
+    'start_campaign',
     'rename_campaign',
     'update_campaign_daily_limit',
     'update_campaign_steps',
@@ -458,9 +459,24 @@ export function AssistantActionCard({
       ? 'paused'
       : action.action_type === 'resume_campaign'
         ? 'active'
-        : action.action_type === 'stop_campaign'
-          ? 'stopped'
-          : null;
+        : action.action_type === 'start_campaign'
+          ? 'active'
+          : action.action_type === 'stop_campaign'
+            ? 'stopped'
+            : null;
+  const campaignLaunchValidation =
+    typeof action.preview.after.launch_validation === 'object' &&
+    action.preview.after.launch_validation !== null
+      ? (action.preview.after.launch_validation as Record<string, unknown>)
+      : null;
+  const campaignLaunchErrors = Array.isArray(campaignLaunchValidation?.errors)
+    ? campaignLaunchValidation.errors.map(String).filter(Boolean)
+    : [];
+  const campaignLaunchWarnings = Array.isArray(campaignLaunchValidation?.warnings)
+    ? campaignLaunchValidation.warnings.map(String).filter(Boolean)
+    : [];
+  const campaignLaunchStepCount = getRecordNumber(campaignLaunchValidation?.step_count);
+  const campaignLaunchSenderCount = getRecordNumber(campaignLaunchValidation?.active_sender_count);
   const supportsCampaignStructuredEditor = [
     'create_campaign',
     'rename_campaign',
@@ -1001,9 +1017,11 @@ export function AssistantActionCard({
                       ? 'Rename this campaign'
                       : action.action_type === 'update_campaign_daily_limit'
                         ? 'Change the daily limit'
-                        : campaignNextStatus
-                          ? `Move campaign to ${campaignNextStatus}`
-                          : 'Update this campaign'}
+                        : action.action_type === 'start_campaign'
+                          ? 'Launch this campaign'
+                          : campaignNextStatus
+                            ? `Move campaign to ${campaignNextStatus}`
+                            : 'Update this campaign'}
               </div>
               {getRecordString(effectivePayload.name) &&
               getRecordString(effectivePayload.name) !==
@@ -1017,6 +1035,33 @@ export function AssistantActionCard({
               {campaignNextStatus ? <div>Next status: {campaignNextStatus}</div> : null}
               <div>Daily limit: {campaignDailyLimit ?? 'Not set'}</div>
             </div>
+            {action.action_type === 'start_campaign' ? (
+              <div className="rounded-lg bg-white p-3 text-sm text-[#7C2D12]">
+                <div className="font-medium text-[#9A3412]">Launch Readiness</div>
+                <div className="mt-1">
+                  Sequence: {campaignLaunchStepCount ?? 'Unknown'} step
+                  {campaignLaunchStepCount === 1 ? '' : 's'}
+                </div>
+                <div>
+                  Senders: {campaignLaunchSenderCount ?? 'Unknown'} active sender
+                  {campaignLaunchSenderCount === 1 ? '' : 's'}
+                </div>
+                {campaignLaunchErrors.length > 0 ? (
+                  <div className="mt-2 rounded-md border border-[#FECACA] bg-[#FEF2F2] px-2.5 py-2 text-[#991B1B]">
+                    {campaignLaunchErrors[0]}
+                  </div>
+                ) : (
+                  <div className="mt-2 rounded-md border border-[#BBF7D0] bg-[#F0FDF4] px-2.5 py-2 text-[#166534]">
+                    Ready checks passed.
+                  </div>
+                )}
+                {campaignLaunchWarnings.length > 0 ? (
+                  <div className="mt-2 text-xs text-[#9A3412]">
+                    {campaignLaunchWarnings.slice(0, 2).join(' ')}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
             <div className="rounded-lg bg-white p-3 text-sm text-[#7C2D12]">
               <div className="font-medium text-[#9A3412]">Sequence</div>
               <div className="mt-1">

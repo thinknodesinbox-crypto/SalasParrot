@@ -274,6 +274,7 @@ export type AssistantActionType =
   | 'unbind_whatsapp_account'
   | 'pause_campaign'
   | 'resume_campaign'
+  | 'start_campaign'
   | 'rename_campaign'
   | 'update_campaign_daily_limit'
   | 'update_campaign_steps'
