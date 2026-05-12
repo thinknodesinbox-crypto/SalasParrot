@@ -653,6 +653,117 @@ function parseLeadContextField(contextField: string | null | undefined): Record<
   return parsed;
 }
 
+function splitLeadContextList(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.map((item) => String(item).trim()).filter(Boolean);
+  }
+  return String(value || '')
+    .split(/[;\n]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function getLeadContextValue(context: Record<string, string>, keys: string[]): string {
+  for (const key of keys) {
+    const value = context[normalizeContextLabel(key)];
+    if (value) return value;
+  }
+  return '';
+}
+
+function getLeadDiscoverySourceUrls(lead: Lead, context: Record<string, string>): string[] {
+  const metadata = getLeadDiscoveryMetadata(lead);
+  const metadataUrls = Array.isArray(metadata.source_urls)
+    ? metadata.source_urls.map((url) => String(url).trim()).filter(Boolean)
+    : [];
+  const contextUrls = splitLeadContextList(context['source evidence']).filter((item) =>
+    /^https?:\/\//i.test(item)
+  );
+  return Array.from(new Set([...metadataUrls, ...contextUrls])).slice(0, 5);
+}
+
+function getLeadDiscoveryReasonLines(lead: Lead, context: Record<string, string>): string[] {
+  const metadata = getLeadDiscoveryMetadata(lead);
+  const metadataReasons = Array.isArray(metadata.reasons)
+    ? metadata.reasons.map((reason) => String(reason).trim()).filter(Boolean)
+    : [];
+  const contextReasons = splitLeadContextList(
+    getLeadContextValue(context, ['proof of match', 'match summary'])
+  );
+  return Array.from(new Set([...metadataReasons, ...contextReasons])).slice(0, 4);
+}
+
+function getLeadDiscoveryTrustLabel(lead: Lead): string {
+  const rank = getLeadDiscoveryRank(lead);
+  const score = getLeadDiscoveryScore(lead);
+  if (rank && score >= 0) return `${rank} (${Math.round(score)}/100)`;
+  if (rank) return rank;
+  return lead.tags?.includes('Discovery') ? 'Discovery lead' : 'Lead context';
+}
+
+function buildLeadContextBrief(lead: Lead): {
+  why: string;
+  proof: string[];
+  sourceUrls: string[];
+  approach: string;
+  trust: string;
+  rawContextEntries: Array<{ label: string; value: string }>;
+} {
+  const context = parseLeadContextField(lead.context_field);
+  const metadata = getLeadDiscoveryMetadata(lead);
+  const sourceLabel = String(metadata.source || context['discovery source'] || '').trim();
+  const missingProof = splitLeadContextList(context['missing proof']);
+  const proofBadges = getLeadDiscoveryProofBadges(lead);
+  const sourceUrls = getLeadDiscoverySourceUrls(lead, context);
+  const reasonLines = getLeadDiscoveryReasonLines(lead, context);
+  const summary = getLeadContextValue(context, [
+    'why this lead matched',
+    'match summary',
+    'proof of match',
+  ]);
+  const leadLabel =
+    [lead.first_name, lead.last_name].filter(Boolean).join(' ') || lead.company || 'This lead';
+  const companyLabel = lead.company ? ` at ${lead.company}` : '';
+  const roleLabel = lead.title || lead.headline || '';
+  const sourcePhrase = sourceLabel ? ` via ${sourceLabel}` : '';
+  const why =
+    summary ||
+    `${leadLabel}${companyLabel} matched this discovery search${sourcePhrase}${
+      roleLabel ? ` because their role or signal relates to ${roleLabel}.` : '.'
+    }`;
+  const proof = [
+    ...proofBadges,
+    ...reasonLines,
+    sourceUrls.length
+      ? `${sourceUrls.length} source link${sourceUrls.length === 1 ? '' : 's'}`
+      : '',
+  ].filter(Boolean);
+  const approach =
+    getLeadContextValue(context, ['outreach angle', 'how to approach']) ||
+    (reasonLines[0]
+      ? `Open with the signal: ${reasonLines[0]}`
+      : lead.company
+        ? `Reference ${lead.company} and connect the search signal to the problem your campaign solves.`
+        : 'Use the discovery signal as the opener, then ask who owns the relevant initiative.');
+  const score = getLeadDiscoveryScore(lead);
+  const trustLabel = getLeadDiscoveryTrustLabel(lead);
+  const passedRequired = metadata.passed_required;
+  const trust =
+    getLeadContextValue(context, ['campaign readiness', 'can i trust this']) ||
+    (missingProof.length
+      ? `${trustLabel}. Review before adding to a campaign because proof is missing: ${missingProof.join(
+          ', '
+        )}.`
+      : passedRequired === false
+        ? `${trustLabel}. Use for review first because required proof was not fully verified.`
+        : score >= 65 || passedRequired === true
+          ? `${trustLabel}. Strong enough to consider for a campaign after normal sender and list review.`
+          : `${trustLabel}. Useful lead, but review source links before campaign launch.`);
+  const rawContextEntries = Object.entries(context).map(([label, value]) => ({ label, value }));
+
+  return { why, proof: proof.slice(0, 6), sourceUrls, approach, trust, rawContextEntries };
+}
+
 function getLeadDiscoveryMetadata(lead: Lead): Record<string, unknown> {
   const discovery = lead.profile_data?.discovery;
   return discovery && typeof discovery === 'object' && !Array.isArray(discovery)
@@ -3020,6 +3131,7 @@ function LeadRow({
       </tr>
       <ContextFieldModal
         open={showContextField}
+        lead={lead}
         leadName={[lead.first_name, lead.last_name].filter(Boolean).join(' ') || 'Lead'}
         contextField={lead.context_field}
         onClose={() => setShowContextField(false)}
@@ -3030,16 +3142,26 @@ function LeadRow({
 
 function ContextFieldModal({
   open,
+  lead,
   leadName,
   contextField,
   onClose,
 }: {
   open: boolean;
+  lead: Lead;
   leadName: string;
   contextField: string | null;
   onClose: () => void;
 }) {
   if (!open) return null;
+
+  const brief = buildLeadContextBrief(lead);
+  const hasStructuredContext =
+    brief.why ||
+    brief.proof.length > 0 ||
+    brief.sourceUrls.length > 0 ||
+    brief.approach ||
+    brief.trust;
 
   return createPortal(
     <AnimatePresence>
@@ -3056,12 +3178,15 @@ function ContextFieldModal({
           exit={{ opacity: 0, scale: 0.96, y: 12 }}
           transition={{ duration: 0.18 }}
           onClick={(event) => event.stopPropagation()}
-          className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl"
+          className="w-full max-w-2xl rounded-2xl bg-white p-6 shadow-2xl"
         >
           <div className="flex items-start justify-between gap-4">
             <div>
               <h3 className="text-lg font-semibold text-[#0F172A]">Lead context</h3>
-              <p className="mt-1 text-sm text-[#64748B]">{leadName}</p>
+              <p className="mt-1 text-sm text-[#64748B]">
+                {leadName}
+                {lead.company ? ` at ${lead.company}` : ''}
+              </p>
             </div>
             <button
               type="button"
@@ -3073,10 +3198,92 @@ function ContextFieldModal({
               </span>
             </button>
           </div>
-          <div className="mt-4 max-h-[60vh] overflow-y-auto rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
-            <pre className="whitespace-pre-wrap font-sans text-sm leading-6 text-[#1E293B]">
-              {contextField || 'No context available for this lead.'}
-            </pre>
+
+          <div className="mt-5 max-h-[70vh] space-y-4 overflow-y-auto pr-1">
+            {hasStructuredContext ? (
+              <>
+                <div className="rounded-xl border border-[#E2E8F0] bg-white p-4">
+                  <p className="text-xs font-semibold uppercase text-[#94A3B8]">
+                    Why is this lead here?
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-[#1E293B]">{brief.why}</p>
+                </div>
+
+                <div className="rounded-xl border border-[#E2E8F0] bg-white p-4">
+                  <p className="text-xs font-semibold uppercase text-[#94A3B8]">
+                    What proof do we have?
+                  </p>
+                  {brief.proof.length > 0 ? (
+                    <ul className="mt-2 list-disc space-y-2 pl-4">
+                      {brief.proof.map((item) => (
+                        <li key={item} className="text-sm leading-6 text-[#1E293B]">
+                          {item}
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="mt-2 text-sm leading-6 text-[#64748B]">
+                      No specific proof was attached. Review source links before outreach.
+                    </p>
+                  )}
+                  {brief.sourceUrls.length > 0 ? (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {brief.sourceUrls.map((url, index) => (
+                        <a
+                          key={url}
+                          href={url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="rounded-full border border-[#BFDBFE] bg-[#EFF6FF] px-3 py-1 text-xs font-medium text-[#1D4ED8] hover:bg-[#DBEAFE]"
+                          title={url}
+                        >
+                          Source {index + 1}
+                        </a>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="rounded-xl border border-[#E2E8F0] bg-white p-4">
+                    <p className="text-xs font-semibold uppercase text-[#94A3B8]">
+                      How should I approach them?
+                    </p>
+                    <p className="mt-2 text-sm leading-6 text-[#1E293B]">{brief.approach}</p>
+                  </div>
+                  <div className="rounded-xl border border-[#E2E8F0] bg-white p-4">
+                    <p className="text-xs font-semibold uppercase text-[#94A3B8]">
+                      Can I trust this for a campaign?
+                    </p>
+                    <p className="mt-2 text-sm leading-6 text-[#1E293B]">{brief.trust}</p>
+                  </div>
+                </div>
+
+                {brief.rawContextEntries.length > 0 ? (
+                  <details className="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
+                    <summary className="cursor-pointer text-sm font-medium text-[#475569]">
+                      Raw context fields
+                    </summary>
+                    <div className="mt-3 space-y-2">
+                      {brief.rawContextEntries.map(({ label, value }) => (
+                        <div key={`${label}-${value}`} className="text-sm leading-6">
+                          <span className="font-medium capitalize text-[#1E293B]">
+                            {label.replace(/\s+/g, ' ')}:
+                          </span>{' '}
+                          <span className="text-[#64748B]">{value}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                ) : null}
+              </>
+            ) : (
+              <div className="rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] p-4">
+                <pre className="whitespace-pre-wrap font-sans text-sm leading-6 text-[#1E293B]">
+                  {contextField || 'No context available for this lead.'}
+                </pre>
+              </div>
+            )}
           </div>
         </motion.div>
       </motion.div>
