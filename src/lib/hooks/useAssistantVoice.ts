@@ -688,7 +688,7 @@ export function useAssistantVoice({
                   cancelLatencyFillerAudio();
                   setLiveUserTranscript(transcript);
                   speakAssistantText(
-                    'I heard that, but saving the voice turn had a temporary issue. I am still listening, so say the last SalesParrot task again and I will continue.'
+                    'I heard you, but saving that voice turn had a brief hiccup. I am still here; continue from where you were, or repeat the last thing if you wanted me to act on it.'
                   );
                   setActivity('listening');
                 }
