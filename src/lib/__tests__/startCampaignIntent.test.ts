@@ -33,6 +33,18 @@ describe('normalizeStartCampaignIntent', () => {
     expect(intent.linkedinKeywords).toContain('LLMs');
   });
 
+  it('removes inline target website connectors from the discovery brief', () => {
+    const intent = normalizeStartCampaignIntent(
+      'Find product leaders talking about AI agents from https://openai.com and anthropic.com. Need public source links.'
+    );
+
+    expect(intent.targetWebsites).toEqual(['openai.com', 'anthropic.com']);
+    expect(intent.discoveryBrief).toBe('product leaders talking about AI agents');
+    expect(intent.linkedinKeywords).not.toContain('openai');
+    expect(intent.linkedinKeywords).not.toContain('anthropic');
+    expect(intent.specialInstructions).toContain('Prioritize these target websites');
+  });
+
   it('keeps LinkedIn people search concise and removes unsearchable constraints', () => {
     const intent = normalizeStartCampaignIntent(
       'Find VP of Finance and CFO profiles in Philadelphia. Exclude recruiters and consultants. Need people at B2B SaaS companies.'

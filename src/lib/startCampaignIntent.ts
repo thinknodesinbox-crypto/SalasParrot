@@ -192,7 +192,13 @@ function extractTargetWebsites(input: string): string[] {
 }
 
 function removeTargetWebsites(input: string): string {
-  return compact(input.replace(TARGET_WEBSITE_PATTERN, ' '));
+  return compact(
+    input
+      .replace(TARGET_WEBSITE_PATTERN, ' ')
+      .replace(/\b(?:from|on|at|via|using|with)\s+(?:and|or|,|;)+\b/gi, ' ')
+      .replace(/\b(?:from|on|at|via|using|with)\s*$/gi, ' ')
+      .replace(/\b(?:and|or)\s+(?:from|on|at|via|using|with)\b/gi, ' ')
+  );
 }
 
 function extractLocation(input: string): string | null {
