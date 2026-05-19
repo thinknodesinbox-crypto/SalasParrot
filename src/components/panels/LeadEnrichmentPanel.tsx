@@ -197,7 +197,7 @@ export function LeadEnrichmentPanel({ variant: _variant = 'feature' }: LeadEnric
           {foundCount}/{leads.length} found
         </span>
         <motion.button
-          className="flex items-center gap-1 rounded-lg border border-teal-200 bg-teal-50 px-2 py-1 text-[10px] font-medium text-teal-700 transition-colors hover:bg-teal-100 sm:px-3 sm:py-1.5 sm:text-xs"
+          className="flex items-center gap-1 rounded-full border border-teal-200 bg-teal-50 px-2 py-1 text-[10px] font-medium text-teal-700 transition-colors hover:bg-teal-100 sm:px-3 sm:py-1.5 sm:text-xs"
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
         >

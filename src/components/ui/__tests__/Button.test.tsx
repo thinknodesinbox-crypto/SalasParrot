@@ -11,7 +11,7 @@ describe('Button', () => {
   it('applies primary variant styles by default', () => {
     render(<Button>Primary</Button>);
     const button = screen.getByRole('button');
-    expect(button.className).toContain('bg-[#FF6B35]');
+    expect(button.className).toContain('bg-[#EA580C]');
     expect(button.className).toContain('text-white');
   });
 

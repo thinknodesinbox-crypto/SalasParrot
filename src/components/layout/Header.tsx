@@ -9,19 +9,31 @@ export function Header() {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
   return (
-    <header className="sticky top-0 z-50 border-b border-[#E2E8F0]/50 bg-white/95 backdrop-blur-sm">
+    <header className="sticky top-4 z-50 mx-4 max-w-4xl rounded-full border border-[#E2E8F0] bg-white/80 backdrop-blur-md transition-all duration-300 md:mx-auto">
       <Container>
-        <nav className="flex h-16 items-center justify-between md:h-18">
+        <nav className="flex h-12 items-center justify-between md:h-14">
           {/* Logo */}
           <Link to="/" className="group transition-opacity duration-200 hover:opacity-90">
-            <Logo className="h-10 w-10" />
+            <Logo className="h-8 w-8 md:h-9 md:w-9" />
           </Link>
 
           {/* Desktop Navigation */}
           <div className="hidden items-center gap-6 sm:flex">
+            <a
+              href="#product"
+              className="px-3 py-1.5 text-base font-medium text-[#64748B] transition-colors duration-200 hover:text-[#1E293B]"
+            >
+              Product
+            </a>
+            <a
+              href="#playbooks"
+              className="px-3 py-1.5 text-base font-medium text-[#64748B] transition-colors duration-200 hover:text-[#1E293B]"
+            >
+              Playbooks
+            </a>
             <Link
               to="/pricing"
-              className="px-3 py-2 text-sm font-medium text-[#64748B] transition-colors duration-200 hover:text-[#1E293B]"
+              className="px-3 py-1.5 text-base font-medium text-[#64748B] transition-colors duration-200 hover:text-[#1E293B]"
             >
               Pricing
             </Link>
@@ -29,13 +41,13 @@ export function Header() {
               <Link
                 to="/login"
                 search={{ next: undefined }}
-                className="px-3 py-2 text-sm font-medium text-[#64748B] transition-colors duration-200 hover:text-[#1E293B]"
+                className="px-3 py-1.5 text-base font-medium text-[#64748B] transition-colors duration-200 hover:text-[#1E293B]"
               >
                 Login
               </Link>
             )}
             <Link to={isAuthenticated ? '/dashboard' : '/signup'}>
-              <Button variant="primary" size="default">
+              <Button variant="primary" size="default" className="px-4 py-1.5 text-xs">
                 {isAuthenticated ? 'Dashboard' : 'Get Started'}
               </Button>
             </Link>
@@ -83,13 +95,27 @@ export function Header() {
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
-            className="overflow-hidden border-t border-[#E2E8F0]/50 bg-white sm:hidden"
+            className="overflow-hidden rounded-b-3xl border-t border-[#E2E8F0]/50 bg-white/95 sm:hidden"
           >
             <Container>
               <div className="flex flex-col gap-2 py-4">
+                <a
+                  href="#product"
+                  className="rounded-lg px-4 py-3 text-[17px] font-medium text-[#1E293B] transition-colors hover:bg-slate-50"
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  Product
+                </a>
+                <a
+                  href="#playbooks"
+                  className="rounded-lg px-4 py-3 text-[17px] font-medium text-[#1E293B] transition-colors hover:bg-slate-50"
+                  onClick={() => setIsMenuOpen(false)}
+                >
+                  Playbooks
+                </a>
                 <Link
                   to="/pricing"
-                  className="rounded-lg px-4 py-3 text-[15px] font-medium text-[#1E293B] transition-colors hover:bg-slate-50"
+                  className="rounded-lg px-4 py-3 text-[17px] font-medium text-[#1E293B] transition-colors hover:bg-slate-50"
                   onClick={() => setIsMenuOpen(false)}
                 >
                   Pricing
@@ -98,7 +124,7 @@ export function Header() {
                   <Link
                     to="/login"
                     search={{ next: undefined }}
-                    className="rounded-lg px-4 py-3 text-[15px] font-medium text-[#64748B] transition-colors hover:bg-slate-50"
+                    className="rounded-lg px-4 py-3 text-[17px] font-medium text-[#64748B] transition-colors hover:bg-slate-50"
                     onClick={() => setIsMenuOpen(false)}
                   >
                     Login

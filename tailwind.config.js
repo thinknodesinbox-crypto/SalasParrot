@@ -52,7 +52,7 @@ export default {
         success: '#22C55E',
       },
       fontFamily: {
-        sans: ['"Plus Jakarta Sans"', 'system-ui', 'sans-serif'],
+        sans: ['"Mona Sans"', 'system-ui', 'sans-serif'],
       },
       fontSize: {
         'hero': ['56px', { lineHeight: '1.1', letterSpacing: '-0.02em', fontWeight: '700' }],

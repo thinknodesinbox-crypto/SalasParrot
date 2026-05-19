@@ -1,3 +1,4 @@
+@import url('https://fonts.googleapis.com/css2?family=Mona+Sans:wght@400;500;600;700&display=swap');
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -17,7 +18,8 @@
   }
 
   body {
-    @apply font-sans antialiased;
+    font-family: 'Mona Sans', system-ui, sans-serif;
+    @apply antialiased;
     color: #1e293b;
     font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
     overflow-x: hidden;
@@ -44,7 +46,7 @@
   h4,
   h5,
   h6 {
-    @apply font-bold;
+    @apply font-semibold;
     color: #1e293b;
     text-wrap: balance;
   }

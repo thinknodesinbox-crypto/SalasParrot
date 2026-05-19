@@ -13,8 +13,7 @@ interface ButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'chi
 type MotionButtonProps = ComponentProps<typeof motion.button>;
 
 const variantStyles: Record<ButtonVariant, string> = {
-  primary:
-    'bg-[#FF6B35] text-white hover:bg-[#E85A2A] hover:shadow-[0_4px_16px_rgba(255,107,53,0.3)]',
+  primary: 'bg-[#EA580C] text-white hover:bg-[#C2410C]',
   secondary:
     'bg-transparent border-[1.5px] border-[#E2E8F0] text-[#1E293B] hover:border-[#1E293B] hover:bg-[#F8FAFC]',
 };
@@ -33,9 +32,9 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         whileTap={{ scale: 0.98 }}
         className={`
           inline-flex items-center justify-center
-          rounded-lg font-semibold
+          rounded-full font-semibold
           transition-all duration-200
-          focus:outline-none focus:ring-2 focus:ring-[#FF6B35] focus:ring-offset-2
+          focus:outline-none focus:ring-2 focus:ring-[#EA580C] focus:ring-offset-2
           disabled:cursor-not-allowed disabled:opacity-50
           ${variantStyles[variant]}
           ${sizeStyles[size]}

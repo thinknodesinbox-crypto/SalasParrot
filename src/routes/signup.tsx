@@ -20,6 +20,11 @@ function SignupPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const signup = useAuthStore((state) => state.signup);
   const googleLogin = useAuthStore((state) => state.googleLogin);
@@ -107,32 +112,17 @@ function SignupPage() {
 
   return (
     <div className="flex min-h-screen">
-      {/* Left side - Visual */}
-      <div className="relative hidden overflow-hidden lg:flex lg:w-[45%]">
-        {/* Cream/warm background matching brand */}
-        <div className="absolute inset-0 bg-[#FFFBEB]" />
-
-        {/* Gradient mesh overlay */}
+      {/* Left side - Visual Backdrop matching Canvas Dotted Grid Theme */}
+      <div className="relative hidden overflow-hidden border-r border-slate-100 bg-[#F8FAFC] lg:flex lg:w-[45%]">
+        {/* Sleek Dotted Grid backdrop matching canvas visual theme */}
         <div
           className="absolute inset-0"
           style={{
             background: `
-              radial-gradient(ellipse 70% 50% at 30% 30%, rgba(20, 184, 166, 0.15) 0%, transparent 50%),
-              radial-gradient(ellipse 60% 50% at 70% 70%, rgba(255, 107, 53, 0.12) 0%, transparent 50%),
-              radial-gradient(ellipse 40% 30% at 20% 80%, rgba(20, 184, 166, 0.08) 0%, transparent 40%)
+              radial-gradient(circle at top left, rgba(234, 88, 12, 0.045) 0%, transparent 60%),
+              radial-gradient(#CBD5E1 1.2px, transparent 1.2px)
             `,
-          }}
-        />
-
-        {/* Subtle grid pattern */}
-        <div
-          className="absolute inset-0 opacity-[0.04]"
-          style={{
-            backgroundImage: `
-              linear-gradient(#1E293B 1px, transparent 1px),
-              linear-gradient(90deg, #1E293B 1px, transparent 1px)
-            `,
-            backgroundSize: '48px 48px',
+            backgroundSize: '100% 100%, 24px 24px',
           }}
         />
 
@@ -149,10 +139,10 @@ function SignupPage() {
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               transition={{ duration: 0.5, delay: 0.3 }}
-              className="mb-8 inline-flex items-center gap-2 rounded-full border border-[#E2E8F0] bg-white px-4 py-2 shadow-sm"
+              className="mb-8 inline-flex items-center gap-2 rounded-full border border-slate-200/80 bg-white px-4 py-2 shadow-sm"
             >
-              <span className="h-2 w-2 animate-pulse rounded-full bg-[#22C55E]" />
-              <span className="text-sm font-medium text-[#1E293B]">
+              <span className="h-2 w-2 animate-pulse rounded-full bg-[#EA580C]" />
+              <span className="text-sm font-semibold text-[#1E293B]">
                 3,500+ teams growing with SalesParrot
               </span>
             </motion.div>
@@ -160,53 +150,50 @@ function SignupPage() {
             <h2 className="mb-4 text-[32px] font-bold leading-tight tracking-[-0.02em] text-[#1E293B]">
               Hire your
               <br />
-              <span className="text-[#14B8A6]">AI sales + marketing employee</span>
+              <span className="text-[#EA580C]">AI sales + marketing employee</span>
             </h2>
 
-            <p className="mb-10 text-[15px] leading-relaxed text-[#64748B]">
+            <p className="mb-10 text-[15px] font-medium leading-relaxed text-[#64748B]">
               Launch campaigns, handle replies, and book meetings from one system.
               <br />
               Set the strategy once. SalesParrot runs the work every day.
             </p>
 
-            {/* Benefits list */}
+            {/* Benefits list (matching clean greyed out visual workflow panels) */}
             <div className="space-y-5">
               <BenefitItem
-                icon="check"
                 title="Runs outreach across email and LinkedIn"
                 description="Executes multichannel campaigns without leads falling through"
               />
               <BenefitItem
-                icon="check"
                 title="Replies like your best rep"
                 description="Adapts to each prospect, handles follow-ups, and keeps momentum"
               />
               <BenefitItem
-                icon="check"
                 title="Turns interest into booked meetings"
                 description="Finds contact data, qualifies leads, and fills your calendar"
               />
             </div>
           </motion.div>
 
-          {/* Decorative elements */}
+          {/* Decorative floating minimal elements */}
           <motion.div
-            className="absolute left-16 top-24 h-3 w-3 rounded-full bg-[#14B8A6]"
+            className="absolute left-16 top-24 h-3 w-3 rounded-full bg-[#EA580C]"
             animate={{ scale: [1, 1.2, 1], opacity: [0.6, 1, 0.6] }}
             transition={{ duration: 3, repeat: Infinity }}
           />
           <motion.div
-            className="absolute bottom-28 right-20 h-2 w-2 rounded-full bg-[#FF6B35]"
+            className="absolute bottom-28 right-20 h-2 w-2 rounded-full bg-[#EA580C]"
             animate={{ scale: [1, 1.3, 1], opacity: [0.5, 0.8, 0.5] }}
             transition={{ duration: 4, repeat: Infinity, delay: 1 }}
           />
           <motion.div
-            className="absolute right-16 top-1/3 h-20 w-20 rounded-2xl border border-[#E2E8F0] bg-white/50"
+            className="absolute right-16 top-1/3 h-20 w-20 rounded-2xl border border-slate-200/60 bg-white/90 shadow-sm"
             animate={{ y: [0, -8, 0], rotate: [0, -2, 0] }}
             transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
           />
           <motion.div
-            className="absolute bottom-32 left-20 h-14 w-14 rounded-xl border border-[#E2E8F0] bg-white/50"
+            className="absolute bottom-32 left-20 h-14 w-14 rounded-xl border border-slate-200/60 bg-white/90 shadow-sm"
             animate={{ y: [0, 6, 0], rotate: [0, 2, 0] }}
             transition={{ duration: 5, repeat: Infinity, ease: 'easeInOut', delay: 1 }}
           />
@@ -215,7 +202,7 @@ function SignupPage() {
 
       {/* Right side - Form */}
       <div className="relative flex flex-1 flex-col justify-center bg-white px-6 py-8 sm:px-12 sm:py-0 lg:px-20">
-        {/* Subtle background pattern */}
+        {/* Subtle background dot pattern */}
         <div
           className="absolute inset-0 opacity-[0.02]"
           style={{
@@ -226,13 +213,13 @@ function SignupPage() {
 
         <div className="relative z-10 mx-auto w-full max-w-[400px]">
           {/* Logo */}
-          <Link to="/" className="group mb-6 inline-flex items-center gap-2 sm:mb-10 sm:gap-2.5">
+          <Link to="/" className="group mb-4 inline-flex items-center gap-2 sm:mb-6 sm:gap-2">
             <img
               src={logoImage}
               alt="SalesParrot"
-              className="h-8 w-8 object-contain sm:h-10 sm:w-10"
+              className="h-7 w-7 object-contain sm:h-8 sm:w-8"
             />
-            <span className="text-lg font-bold text-[#1E293B] transition-colors group-hover:text-[#FF6B35] sm:text-xl">
+            <span className="text-md font-bold text-[#1E293B] transition-colors group-hover:text-[#EA580C] sm:text-lg">
               SalesParrot
             </span>
           </Link>
@@ -243,15 +230,15 @@ function SignupPage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
           >
-            <h1 className="mb-2 text-[26px] font-bold tracking-[-0.02em] text-[#1E293B] sm:text-[32px]">
+            <h1 className="mb-1 text-[22px] font-bold tracking-[-0.02em] text-[#1E293B] sm:text-[26px]">
               Create your account
             </h1>
-            <p className="text-sm text-[#64748B] sm:text-[15px]">
+            <p className="text-xs font-medium text-[#64748B] sm:text-sm">
               Already have an account?{' '}
               <Link
                 to="/login"
                 search={{ next: undefined }}
-                className="font-semibold text-[#FF6B35] transition-colors hover:text-[#E85A2A]"
+                className="font-semibold text-[#EA580C] transition-colors hover:text-[#C2410C]"
               >
                 Sign in
               </Link>
@@ -264,11 +251,14 @@ function SignupPage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.1 }}
             onSubmit={handleSubmit}
-            className="mt-6 space-y-4 sm:mt-8 sm:space-y-5"
+            className="mt-4 space-y-3 sm:mt-5 sm:space-y-4"
           >
             {/* Full name */}
             <div>
-              <label htmlFor="fullName" className="mb-2 block text-sm font-semibold text-[#1E293B]">
+              <label
+                htmlFor="fullName"
+                className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-[#64748B]"
+              >
                 Full name
               </label>
               <input
@@ -279,13 +269,16 @@ function SignupPage() {
                 onChange={handleChange}
                 placeholder="John Doe"
                 required
-                className="w-full rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3.5 text-[#1E293B] placeholder-[#94A3B8] transition-all duration-200 focus:border-[#FF6B35] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+                className="w-full rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-2.5 text-sm text-[#1E293B] placeholder-[#94A3B8] transition-all duration-200 focus:border-[#EA580C] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#EA580C]/20"
               />
             </div>
 
             {/* Email */}
             <div>
-              <label htmlFor="email" className="mb-2 block text-sm font-semibold text-[#1E293B]">
+              <label
+                htmlFor="email"
+                className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-[#64748B]"
+              >
                 Work email
               </label>
               <input
@@ -296,13 +289,16 @@ function SignupPage() {
                 onChange={handleChange}
                 placeholder="you@company.com"
                 required
-                className="w-full rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3.5 text-[#1E293B] placeholder-[#94A3B8] transition-all duration-200 focus:border-[#FF6B35] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+                className="w-full rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-2.5 text-sm text-[#1E293B] placeholder-[#94A3B8] transition-all duration-200 focus:border-[#EA580C] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#EA580C]/20"
               />
             </div>
 
             {/* Password */}
             <div>
-              <label htmlFor="password" className="mb-2 block text-sm font-semibold text-[#1E293B]">
+              <label
+                htmlFor="password"
+                className="mb-1 block text-[11px] font-bold uppercase tracking-wider text-[#64748B]"
+              >
                 Create password
               </label>
               <div className="relative">
@@ -315,7 +311,7 @@ function SignupPage() {
                   placeholder="8+ characters"
                   required
                   minLength={8}
-                  className="w-full rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-3.5 pr-12 text-[#1E293B] placeholder-[#94A3B8] transition-all duration-200 focus:border-[#FF6B35] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#FF6B35]/20"
+                  className="w-full rounded-xl border border-[#E2E8F0] bg-[#F8FAFC] px-4 py-2.5 pr-12 text-sm text-[#1E293B] placeholder-[#94A3B8] transition-all duration-200 focus:border-[#EA580C] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#EA580C]/20"
                 />
                 <button
                   type="button"
@@ -331,7 +327,7 @@ function SignupPage() {
                 <motion.div
                   initial={{ opacity: 0, y: -5 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="mt-3"
+                  className="mt-1.5"
                 >
                   <div className="flex items-center gap-2">
                     <div className="flex flex-1 gap-1">
@@ -349,7 +345,7 @@ function SignupPage() {
                       ))}
                     </div>
                     <span
-                      className="min-w-[60px] text-right text-xs font-medium"
+                      className="min-w-[60px] text-right text-xs font-semibold"
                       style={{ color: passwordStrength.color }}
                     >
                       {passwordStrength.label}
@@ -366,19 +362,19 @@ function SignupPage() {
                 type="checkbox"
                 checked={agreedToTerms}
                 onChange={(e) => setAgreedToTerms(e.target.checked)}
-                className="mt-0.5 h-4 w-4 cursor-pointer rounded border-[#E2E8F0] text-[#FF6B35] focus:ring-[#FF6B35]"
+                className="mt-0.5 h-4 w-4 cursor-pointer rounded border-[#E2E8F0] text-[#EA580C] focus:ring-[#EA580C]"
                 required
               />
               <label
                 htmlFor="terms"
-                className="cursor-pointer text-sm leading-relaxed text-[#64748B]"
+                className="cursor-pointer text-sm font-medium leading-relaxed text-[#64748B]"
               >
                 I agree to the{' '}
-                <Link to="/terms" className="font-medium text-[#FF6B35] hover:underline">
+                <Link to="/terms" className="font-semibold text-[#EA580C] hover:underline">
                   Terms
                 </Link>{' '}
                 and{' '}
-                <Link to="/privacy" className="font-medium text-[#FF6B35] hover:underline">
+                <Link to="/privacy" className="font-semibold text-[#EA580C] hover:underline">
                   Privacy Policy
                 </Link>
               </label>
@@ -401,7 +397,7 @@ function SignupPage() {
               disabled={isLoading || !agreedToTerms}
               whileHover={{ scale: 1.01, y: -1 }}
               whileTap={{ scale: 0.99 }}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#FF6B35] px-6 py-4 font-semibold text-white shadow-[0_4px_14px_rgba(255,107,53,0.25)] transition-all duration-200 hover:bg-[#E85A2A] hover:shadow-[0_6px_20px_rgba(255,107,53,0.35)] focus:outline-none focus:ring-2 focus:ring-[#FF6B35] focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70"
+              className="flex w-full items-center justify-center gap-2 rounded-full bg-[#EA580C] px-6 py-3 text-sm font-semibold text-white shadow-[0_4px_12px_rgba(234,88,12,0.15)] transition-all duration-200 hover:bg-[#C2410C] hover:shadow-[0_6px_20px_rgba(234,88,12,0.25)] focus:outline-none focus:ring-2 focus:ring-[#EA580C] focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-70"
             >
               {isLoading ? (
                 <>
@@ -419,25 +415,58 @@ function SignupPage() {
                 <div className="w-full border-t border-[#E2E8F0]" />
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="bg-white px-4 text-[#94A3B8]">or continue with</span>
+                <span className="bg-white px-4 font-medium text-[#94A3B8]">or continue with</span>
               </div>
             </div>
 
             {/* Google Sign Up */}
-            <div className="flex justify-center">
-              <GoogleLogin
-                onSuccess={handleGoogleSuccess}
-                onError={() => setError('Google sign-up failed. Please try again.')}
-                theme="outline"
-                size="large"
-                width={400}
-                text="signup_with"
-                shape="rectangular"
-              />
+            <div className="relative h-[46px] w-full">
+              {/* Custom Styled Google Button */}
+              <button
+                type="button"
+                className="absolute inset-0 flex w-full items-center justify-center gap-3 rounded-full border border-[#E2E8F0] bg-white px-6 py-2.5 text-sm font-semibold text-[#1E293B] shadow-sm transition-all duration-200 hover:bg-[#F8FAFC] focus:outline-none focus:ring-2 focus:ring-[#EA580C]/20"
+              >
+                <svg className="h-5 w-5" viewBox="0 0 24 24">
+                  <path
+                    fill="#4285F4"
+                    d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                  />
+                  <path
+                    fill="#34A853"
+                    d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                  />
+                  <path
+                    fill="#FBBC05"
+                    d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+                  />
+                  <path
+                    fill="#EA4335"
+                    d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1c-4.3 0-8.01 2.47-9.82 6.06l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+                  />
+                </svg>
+                <span className="text-[14px] font-semibold text-[#1E293B]">
+                  Sign up with Google
+                </span>
+              </button>
+
+              {/* Invisible Google Button Overlay */}
+              <div className="absolute inset-0 cursor-pointer opacity-0 [&>div]:!h-full [&>div]:!w-full [&_iframe]:!h-full [&_iframe]:!w-full">
+                {isMounted && (
+                  <GoogleLogin
+                    onSuccess={handleGoogleSuccess}
+                    onError={() => setError('Google sign-up failed. Please try again.')}
+                    theme="outline"
+                    size="large"
+                    width="400"
+                    text="signup_with"
+                    shape="pill"
+                  />
+                )}
+              </div>
             </div>
 
             {/* Trial info */}
-            <p className="text-center text-xs text-[#94A3B8]">
+            <p className="text-center text-xs font-medium text-[#94A3B8]">
               Cancel anytime. No long-term contracts.
             </p>
           </motion.form>
@@ -447,19 +476,13 @@ function SignupPage() {
   );
 }
 
-function BenefitItem({
-  title,
-  description,
-}: {
-  icon?: string;
-  title: string;
-  description: string;
-}) {
+function BenefitItem({ title, description }: { title: string; description: string }) {
   return (
     <div className="flex items-start gap-4">
-      <div className="mt-0.5 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-[#14B8A6]/10">
+      {/* Sleek monochrome greyed out icon wrapper matching modern visual canvas outcome blocks */}
+      <div className="mt-0.5 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border border-slate-200/60 bg-slate-50 text-slate-400">
         <svg
-          className="h-3.5 w-3.5 text-[#14B8A6]"
+          className="h-3 w-3 text-slate-400"
           fill="none"
           viewBox="0 0 24 24"
           stroke="currentColor"
@@ -470,7 +493,7 @@ function BenefitItem({
       </div>
       <div>
         <h3 className="text-[15px] font-semibold text-[#1E293B]">{title}</h3>
-        <p className="mt-0.5 text-sm text-[#64748B]">{description}</p>
+        <p className="mt-0.5 text-sm font-medium text-[#64748B]">{description}</p>
       </div>
     </div>
   );

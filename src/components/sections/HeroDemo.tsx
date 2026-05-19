@@ -337,7 +337,7 @@ function MobileSequenceFlow() {
               <line x1="1" y1="0" x2="1" y2="12" stroke="#10B981" strokeWidth="2" />
             </svg>
             <motion.button
-              className="flex w-full items-center justify-center gap-1.5 rounded-lg px-3 py-2.5 text-[12px] font-semibold text-white"
+              className="flex w-full items-center justify-center gap-1.5 rounded-full px-3 py-2.5 text-[12px] font-semibold text-white"
               style={{
                 background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
                 boxShadow: '0 4px 15px rgba(16, 185, 129, 0.3)',
@@ -376,7 +376,7 @@ function MobileSequenceFlow() {
               <line x1="1" y1="0" x2="1" y2="12" stroke="#14B8A6" strokeWidth="2" />
             </svg>
             <motion.button
-              className="flex w-full items-center justify-center gap-1.5 rounded-lg px-3 py-2.5 text-[12px] font-semibold text-white"
+              className="flex w-full items-center justify-center gap-1.5 rounded-full px-3 py-2.5 text-[12px] font-semibold text-white"
               style={{
                 background: 'linear-gradient(135deg, #14B8A6 0%, #0D9488 100%)',
                 boxShadow: '0 4px 15px rgba(20, 184, 166, 0.3)',

@@ -1,39 +1,18 @@
 import { createFileRoute } from '@tanstack/react-router';
-import { Hero } from '@/components/sections/Hero';
-import { TrustBar } from '@/components/sections/TrustBar';
-import { TestimonialCarousel } from '@/components/sections/TestimonialCarousel';
-import { FeaturesHeader } from '@/components/sections/FeaturesHeader';
-import { Feature } from '@/components/sections/Feature';
-import { FinalCTA } from '@/components/sections/FinalCTA';
-import { FAQ } from '@/components/sections/FAQ';
-import { lazy, Suspense, useEffect } from 'react';
+import {
+  Hero,
+  PlaybooksSection,
+  TestimonialsSection,
+  ProcessSection,
+  JourneySection,
+  FeaturesSection,
+  LearningSection,
+  ArchitectSection,
+  FinalCTASection,
+  FAQ,
+} from '@/components/sections';
+import { useEffect } from 'react';
 import { startGlobalSimulation, stopGlobalSimulation } from '@/lib/simulationStore';
-
-const SequenceBuilderPanel = lazy(() =>
-  import('@/components/panels/SequenceBuilderPanel').then((m) => ({
-    default: m.SequenceBuilderPanel,
-  }))
-);
-const UnifiedInboxPanel = lazy(() =>
-  import('@/components/panels/UnifiedInboxPanel').then((m) => ({ default: m.UnifiedInboxPanel }))
-);
-const LeadEnrichmentPanel = lazy(() =>
-  import('@/components/panels/LeadEnrichmentPanel').then((m) => ({
-    default: m.LeadEnrichmentPanel,
-  }))
-);
-const SendersPanel = lazy(() =>
-  import('@/components/panels/SendersPanel').then((m) => ({ default: m.SendersPanel }))
-);
-const AIReplyAgentPanel = lazy(() =>
-  import('@/components/panels/AIReplyAgentPanel').then((m) => ({ default: m.AIReplyAgentPanel }))
-);
-
-const PanelLoading = () => (
-  <div className="flex aspect-video w-full animate-pulse items-center justify-center rounded-2xl bg-slate-100/50 backdrop-blur-sm">
-    <div className="h-8 w-8 animate-spin rounded-full border-4 border-slate-200 border-t-teal-500" />
-  </div>
-);
 
 export const Route = createFileRoute('/')({
   component: HomePage,
@@ -47,62 +26,34 @@ function HomePage() {
 
   return (
     <>
+      {/* 1. Hero Section (Custom typewriter + split pane playbooks console) */}
       <Hero />
 
-      <TrustBar />
+      {/* 2. Playbooks Showcase Section */}
+      <PlaybooksSection />
 
-      <TestimonialCarousel />
+      {/* 3. Social Proof & Statistics Section */}
+      <TestimonialsSection />
 
-      <FeaturesHeader />
+      {/* 4. Three-Step Process Timeline Section */}
+      <ProcessSection />
 
-      <Suspense fallback={<PanelLoading />}>
-        {/* Feature 1 - White background, image right */}
-        <Feature
-          headline="Email. LinkedIn. Both. Your AI employee works every angle."
-          body="You set the strategy. Your AI sales employee executes it across every channel, adapts to each prospect, and never lets one slip through."
-          imagePosition="right"
-          background="white"
-          panel={<SequenceBuilderPanel variant="feature" />}
-        />
+      {/* 5. Horizontal Journey Section */}
+      <JourneySection />
 
-        {/* Feature 2 - Cream background, image left */}
-        <Feature
-          headline="Every reply. One inbox. Nothing missed."
-          body="LinkedIn DMs and email responses across your whole team in one place. No switching tabs. No missed replies."
-          imagePosition="left"
-          background="cream"
-          panel={<UnifiedInboxPanel variant="feature" />}
-        />
+      {/* 6. Unified Outbound Feature Grid (Bento style) */}
+      <FeaturesSection />
 
-        {/* Feature 3 - White background, image right */}
-        <Feature
-          headline="Find anyone's email without wasting credits."
-          body="Import from Sales Navigator or CSV. Verified emails are found automatically, and only successful finds count against your workspace's monthly enrichment allotment."
-          imagePosition="right"
-          background="white"
-          panel={<LeadEnrichmentPanel variant="feature" />}
-        />
+      {/* 7. Smarter Learning Engine Section */}
+      <LearningSection />
 
-        {/* Feature 4 - Cream background, image left */}
-        <Feature
-          headline="Scale your team's LinkedIn without risking it."
-          body="Dedicated proxies, human-like sending, and smart daily limits. Run 3 accounts or 30. Every account stays safe."
-          imagePosition="left"
-          background="cream"
-          panel={<SendersPanel variant="feature" />}
-        />
+      {/* 8. Revenue Growth Architect Manifesto Section */}
+      <ArchitectSection />
 
-        {/* Feature 5 - AI Reply Agent - White background, image right */}
-        <Feature
-          headline="Turns replies into booked meetings."
-          body="When a prospect replies, the AI picks it up, responds in your tone, checks your calendar, and books the call. You just show up."
-          imagePosition="right"
-          background="white"
-          panel={<AIReplyAgentPanel variant="feature" />}
-        />
-      </Suspense>
-      <FinalCTA />
+      {/* 9. Final Call to Action Section */}
+      <FinalCTASection />
 
+      {/* 10. Frequently Asked Questions Section */}
       <FAQ />
     </>
   );
